@@ -11,3 +11,4 @@
   - `daily_checkins` + `/attendance` 출석체크 (2P 적립)
   - `polls`/`poll_options`/`poll_votes` + 집계 뷰 + `/polls`
   - `/mypage`에 "Your Treasures" 구매 물품 섹션
+- `silo-store`를 독립 git 저장소로 분리 (`git init` + Initial commit, 기존 `.gitignore` 그대로 사용).

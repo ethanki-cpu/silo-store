@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { WishlistButton } from "@/components/WishlistButton";
 
 export const dynamic = "force-dynamic";
 
@@ -78,8 +79,11 @@ export default async function ShopPage({
             <Link
               key={item.id}
               href={`/shop/${item.id}`}
-              className="rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+              className="relative block rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
             >
+              <span className="absolute top-2 right-2 z-10 rounded-full bg-white/90 w-8 h-8 flex items-center justify-center shadow">
+                <WishlistButton itemId={item.id} />
+              </span>
               {item.photo_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

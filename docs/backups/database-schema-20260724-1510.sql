@@ -3,8 +3,8 @@
 -- 구성: 멤버십 / 사일로상점(1층) / 살롱데상(2층) / 커뮤니티(게시판·포인트)
 --       / 출석체크 / 설문조사 / 자료 다운로드
 --
--- ⚠️ 마지막 동기화: 2026-07-24 (wishlists 테이블 추가; 그 전에 docent_contents.era +
---    docent_content_popularity 뷰, 그 전에 styling_projects 계열 3개 테이블도 같은 날 추가됨).
+-- ⚠️ 마지막 동기화: 2026-07-24 (docent_contents.era 컬럼 + docent_content_popularity 뷰 추가),
+--    같은 날 앞서 styling_projects 계열 3개 테이블도 추가됨.
 --    최초 전면 동기화는 2026-07-23 — Supabase Management API로 실제 운영 DB의
 --    information_schema.columns / pg_constraint를 직접 조회하여 재작성함.
 --
@@ -152,15 +152,6 @@ create table orders (
   point_earned          int not null default 0,
   payment_status        text not null default 'pending_transfer' check (payment_status in ('pending_transfer','confirmed','cancelled')),
   created_at            timestamptz not null default now()
-);
-
--- 찜(Wishlist). likes 테이블과 동일한 패턴(select 공개, insert/delete 본인 전용)을 따름.
-create table wishlists (
-  id          uuid primary key default gen_random_uuid(),
-  member_id   uuid not null references members(id),
-  item_id     uuid not null references items(id),
-  created_at  timestamptz not null default now(),
-  unique (member_id, item_id)
 );
 
 -- =====================================================================
@@ -564,8 +555,6 @@ create table styling_project_items (
 
 create index idx_items_status on items(status);
 create index idx_orders_member on orders(member_id);
-create index idx_wishlists_member on wishlists(member_id);
-create index idx_wishlists_item on wishlists(item_id);
 create index idx_reservations_member on reservations(member_id);
 create index idx_reservations_session on reservations(session_id);
 create index idx_posts_board on posts(board_id);

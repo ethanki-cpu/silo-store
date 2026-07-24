@@ -3,8 +3,7 @@
 -- 구성: 멤버십 / 사일로상점(1층) / 살롱데상(2층) / 커뮤니티(게시판·포인트)
 --       / 출석체크 / 설문조사 / 자료 다운로드
 --
--- ⚠️ 마지막 동기화: 2026-07-24 (wishlists 테이블 추가; 그 전에 docent_contents.era +
---    docent_content_popularity 뷰, 그 전에 styling_projects 계열 3개 테이블도 같은 날 추가됨).
+-- ⚠️ 마지막 동기화: 2026-07-24 (styling_projects 계열 3개 테이블 추가),
 --    최초 전면 동기화는 2026-07-23 — Supabase Management API로 실제 운영 DB의
 --    information_schema.columns / pg_constraint를 직접 조회하여 재작성함.
 --
@@ -152,15 +151,6 @@ create table orders (
   point_earned          int not null default 0,
   payment_status        text not null default 'pending_transfer' check (payment_status in ('pending_transfer','confirmed','cancelled')),
   created_at            timestamptz not null default now()
-);
-
--- 찜(Wishlist). likes 테이블과 동일한 패턴(select 공개, insert/delete 본인 전용)을 따름.
-create table wishlists (
-  id          uuid primary key default gen_random_uuid(),
-  member_id   uuid not null references members(id),
-  item_id     uuid not null references items(id),
-  created_at  timestamptz not null default now(),
-  unique (member_id, item_id)
 );
 
 -- =====================================================================
@@ -337,13 +327,6 @@ create table docent_contents (
   category    text not null check (category in ('silostore','salon')),
   figure_name text,   -- 특정 인물을 다루는 콘텐츠일 때만 값 존재. 예: "비발디 (1678-1741)"
                       -- /docent 페이지의 "인물로 보기" 보조 필터가 이 값으로 그룹핑함.
-  era         text check (era in (
-                'renaissance','baroque','rococo','neoclassic','empire','victorian',
-                'art_nouveau','art_deco','beat_generation','counter_culture','digital'
-              )),  -- EPIC-017: 살롱+사일로상점 공유 "온라인 도슨트 라이브러리"(/docent/collections)의
-                    -- 하위 게시판(era) 분류. category(silostore/salon)와는 별개 축이며 기존 /docent
-                    -- 페이지 동작에는 영향 없음. 앞의 8개 값은 items.category(Time Slip)와 동일한 슬러그.
-                    -- 기존 콘텐츠는 전부 era=null(미분류) — 관리 화면이 없어 수동 태깅 필요.
   created_at  timestamptz not null default now()
 );
 
@@ -357,14 +340,6 @@ create table docent_purchases (
   payment_status        text not null default 'pending_transfer' check (payment_status in ('pending_transfer','confirmed','cancelled')),
   purchased_at           timestamptz not null default now()
 );
-
--- 콘텐츠별 구매 건수 집계 뷰. "인기글" 판단 기준(구매 수 많은 순)으로 사용.
--- poll_option_counts와 같은 패턴: docent_purchases의 본인 전용 RLS와 무관하게
--- 누구나(비회원 포함) 집계 수치만 조회 가능.
-create view docent_content_popularity as
-  select content_id, count(*)::int as purchase_count
-  from docent_purchases
-  group by content_id;
 
 -- =====================================================================
 -- 6. 커뮤니티 — 게시판 · 개인 페이지 · 포인트
@@ -564,8 +539,6 @@ create table styling_project_items (
 
 create index idx_items_status on items(status);
 create index idx_orders_member on orders(member_id);
-create index idx_wishlists_member on wishlists(member_id);
-create index idx_wishlists_item on wishlists(item_id);
 create index idx_reservations_member on reservations(member_id);
 create index idx_reservations_session on reservations(session_id);
 create index idx_posts_board on posts(board_id);

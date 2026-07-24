@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
@@ -20,10 +20,25 @@ export function Navbar() {
 
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
+  const [spaceInquiryOpen, setSpaceInquiryOpen] = useState(false);
+  const [spaceInquiryPos, setSpaceInquiryPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const spaceInquiryBtnRef = useRef<HTMLButtonElement>(null);
 
   const silostoreTab = NAV_TABS.find((t) => t.key === "silostore")!;
   const salonTab = NAV_TABS.find((t) => t.key === "salon")!;
   const rentalTab = NAV_TABS.find((t) => t.key === "rental")!;
+  const spaceInquiryTab = NAV_TABS.find((t) => t.key === "space_inquiry")!;
+
+  function openSpaceInquiry() {
+    const rect = spaceInquiryBtnRef.current?.getBoundingClientRect();
+    if (rect) {
+      setSpaceInquiryPos({ top: rect.bottom, left: rect.left });
+    }
+    setSpaceInquiryOpen(true);
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -111,7 +126,7 @@ export function Navbar() {
         </button>
 
         <Link
-          href={rentalTab.items[0].href}
+          href={rentalTab.items![0].href}
           className={`px-3 py-2 text-sm border-b-2 -mb-px ${
             activeTabKey === "rental"
               ? "border-gray-800 text-gray-900 font-medium"
@@ -120,7 +135,46 @@ export function Navbar() {
         >
           {rentalTab.label}
         </Link>
+
+        <button
+          ref={spaceInquiryBtnRef}
+          type="button"
+          onClick={openSpaceInquiry}
+          onMouseEnter={openSpaceInquiry}
+          className={`px-3 py-2 text-sm border-b-2 -mb-px ${
+            activeTabKey === "space_inquiry"
+              ? "border-gray-800 text-gray-900 font-medium"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          {spaceInquiryTab.label}
+        </button>
       </nav>
+
+      {spaceInquiryOpen && spaceInquiryPos && (
+        <>
+          <div
+            onClick={() => setSpaceInquiryOpen(false)}
+            className="fixed inset-0 z-30"
+          />
+          <div
+            onMouseLeave={() => setSpaceInquiryOpen(false)}
+            style={{ top: spaceInquiryPos.top, left: spaceInquiryPos.left }}
+            className="fixed z-40 w-48 rounded-md border border-gray-200 bg-white shadow-md py-1"
+          >
+            {(spaceInquiryTab.items ?? []).map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setSpaceInquiryOpen(false)}
+                className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* 사일로상점 왼쪽 사이드바 */}
       {!leftOpen && (
@@ -152,16 +206,23 @@ export function Navbar() {
             ✕
           </button>
         </div>
-        <nav className="p-2 overflow-y-auto">
-          {silostoreTab.items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={closeSidebars}
-              className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
-            >
-              {item.label}
-            </Link>
+        <nav className="p-2 overflow-y-auto max-h-[calc(100vh-64px)]">
+          {(silostoreTab.groups ?? []).map((group) => (
+            <div key={group.groupLabel} className="mb-4">
+              <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+                {group.groupLabel}
+              </p>
+              {group.items.map((item, idx) => (
+                <Link
+                  key={`${item.href}-${idx}`}
+                  href={item.href}
+                  onClick={closeSidebars}
+                  className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
       </div>
@@ -197,15 +258,22 @@ export function Navbar() {
           </button>
         </div>
         <nav className="p-2 overflow-y-auto max-h-[calc(100vh-64px)]">
-          {salonTab.items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={closeSidebars}
-              className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
-            >
-              {item.label}
-            </Link>
+          {(salonTab.groups ?? []).map((group) => (
+            <div key={group.groupLabel} className="mb-4">
+              <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+                {group.groupLabel}
+              </p>
+              {group.items.map((item, idx) => (
+                <Link
+                  key={`${item.href}-${idx}`}
+                  href={item.href}
+                  onClick={closeSidebars}
+                  className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
       </div>

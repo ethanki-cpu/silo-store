@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
+import { WishlistButton } from "@/components/WishlistButton";
 
 type Persona = {
   id: string;
@@ -148,7 +149,10 @@ export default function ItemDetailPage() {
           className="w-full aspect-square object-cover rounded-lg mb-4"
         />
       )}
-      <h1 className="text-2xl font-bold">{item.name}</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-bold">{item.name}</h1>
+        <WishlistButton itemId={item.id} />
+      </div>
       <p className="text-lg text-gray-700 mt-1">
         구매가 {item.price.toLocaleString()}원 · 대여가{" "}
         {item.rental_price_per_day.toLocaleString()}원/일

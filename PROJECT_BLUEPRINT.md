@@ -67,17 +67,21 @@ silo-store/
 | 회원가입 | `/signup` | 이메일/비밀번호 가입 후 `members.name` 갱신 |
 | 사일로상점(물품 목록/상세) | `/shop`, `/shop/[id]` | 시대(Time Slip) 필터, 등급별 큐레이션 4단계 공개, 이전 주인 캐릭터(persona) 표시 |
 | 물품 구매/대여 주문 | `/shop/[id]` → `POST /api/orders` | 등급별 할인/적립 서버 계산 |
+| 찜(Wishlist) (EPIC-017) | `/shop`, `/shop/[id]` 카드·상세의 하트 버튼, `/mypage` "찜 목록" | `wishlists` 테이블(likes와 동일 패턴), 로그인 필요, 다시 누르면 해제 |
 | 클럽모임 목록/상세 | `/clubs`, `/clubs/[id]` | 요일별 클럽, 세션 예약 |
 | 게시판(소통 게시판) | `/boards`, `/boards/[id]`, `/boards/[id]/write`, `/boards/[id]/[postId]` | 자유/클럽주제/모임별/패트론/아티스트홍보/After Adoption/자료게시판/Q&A 등 `board_type`별 열람·쓰기 권한 분기 |
 | 개인 페이지(마이피드) | `/me`, `/me/write`, `/u/[memberId]` | 공개범위(public/private/friends) 있는 개인 글 |
 | 온라인 도슨트 콘텐츠 | `/docent`, `/docent/[id]`, `/docent/library` | 사일로상점/살롱 카테고리, 인물(figure_name)별 그룹 보기, 구매 라이브러리 |
+| 온라인 도슨트 라이브러리 (EPIC-017, 살롱+사일로상점 공유) | `/docent/collections` | `docent_contents.era`(11개 시대/사조 태그, `기존 category`와 별개 축) 기준 하위 게시판. 최신글 1건, 전체 인기글, era별 인기글(구매 수 집계 뷰 `docent_content_popularity` 기준) 표시. 관리 화면 없음 — 기존 콘텐츠는 era=null이라 수동 태깅 필요 |
 | 살롱 출입(체크인) | `/salon/checkin` → `POST /api/salon-checkins` | 등급별 무료/유료 |
 | 공간 대관(스튜디오) | `/rental`, `/rental/[rentalTypeId]` | 1층/2층, 사진/영상 촬영 유형 |
-| 마이페이지 | `/mypage` | 회원 정보, 누적 포인트, "Your Treasures"(구매 확정 물품), 등급 비교 |
+| 마이페이지 | `/mypage` | 활동 중심 재구성: 갤러리(사진 있는 개인 글)/오늘의 영감(placeholder)/일반 글/내가 소유한 물품/사일로상점 구매 물품(Your Treasures)/최근 댓글/멤버십(등급·포인트) 순 |
+| 설정 | `/settings` | 이름·이메일 등 개인정보 전용 페이지, 본인 세션 기준으로만 조회(다른 회원 정보 접근 불가) |
 | 관리자 결제 확인 | `/admin/payments` | `orders`/`reservations`/`rental_bookings`/`docent_purchases` 통합 확인 화면, `is_admin` 전용 |
 | 자료 다운로드 | `/downloads` | 목록 공개, 업로드는 관리자 전용 |
 | 출석체크 | `/attendance` | 하루 1회 체크인 + 포인트 적립 + 이번 달 캘린더 |
 | 설문조사 | `/polls` | 관리자 설문 생성, 회원당 1표, 결과 비율 표시 |
+| 공간 스타일링 포트폴리오 (EPIC-016) | `/shop/projects`(목록, industry 필터), `/shop/projects/[id]`(상세: 컨셉·사진 Grid·영상 Player·사용 물품 Card), `/admin/projects/new`(관리자 등록) | 게시판(boards/posts)이 아닌 전용 테이블(`styling_projects`/`styling_project_media`/`styling_project_items`) 기반 공개 콘텐츠, 비회원도 열람 가능. 사용 물품 카드 클릭 시 `/shop/[itemId]`로 이동 |
 
 ### DB 스키마(테이블)는 존재하지만 화면이 "준비 중" placeholder인 기능
 
@@ -101,6 +105,7 @@ silo-store/
 | 경로 | 역할 |
 |---|---|
 | `api/orders` | 물품 구매/대여 주문 생성 (등급별 가격/포인트 서버 계산) |
+| `api/items/[id]/wishlist` | 찜 토글(있으면 삭제, 없으면 추가), 로그인 필요 |
 | `api/items/[id]` | 물품 상세 조회, 등급별 큐레이션 필드 잠금/해제 + persona 포함 |
 | `api/boards`, `api/boards/[id]/posts`, `api/boards/[id]/posts/[postId]`, `.../comments`, `.../like` | 게시판 목록/글 목록/글 상세/댓글/좋아요 |
 | `api/posts` | 개인 페이지(마이피드) 글 작성 |
@@ -115,6 +120,7 @@ silo-store/
 | `api/polls`, `api/polls/[id]/votes` | 설문 목록·생성(관리자)/투표 |
 | `api/admin/payments`, `api/admin/payments/confirm` | 관리자용 결제 대기 목록 조회/확정 (4개 결제 테이블 통합) |
 | `api/test-supabase` | Supabase 연결 확인용(개발/디버그 목적으로 추정 — 용도 TODO) |
+| `api/styling-projects`, `api/styling-projects/[id]` | 공간 스타일링 포트폴리오 목록/상세 조회(공개, 비회원 가능) + 등록/수정/삭제(관리자 전용, 등록 시 사진·영상·연결 물품까지 한 번에 저장) |
 
 ## 6. 인증 구조
 
@@ -131,7 +137,7 @@ silo-store/
 
 `src/components` 기준 실제 존재하는 컴포넌트:
 
-- **`Navbar.tsx`**: 3개 상단 탭(사일로상점/살롱데상/스튜디오 대관) + 계정 영역(로그인 상태 표시, 마이페이지 링크, 로그아웃) 렌더링. `navConfig.ts`의 `NAV_TABS`/`getActiveNavTabKey`를 사용해 현재 경로에 맞는 탭을 하이라이트.
+- **`Navbar.tsx`**: 상단에 사일로상점/살롱데상/스튜디오 대관 3개 진입점 + 계정 영역(로그인 상태 표시, 마이페이지 링크, 로그아웃) 렌더링. 사일로상점·살롱데상은 탭 클릭 또는 화면 좌/우 가장자리 아이콘(🔑/🚪) 클릭·hover 시 각각 좌/우 사이드바가 열리는 구조(초록 배경/흰 글씨)로, `navConfig.ts`의 `NAV_TABS` 항목을 사이드바 메뉴로 렌더링한다. 스튜디오 대관은 사이드바 없이 기존처럼 단일 링크. `getActiveNavTabKey()`로 현재 경로에 맞는 탭을 하이라이트.
 - **`ComingSoon.tsx`**: `title`을 받아 "준비 중입니다" 안내만 보여주는 placeholder 컴포넌트. 4번 섹션의 미구현 살롱 기능들에서 사용.
 
 그 외 공용 UI 라이브러리(버튼/모달/폼 등 디자인 시스템)는 없음 — 각 페이지가 Tailwind 클래스를 인라인으로 직접 사용.

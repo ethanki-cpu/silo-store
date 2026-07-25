@@ -20,6 +20,7 @@
 - EPIC-017 : Navigation 재구성 + Wishlist
 - EPIC-018 : 상단 탭 재구성 (스튜디오 대관 → 공간 문의 통합, 마이페이지 탭 추가, 중앙 정렬)
 - EPIC-019 : Studio Navigation Rename ("공간 문의" → "스튜디오" 라벨 변경)
+- EPIC-020 : Google OAuth "No API key found in request" 버그 수정 (`.env.local`의 `NEXT_PUBLIC_SUPABASE_URL` `/rest/v1/` 접미사 제거)
 
 ## 진행중
 (없음)

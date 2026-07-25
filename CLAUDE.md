@@ -48,6 +48,17 @@ This project maintains dedicated design/ops documents in `docs/` — treat each 
 3. **If a Blueprint needs to change to match new work, update it in the same change** — don't let code and Blueprint drift apart the way `docs/database-schema.sql` drifted before its 2026-07-23 resync.
 4. **When an Epic is completed, update `docs/EPIC.md`** (move it from 진행중/예정 to 완료), alongside the usual `CHANGELOG.md`/`NEXT_TASK.md` updates.
 
+## Git operating rules
+
+These apply to every session in this repo, in addition to the general Git Safety Protocol — see also [`docs/git-sync.md`](docs/git-sync.md) for the full workflow.
+
+- **Start of work**: always sync in this order — `git status` first, then `git pull` (only if the working tree is clean; report to the user instead of pulling if there are local changes).
+- **End of work**: only run `git add` / `git commit` / `git push` after the user has explicitly approved the change — never on your own initiative.
+- **Git identity is already configured** (`user.name`/`user.email` set locally in this repo) — don't ask the user for it again or re-prompt for identity setup.
+- **After every commit, report the commit hash and the push result** (e.g. `<old>..<new> main -> main`) back to the user.
+- **Never run `--force` push, `reset`, or `rebase`** without an explicit, current instruction from the user to do so.
+- **`origin/main` on GitHub is the single source of truth** for repo state — all work is synced against it, not against any other remote/branch/local copy.
+
 ## Project-specific rules
 
 - **Schema questions**: don't ask the user about table/column names — check `docs/database-schema.sql` first (see Data model below for its caveats), then verify against the live DB if anything seems off (see "Verifying/changing the DB schema" below).

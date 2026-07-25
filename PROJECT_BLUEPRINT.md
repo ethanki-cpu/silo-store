@@ -9,6 +9,7 @@
 - **프로젝트 목적**: "사일로 스토어" — 멤버십 기반 커뮤니티 플랫폼. 물품 소매/대여(사일로상점), 클럽 모임·게시판·살롱 공간(살롱데상), 공간 대관(스튜디오 대관) 세 축으로 구성되며, 멤버십 등급(`membership_tiers`)에 따라 콘텐츠 열람 범위와 가격이 달라진다.
 - **사용 기술 스택**: Next.js(App Router) + React + TypeScript + Tailwind CSS, 백엔드는 별도 서버 없이 Next.js Route Handler + Supabase(Postgres + Auth)로 구성.
 - **전체 아키텍처**: 단일 Next.js 앱. 브라우저(Client Component)와 Route Handler 양쪽 모두 동일한 `@supabase/supabase-js` 클라이언트(anon key)로 Supabase에 직접 접근한다. 별도의 Express/Node 백엔드나 서비스 롤 키는 존재하지 않는다. 인증된 요청은 클라이언트가 `Authorization: Bearer <access_token>`을 Route Handler에 직접 전달하는 방식으로 신원을 넘긴다.
+- **상단 네비게이션(EPIC-018 이후)**: 사일로상점/살롱데상/공간 문의/마이페이지 4개 탭, 화면 중앙 정렬. 상세는 [docs/navigation-blueprint.md](docs/navigation-blueprint.md) 참고.
 
 ```
 [Browser: React Client Components] --Authorization: Bearer--> [Next.js Route Handlers] --anon key--> [Supabase Postgres/Auth]
@@ -137,7 +138,7 @@ silo-store/
 
 `src/components` 기준 실제 존재하는 컴포넌트:
 
-- **`Navbar.tsx`**: 상단에 사일로상점/살롱데상/스튜디오 대관 3개 진입점 + 계정 영역(로그인 상태 표시, 마이페이지 링크, 로그아웃) 렌더링. 사일로상점·살롱데상은 탭 클릭 또는 화면 좌/우 가장자리 아이콘(🔑/🚪) 클릭·hover 시 각각 좌/우 사이드바가 열리는 구조(초록 배경/흰 글씨)로, `navConfig.ts`의 `NAV_TABS` 항목을 사이드바 메뉴로 렌더링한다. 스튜디오 대관은 사이드바 없이 기존처럼 단일 링크. `getActiveNavTabKey()`로 현재 경로에 맞는 탭을 하이라이트.
+- **`Navbar.tsx`**: 상단에 사일로상점/살롱데상/공간 문의/마이페이지 4개 진입점(화면 중앙 정렬) + 계정 영역(로그인 상태 표시, 마이페이지 링크, 로그아웃) 렌더링. `NAV_TABS`(`navConfig.ts`)를 그대로 순회하며 각 탭의 `type`(`sidebar-left`/`sidebar-right`/`dropdown`/`link`)에 따라 상호작용 방식만 분기하고, 라벨/링크/그룹은 하드코딩하지 않는다(EPIC-018). 사일로상점·살롱데상은 탭 클릭 또는 화면 좌/우 가장자리 아이콘(🔑/🚪) 클릭·hover 시 각각 좌/우 사이드바가 열리는 구조(초록 배경/흰 글씨). 공간 문의는 플로팅 드롭다운, 마이페이지는 단순 링크. `getActiveNavTabKey()`로 현재 경로에 맞는 탭을 하이라이트. 상세는 [docs/navigation-blueprint.md](docs/navigation-blueprint.md) 참고.
 - **`ComingSoon.tsx`**: `title`을 받아 "준비 중입니다" 안내만 보여주는 placeholder 컴포넌트. 4번 섹션의 미구현 살롱 기능들에서 사용.
 
 그 외 공용 UI 라이브러리(버튼/모달/폼 등 디자인 시스템)는 없음 — 각 페이지가 Tailwind 클래스를 인라인으로 직접 사용.

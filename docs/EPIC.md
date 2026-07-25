@@ -18,6 +18,7 @@
 - EPIC-015 : Your Treasures
 - EPIC-016 : 공간 스타일링 포트폴리오
 - EPIC-017 : Navigation 재구성 + Wishlist
+- EPIC-018 : 상단 탭 재구성 (스튜디오 대관 → 공간 문의 통합, 마이페이지 탭 추가, 중앙 정렬)
 
 ## 진행중
 (없음)

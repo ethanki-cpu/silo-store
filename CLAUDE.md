@@ -23,12 +23,13 @@ This project runs **Next.js 16.2.11**, a version newer than what most training d
 
 This is a Next.js App Router app (TypeScript, Tailwind CSS v4) backed by Supabase (Postgres + Auth), for a membership-based community platform ("사일로 스토어"). There is no backend server of its own beyond Next.js Route Handlers — all data access goes through Supabase's PostgREST API using `@supabase/supabase-js`.
 
-Site navigation is organized into three top-level sections, defined once in `src/lib/navConfig.ts` (`NAV_TABS`) and rendered by `src/components/Navbar.tsx`:
-- **사일로상점** — curated item retail/rental (`/shop`), online docent content (`/docent?category=silostore`)
-- **살롱데상** — club meetups (`/clubs`), community boards (`/boards`), online docent content (`/docent?category=salon`), salon check-in (`/salon/checkin`), plus four not-yet-built features wired to placeholder pages (`/salon/monthly-events`, `/secret-room`, `/drinks`, `/docent-tour`, all rendering the shared `<ComingSoon>` component)
-- **스튜디오 대관** — space rental, split into `/rental?floor=1f_silostore` and `/rental?floor=2f_salon`
+Site navigation is organized into four top-level tabs, defined once in `src/lib/navConfig.ts` (`NAV_TABS`) and rendered generically by `src/components/Navbar.tsx` based on each tab's `type` (`sidebar-left` / `sidebar-right` / `dropdown` / `link`) — see [`docs/navigation-blueprint.md`](docs/navigation-blueprint.md) for the full breakdown:
+- **사일로상점** (`sidebar-left`) — curated item retail/rental (`/shop`), online docent content (`/docent?category=silostore`)
+- **살롱데상** (`sidebar-right`) — club meetups (`/clubs`), community boards (`/boards`), online docent content (`/docent?category=salon`), salon check-in (`/salon/checkin`), plus several not-yet-built features wired to placeholder pages (all rendering the shared `<ComingSoon>` component)
+- **공간 문의** (`dropdown`) — space rental (folded in from the former `rental` tab as of EPIC-018, URLs unchanged: `/rental?floor=1f_silostore`, `/rental?floor=2f_salon`) plus item-rental/styling inquiry placeholders
+- **마이페이지** (`link`) — direct link to `/mypage`, added as its own top tab in EPIC-018 alongside the existing account-area mypage link (both coexist)
 
-Account-related pages (`/mypage`, `/me`, `/admin/payments`) are **not** part of this 3-tab structure — they live in the Navbar's separate account area (top-right) and have no active tab/submenu highlighted. `getActiveNavTabKey()` in `navConfig.ts` derives which tab (if any) is active from the current pathname + the `category`/`floor` query param, so `/docent` and `/rental` are single shared pages whose content and nav highlighting both depend on the query string, not on separate routes per category. Membership (`membership_tiers`) gates benefits and content access throughout.
+Account-related pages (`/me`, `/admin/payments`, `/settings`) are **not** part of this 4-tab structure — they live in the Navbar's separate account area (top-right) and have no active tab/submenu highlighted. `getActiveNavTabKey()` in `navConfig.ts` derives which tab (if any) is active from the current pathname + the `category` query param, so `/docent` and `/rental` are single shared pages whose content and nav highlighting both depend on the query string, not on separate routes per category. Membership (`membership_tiers`) gates benefits and content access throughout.
 
 ## Blueprint documents (Single Source of Truth)
 
@@ -59,6 +60,16 @@ These apply to every session in this repo, in addition to the general Git Safety
 - **Never run `--force` push, `reset`, or `rebase`** without an explicit, current instruction from the user to do so.
 - **`origin/main` on GitHub is the single source of truth** for repo state — all work is synced against it, not against any other remote/branch/local copy.
 
+## Error triage policy
+
+When an error is found, classify it first — don't fix reflexively:
+
+- **P0** — project won't run, build fails, DB connection fails
+- **P1** — a feature is unusable, data fails to save
+- **P2** — UI glitches, hydration warnings, console warnings, dev-mode-only warnings
+
+P0/P1 block the current work and should be fixed (or at least flagged) immediately. **P2-and-below issues do not block feature development** — register them in `NEXT_TASK.md` and leave them unfixed until the user explicitly asks for a fix. Don't go fix a P2 you happen to notice while doing unrelated work; note it and move on.
+
 ## Project-specific rules
 
 - **Schema questions**: don't ask the user about table/column names — check `docs/database-schema.sql` first (see Data model below for its caveats), then verify against the live DB if anything seems off (see "Verifying/changing the DB schema" below).
@@ -84,7 +95,7 @@ Practical tips learned from doing this repeatedly:
   - `getRequestMember(request)` — reads the `Authorization` bearer token, verifies it (`supabase.auth.getUser`), and returns `{ userId, member, scopedClient, accessToken }` or `null`. `scopedClient` is a fresh `createClient` instance with the caller's token injected as the `Authorization` header — use it (not the module-level anon `supabase`) for any read/write that should be evaluated under RLS *as that user* (so `auth.uid()` resolves correctly).
   - `getTier(rank)` — fetches the full `membership_tiers` row (all gating/pricing flags) for a rank.
   - `canReadBoard` / `canWriteToBoard`, `RANK_LABELS` — board-specific helpers (see Boards below).
-- `src/components/Navbar.tsx` renders the 3-tab nav (see Architecture) plus the account area, and uses `useSearchParams()` — it's wrapped in `<Suspense>` in `layout.tsx` because it's mounted in the root layout, which otherwise fails to build/hydrate reliably with a bare `useSearchParams()` call.
+- `src/components/Navbar.tsx` renders the 4-tab nav (see Architecture) plus the account area, and uses `useSearchParams()` — it's wrapped in `<Suspense>` in `layout.tsx` because it's mounted in the root layout, which otherwise fails to build/hydrate reliably with a bare `useSearchParams()` call.
 
 ### Data model
 

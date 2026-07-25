@@ -185,13 +185,29 @@ NEXT_TASK.md 업데이트
 - DB 스키마 변경은 Supabase 마이그레이션 파일이 아니라 Supabase Management API를 통한 ad-hoc DDL 실행으로 관리됨(`CLAUDE.md` 참고).
 - `silo-store`는 `C:\Users\김재학` 루트에 있던 상위 git 저장소와는 별개로, 자체 `.git`을 가진 독립 저장소로 분리되어 있음.
 
+## 10. 공식 설계 문서 (Single Source of Truth)
+
+프로젝트 운영/설계 문서는 `docs/`에 분야별로 나뉘어 있으며, 각 문서가 해당 분야의 **공식 SSoT**입니다.
+새로운 기능을 구현하기 전에는 관련 Blueprint를 먼저 확인하고, 구현이 문서와 어긋나면 문서를 함께 갱신합니다
+(`CLAUDE.md`의 "Blueprint 우선 확인" 규칙 참고).
+
+| 문서 | 다루는 범위 |
+|---|---|
+| [docs/git-sync.md](docs/git-sync.md) | Git 작업 절차(시작/종료/커밋/푸시/스키마 변경/금지 사항) |
+| [docs/EPIC.md](docs/EPIC.md) | 전체 기능(Epic) 목록 — 완료/진행중/예정 |
+| [docs/navigation-blueprint.md](docs/navigation-blueprint.md) | 전체 Navigation 구조(Top nav, 좌/우 Sidebar, URL, placeholder 여부, 활성 탭 판정 로직) |
+| [docs/membership-blueprint.md](docs/membership-blueprint.md) | `membership_rank`/`membership_tiers`, 등급별 권한·혜택, 게시판 접근, 가격 계산 로직 |
+| [docs/content-blueprint.md](docs/content-blueprint.md) | 게시판/갤러리/자료실/도슨트/상점/마이페이지 콘텐츠 모델과 콘텐츠 간 연결 구조 |
+| [docs/design-system.md](docs/design-system.md) | 실제 사용 중인 색상/타이포그래피/사이드바/버튼/카드/인풋 등 de facto 디자인 관례 |
+| `docs/database-schema.sql` | DB 스키마 (§3 참고) |
+
 ## TODO / 확인 필요
 
 추측하지 않고 남겨둔 항목. 코드/DB 조회만으로는 확정할 수 없거나, 이 문서(개요 문서)에 상세를 옮기지 않기로 한 내용.
 
-- **membership_tiers 정책**: `docs/database-schema.sql`에 컬럼 구조와 rank/name/price(6개 행)는 라이브 DB로 재확인했지만, 등급별 20여 개 혜택 플래그(할인율/적립률/큐레이션 레벨/살롱 출입료 등)의 **현재 값**은 이번 동기화에서 재검증하지 않음 — 확인 필요.
+- **membership_tiers 정책**: `docs/database-schema.sql`에 컬럼 구조와 rank/name/price(6개 행)는 라이브 DB로 재확인했지만, 등급별 20여 개 혜택 플래그(할인율/적립률/큐레이션 레벨/살롱 출입료 등)의 **현재 값**은 이번 동기화에서 재검증하지 않음 — 확인 필요 (컬럼별 사용처는 [docs/membership-blueprint.md](docs/membership-blueprint.md)에 정리됨).
 - **RLS 정책**: 31개 테이블 전부 RLS가 걸려 있다는 사실은 확인했으나, 테이블별 정확한 정책 조건(select/insert/update 각각 누구에게 허용되는지)은 이 문서에 옮기지 않음 — Supabase `pg_policies` 직접 조회 확인 필요.
 - **`api/test-supabase` API 용도**: 코드상 존재는 확인했으나, 실제 용도(연결 테스트/디버그 전용/제거 대상 여부)는 확인 필요.
-- **docent-contents 등급별 접근 정책**: `api/docent-contents/[id]`가 존재하고 등급별 열람 가능 여부를 판단한다는 것은 확인했으나, 정확한 조건 분기 로직은 파일을 다시 읽고 확인 필요.
 - **향후 로드맵**: 보류 중인 "Live Chat(회원채팅)" 외에 추가로 계획된 기능이 있는지는 이 저장소 코드만으로 알 수 없음 — 확인 필요 (`NEXT_TASK.md` 참고).
 - **테스트 전략**: 현재 자동화 테스트가 전혀 없음(`package.json`에 테스트 러너 없음). 도입 여부/범위는 확인 필요.
+- **디자인 시스템 갭**: "골동품/1920년대 Time Slip" 브랜드 감성이 실제 UI 비주얼에는 반영되어 있지 않음(콘텐츠 taxonomy로만 존재) — 리브랜딩 여부는 사용자 결정 필요, 상세는 [docs/design-system.md](docs/design-system.md) §0 참고.

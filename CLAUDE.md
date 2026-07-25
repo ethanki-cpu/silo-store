@@ -30,6 +30,24 @@ Site navigation is organized into three top-level sections, defined once in `src
 
 Account-related pages (`/mypage`, `/me`, `/admin/payments`) are **not** part of this 3-tab structure — they live in the Navbar's separate account area (top-right) and have no active tab/submenu highlighted. `getActiveNavTabKey()` in `navConfig.ts` derives which tab (if any) is active from the current pathname + the `category`/`floor` query param, so `/docent` and `/rental` are single shared pages whose content and nav highlighting both depend on the query string, not on separate routes per category. Membership (`membership_tiers`) gates benefits and content access throughout.
 
+## Blueprint documents (Single Source of Truth)
+
+This project maintains dedicated design/ops documents in `docs/` — treat each as the SSoT for its domain, not this file:
+
+- [`docs/git-sync.md`](docs/git-sync.md) — Git workflow (start/end of work, commit/push, schema-change procedure, forbidden operations)
+- [`docs/EPIC.md`](docs/EPIC.md) — full feature (Epic) list: 완료/진행중/예정
+- [`docs/navigation-blueprint.md`](docs/navigation-blueprint.md) — full nav structure (top tabs, left/right sidebars, URLs, placeholder status, active-tab logic)
+- [`docs/membership-blueprint.md`](docs/membership-blueprint.md) — `membership_rank`/`membership_tiers`, per-rank permissions/benefits, board access, pricing logic
+- [`docs/content-blueprint.md`](docs/content-blueprint.md) — content model (boards/gallery/downloads/docent/shop/mypage) and cross-content connections
+- [`docs/design-system.md`](docs/design-system.md) — de facto color/typography/sidebar/button/card/input conventions
+- `docs/database-schema.sql` — DB schema (see "Verifying/changing the DB schema" below)
+
+**Rules for working in this repo:**
+1. **Before implementing a new feature, check the relevant Blueprint(s) first** — don't re-derive navigation placement, tier gating, content connections, or UI conventions from scratch when a Blueprint already documents them.
+2. **Implement without conflicting with existing Blueprints.** If a request seems to contradict one (e.g. a different gating rule, a nav pattern that breaks `getActiveNavTabKey`), flag the conflict to the user before proceeding rather than silently diverging.
+3. **If a Blueprint needs to change to match new work, update it in the same change** — don't let code and Blueprint drift apart the way `docs/database-schema.sql` drifted before its 2026-07-23 resync.
+4. **When an Epic is completed, update `docs/EPIC.md`** (move it from 진행중/예정 to 완료), alongside the usual `CHANGELOG.md`/`NEXT_TASK.md` updates.
+
 ## Project-specific rules
 
 - **Schema questions**: don't ask the user about table/column names — check `docs/database-schema.sql` first (see Data model below for its caveats), then verify against the live DB if anything seems off (see "Verifying/changing the DB schema" below).

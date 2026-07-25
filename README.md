@@ -1,5 +1,42 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 개발 환경 설정 (.env.local)
+
+이 프로젝트는 Supabase(Postgres + Auth)를 백엔드로 사용합니다. 아래 순서대로 따라 하면 **5분 안에** 로컬 개발 환경을 구성할 수 있습니다.
+
+### 1. `.env.local` 파일 생성
+
+프로젝트 루트(`package.json`과 같은 위치)에 `.env.local` 파일을 만들고 아래 두 줄만 채우면 됩니다:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+이 파일은 `.gitignore`에 포함되어 있어 커밋되지 않습니다 — 각자 로컬에 직접 만들어야 합니다.
+
+### 2. Supabase Dashboard에서 값 확인
+
+1. [supabase.com/dashboard](https://supabase.com/dashboard)에서 이 프로젝트를 연다.
+2. 좌측 사이드바 **Project Settings**(톱니바퀴) → **Data API** 메뉴로 이동한다.
+3. **Project URL** 값을 그대로 `NEXT_PUBLIC_SUPABASE_URL`에 붙여넣는다.
+4. **Project API keys** 섹션에서 **`anon` `public`** 키를 `NEXT_PUBLIC_SUPABASE_ANON_KEY`에 붙여넣는다.
+
+### 3. 반드시 지켜야 할 규칙
+
+- ⚠️ **`NEXT_PUBLIC_SUPABASE_URL`은 반드시 Project URL만 사용한다.** `https://<project-ref>.supabase.co` 형태 그대로여야 하며, **절대로 뒤에 `/rest/v1/`을 붙이지 않는다.** (`@supabase/supabase-js`가 내부적으로 `/auth/v1`, `/rest/v1` 등의 경로를 자체적으로 이어 붙이므로, URL에 경로가 이미 포함되어 있으면 `.../rest/v1/auth/v1/...`처럼 잘못 합성되어 로그인·데이터 조회가 전부 실패한다 — 실제로 발생했던 장애 원인이므로 반드시 주의.)
+- ✅ **`NEXT_PUBLIC_SUPABASE_ANON_KEY`는 `anon` `public` 키만 사용한다.**
+- ❌ **`service_role` 키는 어떤 환경에서도 절대 사용하지 않는다.** 이 프로젝트는 클라이언트/서버 어디에서도 anon key만으로 동작하도록 설계되어 있으며(RLS로 권한 제어), service_role 키를 쓰는 코드는 이 저장소에 존재하지 않는다.
+
+### 4. 설치 및 실행
+
+```bash
+npm install
+npm run dev
+```
+
+[http://localhost:3000/shop](http://localhost:3000/shop)에 접속했을 때 물품 목록이 정상적으로 로드되면 환경 설정이 올바른 것입니다. "데이터를 불러오지 못했어요" 오류가 뜬다면 2~3단계(특히 URL에 `/rest/v1/`이 붙어있지 않은지)를 다시 확인하세요.
+
 ## Getting Started
 
 First, run the development server:

@@ -28,6 +28,8 @@
 - **ESLint** `^9` + `eslint-config-next`
 - 그 외 별도 상태관리 라이브러리(Redux/Zustand 등), UI 컴포넌트 라이브러리, 테스트 러너는 사용하지 않음 (`package.json`에 존재하지 않음).
 
+> **개발 환경 설정(`.env.local`)**: 신규 개발자용 5분 설정 가이드는 [README.md](README.md#개발-환경-설정-envlocal) 참고. 핵심 규칙만 요약하면: `NEXT_PUBLIC_SUPABASE_URL`은 Project URL만(뒤에 `/rest/v1/` 등 경로를 절대 붙이지 않음), `NEXT_PUBLIC_SUPABASE_ANON_KEY`는 `anon`/`public` 키만 사용하고 `service_role` 키는 이 프로젝트 어디에서도 사용하지 않는다(EPIC-020에서 URL 오염으로 인한 로그인/데이터 조회 장애가 실제로 발생한 바 있음).
+
 ## 3. 프로젝트 구조
 
 ```

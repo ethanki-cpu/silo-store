@@ -3,7 +3,7 @@
 > 이 문서는 `src/lib/navConfig.ts` + `src/components/Navbar.tsx` + `src/app` 하위 실제 라우트를 기준으로 작성된
 > **Navigation 구조의 공식 설계 문서(Single Source of Truth)**입니다.
 > Navigation을 변경/추가할 때는 이 문서를 먼저 확인하고, 변경 시 이 문서도 함께 갱신합니다.
-> 최종 확인: 2026-07-26 (EPIC-018 반영, 코드 기준).
+> 최종 확인: 2026-07-26 (EPIC-019 반영, 코드 기준).
 
 ## 1. 구조 개요
 
@@ -14,13 +14,15 @@ Top-level 탭은 4개(`NAV_TABS`, `src/lib/navConfig.ts`)이며, 각 탭은 `typ
 |---|---|---|---|---|
 | `silostore` | 사일로상점 | `sidebar-left` | 좌측 Sidebar (hover/click로 열림) | 없음 (사이드바 오픈 전용) |
 | `salon` | 살롱데상 | `sidebar-right` | 우측 Sidebar (hover/click로 열림) | 없음 (사이드바 오픈 전용) |
-| `space_inquiry` | 공간 문의 | `dropdown` | 플로팅 드롭다운 | 없음 (드롭다운 오픈 전용) |
+| `space_inquiry` | 스튜디오 | `dropdown` | 플로팅 드롭다운 | 없음 (드롭다운 오픈 전용) |
 | `mypage` | 마이페이지 | `link` | 일반 `<Link>` | `/mypage` |
 
-DOM 순서: 사일로상점 → 살롱데상 → 공간 문의 → 마이페이지 (하나의 `<nav>` 행, **`justify-center`로 화면 중앙 정렬** — EPIC-018).
+DOM 순서: 사일로상점 → 살롱데상 → 스튜디오 → 마이페이지 (하나의 `<nav>` 행, **`justify-center`로 화면 중앙 정렬** — EPIC-018).
 로고("사일로 스토어", 좌측)와 계정 영역(우측, §6 참고)은 이 탭 행과 별개의 상단 행이며 기존 위치 그대로 유지된다.
 
-> ⚠️ **EPIC-018 (2026-07-26)**: 기존 4번째 탭이었던 `rental`("스튜디오 대관")은 제거되었다. 그 기능(1층/2층 스튜디오 대관 예약)은 URL을 그대로 유지한 채 `공간 문의` 탭으로 통합되었다(§4 참고). 대신 기존에는 Navbar 우측 "계정 영역"에만 있던 마이페이지 링크가 `mypage`라는 이름의 정식 4번째 상단 탭으로 추가되었다 — 계정 영역의 기존 마이페이지 링크(§6)는 그대로 남아있어 두 진입점이 공존한다.
+> ⚠️ **EPIC-018 (2026-07-26)**: 기존 4번째 탭이었던 `rental`("스튜디오 대관")은 제거되었다. 그 기능(1층/2층 스튜디오 대관 예약)은 URL을 그대로 유지한 채 `space_inquiry` 탭으로 통합되었다(§4 참고). 대신 기존에는 Navbar 우측 "계정 영역"에만 있던 마이페이지 링크가 `mypage`라는 이름의 정식 4번째 상단 탭으로 추가되었다 — 계정 영역의 기존 마이페이지 링크(§6)는 그대로 남아있어 두 진입점이 공존한다.
+>
+> ⚠️ **EPIC-019 (2026-07-26)**: `space_inquiry` 탭의 사용자 노출 라벨이 "공간 문의" → **"스튜디오"**로 변경되었다. `key`(`space_inquiry`)·URL(`/space-inquiry/*`, `/rental?floor=*`)·드롭다운 항목·상호작용 방식(`type: "dropdown"`)은 전혀 바뀌지 않았고, `navConfig.ts`의 `label` 문자열 한 줄만 수정되었다.
 
 ## 2. 좌측 Sidebar — 사일로상점 (silostore)
 
@@ -78,7 +80,7 @@ DOM 순서: 사일로상점 → 살롱데상 → 공간 문의 → 마이페이�
 
 > ⚠️ `/salon/checkin`, `/salon/docent-tour`, `/salon/drinks`는 **어느 사이드바에도 연결되어 있지 않은 orphan 라우트**입니다. 직접 URL로만 접근 가능합니다.
 
-## 4. 공간 문의 (space_inquiry) — 드롭다운
+## 4. 스튜디오 (space_inquiry) — 드롭다운
 
 `Navbar.tsx`는 `type === "dropdown"`인 탭을 클릭/hover하면, 클릭된 버튼의 위치를 기준으로 플로팅 드롭다운을 연다(범용 `openDropdown(tab, event)` 핸들러 — 탭별 전용 ref 불필요).
 
@@ -144,8 +146,8 @@ DOM 순서: 사일로상점 → 살롱데상 → 공간 문의 → 마이페이�
 - `/salon/docent-tour` [placeholder] — orphan
 - `/salon/drinks` [placeholder] — orphan
 
-### 공간 문의 (구 스튜디오 대관 포함)
-- `/rental?floor=1f_silostore|2f_salon`, `/rental/[rentalTypeId]` [구현됨] — `공간 문의` 드롭다운의 "공간 촬영 대관" 2개 항목이 가리킴(EPIC-018)
+### 스튜디오 (구 "공간 문의", 구 스튜디오 대관 포함)
+- `/rental?floor=1f_silostore|2f_salon`, `/rental/[rentalTypeId]` [구현됨] — `스튜디오` 드롭다운의 "공간 촬영 대관" 2개 항목이 가리킴(EPIC-018, 라벨은 EPIC-019에서 "공간 문의"→"스튜디오"로 변경)
 - `/space-inquiry/item-rental|styling` [placeholder]
 
 ### 계정 / 인증 / 관리자

@@ -102,7 +102,7 @@ export const NAV_TABS: NavTab[] = [
   },
   {
     key: "space_inquiry",
-    label: "공간 문의",
+    label: "스튜디오",
     type: "dropdown",
     items: [
       // EPIC-018: 기존 "스튜디오 대관" 탭(rental) 통합 — URL은 그대로 유지.

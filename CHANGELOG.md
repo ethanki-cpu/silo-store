@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-07-26 (EPIC-029)
+- **EPIC-029: Member Collections CRUD Implementation**
+  - `mypage/CollectionModal.tsx` 신규 작성: `member_collections`의 8개 카테고리(`book`/`movie`/`music`/`artist`/`place`/`scent`/`brand`/`era`)를 모두 처리하는 범용 등록/수정 모달. `title`(필수)/`description`(선택)/`image_url`(선택) 입력, `item` prop이 `null`이면 신규 등록(insert), 실제 항목이면 수정(update) 모드로 동작.
+  - `CollectionsPanel.tsx` 연동: "나의 보물"(주문 재사용) 탭을 제외한 8개 서브탭 상단에 "+ 아이템 추가" 버튼 배치, 각 카드에 수정(✏️)/삭제(🗑️) 아이콘 버튼 추가(삭제는 `window.confirm` 확인 후 실행). `@supabase/supabase-js` 브라우저 클라이언트로 `member_collections`에 직접 Insert/Update/Delete(EPIC-023 이후 admin CMS 관례와 동일하게 별도 API Route 없음), `reloadKey` state로 CUD 완료 시 목록 즉시 재조회.
+  - 검증: 라이브 DB에 anon key REST(`/rest/v1/member_collections?select=id&limit=1`)로 조회한 결과 `200 []` — `docs/database-schema.sql` 상단 동기화 노트(EPIC-022가 "아직 라이브 미적용"이라 표기)와 달리 테이블이 실제로는 이미 라이브에 존재함을 확인(로그인 세션이 없어 실제 CUD 동작 자체는 사용자 확인 필요 — 아래 참고).
+
 ## 2026-07-26 (EPIC-028)
 - **EPIC-028: Admin Post Management Implementation (Shop & Salon)**
   - `admin/posts/shop/page.tsx`를 Placeholder에서 실 구현으로 교체: `items` 테이블(`docs/database-schema.sql` §2)을 데이터 테이블로 조회, 시대(Time Slip 8종) 필터, 상태 뱃지(판매중/대여중/판매완료/비활성), 활성화·비활성화 토글(`status` ↔ `available`/`archived`), 삭제 버튼 구현.

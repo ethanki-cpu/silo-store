@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { EmptyState } from "../EmptyState";
 import { COLLECTION_SUBTABS, type CollectionSubKey } from "../mypageConfig";
+import {
+  CollectionModal,
+  type CollectionCategory,
+  type CollectionModalItem,
+} from "../CollectionModal";
 
 type Treasure = {
   id: string;
@@ -26,6 +31,10 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
   const [treasures, setTreasures] = useState<Treasure[]>([]);
   const [items, setItems] = useState<CollectionItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [modalItem, setModalItem] = useState<CollectionModalItem | null | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +86,19 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [memberId, subTab]);
+  }, [memberId, subTab, reloadKey]);
+
+  async function handleDelete(itemId: string) {
+    if (!window.confirm("이 항목을 삭제할까요?")) return;
+
+    const { error } = await supabase
+      .from("member_collections")
+      .delete()
+      .eq("id", itemId)
+      .eq("member_id", memberId);
+
+    if (!error) setReloadKey((k) => k + 1);
+  }
 
   return (
     <div>
@@ -97,6 +118,18 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
           </button>
         ))}
       </div>
+
+      {subTab !== "treasure" && (
+        <div className="flex justify-end mb-3">
+          <button
+            type="button"
+            onClick={() => setModalItem(null)}
+            className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm"
+          >
+            + 아이템 추가
+          </button>
+        </div>
+      )}
 
       {loadingData ? (
         <p className="text-gray-500">불러오는 중...</p>
@@ -140,8 +173,33 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
           {items.map((item) => (
             <div
               key={item.id}
-              className="rounded-lg border border-gray-200 overflow-hidden"
+              className="relative rounded-lg border border-gray-200 overflow-hidden"
             >
+              <div className="absolute top-2 right-2 z-10 flex gap-1">
+                <button
+                  type="button"
+                  aria-label="수정"
+                  onClick={() =>
+                    setModalItem({
+                      id: item.id,
+                      title: item.title,
+                      description: item.description,
+                      image_url: item.image_url,
+                    })
+                  }
+                  className="rounded-full bg-white/90 w-7 h-7 flex items-center justify-center shadow text-xs"
+                >
+                  ✏️
+                </button>
+                <button
+                  type="button"
+                  aria-label="삭제"
+                  onClick={() => handleDelete(item.id)}
+                  className="rounded-full bg-white/90 w-7 h-7 flex items-center justify-center shadow text-xs"
+                >
+                  🗑️
+                </button>
+              </div>
               {item.image_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -161,6 +219,19 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
             </div>
           ))}
         </div>
+      )}
+
+      {modalItem !== undefined && subTab !== "treasure" && (
+        <CollectionModal
+          memberId={memberId}
+          category={subTab as CollectionCategory}
+          item={modalItem}
+          onClose={() => setModalItem(undefined)}
+          onSaved={() => {
+            setModalItem(undefined);
+            setReloadKey((k) => k + 1);
+          }}
+        />
       )}
     </div>
   );

@@ -431,6 +431,7 @@ create table posts (
   is_best         boolean not null default false,
   photo_url       text,               -- 개인 페이지(마이피드) 글의 첨부 사진
   order_id        uuid references orders(id),  -- After Adoption 후기가 어떤 구매 건에 대한 글인지 연결
+  is_hidden       boolean not null default false,  -- 관리자 전용 숨김 플래그(EPIC-031). 작성자 본인의 visibility='private' 설정과는 별개 — 라이브 DB에는 아직 미적용, Supabase SQL Editor에서 ALTER TABLE 직접 실행 필요.
   created_at      timestamptz not null default now()
 );
 

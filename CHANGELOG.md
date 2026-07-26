@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-07-26 (EPIC-031)
+- **EPIC-031: Admin Post Management — pagination & is_hidden column**
+  - `posts` 테이블에 관리자 전용 숨김 플래그 `is_hidden`(boolean, not null default false) 컬럼 추가(`docs/database-schema.sql`, 라이브 DB에는 아직 미적용 — 아래 ALTER TABLE 문을 Supabase SQL Editor에서 직접 실행 필요). EPIC-028에서 임시로 `posts.visibility='private'`를 재사용하던 "숨기기"가 작성자 본인의 비공개 설정과 뒤섞이던 문제를 해결.
+  - `admin/posts/salon/page.tsx`: `toggleHidden`이 이제 `visibility` 대신 `is_hidden`을 업데이트하고, "공개 여부" 배지도 `is_hidden` 기준으로 표시.
+  - `admin/posts/salon/page.tsx`: 임시 `.limit(200)`(`FETCH_LIMIT`)을 제거하고 `PAGE_SIZE=20` 단위 페이지네이션으로 교체 — `.range()` + `{ count: 'exact' }`로 총 건수를 가져와 이전/다음 버튼과 "N / 총 페이지" 표시 구현. `board_type` 필터 변경 시 페이지를 1로 재설정(같은 이벤트 핸들러에서 두 state를 함께 갱신해 불필요한 이중 조회 방지).
+
 ## 2026-07-26 (EPIC-030)
 - **EPIC-030: Studio Portfolio Registration — submit UX fix**
   - 작업 지시가 요청한 `styling_projects`/`styling_project_media`/`styling_project_items` 3테이블 연동 폼(`/admin/projects/new`)은 EPIC-016에서 이미 완전히 구현되어 있었음(`docs/EPIC.md` 완료 목록 확인) — `page.tsx`가 3개 테이블 모두 다루는 폼을 갖추고 있고 `POST /api/styling-projects`(`src/app/api/styling-projects/route.ts`)가 이미 세 테이블에 순차 insert. 지시문의 "제목(title)" 필드는 실제 스키마에 없고(`client_name`+`industry`가 실제 필드 — 담당 업체를 기록하는 기능이라 의도적으로 다름), 사용자 확인 결과 스키마 변경 없이 기존 구현을 유지하기로 함.

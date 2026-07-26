@@ -11,8 +11,12 @@
 - **EPIC-023 후속**: `site_categories`가 아직 실제 화면(`/shop` era 필터, `/docent` era 필터, `CollectionsPanel` 카테고리 탭 등)에는 연결되지 않음 — 이번 EPIC은 테이블/시드/관리자 CRUD까지만. 각 화면의 하드코딩된 카테고리 목록을 `site_categories` 조회로 바꾸는 작업은 별도 Epic 필요.
 - **EPIC-026 후속**: `docs/database-schema.sql` §13에 정의된 `site_settings` DDL+Seed를 Supabase SQL Editor에서 실제로 실행해야 함 — 실행 전까지 `/admin/navigation/settings`는 조회 시 "Could not find the table" 에러 배너가 뜨지만 폼 자체는 기본값으로 정상 동작함.
 - **EPIC-026 후속**: `main_logo`/`hero_slideshow`/`home_curation` 설정값이 아직 실제 화면(홈 `/`, Navbar 로고 등)에는 연결되지 않음 — 이번 EPIC은 저장 UI까지만. 실제 홈페이지에서 이 설정을 읽어와 반영하는 작업은 별도 Epic 필요.
-- **EPIC-028 후속**: "숨기기"가 전용 관리자 노출 플래그 없이 기존 `posts.visibility='private'`를 재사용하는 임시 구현 — 작성자 본인이 글을 "비공개"로 설정한 것과 관리자가 숨긴 것이 현재 구분되지 않음. 필요하면 `is_hidden_by_admin` 같은 전용 컬럼을 추가하는 별도 Epic 검토.
-- **EPIC-028 후속**: `admin/posts/salon`은 최신 200건만 조회(`FETCH_LIMIT`) — 페이지네이션은 아직 없음. 게시글이 많아지면 페이지네이션/검색 추가 필요.
+- **EPIC-028 후속**: (EPIC-031에서 해결됨 — `is_hidden` 전용 컬럼으로 교체, 아래 EPIC-031 항목 참고)
+- **EPIC-028 후속**: (EPIC-031에서 해결됨 — 20건 단위 페이지네이션 구현, 아래 EPIC-031 항목 참고)
+
+- **EPIC-030**: 작업 지시문이 "프로젝트 제목(title)" 필드를 요구했으나 실제 `styling_projects` 스키마/Blueprint에는 `title`이 없고 `client_name`+`industry`가 그 자리를 대신함(EPIC-016에서 의도적으로 설계) — 사용자 확인 결과 기존 필드 유지로 결정. 만약 향후 정말 범용 "제목" 개념이 필요해지면 스키마 변경(별도 Epic)이 필요.
+- **EPIC-031 후속**: `docs/database-schema.sql`의 `posts.is_hidden` DDL을 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). 실행 전까지 `admin/posts/salon`에서 숨기기 토글 시 `is_hidden` 컬럼이 없다는 에러가 날 수 있음.
+- **EPIC-031 후속**: `admin/posts/shop`(물품 게시글 관리)은 이번 EPIC 범위(수정 대상 파일이 `salon/page.tsx`로 한정)에 포함되지 않아 여전히 `.limit(200)`과 무관하게 동작하지만, "숨기기" 관련 로직은 애초에 없어 영향 없음 — 페이지네이션이 필요해지면 별도 확인 필요.
 
 ## 사용자 확인 필요
 - **EPIC-022**: `/mypage`가 로그인 필요 페이지라 에이전트가 실제 로그인 세션으로 탭 전환/데이터 조회를 시각적으로 검증하지 못함(정책상 실제 자격증명 입력 불가) — type-check/lint/컴파일 확인만 완료. 사용자가 직접 로그인 후 11개 탭 전환 확인 필요.

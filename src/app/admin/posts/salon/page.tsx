@@ -11,9 +11,11 @@ import { supabase } from "@/lib/supabaseClient";
 // 임베드 힌트로 한 번에 join할 수 없어, board_id는 임베드하고 author 이름은
 // 별도 조회 후 클라이언트에서 합친다(EPIC-022 FollowPanel과 동일 패턴).
 //
-// "숨기기"는 이 스키마에 별도 관리자용 노출 플래그가 없어, 기존
-// posts.visibility 값을 'private'로 바꾸는 것으로 대신한다(스키마 변경은
-// 이번 EPIC 범위 밖 — CHANGELOG 참고).
+// EPIC-031: "숨기기"는 기존 posts.visibility='private' 재사용 임시 구현이었으나,
+// 작성자 본인의 "비공개" 설정과 관리자 숨김이 뒤섞이는 문제가 있어 전용
+// posts.is_hidden 컬럼(라이브 DB에는 아직 미적용 — 사용자가 Supabase SQL
+// Editor에서 직접 ALTER TABLE 실행 필요)으로 교체. 목록도 200건 하드코딩
+// 대신 20건 단위 페이지네이션으로 변경.
 
 type BoardType =
   | "topic"
@@ -33,7 +35,7 @@ type PostRow = {
   board_name: string;
   board_type: BoardType;
   like_count: number;
-  visibility: "public" | "private" | "friends";
+  is_hidden: boolean;
   created_at: string;
 };
 
@@ -47,10 +49,12 @@ const BOARD_TYPE_OPTIONS: { value: BoardType; label: string }[] = [
   { value: "qna", label: "질문과 답변" },
 ];
 
-const FETCH_LIMIT = 200;
+const PAGE_SIZE = 20;
 
 export default function AdminPostsSalonPage() {
   const [posts, setPosts] = useState<PostRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [boardTypeFilter, setBoardTypeFilter] = useState<BoardType | "all">(
@@ -66,20 +70,24 @@ export default function AdminPostsSalonPage() {
     const boardsSelect =
       boardTypeFilter === "all" ? "boards(name, board_type)" : "boards!inner(name, board_type)";
 
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
     let query = supabase
       .from("posts")
       .select(
-        `id, title, body, author_id, like_count, visibility, created_at, ${boardsSelect}`,
+        `id, title, body, author_id, like_count, is_hidden, created_at, ${boardsSelect}`,
+        { count: "exact" },
       )
       .not("board_id", "is", null)
       .order("created_at", { ascending: false })
-      .limit(FETCH_LIMIT);
+      .range(from, to);
 
     if (boardTypeFilter !== "all") {
       query = query.eq("boards.board_type", boardTypeFilter);
     }
 
-    const { data, error: fetchError } = await query;
+    const { data, error: fetchError, count } = await query;
 
     if (fetchError) {
       setError(fetchError.message);
@@ -87,13 +95,15 @@ export default function AdminPostsSalonPage() {
       return;
     }
 
+    setTotalCount(count ?? 0);
+
     const rows = (data ?? []) as unknown as {
       id: string;
       title: string | null;
       body: string | null;
       author_id: string;
       like_count: number;
-      visibility: "public" | "private" | "friends";
+      is_hidden: boolean;
       created_at: string;
       boards: { name: string; board_type: BoardType } | null;
     }[];
@@ -131,7 +141,7 @@ export default function AdminPostsSalonPage() {
         board_name: r.boards?.name ?? "-",
         board_type: r.boards?.board_type ?? "topic",
         like_count: r.like_count,
-        visibility: r.visibility,
+        is_hidden: r.is_hidden,
         created_at: r.created_at,
       })),
     );
@@ -141,14 +151,19 @@ export default function AdminPostsSalonPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardTypeFilter]);
+  }, [boardTypeFilter, page]);
+
+  function selectBoardTypeFilter(next: BoardType | "all") {
+    setBoardTypeFilter(next);
+    setPage(1);
+  }
 
   async function toggleHidden(post: PostRow) {
     setProcessingId(post.id);
-    const nextVisibility = post.visibility === "private" ? "public" : "private";
+    const nextHidden = !post.is_hidden;
     const { error: updateError } = await supabase
       .from("posts")
-      .update({ visibility: nextVisibility })
+      .update({ is_hidden: nextHidden })
       .eq("id", post.id);
     setProcessingId(null);
     if (updateError) {
@@ -157,7 +172,7 @@ export default function AdminPostsSalonPage() {
     }
     setPosts((rows) =>
       rows.map((r) =>
-        r.id === post.id ? { ...r, visibility: nextVisibility } : r,
+        r.id === post.id ? { ...r, is_hidden: nextHidden } : r,
       ),
     );
   }
@@ -182,7 +197,7 @@ export default function AdminPostsSalonPage() {
       <div className="flex flex-wrap gap-2 mb-4">
         <button
           type="button"
-          onClick={() => setBoardTypeFilter("all")}
+          onClick={() => selectBoardTypeFilter("all")}
           className={`px-3 py-1.5 rounded-full text-sm border ${
             boardTypeFilter === "all"
               ? "bg-gray-800 text-white border-gray-800"
@@ -195,7 +210,7 @@ export default function AdminPostsSalonPage() {
           <button
             key={bt.value}
             type="button"
-            onClick={() => setBoardTypeFilter(bt.value)}
+            onClick={() => selectBoardTypeFilter(bt.value)}
             className={`px-3 py-1.5 rounded-full text-sm border ${
               boardTypeFilter === bt.value
                 ? "bg-gray-800 text-white border-gray-800"
@@ -248,7 +263,7 @@ export default function AdminPostsSalonPage() {
                     {new Date(post.created_at).toLocaleString()}
                   </td>
                   <td className="py-2 pr-3">
-                    {post.visibility === "private" ? (
+                    {post.is_hidden ? (
                       <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
                         숨김
                       </span>
@@ -266,7 +281,7 @@ export default function AdminPostsSalonPage() {
                         disabled={processingId === post.id}
                         className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
                       >
-                        {post.visibility === "private" ? "숨김 해제" : "숨기기"}
+                        {post.is_hidden ? "숨김 해제" : "숨기기"}
                       </button>
                       <button
                         type="button"
@@ -282,6 +297,40 @@ export default function AdminPostsSalonPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {totalCount > 0 && (
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
+          <span>
+            {totalCount}건 중 {(page - 1) * PAGE_SIZE + 1}–
+            {Math.min(page * PAGE_SIZE, totalCount)}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1 || fetching}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+            >
+              이전
+            </button>
+            <span className="text-xs">
+              {page} / {Math.max(1, Math.ceil(totalCount / PAGE_SIZE))}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setPage((p) =>
+                  p * PAGE_SIZE < totalCount ? p + 1 : p,
+                )
+              }
+              disabled={page * PAGE_SIZE >= totalCount || fetching}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+            >
+              다음
+            </button>
+          </div>
         </div>
       )}
     </main>

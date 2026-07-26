@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-07-26 (EPIC-027)
+- **EPIC-027: BugFix — Navigation Editor에 저장(Save) 기능 추가**
+  - 원인: `NavNodeEditor`/카테고리 행 입력이 `onBlur`/`onChange` 시점에 즉시 `update`를 호출하는 암묵적 autosave 방식이라, 사용자에게 "저장됐다"는 아무 신호도 없어 변경이 반영 안 되는 버그처럼 보였음(실제로는 포커스를 벗어나야만 저장되고, 클릭 순서에 따라 저장 타이밍이 눈에 안 보이는 문제도 있었음).
+  - 조치: `shared.tsx`의 `NavNodeEditor`를 로컬 draft 상태 기반으로 변경 — 입력은 화면에만 즉시 반영되고, 필드가 원본과 달라지면(`dirty`) 활성화되는 명시적 **"저장"** 버튼을 눌러야 실제로 `site_navigations`에 `update`가 나간다. 저장 성공 시 "저장됐어요." 인라인 피드백을 2초간 표시. 카테고리(`site_categories`) 행도 동일한 패턴의 신규 `CategoryRowEditor`로 통일(`top-tabs/page.tsx`에서 인라인 코드 교체).
+  - `updateNavRow`/`updateCategory`(top-tabs/sidebar-left/sidebar-right 3개 페이지)를 성공 여부(`Promise<boolean>`)를 반환하도록 변경해, 저장 버튼이 실패 시 "저장됐어요" 피드백을 보여주지 않도록 함(에러 배너는 기존처럼 페이지 상단에 별도 표시).
+  - 검증: `sidebar-left` 페이지에서 "사일로상점" 탭 이름을 실제로 수정 → 저장 → 페이지 새로고침 후에도 값이 유지됨을 확인(DB 반영 확인), Navbar 실제 탭 이름도 즉시 바뀜을 확인. 테스트 후 원래 값으로 복원.
+
+## 2026-07-26 (EPIC-026)
+- **EPIC-026: Admin Homepage Settings Implementation**
+  - 신규 테이블 `site_settings`(`docs/database-schema.sql` §13): `setting_key`(unique)/`setting_value`(jsonb)/`updated_at` — 설정 종류가 늘어나도 스키마 변경 없이 key만 추가하면 되는 key-value 저장소. `main_logo`/`hero_slideshow`/`home_curation` 3개 키 시드 포함(라이브 DB 미적용, Supabase SQL Editor 실행 필요).
+  - RLS: 조회는 전체 공개, 추가/수정/삭제는 `members.is_admin` bypass 전용(EPIC-023/024와 동일 패턴).
+  - `admin/navigation/settings/page.tsx`를 Placeholder에서 실 구현으로 교체: 메인 로고(텍스트/이미지 URL), 슬라이드쇼(이미지 URL·타이틀·설명 배열, 추가/삭제), 노출 필터(도메인+카테고리 slug 목록+정렬 기준) 3개 섹션을 각각 조회 후 "저장하기" 클릭 시 `upsert(onConflict: setting_key)`로 갱신. 별도 API Route 없이 브라우저에서 anon key + RLS로 직접 CUD(EPIC-023 관례 유지).
+  - 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260726-1214.sql`로 백업.
+  - 검증: 라이브 DB에 테이블이 아직 없어 조회 시 에러 배너가 표시되지만 폼은 기본값으로 정상 렌더링되고, 슬라이드 추가/삭제 등 UI 상호작용은 정상 동작함을 확인.
+
+## 2026-07-26 (EPIC-025)
+- **EPIC-025: Admin Dashboard Restructure & Nested Routing**
+  - `admin/layout.tsx` 메인 탭 변경: 결제 관리 / 메뉴·카테고리 관리 / **전체 글 관리(신규)** / 스튜디오 포트폴리오 등록(문구 "스타일링"→"스튜디오"). 활성 탭 판정을 정확 일치에서 `startsWith`로 변경해 하위 라우트에서도 상위 탭이 하이라이트되도록 함.
+  - `/admin/navigation`을 2-Depth로 분리: `layout.tsx`(서브 탭: 홈페이지 설정 관리/상단 탭·카테고리 관리/왼쪽 사이드바 메뉴 관리/오른쪽 사이드바 메뉴 관리) + `page.tsx`는 `top-tabs`로 리다이렉트. 기존 한 페이지에 있던 코드를 `target_type`별로 분리: `top-tabs/page.tsx`(tab·dropdown 최상위 + site_categories), `sidebar-left/page.tsx`(sidebar_left), `sidebar-right/page.tsx`(sidebar_right). 공통 타입/상수/트리 편집 UI(`NavNodeEditor`)는 `navigation/shared.tsx`로 추출해 3개 페이지가 공유.
+  - `navigation/settings/page.tsx` 신규: "홈페이지 설정 관리" Placeholder(메인 로고/슬라이드쇼/노출 필터 카드 3개, 데이터 연동 없음).
+  - `/admin/posts` 신규(2-Depth): `layout.tsx`(서브 탭: [사일로 상점]/[살롱데상] 카테고리별 글 관리) + `page.tsx`(→`shop`으로 리다이렉트) + `shop/page.tsx`(사일로 보물들/온라인 도슨트/사일로 Heritage 섹션 Placeholder) + `salon/page.tsx`(Community/Membership/Gallery/Library 섹션 Placeholder). 실제 글 목록 조회/관리 기능은 이번 EPIC 범위 밖(Placeholder만).
+  - 검증: 하드 리로드로 `/admin/navigation`, `/admin/posts` 진입 시 각각 `top-tabs`, `shop`으로 정상 리다이렉트되고 서브 탭·본문이 정상 렌더링됨을 확인. `top-tabs`/`sidebar-left`/`sidebar-right` 페이지가 `target_type` 기준으로 정확히 필터링되어 겹치지 않음을 확인.
+
 ## 2026-07-26 (EPIC-024)
 - **EPIC-024: Admin Dashboard Layout & Auth Guard Fix**
   - 원인: `/admin/*` 페이지들의 인증 가드는 이미 `loading`/`memberLoading`이 true인 동안 리다이렉트를 보류하는 형태였지만, `session`이 `null`→실제 세션으로 막 바뀌는 바로 그 렌더에서 AuthProvider(부모)의 member 재조회 effect가 `memberLoading`을 `true`로 재무장하기 전에, 페이지(자식)의 가드 effect가 먼저 실행되는 React의 effect 실행 순서(자식이 부모보다 먼저) 때문에 `memberLoading=false`(직전 값)를 잘못 신뢰해 `member`가 아직 `null`인 상태로 "관리자 아님" 판정 후 `/`로 리다이렉트되던 버그. 하드 리로드로 관리자 페이지에 직접 진입할 때만 재현됨.

@@ -791,27 +791,6 @@ insert into site_categories (domain, name, slug, sort_order) values
   ('salon', '따듯한 세상 클럽', 'warmth', 13);
 
 -- =====================================================================
--- 13. 사이트 전역 설정 (EPIC-026)
---    /admin/navigation/settings("홈페이지 설정 관리")가 사용하는 key-value
---    저장소. 설정마다 별도 컬럼을 만드는 대신 setting_value(jsonb)로 유연하게
---    저장 — 새 설정 종류가 생겨도 스키마 변경 없이 setting_key만 추가하면 됨.
---    라이브 DB에는 아직 미적용 — Supabase SQL Editor에서 직접 실행 필요.
--- =====================================================================
-
-create table site_settings (
-  id            uuid primary key default gen_random_uuid(),
-  setting_key   text unique not null,
-  setting_value jsonb not null,
-  updated_at    timestamptz not null default now()
-);
-
--- site_settings 시드: settings/page.tsx가 다루는 3개 설정의 초기값
-insert into site_settings (setting_key, setting_value) values
-  ('main_logo', '{"type":"text","text":"사일로 스토어","imageUrl":""}'),
-  ('hero_slideshow', '{"slides":[]}'),
-  ('home_curation', '{"domain":"shop","slugs":[],"sortBy":"latest"}');
-
--- =====================================================================
 -- 인덱스
 -- =====================================================================
 

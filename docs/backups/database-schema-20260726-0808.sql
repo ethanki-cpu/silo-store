@@ -3,12 +3,9 @@
 -- 구성: 멤버십 / 사일로상점(1층) / 살롱데상(2층) / 커뮤니티(게시판·포인트)
 --       / 출석체크 / 설문조사 / 자료 다운로드
 --
--- ⚠️ 마지막 동기화: 2026-07-26 (EPIC-022: member_collections/member_follows/
---    member_badges/member_visitors 4개 테이블 신규 설계 — 아직 라이브 DB에는
---    적용 전). 그 전 동기화는 2026-07-24 (wishlists 테이블 추가); 그 전에
---    docent_contents.era + docent_content_popularity 뷰, 그 전에
---    styling_projects 계열 3개 테이블도 같은 날 추가됨). 최초 전면 동기화는
---    2026-07-23 — Supabase Management API로 실제 운영 DB의
+-- ⚠️ 마지막 동기화: 2026-07-24 (wishlists 테이블 추가; 그 전에 docent_contents.era +
+--    docent_content_popularity 뷰, 그 전에 styling_projects 계열 3개 테이블도 같은 날 추가됨).
+--    최초 전면 동기화는 2026-07-23 — Supabase Management API로 실제 운영 DB의
 --    information_schema.columns / pg_constraint를 직접 조회하여 재작성함.
 --
 -- 이 파일은 이 프로젝트의 유일한 공식 DB 스키마 문서(Single Source of Truth)임.
@@ -562,62 +559,6 @@ create table styling_project_items (
 );
 
 -- =====================================================================
--- 11. 마이페이지 확장 — 컬렉션 / 팔로우 / 배지 / 방문자 기록 (EPIC-022)
---    /mypage 11개 탭 재구성을 위해 신설. "나의 살롱"/"나의 도슨트 수료증"/
---    "나의 공간"/"나의 전시회"/"타임라인" 5개 탭은 이번 EPIC에서 데이터
---    소스가 지정되지 않아 테이블을 만들지 않았음 — UI에서는 Empty State만
---    표시함(추측성 테이블 생성 방지, PROJECT_BLUEPRINT.md TODO 참고).
--- =====================================================================
-
--- "나의 컬렉션" 9개 서브메뉴 중 "나의 보물"을 제외한 8개(책/영화/음악/예술가/
--- 장소/향기/브랜드/시대)의 회원 작성 콘텐츠. "나의 보물"은 기존 orders를
--- 그대로 재사용하므로 별도 테이블 없음.
-create table member_collections (
-  id          uuid primary key default gen_random_uuid(),
-  member_id   uuid not null references members(id) on delete cascade,
-  category    text not null check (category in (
-                'book','movie','music','artist','place','scent','brand','era'
-              )),
-  title       text not null,
-  description text,
-  image_url   text,
-  created_at  timestamptz not null default now()
-);
-
--- 팔로우 관계. 복합 PK로 중복 팔로우 자체를 DB 레벨에서 방지.
--- ⚠️ 이번 EPIC 범위(마이페이지 조회 전용)에는 팔로우 버튼 UI가 포함되지
--- 않아, 실제로 이 테이블에 행을 적재하는 쓰기 경로는 아직 없음(추후 별도
--- 작업에서 /u/[memberId] 등에 팔로우 버튼을 추가할 때 사용 예정).
-create table member_follows (
-  follower_id   uuid not null references members(id) on delete cascade,
-  following_id  uuid not null references members(id) on delete cascade,
-  created_at    timestamptz not null default now(),
-  primary key (follower_id, following_id),
-  check (follower_id <> following_id)
-);
-
--- 배지. 부여(insert)는 관리자만 가능하도록 설계(포인트 적립과 달리 자기
--- 자신에게 자가 귀속시킬 수 있는 액션이 아니므로) — 배지 자동 지급 로직은
--- 이번 EPIC 범위 밖(조회 UI만 구현).
-create table member_badges (
-  id          uuid primary key default gen_random_uuid(),
-  member_id   uuid not null references members(id) on delete cascade,
-  badge_name  text not null,
-  granted_at  timestamptz not null default now()
-);
-
--- 방문자 기록. owner_id(방문받은 사람)/visitor_id(방문한 사람) 둘 다 members
--- 참조. ⚠️ member_follows와 마찬가지로 실제 방문 시 이 테이블에 행을 쓰는
--- 로직(예: /u/[memberId] 방문 시 insert)은 이번 EPIC 범위 밖 — 조회 UI만
--- 구현되어 있어 당장은 항상 빈 목록으로 보임.
-create table member_visitors (
-  id          uuid primary key default gen_random_uuid(),
-  owner_id    uuid not null references members(id) on delete cascade,
-  visitor_id  uuid not null references members(id) on delete cascade,
-  visited_at  timestamptz not null default now()
-);
-
-
 -- 인덱스
 -- =====================================================================
 
@@ -640,11 +581,6 @@ create index idx_poll_votes_poll on poll_votes(poll_id);
 create index idx_styling_project_media_project on styling_project_media(project_id);
 create index idx_styling_project_items_project on styling_project_items(project_id);
 create index idx_styling_project_items_item on styling_project_items(item_id);
-create index idx_member_collections_member on member_collections(member_id);
-create index idx_member_collections_category on member_collections(category);
-create index idx_member_follows_following on member_follows(following_id);
-create index idx_member_badges_member on member_badges(member_id);
-create index idx_member_visitors_owner on member_visitors(owner_id);
 
 -- =====================================================================
 -- Row Level Security

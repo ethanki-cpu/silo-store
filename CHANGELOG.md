@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-07-26 (EPIC-023)
+- **EPIC-023: Dynamic Navigation & Category Admin CMS**
+  - `src/lib/navConfig.ts`를 하드코딩 배열(`NAV_TABS`)에서 DB 조회 함수(`fetchNavTabs()`)로 전환. `site_navigations`(신규 테이블, 자기참조 트리)를 조회해 기존과 동일한 `NavTab[]` 형태로 조립 — 조회 실패/시드 미적용 시 기존 하드코딩 값과 동일한 `FALLBACK_NAV_TABS`로 자동 대체되어 화면이 비지 않음. `getActiveNavTabKey()`는 순수 pathname 로직이라 변경 없음.
+  - `Navbar.tsx`는 `useEffect`에서 `fetchNavTabs()`를 호출해 상태로 보관하고, 그 상태를 순회해 렌더링 — 기존 UX/스타일(좌/우 사이드바, 드롭다운, 중앙 정렬 탭 등)은 완전히 동일하게 유지.
+  - 신규 테이블 2개 설계(`docs/database-schema.sql` §12): `site_navigations`(상단 탭/사이드바 그룹/드롭다운 항목을 하나의 트리로 표현), `site_categories`(상점/살롱/컬렉션/도슨트 카테고리, domain별). 기존 navConfig.ts 데이터 + 4개 도메인 카테고리(Time Slip 8종/도슨트 era 11종/EPIC-022 컬렉션 8종/살롱 게시판 13종)를 그대로 옮기는 Seed SQL 포함 — 아직 라이브 DB 미적용, Supabase SQL Editor에서 직접 실행 필요.
+  - `/admin/navigation` 신규 관리자 페이지: 네비게이션 트리(추가/수정/삭제/순서/활성 토글)와 카테고리(도메인별 추가/수정/삭제/상위-하위 지정) CRUD UI. 이번 EPIC의 수정 대상 파일 범위에 API Route가 포함되지 않아, 별도 Route Handler 없이 브라우저에서 anon key로 직접 CUD하고 **RLS(관리자 bypass)를 실제 권한 강제 계층**으로 사용 — 다른 admin 화면들의 "Route Handler에서 is_admin 체크" 관례와는 다른 방식임을 명시.
+  - RLS: 두 테이블 모두 조회는 전체 공개, 생성/수정/삭제는 `members.is_admin` bypass 전용.
+  - 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260726-0824.sql`로 백업.
+
 ## 2026-07-26 (EPIC-022)
 - **EPIC-022: MyPage Restructure & Schema Definition**
   - `/mypage`를 11개 탭(나의 컬렉션[9개 서브메뉴]/나의 위시리스트/팔로우/나의 살롱/나의 도슨트 수료증/나의 공간/나의 전시회/받은 배지/내가 쓴 댓글/타임라인/방문자 기록) 구조로 재구성.

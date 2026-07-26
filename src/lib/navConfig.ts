@@ -1,8 +1,10 @@
+import { supabase } from "@/lib/supabaseClient";
+
 export type NavItem = { label: string; href: string };
 export type NavGroup = { groupLabel: string; items: NavItem[] };
 
 // 탭의 UI 상호작용 방식. Navbar.tsx는 이 값에 따라 렌더링 방식만 분기하고,
-// 실제 라벨/링크/그룹 구성은 항상 이 파일(NAV_TABS)에서만 가져온다.
+// 실제 라벨/링크/그룹 구성은 DB(site_navigations, EPIC-023)에서 온다.
 export type NavTabType = "sidebar-left" | "sidebar-right" | "dropdown" | "link";
 
 export type NavTab = {
@@ -14,7 +16,38 @@ export type NavTab = {
   groups?: NavGroup[]; // type === "sidebar-left" | "sidebar-right"
 };
 
-export const NAV_TABS: NavTab[] = [
+// DB(site_navigations)의 target_type 값 ↔ 기존 NavTabType 매핑.
+// 'tab'은 하위 그룹/드롭다운 없이 바로 이동하는 단일 링크 탭(예: 마이페이지).
+type DbTargetType = "tab" | "sidebar_left" | "sidebar_right" | "dropdown";
+
+function mapTargetType(t: DbTargetType): NavTabType {
+  switch (t) {
+    case "sidebar_left":
+      return "sidebar-left";
+    case "sidebar_right":
+      return "sidebar-right";
+    case "dropdown":
+      return "dropdown";
+    case "tab":
+    default:
+      return "link";
+  }
+}
+
+type SiteNavRow = {
+  id: string;
+  key: string | null;
+  title: string;
+  href: string | null;
+  parent_id: string | null;
+  target_type: DbTargetType;
+};
+
+// site_navigations를 DB에서 아직 읽지 못했을 때(최초 로딩 중, 네트워크 실패 등)
+// 화면에 아무 탭도 뜨지 않는 것을 막기 위한 폴백. EPIC-023 이전 하드코딩값과
+// 동일하며, DB 마이그레이션 전/후 UX가 끊기지 않도록 하는 임시 스냅샷일 뿐
+// SSoT는 아니다 — 실제 데이터는 항상 site_navigations 테이블.
+const FALLBACK_NAV_TABS: NavTab[] = [
   {
     key: "silostore",
     label: "사일로상점",
@@ -25,29 +58,6 @@ export const NAV_TABS: NavTab[] = [
         items: [
           { label: "보물 목록", href: "/shop" },
           { label: "분양 후기", href: "/boards" },
-        ],
-      },
-      {
-        groupLabel: "온라인 도슨트 라이브러리",
-        items: [
-          { label: "Renaissance", href: "/docent/collections#era-renaissance" },
-          { label: "Baroque", href: "/docent/collections#era-baroque" },
-          { label: "Rococo", href: "/docent/collections#era-rococo" },
-          { label: "NeoClassicism", href: "/docent/collections#era-neoclassic" },
-          { label: "Regency", href: "/docent/collections#era-empire" },
-          { label: "Victoria", href: "/docent/collections#era-victorian" },
-          { label: "Art Nouveau", href: "/docent/collections#era-art_nouveau" },
-          { label: "Art Deco", href: "/docent/collections#era-art_deco" },
-          { label: "Beat Generation", href: "/docent/collections#era-beat_generation" },
-          { label: "CounterCulture", href: "/docent/collections#era-counter_culture" },
-          { label: "Digital", href: "/docent/collections#era-digital" },
-        ],
-      },
-      {
-        groupLabel: "사일로 Heritage",
-        items: [
-          { label: "할머니", href: "/shop/heritage/grandma" },
-          { label: "할아버지", href: "/shop/heritage/grandpa" },
         ],
       },
     ],
@@ -62,40 +72,6 @@ export const NAV_TABS: NavTab[] = [
         items: [
           { label: "출석체크", href: "/attendance" },
           { label: "자유게시판", href: "/boards" },
-          { label: "주제별 소통 게시판", href: "/boards" },
-          { label: "Mon ~ Sun 클럽모임", href: "/clubs" },
-          { label: "월별 모임 [패트론의 살롱]", href: "/salon/monthly-events" },
-          { label: "설문 [우리들 맴]", href: "/polls" },
-          { label: "Q&A", href: "/boards" },
-          { label: "이벤트 공지", href: "/salon/event-notices" },
-        ],
-      },
-      {
-        groupLabel: "Membership",
-        items: [
-          { label: "패트론 게시판", href: "/boards" },
-          { label: "한문장 소설 프로젝트", href: "/salon/one-sentence-novel" },
-          { label: "마음일기", href: "/salon/mind-diary" },
-          { label: "나의 보물 이야기", href: "/salon/my-treasure-story" },
-          { label: "비밀의 방 도슨트", href: "/salon/secret-room" },
-          { label: "나의 아티스트 소개", href: "/salon/artist-intro" },
-        ],
-      },
-      {
-        groupLabel: "Gallery",
-        items: [
-          { label: "시상식", href: "/salon/gallery/awards" },
-          { label: "공연들", href: "/salon/gallery/performances" },
-          { label: "파티", href: "/salon/gallery/parties" },
-          { label: "운명의 방문자들", href: "/salon/gallery/visitors" },
-          { label: "패트론들", href: "/salon/gallery/patrons" },
-        ],
-      },
-      {
-        groupLabel: "Library",
-        items: [
-          { label: "소개지", href: "/downloads" },
-          { label: "포스터", href: "/downloads" },
         ],
       },
     ],
@@ -105,7 +81,6 @@ export const NAV_TABS: NavTab[] = [
     label: "스튜디오",
     type: "dropdown",
     items: [
-      // EPIC-018: 기존 "스튜디오 대관" 탭(rental) 통합 — URL은 그대로 유지.
       { label: "공간 촬영 대관 (1층 사일로상점)", href: "/rental?floor=1f_silostore" },
       { label: "공간 촬영 대관 (2층 살롱데상)", href: "/rental?floor=2f_salon" },
       { label: "물품 대여", href: "/space-inquiry/item-rental" },
@@ -119,6 +94,65 @@ export const NAV_TABS: NavTab[] = [
     href: "/mypage",
   },
 ];
+
+function buildNavTree(rows: SiteNavRow[]): NavTab[] {
+  const byParent = new Map<string | null, SiteNavRow[]>();
+  for (const row of rows) {
+    const list = byParent.get(row.parent_id) ?? [];
+    list.push(row);
+    byParent.set(row.parent_id, list);
+  }
+
+  const topRows = byParent.get(null) ?? [];
+
+  return topRows.map((top) => {
+    const type = mapTargetType(top.target_type);
+
+    if (type === "link") {
+      return {
+        key: top.key ?? top.id,
+        label: top.title,
+        type,
+        href: top.href ?? "#",
+      };
+    }
+
+    if (type === "dropdown") {
+      const items = (byParent.get(top.id) ?? []).map((i) => ({
+        label: i.title,
+        href: i.href ?? "#",
+      }));
+      return { key: top.key ?? top.id, label: top.title, type, items };
+    }
+
+    // sidebar-left / sidebar-right: 자식은 그룹, 손자는 항목
+    const groupRows = byParent.get(top.id) ?? [];
+    const groups: NavGroup[] = groupRows.map((g) => ({
+      groupLabel: g.title,
+      items: (byParent.get(g.id) ?? []).map((i) => ({
+        label: i.title,
+        href: i.href ?? "#",
+      })),
+    }));
+    return { key: top.key ?? top.id, label: top.title, type, groups };
+  });
+}
+
+// site_navigations(EPIC-023)에서 활성 상태인 탭/그룹/항목을 조회해 트리로 조립한다.
+// 실패하거나 아직 시드가 적용되지 않은 경우 FALLBACK_NAV_TABS를 반환한다.
+export async function fetchNavTabs(): Promise<NavTab[]> {
+  const { data, error } = await supabase
+    .from("site_navigations")
+    .select("id, key, title, href, parent_id, target_type")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  if (error || !data || data.length === 0) {
+    return FALLBACK_NAV_TABS;
+  }
+
+  return buildNavTree(data as SiteNavRow[]);
+}
 
 export function getActiveNavTabKey(
   pathname: string,

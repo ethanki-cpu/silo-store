@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
-import { NAV_TABS, getActiveNavTabKey, type NavTab } from "@/lib/navConfig";
+import { fetchNavTabs, getActiveNavTabKey, type NavTab } from "@/lib/navConfig";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px";
@@ -31,6 +31,20 @@ export function Navbar() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // EPIC-023: 탭/사이드바/드롭다운 구성을 site_navigations(DB)에서 조회.
+  // 로딩 중이거나 조회 실패 시 navConfig.ts의 FALLBACK_NAV_TABS로 자동 대체되어
+  // 화면에 탭이 아예 비는 일은 없다.
+  const [navTabs, setNavTabs] = useState<NavTab[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchNavTabs().then((tabs) => {
+      if (!cancelled) setNavTabs(tabs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [dropdownTab, setDropdownTab] = useState<NavTab | null>(null);
@@ -39,8 +53,8 @@ export function Navbar() {
     left: number;
   } | null>(null);
 
-  const leftSidebarTab = NAV_TABS.find((t) => t.type === "sidebar-left");
-  const rightSidebarTab = NAV_TABS.find((t) => t.type === "sidebar-right");
+  const leftSidebarTab = navTabs.find((t) => t.type === "sidebar-left");
+  const rightSidebarTab = navTabs.find((t) => t.type === "sidebar-right");
 
   function openDropdown(tab: NavTab, e: React.MouseEvent<HTMLButtonElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -112,10 +126,11 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* 상단 탭: NAV_TABS를 그대로 순회하며 type에 따라 상호작용 방식만 분기.
-          라벨/링크/그룹 구성은 전부 navConfig.ts(SSOT)에서 온다. */}
+      {/* 상단 탭: DB(site_navigations)에서 조회한 navTabs를 그대로 순회하며
+          type에 따라 상호작용 방식만 분기. 라벨/링크/그룹 구성은 전부
+          DB(관리자 CMS, /admin/navigation)에서 온다. */}
       <nav className="flex justify-center gap-1 px-4 overflow-x-auto whitespace-nowrap border-t border-gray-100">
-        {NAV_TABS.map((tab) => {
+        {navTabs.map((tab) => {
           const className = `${TAB_BUTTON_BASE} ${
             activeTabKey === tab.key ? TAB_BUTTON_ACTIVE : TAB_BUTTON_INACTIVE
           }`;

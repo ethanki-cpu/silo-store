@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -20,7 +19,6 @@ type ItemResult = { id: string; name: string; photo_url: string | null };
 export default function NewStylingProjectPage() {
   // is_admin 인증 가드는 src/app/admin/layout.tsx(EPIC-024)가 공통으로 처리한다.
   const { session } = useAuth();
-  const router = useRouter();
 
   const [clientName, setClientName] = useState("");
   const [industry, setIndustry] = useState("photo_studio");
@@ -119,7 +117,18 @@ export default function NewStylingProjectPage() {
       return;
     }
 
-    router.push(`/shop/projects/${data.id}`);
+    window.alert("포트폴리오가 등록됐어요.");
+
+    setClientName("");
+    setIndustry("photo_studio");
+    setIndustryOtherLabel("");
+    setConcept("");
+    setLocation("");
+    setProjectDate("");
+    setMediaRows([]);
+    setItemQuery("");
+    setItemResults([]);
+    setSelectedItems([]);
   }
 
   return (

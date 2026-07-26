@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-07-26 (EPIC-030)
+- **EPIC-030: Studio Portfolio Registration — submit UX fix**
+  - 작업 지시가 요청한 `styling_projects`/`styling_project_media`/`styling_project_items` 3테이블 연동 폼(`/admin/projects/new`)은 EPIC-016에서 이미 완전히 구현되어 있었음(`docs/EPIC.md` 완료 목록 확인) — `page.tsx`가 3개 테이블 모두 다루는 폼을 갖추고 있고 `POST /api/styling-projects`(`src/app/api/styling-projects/route.ts`)가 이미 세 테이블에 순차 insert. 지시문의 "제목(title)" 필드는 실제 스키마에 없고(`client_name`+`industry`가 실제 필드 — 담당 업체를 기록하는 기능이라 의도적으로 다름), 사용자 확인 결과 스키마 변경 없이 기존 구현을 유지하기로 함.
+  - 유일하게 지시문과 실제 동작이 다르던 지점만 수정: 등록 성공 시 기존에는 `/shop/projects/[id]`로 즉시 이동했으나, 지시문이 요구한 "성공 알림 후 폼 초기화" 동작으로 변경(`window.alert` + 전체 폼 상태 리셋). 더 이상 쓰이지 않는 `useRouter` import 제거.
+  - `src/app/api/styling-projects/route.ts`는 기존 로직이 이미 요구사항(3테이블 순차 insert, 관리자 체크)을 충족해 변경 없음.
+
 ## 2026-07-26 (EPIC-029)
 - **EPIC-029: Member Collections CRUD Implementation**
   - `mypage/CollectionModal.tsx` 신규 작성: `member_collections`의 8개 카테고리(`book`/`movie`/`music`/`artist`/`place`/`scent`/`brand`/`era`)를 모두 처리하는 범용 등록/수정 모달. `title`(필수)/`description`(선택)/`image_url`(선택) 입력, `item` prop이 `null`이면 신규 등록(insert), 실제 항목이면 수정(update) 모드로 동작.

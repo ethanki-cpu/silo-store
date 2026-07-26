@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-07-26 (EPIC-028)
+- **EPIC-028: Admin Post Management Implementation (Shop & Salon)**
+  - `admin/posts/shop/page.tsx`를 Placeholder에서 실 구현으로 교체: `items` 테이블(`docs/database-schema.sql` §2)을 데이터 테이블로 조회, 시대(Time Slip 8종) 필터, 상태 뱃지(판매중/대여중/판매완료/비활성), 활성화·비활성화 토글(`status` ↔ `available`/`archived`), 삭제 버튼 구현.
+  - `admin/posts/salon/page.tsx`를 Placeholder에서 실 구현으로 교체: `posts`+`boards` 조인(`docs/database-schema.sql` §6)으로 게시판 글을 최신순 데이터 테이블로 조회, `board_type` 7종 필터(`boards!inner` join으로 DB 단에서 필터링), 작성자 이름은 `public_profiles` 뷰로 별도 조회 후 클라이언트에서 병합(CLAUDE.md 규칙 — 다른 회원 이름은 항상 `public_profiles` 경유). 개인 마이피드 글(`board_id is null`)은 이 화면 대상에서 제외.
+  - "숨기기" 기능은 이 스키마에 관리자 전용 노출 플래그가 없어, 기존 `posts.visibility`를 `'private'`로 바꾸는 방식으로 대체 구현(스키마 변경은 이번 EPIC 범위 밖 — 전용 컬럼이 필요하면 별도 Epic에서 추가할 것).
+  - 두 페이지 모두 별도 API Route 없이 브라우저에서 anon key + RLS(admin bypass)로 직접 CUD(EPIC-023 이후 admin CMS 관례 유지).
+  - 검증: 실제 물품 상태 토글(판매중→비활성→판매중 복원), 시대 필터, 게시판 글 board_type 필터(패트론 라운지 필터 시 정상적으로 0건) 모두 실 데이터로 확인.
+
 ## 2026-07-26 (EPIC-027)
 - **EPIC-027: BugFix — Navigation Editor에 저장(Save) 기능 추가**
   - 원인: `NavNodeEditor`/카테고리 행 입력이 `onBlur`/`onChange` 시점에 즉시 `update`를 호출하는 암묵적 autosave 방식이라, 사용자에게 "저장됐다"는 아무 신호도 없어 변경이 반영 안 되는 버그처럼 보였음(실제로는 포커스를 벗어나야만 저장되고, 클릭 순서에 따라 저장 타이밍이 눈에 안 보이는 문제도 있었음).

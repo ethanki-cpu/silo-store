@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 
 type PaymentRow = {
@@ -22,21 +21,16 @@ const TYPE_LABEL: Record<PaymentRow["type"], string> = {
 };
 
 export default function AdminPaymentsPage() {
-  const { session, member, loading: authLoading, memberLoading } = useAuth();
-  const router = useRouter();
+  // is_admin 인증 가드는 src/app/admin/layout.tsx(EPIC-024)가 공통으로 처리한다.
+  // 이 페이지가 렌더링된다는 것 자체가 이미 관리자로 확인됐다는 뜻이므로
+  // 이 컴포넌트에서는 session을 API 호출용 access_token으로만 사용한다.
+  const { session } = useAuth();
 
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [rows, setRows] = useState<PaymentRow[]>([]);
   const [fetching, setFetching] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (authLoading || memberLoading) return;
-    if (!session || !member?.is_admin) {
-      router.replace("/");
-    }
-  }, [authLoading, memberLoading, session, member, router]);
 
   async function load() {
     if (!session) return;
@@ -50,11 +44,9 @@ export default function AdminPaymentsPage() {
   }
 
   useEffect(() => {
-    if (!authLoading && !memberLoading && session && member?.is_admin) {
-      load();
-    }
+    if (session) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, memberLoading, session, member, filter]);
+  }, [session, filter]);
 
   async function handleConfirm(row: PaymentRow) {
     setConfirmingId(row.id);
@@ -78,10 +70,6 @@ export default function AdminPaymentsPage() {
     }
 
     await load();
-  }
-
-  if (authLoading || memberLoading || !session || !member?.is_admin) {
-    return null;
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
@@ -18,7 +18,8 @@ type MediaRow = { mediaType: "photo" | "video"; mediaUrl: string; caption: strin
 type ItemResult = { id: string; name: string; photo_url: string | null };
 
 export default function NewStylingProjectPage() {
-  const { session, member, loading, memberLoading } = useAuth();
+  // is_admin 인증 가드는 src/app/admin/layout.tsx(EPIC-024)가 공통으로 처리한다.
+  const { session } = useAuth();
   const router = useRouter();
 
   const [clientName, setClientName] = useState("");
@@ -37,13 +38,6 @@ export default function NewStylingProjectPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (loading || memberLoading) return;
-    if (!session || !member?.is_admin) {
-      router.replace("/");
-    }
-  }, [loading, memberLoading, session, member, router]);
 
   function addMediaRow(mediaType: "photo" | "video") {
     setMediaRows([...mediaRows, { mediaType, mediaUrl: "", caption: "" }]);
@@ -126,10 +120,6 @@ export default function NewStylingProjectPage() {
     }
 
     router.push(`/shop/projects/${data.id}`);
-  }
-
-  if (loading || memberLoading || !session || !member?.is_admin) {
-    return null;
   }
 
   return (

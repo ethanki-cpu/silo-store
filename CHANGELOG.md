@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-07-26 (EPIC-024)
+- **EPIC-024: Admin Dashboard Layout & Auth Guard Fix**
+  - 원인: `/admin/*` 페이지들의 인증 가드는 이미 `loading`/`memberLoading`이 true인 동안 리다이렉트를 보류하는 형태였지만, `session`이 `null`→실제 세션으로 막 바뀌는 바로 그 렌더에서 AuthProvider(부모)의 member 재조회 effect가 `memberLoading`을 `true`로 재무장하기 전에, 페이지(자식)의 가드 effect가 먼저 실행되는 React의 effect 실행 순서(자식이 부모보다 먼저) 때문에 `memberLoading=false`(직전 값)를 잘못 신뢰해 `member`가 아직 `null`인 상태로 "관리자 아님" 판정 후 `/`로 리다이렉트되던 버그. 하드 리로드로 관리자 페이지에 직접 진입할 때만 재현됨.
+  - 조치: `src/app/admin/layout.tsx` 신규 작성 — 이전 렌더의 `session` 참조를 `useRef`로 기억해두고, `session`이 방금 바뀐 바로 그 렌더는 판정을 한 번 건너뛰어 AuthProvider가 `memberLoading`을 재무장할 시간을 준 뒤 다음 렌더에서 최종 판정한다. 로딩 중에는 "확인 중..." 문구만 표시.
+  - `/admin/payments`, `/admin/navigation`, `/admin/projects/new` 3개 페이지의 개별 인증 가드(useEffect 리다이렉트 + `if (...) return null`)를 제거하고 레이아웃으로 통합 — 각 페이지는 `session`(API 호출용 access_token)만 계속 사용.
+  - `admin/layout.tsx`에 상단 서브 네비게이션 추가: "결제 관리"/"메뉴·카테고리 관리"/"스타일링 포트폴리오 등록" — Navbar 상단 탭과 동일한 시각 패턴(`border-b-2` 활성 탭 스타일) 재사용.
+  - 검증: 하드 리로드로 `/admin/navigation` 직접 진입 시 더 이상 `/`로 튕기지 않고 정상 접근됨을 확인(이전에는 `/admin/projects/new`에서도 동일 버그 재현됨). 서브 네비게이션을 통한 관리자 페이지 간 클라이언트 사이드 이동도 정상 확인.
+
 ## 2026-07-26 (EPIC-023)
 - **EPIC-023: Dynamic Navigation & Category Admin CMS**
   - `src/lib/navConfig.ts`를 하드코딩 배열(`NAV_TABS`)에서 DB 조회 함수(`fetchNavTabs()`)로 전환. `site_navigations`(신규 테이블, 자기참조 트리)를 조회해 기존과 동일한 `NavTab[]` 형태로 조립 — 조회 실패/시드 미적용 시 기존 하드코딩 값과 동일한 `FALLBACK_NAV_TABS`로 자동 대체되어 화면이 비지 않음. `getActiveNavTabKey()`는 순수 pathname 로직이라 변경 없음.

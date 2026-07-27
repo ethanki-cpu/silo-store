@@ -414,38 +414,6 @@ insert into boards (name, category, board_type) values
   ('After Adoption 분양 후 이야기', null, 'adoption_story'),
   ('자료게시판', null, 'archive'),
   ('질문과 답변', null, 'qna');
--- EPIC-048: Board Definition System(EPIC-047)으로 실제 게시판 20개(hub 3개
--- + story 17개) 생성. board_type CHECK 제약을 넓히는 대신(스키마 변경
--- 최소화) 기존 'topic'을 그대로 재사용하고, category 컬럼에 각 게시판의
--- slug를 담아 src/lib/boardLayout.ts의 resolveBoardDefinition()이 이
--- slug로 BoardDefinition을 찾게 한다 — 라이브 DB에는 아직 미적용,
--- Supabase SQL Editor에서 직접 실행 필요.
-insert into boards (name, category, board_type) values
-  ('Silo Store', 'silo-store', 'topic'),
-  ('사일로 보물들', 'treasures', 'topic'),
-  ('보물 목록', 'items', 'topic'),
-  ('입양신청서 라이브러리', 'adoption-library', 'topic'),
-  ('분양 후기', 'adoption-review', 'topic'),
-  ('Online Docent', 'online-docent', 'topic'),
-  ('르네상스', 'renaissance', 'topic'),
-  ('바로크', 'baroque', 'topic'),
-  ('로코코', 'rococo', 'topic'),
-  ('신고전주의', 'neoclassicism', 'topic'),
-  ('리젠시', 'regency', 'topic'),
-  ('빅토리아', 'victoria', 'topic'),
-  ('아르누보', 'art-nouveau', 'topic'),
-  ('아르데코', 'art-deco', 'topic'),
-  ('비트 세대', 'beat-generation', 'topic'),
-  ('카운터 컬처', 'counter-culture', 'topic'),
-  ('디지털', 'digital', 'topic'),
-  ('Heritage', 'heritage', 'topic'),
-  ('Grandmas', 'grandmas', 'topic'),
-  ('Grandpas', 'grandpas', 'topic');
--- 참고: 'silo-store'/'online-docent'/'heritage' 3개는 boardType=hub라
---       실제로 글을 쓰지 않는 집계 전용 게시판이지만, `/boards/[id]`
---       라우트로 주소를 갖기 위해(새 페이지를 만들지 않고 기존 라우트를
---       재사용하기 위해) boards 행 자체는 다른 게시판과 동일하게 만든다.
-
 -- 참고: 'patron'/'artist_promo' 보드는 min_rank_to_write가 각각 3/99로
 --       DB에 설정돼 있음 (기본값 0이 아님) — 실제 글쓰기 가능 여부는
 --       min_rank_to_write가 아니라 src/lib/serverAuth.ts의

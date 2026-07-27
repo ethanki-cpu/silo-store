@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-048)
+- **EPIC-048: Silo Store 실제 게시판 20개 생성 — Board Definition만 추가**
+  - EPIC-047에서 구축한 Board Definition System을 실제로 사용해 게시판 20개(hub 3개: Silo Store/Online Docent/Heritage, story 17개: 사일로 보물들/보물 목록/입양신청서 라이브러리/분양 후기/시대별 11개(르네상스~디지털)/Grandmas/Grandpas)를 생성. **새 React 페이지/컴포넌트를 만들지 않고**, `src/lib/boardLayout.ts`에 `INDIVIDUAL_BOARD_DEFINITIONS` 레지스트리(개별 게시판 20개 config)만 추가하고 기존 `/boards/[id]` 라우트+`BoardRenderer`가 그대로 소화하도록 함.
+  - **개별 게시판 slug 매칭(스키마 변경 없이 처리, 판단 필요 사항)**: `boards.board_type`에 새 값을 추가하려면 CHECK 제약을 ALTER해야 해서(스키마 변경 최소화 원칙에 반함), 기존 `board_type='topic'`을 그대로 재사용하고 이미 자유 텍스트인 `category` 컬럼에 각 게시판의 slug(`treasures`/`items`/`renaissance`/`grandmas` 등)를 담았다. `resolveBoardDefinition()`이 `category`를 개별 slug 레지스트리에서 먼저 찾고, 없으면 기존 8개 그룹 로직으로 폴백 — 기존 게시판 동작에 영향 없음.
+  - **BoardRenderer가 hub를 실제로 렌더링하도록 확장**: 이전(EPIC-047)에는 `hub`를 community로 대체 렌더링하는 자리표시자였는데, 이번에 `HubView`(최신글/인기글/추천글 슬라이드 3개 + 하위 게시판 카드)를 실제로 구현 — `BoardRenderer`가 `hubFeed`/`hubChildBoards` prop을 받아 그린다. `/boards/[id]/page.tsx`는 게시판이 hub면 `/api/boards/[id]/posts` 대신 `/api/boards/feed?parent=<slug>` + `/api/boards`(자식 필터)를 불러오도록 분기(같은 파일 안에서 분기 — 새 페이지 없음).
+  - **최상위 `/boards`도 BoardRenderer로 통일**: 기존에 `/boards/page.tsx`가 자체적으로 갖고 있던 `FeedCardRow`/`FeedList`(중복 컴포넌트)를 제거하고 `BoardRenderer`(hub 케이스)를 그대로 재사용 — "BoardRenderer만 사용한다" 지시를 프로젝트 전체에 일관 적용. 그룹별 게시판 디렉토리(8개 그룹) 섹션은 그대로 유지하고, 새로 생긴 3개 hub로 이동할 수 있는 "게시판 허브" 바로가기 섹션을 추가.
+  - **`/api/boards/feed`에 `?parent=<slug>` 필터 추가**: 파라미터가 없으면 기존처럼 전체 게시판 대상(최상위 `/boards`용), 있으면 그 slug를 부모로 둔 자식 게시판만 집계(Silo Store/Online Docent/Heritage 개별 hub용).
+  - **"보물 목록(items)"의 "카테고리 필터" 처리(판단 필요 사항)**: 새 필터 UI 컴포넌트를 만들지 않기 위해(중복 컴포넌트 생성 금지), 이미 있는 검색(제목/본문/작성자/태그) 기능을 그대로 활용 — 글쓰기 시 물품 카테고리를 태그로 등록하면 검색창에 그 카테고리명을 입력하는 것이 곧 필터 역할을 한다. 전용 드롭다운 필터가 필요하면 별도 확인 필요.
+  - **DB(최소 변경, board_type CHECK 제약 그대로 유지)**: `boards`에 새 행 20개 INSERT(`board_type='topic'`, `category`=slug) — 라이브 미적용, Supabase SQL Editor에서 직접 실행 필요. 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260727-2132.sql`로 백업.
+  - 기존 8개 게시판 그룹의 동작(검색/정렬/페이지네이션/좋아요/댓글/북마크/태그)은 변경 없음. 기존 라우팅과 URL 전부 유지.
+  - 문서 동기화: `docs/database-schema.sql`, `docs/content-blueprint.md`, `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint`(26건, EPIC-047과 동일 — 신규 이슈 없음) 통과. 다른 세션이 3000번 포트를 점유 중이라 브라우저로 hub 슬라이드/하위 게시판 카드/신규 20개 게시판 목록 노출을 직접 확인하지 못함 — 사용자 확인 필요(NEXT_TASK.md 참고). 또한 DB 시드가 라이브에 아직 없어, 실행 전까지는 신규 20개 게시판이 실제로 화면에 보이지 않는 것이 정상.
+
 ## 2026-07-27 (EPIC-047)
 - **EPIC-047: Common Board Engine — BoardRenderer 기반 community/story/gallery/hub**
   - 게시판별로 화면을 개별 구현하지 않도록, `src/lib/boardLayout.ts`의 `getBoardLayoutType(board_type)`이 기존 8종 `board_type`(등급/쓰기 권한 축, 그대로 유지)을 화면 레이아웃 3종으로 매핑하고, `BoardRenderer.tsx`가 그 값 하나로 community(목록형)/story(카드형+썸네일)/gallery(이미지 중심 Masonry) 중 하나를 렌더링한다. `/boards/[id]` 라우트 하나가 모든 게시판을 처리하므로 "동일 컴포넌트 공유"가 아키텍처상 자동 보장됨.

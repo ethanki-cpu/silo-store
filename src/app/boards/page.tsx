@@ -6,8 +6,11 @@ import { useAuth } from "@/lib/AuthProvider";
 import {
   BOARD_DEFINITIONS,
   BOARD_GROUP_ORDER,
+  HUB_DEFINITION,
   resolveBoardDefinition,
+  type HubFeed,
 } from "@/lib/boardLayout";
+import { BoardRenderer } from "@/components/boards/BoardRenderer";
 
 type Board = {
   id: string;
@@ -25,78 +28,12 @@ type Board = {
   lockMessage: string | null;
 };
 
-type FeedItem = {
-  id: string;
-  board_id: string;
-  board_name: string;
-  title: string | null;
-  like_count: number;
-  author_name: string;
-  created_at: string;
-};
-
-type Feed = { latest: FeedItem[]; popular: FeedItem[]; recommended: FeedItem[] };
-
-// Board Engine(EPIC-047): /boards는 개별 게시판이 아니라 hub 레이아웃 —
-// 하위 게시판들의 최신글/인기글/추천글을 슬라이드/카드로 종합 표시한 뒤,
-// 기존 게시판 디렉토리(그룹별 링크 목록)를 그대로 이어서 보여준다.
-function FeedCardRow({ items }: { items: FeedItem[] }) {
-  if (items.length === 0) {
-    return <p className="text-sm text-gray-400">아직 글이 없어요.</p>;
-  }
-
-  return (
-    <div className="flex gap-4 overflow-x-auto pb-2">
-      {items.map((item) => (
-        <Link
-          key={item.id}
-          href={`/boards/${item.board_id}/${item.id}`}
-          className="shrink-0 w-56 rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow"
-        >
-          <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">
-            {item.board_name}
-          </p>
-          <p className="font-serif font-medium text-gray-900 line-clamp-2">
-            {item.title}
-          </p>
-          <p className="text-xs text-gray-400 mt-2">
-            {item.author_name} · 좋아요 {item.like_count}
-          </p>
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-function FeedList({ items }: { items: FeedItem[] }) {
-  if (items.length === 0) {
-    return <p className="text-sm text-gray-400">아직 글이 없어요.</p>;
-  }
-
-  return (
-    <div className="divide-y divide-gray-100">
-      {items.map((item) => (
-        <Link
-          key={item.id}
-          href={`/boards/${item.board_id}/${item.id}`}
-          className="flex items-center justify-between py-3 group"
-        >
-          <span className="font-serif text-gray-900 group-hover:underline">
-            {item.title}
-          </span>
-          <span className="text-xs uppercase tracking-wide text-gray-400 shrink-0 ml-4">
-            {item.board_name}
-          </span>
-        </Link>
-      ))}
-    </div>
-  );
-}
+const EMPTY_FEED: HubFeed = { latest: [], popular: [], recommended: [] };
 
 export default function BoardsPage() {
   const { session, loading: authLoading } = useAuth();
   const [boards, setBoards] = useState<Board[]>([]);
-  const [feed, setFeed] = useState<Feed>({ latest: [], popular: [], recommended: [] });
+  const [feed, setFeed] = useState<HubFeed>(EMPTY_FEED);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
@@ -136,26 +73,45 @@ export default function BoardsPage() {
         </h1>
         <div className="border-t border-gray-200 mb-8" />
 
-        <section className="mb-10">
-          <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-            인기글
-          </h2>
-          <FeedCardRow items={feed.popular} />
-        </section>
+        {/* Board Definition System(EPIC-047/048): 최상위 디렉토리도 다른
+            hub(Silo Store 등)와 동일하게 BoardRenderer로 피드 슬라이드를
+            그린다 — hubChildBoards는 넘기지 않아 아래 그룹별 디렉토리와
+            중복되지 않게 한다(BoardRenderer.tsx의 HubView 참고). */}
+        <BoardRenderer
+          definition={HUB_DEFINITION}
+          boardId="hub"
+          posts={[]}
+          isQna={false}
+          hubFeed={feed}
+        />
 
-        <section className="mb-10">
-          <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-            추천글
-          </h2>
-          <FeedCardRow items={feed.recommended} />
-        </section>
+        {(() => {
+          const hubBoards = boards.filter(
+            (b) => resolveBoardDefinition(b).boardType === "hub",
+          );
+          if (hubBoards.length === 0) return null;
 
-        <section className="mb-10">
-          <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-            최신글
-          </h2>
-          <FeedList items={feed.latest} />
-        </section>
+          return (
+            <section className="mb-10">
+              <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
+                게시판 허브
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {hubBoards.map((b) => (
+                  <Link
+                    key={b.id}
+                    href={`/boards/${b.id}`}
+                    className="block rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow group"
+                  >
+                    <p className="font-serif font-medium text-gray-900 group-hover:underline">
+                      {b.name}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          );
+        })()}
 
         <div className="border-t border-gray-200 mb-8" />
 

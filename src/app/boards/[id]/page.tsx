@@ -6,7 +6,13 @@ import { useAuth } from "@/lib/AuthProvider";
 import { BoardHeader } from "@/components/boards/BoardHeader";
 import { BoardRenderer } from "@/components/boards/BoardRenderer";
 import { Pagination } from "@/components/boards/Pagination";
-import { resolveBoardDefinition, type BoardPost, type SortOption } from "@/lib/boardLayout";
+import {
+  resolveBoardDefinition,
+  type BoardPost,
+  type SortOption,
+  type HubFeed,
+  type HubChildBoard,
+} from "@/lib/boardLayout";
 
 type Board = {
   id: string;
@@ -14,6 +20,8 @@ type Board = {
   category: string | null;
   board_type: string;
 };
+
+const EMPTY_FEED: HubFeed = { latest: [], popular: [], recommended: [] };
 
 export default function BoardPostsPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +35,8 @@ export default function BoardPostsPage() {
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
+  const [hubFeed, setHubFeed] = useState<HubFeed>(EMPTY_FEED);
+  const [hubChildBoards, setHubChildBoards] = useState<HubChildBoard[]>([]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -75,6 +85,41 @@ export default function BoardPostsPage() {
     setPage(1);
   }
 
+  // Board Definition System(EPIC-048): 이 게시판이 hub(예: Silo Store/
+  // Online Docent/Heritage)면 자기 자신의 posts가 아니라 하위 게시판들의
+  // 종합 피드 + 하위 게시판 카드를 보여준다 — 새 페이지를 만들지 않고
+  // 같은 [id] 라우트 안에서 분기.
+  const hubDefinition = board ? resolveBoardDefinition(board) : null;
+  const isHub = hubDefinition?.boardType === "hub";
+
+  useEffect(() => {
+    if (!isHub || !hubDefinition) return;
+
+    const headers: Record<string, string> = session
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : {};
+
+    async function loadHub() {
+      const [feedRes, boardsRes] = await Promise.all([
+        fetch(`/api/boards/feed?parent=${hubDefinition!.slug}`, { headers }),
+        fetch("/api/boards", { headers }),
+      ]);
+
+      const feedData = await feedRes.json();
+      const boardsData = await boardsRes.json();
+
+      setHubFeed(feedData);
+      setHubChildBoards(
+        (Array.isArray(boardsData) ? boardsData : []).filter(
+          (b: Board & { locked: boolean; lockMessage: string | null }) =>
+            resolveBoardDefinition(b).parent === hubDefinition!.slug,
+        ),
+      );
+    }
+
+    loadHub();
+  }, [isHub, hubDefinition, session]);
+
   if (fetching && posts.length === 0 && !error) {
     return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
   }
@@ -112,6 +157,8 @@ export default function BoardPostsPage() {
           boardId={String(id)}
           posts={posts}
           isQna={board?.board_type === "qna"}
+          hubFeed={hubFeed}
+          hubChildBoards={hubChildBoards}
         />
 
         {definition.pageable && (

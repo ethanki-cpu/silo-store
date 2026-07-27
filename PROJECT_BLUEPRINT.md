@@ -78,7 +78,7 @@ silo-store/
 | 온라인 도슨트 라이브러리 (EPIC-017, 살롱+사일로상점 공유) | `/docent/collections` | `docent_contents.era`(11개 시대/사조 태그, `기존 category`와 별개 축) 기준 하위 게시판. 최신글 1건, 전체 인기글, era별 인기글(구매 수 집계 뷰 `docent_content_popularity` 기준) 표시. 관리 화면 없음 — 기존 콘텐츠는 era=null이라 수동 태깅 필요 |
 | 살롱 출입(체크인) | `/salon/checkin` → `POST /api/salon-checkins` | 등급별 무료/유료 |
 | 공간 대관(스튜디오) | `/rental`, `/rental/[rentalTypeId]` | 1층/2층, 사진/영상 촬영 유형 |
-| 마이페이지 | `/mypage` | 활동 중심 재구성: 갤러리(사진 있는 개인 글)/오늘의 영감(placeholder)/일반 글/내가 소유한 물품/사일로상점 구매 물품(Your Treasures)/최근 댓글/멤버십(등급·포인트) 순 |
+| 마이페이지 | `/mypage`(허브) + 11개 하위 라우트(EPIC-045) | "작은 박물관" 컨셉으로 재구성. `/mypage/layout.tsx`가 로그인 게이트+등급/포인트 요약+`MyPageNav`를 공유하고, 각 탭이 독립 라우트: `collections/[category]`(9개 서브카테고리: 나의 보물/책/영화/음악/예술가/장소/향기/브랜드/시대)/`wishlist`/`follow`/`salon`/`docent-certificate`/`space`/`exhibition`/`badges`/`comments`/`timeline`/`visitors`. 살롱/도슨트 수료증/공간/전시회/타임라인은 아직 `PlaceholderPanel`(데이터 소스 미지정) |
 | 설정 | `/settings` | 이름·이메일 등 개인정보 전용 페이지, 본인 세션 기준으로만 조회(다른 회원 정보 접근 불가) |
 | 관리자 결제 확인 | `/admin/payments` | `orders`/`reservations`/`rental_bookings`/`docent_purchases` 통합 확인 화면, `is_admin` 전용 |
 | 자료 다운로드 | `/downloads` | 목록 공개, 업로드는 관리자 전용 |

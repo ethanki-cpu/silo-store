@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-045)
+- **EPIC-045: Mypage restructure — museum-like collection, route-based tabs**
+  - `/mypage`가 11개 탭을 `useState`로 전환하는 단일 페이지에서 각 탭이 독립된 URL을 갖는 라우트 구조로 재구성됨 — 지시문의 "각 하위 페이지는 앞으로 기능 확장이 쉽도록 독립 페이지/라우트 구조를 사용한다"에 따름. 새 `src/app/mypage/layout.tsx`가 로그인 게이트 + 등급/포인트 요약 조회 + `MyPageNav`를 공유 chrome으로 끌어올리고, `MyPageProvider`(`src/components/mypage/MyPageContext.tsx`)로 `memberId`를 하위 라우트에 전달한다.
+  - 새 라우트 12개: `/mypage`(허브 — 11개 섹션을 카드 그리드로 보여주는 "박물관 입구"), `/mypage/collections`(→ `/mypage/collections/treasure`로 즉시 이동), `/mypage/collections/[category]`(9개 카테고리 동적 라우트), `/mypage/wishlist`, `/mypage/follow`, `/mypage/salon`, `/mypage/docent-certificate`, `/mypage/space`, `/mypage/exhibition`, `/mypage/badges`, `/mypage/comments`, `/mypage/timeline`, `/mypage/visitors`.
+  - **기존 기능 재사용**: `WishlistPanel`/`FollowPanel`/`BadgesPanel`/`CommentsPanel`/`VisitorsPanel`/`PlaceholderPanel`(EPIC-022)은 코드 변경 없이 그대로 각 라우트에 배치. `CollectionsPanel.tsx`(내부 `useState`로 9개 서브탭을 전환하던 구버전)는 삭제하고, 같은 조회/등록/수정/삭제 로직을 카테고리 하나만 받는 `CollectionCategoryPanel.tsx`로 재작성 — `CollectionModal.tsx`는 그대로 재사용. 서브탭 전환용 `CollectionsSubNav.tsx`(Link 기반)를 신규 작성해 `MyPageNav.tsx`도 같은 방식(`usePathname()`으로 활성 탭 자체 판단)으로 전환.
+  - `mypageConfig.ts`(11개 탭/9개 컬렉션 서브탭 정의, EPIC-022)는 탭 id가 이미 라우트 세그먼트와 1:1 대응해 변경 없이 그대로 재사용.
+  - **URL 변경 없음**: 기존 `/mypage`는 계속 유효(허브로 의미가 바뀌었을 뿐 경로 자체는 유지). 하위 라우트는 전부 신규 추가라 기존 링크(Navbar/설정 페이지의 `/mypage`)에 영향 없음.
+  - Schema 변경 없음 — `member_collections`/`member_follows`/`member_badges`/`member_visitors`는 이미 EPIC-022/023에서 설계·라이브 확인된 테이블을 그대로 사용. 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260727-1646.sql`로 백업만 해둠(실제 변경 없음).
+  - 검증: `npx tsc --noEmit`/`npm run lint`(26건, EPIC-043과 동일 — 신규 이슈 없음. `CollectionCategoryPanel.tsx`의 `set-state-in-effect` 1건은 삭제된 `CollectionsPanel.tsx`에 있던 동일 패턴을 그대로 옮긴 것이라 순증 없음) 통과. dev 서버 점유 여부는 이번 세션에서 확인하지 못해 실제 라우트 이동/데이터 렌더링은 사용자 확인 필요.
+
 ## 2026-07-27 (EPIC-044)
 - **EPIC-044: Dynamic routing, navigation data & universal board component**
   - `src/components/shared/UniversalBoard.tsx` 신규 작성: 이름/주제가 무한히 늘어나는 카테고리(헤리티지 인물, 클럽 등)를 위한 공용 게시판 템플릿 — 검색창, 정렬 드롭다운(조회수순/좋아요순/최신날짜순), 목록, 하단 총 페이지 수 통계. `posts`/`totalPages`는 옵션 prop(기본 빈 배열)으로, 카테고리별 실제 데이터 소스가 아직 없어 UI 뼈대만 구현.

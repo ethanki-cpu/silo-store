@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "../EmptyState";
-import { COLLECTION_SUBTABS, type CollectionSubKey } from "../mypageConfig";
+import { EmptyState } from "./EmptyState";
+import { COLLECTION_SUBTABS, type CollectionSubKey } from "./mypageConfig";
 import {
   CollectionModal,
   type CollectionCategory,
   type CollectionModalItem,
-} from "../CollectionModal";
+} from "./CollectionModal";
 
 type Treasure = {
   id: string;
@@ -26,22 +26,30 @@ type CollectionItem = {
   created_at: string;
 };
 
-export function CollectionsPanel({ memberId }: { memberId: string }) {
-  const [subTab, setSubTab] = useState<CollectionSubKey>("treasure");
+// EPIC-045: 옛 CollectionsPanel.tsx가 9개 서브탭을 내부 state로 전환하며
+// 한 화면에서 다 그리던 것을, 라우트당 한 카테고리만 받는 형태로 분리 —
+// 데이터 조회/등록/수정/삭제 로직 자체는 그대로 재사용.
+export function CollectionCategoryPanel({
+  memberId,
+  category,
+}: {
+  memberId: string;
+  category: CollectionSubKey;
+}) {
   const [treasures, setTreasures] = useState<Treasure[]>([]);
   const [items, setItems] = useState<CollectionItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  const [modalItem, setModalItem] = useState<CollectionModalItem | null | undefined>(
-    undefined,
-  );
+  const [modalItem, setModalItem] = useState<
+    CollectionModalItem | null | undefined
+  >(undefined);
 
   useEffect(() => {
     let cancelled = false;
     setLoadingData(true);
 
     async function load() {
-      if (subTab === "treasure") {
+      if (category === "treasure") {
         const { data } = await supabase
           .from("orders")
           .select("id, order_type, created_at, items(name, photo_url)")
@@ -72,7 +80,7 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
           .from("member_collections")
           .select("id, title, description, image_url, created_at")
           .eq("member_id", memberId)
-          .eq("category", subTab)
+          .eq("category", category)
           .order("created_at", { ascending: false });
 
         if (cancelled) return;
@@ -86,7 +94,7 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [memberId, subTab, reloadKey]);
+  }, [memberId, category, reloadKey]);
 
   async function handleDelete(itemId: string) {
     if (!window.confirm("이 항목을 삭제할까요?")) return;
@@ -102,24 +110,7 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 mb-4">
-        {COLLECTION_SUBTABS.map((sub) => (
-          <button
-            key={sub.key}
-            type="button"
-            onClick={() => setSubTab(sub.key)}
-            className={`px-3 py-1.5 rounded-full text-xs border ${
-              subTab === sub.key
-                ? "bg-gray-800 text-white border-gray-800"
-                : "border-gray-300 text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            {sub.label}
-          </button>
-        ))}
-      </div>
-
-      {subTab !== "treasure" && (
+      {category !== "treasure" && (
         <div className="flex justify-end mb-3">
           <button
             type="button"
@@ -133,7 +124,7 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
 
       {loadingData ? (
         <p className="text-gray-500">불러오는 중...</p>
-      ) : subTab === "treasure" ? (
+      ) : category === "treasure" ? (
         treasures.length === 0 ? (
           <EmptyState message="아직 입양(구매/대여)한 물품이 없어요." />
         ) : (
@@ -165,7 +156,7 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
       ) : items.length === 0 ? (
         <EmptyState
           message={`아직 등록한 ${
-            COLLECTION_SUBTABS.find((s) => s.key === subTab)?.label ?? ""
+            COLLECTION_SUBTABS.find((s) => s.key === category)?.label ?? ""
           }이(가) 없어요.`}
         />
       ) : (
@@ -221,10 +212,10 @@ export function CollectionsPanel({ memberId }: { memberId: string }) {
         </div>
       )}
 
-      {modalItem !== undefined && subTab !== "treasure" && (
+      {modalItem !== undefined && category !== "treasure" && (
         <CollectionModal
           memberId={memberId}
-          category={subTab as CollectionCategory}
+          category={category as CollectionCategory}
           item={modalItem}
           onClose={() => setModalItem(undefined)}
           onSaved={() => {

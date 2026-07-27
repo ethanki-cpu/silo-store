@@ -3,7 +3,7 @@
 > 이 문서는 게시판/갤러리/자료실/도슨트/상점/마이페이지 콘텐츠 모델과 그 연결 구조를 정리한
 > **콘텐츠 시스템의 공식 설계 문서(SSoT)**입니다. 새 콘텐츠 타입을 추가하거나 기존 콘텐츠 간 연결을
 > 바꿀 때는 이 문서를 먼저 확인하고, 변경 시 이 문서도 함께 갱신합니다.
-> 최종 확인: 2026-07-26 (코드 기준).
+> 최종 확인: 2026-07-27 (코드 기준).
 
 ## 1. 게시판 (Boards)
 
@@ -56,16 +56,23 @@
 
 ## 6. 마이페이지 콘텐츠 (Mypage)
 
-`src/app/mypage/page.tsx` — 로그인 시 순서대로 렌더링되는 8개 섹션:
+`/mypage`는 EPIC-022(11개 탭 도입)·EPIC-045(라우트 분리)를 거쳐 현재 **허브 + 11개 독립 라우트** 구조다.
 
-1. **갤러리** — 본인 글(`board_id IS NULL`) 중 `photo_url` 있는 것만. "폴더 기능은 준비 중" 명시.
-2. **오늘의 영감** — 정적 placeholder("준비 중입니다"), 데이터 없음.
-3. **일반 글** — `photo_url` 없는 본인 글.
-4. **내가 소유한 물품** — `orders` 중 `order_type='purchase'`만(5번의 부분집합).
-5. **사일로상점 구매 물품** — 확정 주문 전체(구매+대여).
-6. **찜 목록(Wishlist)** — `wishlists → items` 조인, `/shop/[item_id]` 링크 + 인라인 `WishlistButton`으로 즉시 해제 가능.
-7. **최근 댓글** — 최근 10개, `comments → posts → boards` 조인.
-8. **멤버십** — 현재 등급명 + `points_ledger` 합계 포인트, "다른 등급이었다면?" 등급 비교 그리드(현재 등급 파란 링 강조).
+- `src/app/mypage/layout.tsx` — 로그인 게이트, 등급/포인트 요약 조회, `MyPageNav`(Link 기반, `usePathname()`으로 활성 탭 판단) 렌더링, `MyPageProvider`로 하위 라우트에 `memberId` 전달.
+- `src/app/mypage/page.tsx` — 허브("작은 박물관 입구"), 11개 섹션을 카드 그리드로 안내.
+- 11개 탭(순서 고정, `src/components/mypage/mypageConfig.ts`의 `MYPAGE_TABS`가 SSoT):
+  1. **나의 컬렉션** (`/mypage/collections/[category]`) — 9개 서브카테고리: 나의 보물(`treasure`, `orders` 재사용)/나를 만든 책(`book`)/영화(`movie`)/음악(`music`)/좋아하는 예술가(`artist`)/장소(`place`)/향기(`scent`)/브랜드(`brand`)/시대(`era`). `treasure`는 `orders`(`payment_status='confirmed'`) 조회, 나머지 8개는 `member_collections.category` 조회 + `CollectionModal.tsx`로 등록/수정, `CollectionCategoryPanel.tsx`가 렌더링 담당.
+  2. **나의 위시리스트** (`/mypage/wishlist`) — `WishlistPanel`, `wishlists → items` 조인(§8 참고).
+  3. **팔로우** (`/mypage/follow`) — `FollowPanel`, `member_follows` 기준 팔로잉/팔로워 목록.
+  4. **나의 살롱** (`/mypage/salon`) — `PlaceholderPanel`, 데이터 소스 미지정.
+  5. **나의 도슨트 수료증** (`/mypage/docent-certificate`) — `PlaceholderPanel`, 데이터 소스 미지정.
+  6. **나의 공간** (`/mypage/space`) — `PlaceholderPanel`, 데이터 소스 미지정.
+  7. **나의 전시회** (`/mypage/exhibition`) — `PlaceholderPanel`, 데이터 소스 미지정.
+  8. **받은 배지** (`/mypage/badges`) — `BadgesPanel`, `member_badges` 조회.
+  9. **내가 쓴 댓글** (`/mypage/comments`) — `CommentsPanel`, 최근 30개, `comments → posts → boards` 조인.
+  10. **타임라인** (`/mypage/timeline`) — `PlaceholderPanel`, 데이터 소스 미지정.
+  11. **방문자 기록** (`/mypage/visitors`) — `VisitorsPanel`, `member_visitors` + `public_profiles` 조인.
+- EPIC-022 이전의 "갤러리/오늘의 영감/일반 글/내가 소유한 물품/사일로상점 구매 물품" 5섹션 구성은 완전히 대체됨 — 개인 글(`posts.board_id IS NULL`) 노출은 이제 마이페이지가 아니라 §7 마이피드(`/me`)에서만 담당.
 
 ## 7. 마이피드 (`/me`, `/me/write`, `/u/[memberId]`) — 마이페이지와 별개
 
@@ -107,6 +114,6 @@
 | 상점 — 물품 목록/상세/큐레이션 | 완전 구현 |
 | 상점 — Heritage(할머니/할아버지) | **미구현** (ComingSoon, `item_personas` 데이터는 존재) |
 | 상점 — 스타일링 프로젝트(EPIC-016) | 완전 구현 (nav 미연결, §navigation-blueprint 참고) |
-| 마이페이지 | 완전 구현(8섹션 중 "오늘의 영감"과 갤러리 "폴더" 기능은 페이지 내 명시된 미구현 상태) |
+| 마이페이지 | 11개 탭 중 6개(나의 컬렉션/위시리스트/팔로우/받은 배지/내가 쓴 댓글/방문자 기록) 완전 구현, 5개(나의 살롱/도슨트 수료증/공간/전시회/타임라인)는 Placeholder |
 | 마이피드 | 완전 구현 |
 | Wishlist(EPIC-017) | 완전 구현, 아이템 전용 |

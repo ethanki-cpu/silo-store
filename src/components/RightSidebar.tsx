@@ -4,10 +4,14 @@ import Link from "next/link";
 import type { NavTab } from "@/lib/navConfig";
 
 // EPIC-039: LeftSidebar.tsx와 대칭 구조 — 자세한 배경은 그쪽 주석 참고.
+//
+// EPIC-043: 여닫이 아이콘은 클릭으로만 열린다. RightSidebar는 LeftSidebar와
+// 달리 그룹 전부(커뮤니티/멤버십/갤러리/아카이브 등)가 기본 접힘 + hover로
+// 펼쳐지는 아코디언 — 그룹명을 하드코딩해 특정 라벨만 골라내지 않고, 모든
+// 그룹에 동일하게 적용한다(LeftSidebar.tsx의 ACCORDION_GROUP_LABELS와 대비).
 export function RightSidebar({
   tab,
   open,
-  onIconMouseEnter,
   onIconClick,
   onClose,
   onAmbientLeave,
@@ -16,7 +20,6 @@ export function RightSidebar({
 }: {
   tab?: NavTab;
   open: boolean;
-  onIconMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onIconClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
   onAmbientLeave: () => void;
@@ -32,7 +35,6 @@ export function RightSidebar({
         <button
           type="button"
           onClick={onIconClick}
-          onMouseEnter={onIconMouseEnter}
           aria-label={`${tab.label} 메뉴 열기`}
           className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-l-md bg-green-800 text-white p-2 shadow-md"
         >
@@ -69,20 +71,22 @@ export function RightSidebar({
         </div>
         <nav className="p-2 overflow-y-auto max-h-[calc(100vh-64px)]">
           {(tab.groups ?? []).map((group) => (
-            <div key={group.groupLabel} className="mb-4">
-              <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+            <div key={group.groupLabel} className="mb-4 group">
+              <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60 cursor-default">
                 {group.groupLabel}
               </p>
-              {group.items.map((item, idx) => (
-                <Link
-                  key={`${item.href}-${idx}`}
-                  href={item.href}
-                  onClick={onClose}
-                  className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              <div className="hidden group-hover:block">
+                {group.items.map((item, idx) => (
+                  <Link
+                    key={`${item.href}-${idx}`}
+                    href={item.href}
+                    onClick={onClose}
+                    className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
             </div>
           ))}
         </nav>

@@ -17,7 +17,12 @@ const TAB_BUTTON_INACTIVE =
 
 type LogoAlign = "left" | "center" | "right";
 type TextPosition = "left" | "right";
-type CustomFont = "default" | "Graphire" | "Primor";
+
+type CustomFontEntry = {
+  id: string;
+  url: string;
+  isActive: boolean;
+};
 
 type MainLogoValue = {
   type: "text" | "image";
@@ -32,11 +37,12 @@ type MainLogoValue = {
   fontSizePx: number;
   /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용. */
   textPosition: TextPosition;
-  textCustomFont: CustomFont;
   textColor: string;
   leftText: string;
   rightText: string;
+  /** @deprecated EPIC-043: customFonts(배열)로 대체. 구버전 데이터 호환용. */
   fontFileUrl: string;
+  customFonts: CustomFontEntry[];
 };
 
 type SidebarIconsValue = {
@@ -52,15 +58,9 @@ const DEFAULT_LOGO_FONT_SIZE_PX = 16;
 const DEFAULT_LOGO_TEXT_COLOR = "#166534";
 // EPIC-041: 사이드바 여닫이 아이콘 기본 크기 — 기존 하드코딩 w-8 h-8(32px)과 맞춤.
 const DEFAULT_ICON_SIZE_PX = 32;
-// EPIC-041: main_logo.fontFileUrl 업로드 시 주입할 @font-face의 font-family 이름.
-const UPLOADED_FONT_FAMILY_NAME = "SiloCustomLogoFont";
-
-// EPIC-034-Ext: 커스텀 폰트(Graphire/Primor)는 아직 실제 폰트 파일이
-// 없어(globals.css @font-face 뼈대만 존재) serif로 자연스럽게 대체된다.
-const CUSTOM_FONT_STACK: Record<Exclude<CustomFont, "default">, string> = {
-  Graphire: "'Graphire', serif",
-  Primor: "'Primor', serif",
-};
+// EPIC-043: main_logo.customFonts의 각 활성 항목에 주입할 @font-face의
+// font-family 이름 접두사 — 항목 id로 구분해 여러 개를 동시에 등록한다.
+const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
 
 export function Navbar() {
   const { session, member, loading } = useAuth();
@@ -120,6 +120,13 @@ export function Navbar() {
               rightText = value.extraText;
             }
           }
+          // EPIC-043: 구버전 단일 fontFileUrl을 customFonts 배열로 1회 이전.
+          const customFonts =
+            value.customFonts && value.customFonts.length > 0
+              ? value.customFonts
+              : value.fontFileUrl
+                ? [{ id: "legacy", url: value.fontFileUrl, isActive: true }]
+                : [];
           setMainLogo({
             type: value.type === "image" ? "image" : "text",
             text: value.text ?? "",
@@ -131,11 +138,11 @@ export function Navbar() {
             bold: value.bold ?? false,
             fontSizePx: value.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX,
             textPosition: value.textPosition ?? "right",
-            textCustomFont: value.textCustomFont ?? "default",
             textColor: value.textColor || DEFAULT_LOGO_TEXT_COLOR,
             leftText,
             rightText,
             fontFileUrl: value.fontFileUrl ?? "",
+            customFonts,
           });
         }
       });
@@ -198,12 +205,18 @@ export function Navbar() {
     router.refresh();
   }
 
-  // EPIC-041: 업로드된 커스텀 폰트 파일(fontFileUrl)이 있으면 최우선 적용 —
-  // textCustomFont(Graphire/Primor)나 자유 입력 fontFamily보다 우선한다.
-  const fontFamilyValue = mainLogo?.fontFileUrl
-    ? `'${UPLOADED_FONT_FAMILY_NAME}', sans-serif`
-    : mainLogo?.textCustomFont && mainLogo.textCustomFont !== "default"
-      ? CUSTOM_FONT_STACK[mainLogo.textCustomFont]
+  // EPIC-043: "적용" 켜진 커스텀 폰트들을 등록 순서대로 font-family 폴백
+  // 체인으로 연결 — 맨 앞 폰트가 우선이고, 로드 실패 시 다음 활성 폰트로,
+  // 전부 실패하면 자유 입력 fontFamily/sans-serif로 자연스럽게 대체된다.
+  const activeCustomFonts = (mainLogo?.customFonts ?? []).filter(
+    (f) => f.isActive && f.url,
+  );
+  const fontFamilyValue =
+    activeCustomFonts.length > 0
+      ? activeCustomFonts
+          .map((f) => `'${CUSTOM_FONT_FAMILY_PREFIX}-${f.id}'`)
+          .concat(mainLogo?.fontFamily ? [mainLogo.fontFamily] : ["sans-serif"])
+          .join(", ")
       : mainLogo?.fontFamily || undefined;
 
   // EPIC-039: 좌/우 로고 텍스트가 공유하는 서체/굵기/크기/색상 스타일.
@@ -216,15 +229,19 @@ export function Navbar() {
 
   return (
     <header className="border-b border-gray-200">
-      {/* EPIC-041: 관리자가 업로드한 커스텀 폰트 파일을 @font-face로 동적
-          주입 — 로고 좌/우 텍스트가 즉시 이 서체를 쓸 수 있게 한다. */}
-      {mainLogo?.fontFileUrl && (
+      {/* EPIC-043: "적용" 켜진 커스텀 폰트마다 각각 @font-face를 동적 주입 —
+          로고 좌/우 텍스트가 즉시 이 서체들을(폴백 체인으로) 쓸 수 있게 한다. */}
+      {activeCustomFonts.length > 0 && (
         <style>{`
-          @font-face {
-            font-family: '${UPLOADED_FONT_FAMILY_NAME}';
-            src: url('${mainLogo.fontFileUrl}');
+          ${activeCustomFonts
+            .map(
+              (f) => `@font-face {
+            font-family: '${CUSTOM_FONT_FAMILY_PREFIX}-${f.id}';
+            src: url('${f.url}');
             font-display: swap;
-          }
+          }`,
+            )
+            .join("\n")}
         `}</style>
       )}
       <div className="flex items-center p-4 gap-4">
@@ -408,7 +425,6 @@ export function Navbar() {
       <LeftSidebar
         tab={leftSidebarTab}
         open={leftOpen}
-        onIconMouseEnter={() => setLeftOpen(true)}
         onIconClick={() => setLeftOpen(true)}
         onClose={() => setLeftOpen(false)}
         onAmbientLeave={() => setLeftOpen(false)}
@@ -418,7 +434,6 @@ export function Navbar() {
       <RightSidebar
         tab={rightSidebarTab}
         open={rightOpen}
-        onIconMouseEnter={() => setRightOpen(true)}
         onIconClick={() => setRightOpen(true)}
         onClose={() => setRightOpen(false)}
         onAmbientLeave={() => setRightOpen(false)}

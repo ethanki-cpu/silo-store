@@ -65,10 +65,22 @@ import {
 // 파일 업로드(input type="file" + Storage 업로드) 대신 URL을 직접 붙여넣는
 // 텍스트 입력으로 되돌렸다 — 가장 단순하고 확실한 방식을 우선한다. 로고
 // 이미지/슬라이드/Wallpaper 이미지는 계속 파일 업로드를 쓴다(대상 아님).
+//
+// EPIC-043: 실제로 동작하지 않던(폰트 파일이 없는) "텍스트 폰트"
+// select(textCustomFont: Graphire/Primor)를 완전히 삭제. 단일 fontFileUrl도
+// customFonts(배열, 각 항목에 url+isActive)로 교체 — 여러 폰트를 등록해두고
+// 필요한 것만 켜고 끌 수 있다. Navbar.tsx는 isActive인 항목들을 순서대로
+// @font-face 주입 + font-family fallback 체인으로 연결한다(먼저 켜진
+// 폰트가 우선). 구버전 단일 fontFileUrl은 로드 시 1개짜리 배열로 이전.
 
 type LogoAlign = "left" | "center" | "right";
 type TextPosition = "left" | "right";
-type CustomFont = "default" | "Graphire" | "Primor";
+
+type CustomFontEntry = {
+  id: string;
+  url: string;
+  isActive: boolean;
+};
 
 type MainLogoValue = {
   type: "text" | "image";
@@ -83,11 +95,12 @@ type MainLogoValue = {
   fontSizePx: number;
   /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용으로만 읽는다. */
   textPosition: TextPosition;
-  textCustomFont: CustomFont;
   textColor: string;
   leftText: string;
   rightText: string;
+  /** @deprecated EPIC-043: customFonts(배열)로 대체. 구버전 데이터 호환용으로만 읽는다. */
   fontFileUrl: string;
+  customFonts: CustomFontEntry[];
 };
 type SlideItem = { imageUrl: string; title: string; description: string };
 type HeroSlideshowValue = {
@@ -117,6 +130,14 @@ type SidebarIconsValue = {
 const MAX_WALLPAPERS = 10;
 const DEFAULT_ICON_SIZE_PX = 32;
 
+function makeDefaultCustomFont(): CustomFontEntry {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    url: "",
+    isActive: true,
+  };
+}
+
 const DEFAULT_MAIN_LOGO: MainLogoValue = {
   type: "text",
   text: "",
@@ -128,11 +149,11 @@ const DEFAULT_MAIN_LOGO: MainLogoValue = {
   bold: false,
   fontSizePx: 16,
   textPosition: "right",
-  textCustomFont: "default",
   textColor: "#166534",
   leftText: "",
   rightText: "",
   fontFileUrl: "",
+  customFonts: [],
 };
 const DEFAULT_HERO_SLIDESHOW: HeroSlideshowValue = {
   slides: [],
@@ -242,6 +263,12 @@ export default function AdminNavigationSettingsPage() {
             } else {
               value.rightText = value.extraText;
             }
+          }
+          // EPIC-043: 구버전 단일 fontFileUrl을 customFonts 배열로 1회 이전.
+          if (value.customFonts.length === 0 && value.fontFileUrl) {
+            value.customFonts = [
+              { id: "legacy", url: value.fontFileUrl, isActive: true },
+            ];
           }
           setMainLogo(value);
         } else if (row.setting_key === "hero_slideshow") {
@@ -382,6 +409,29 @@ export default function AdminNavigationSettingsPage() {
       return;
     }
     updateWallpaper(index, url);
+  }
+
+  function addCustomFont() {
+    setMainLogo((prev) => ({
+      ...prev,
+      customFonts: [...prev.customFonts, makeDefaultCustomFont()],
+    }));
+  }
+
+  function updateCustomFont(id: string, patch: Partial<CustomFontEntry>) {
+    setMainLogo((prev) => ({
+      ...prev,
+      customFonts: prev.customFonts.map((f) =>
+        f.id === id ? { ...f, ...patch } : f,
+      ),
+    }));
+  }
+
+  function removeCustomFont(id: string) {
+    setMainLogo((prev) => ({
+      ...prev,
+      customFonts: prev.customFonts.filter((f) => f.id !== id),
+    }));
   }
 
   function addCurationBlock() {
@@ -535,37 +585,62 @@ export default function AdminNavigationSettingsPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm mb-1">
-                커스텀 폰트 파일 URL (.woff, .woff2, .ttf 등)
-              </label>
-              <input
-                className={inputClass}
-                value={mainLogo.fontFileUrl}
-                onChange={(e) =>
-                  setMainLogo({ ...mainLogo, fontFileUrl: e.target.value })
-                }
-                placeholder="https://... (Supabase Storage에 올린 폰트 파일의 공개 URL)"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm">
+                  커스텀 폰트 파일 (.woff, .woff2, .ttf 등, 여러 개 등록 가능)
+                </label>
+                <button
+                  type="button"
+                  onClick={addCustomFont}
+                  className={smallButtonClass}
+                >
+                  + 폰트 추가
+                </button>
+              </div>
+              {mainLogo.customFonts.length === 0 ? (
+                <p className="text-sm text-gray-400">
+                  아직 추가된 폰트가 없어요.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {mainLogo.customFonts.map((font) => (
+                    <div key={font.id} className="flex items-center gap-2">
+                      <input
+                        className={inputClass}
+                        value={font.url}
+                        onChange={(e) =>
+                          updateCustomFont(font.id, { url: e.target.value })
+                        }
+                        placeholder="https://... (Supabase Storage에 올린 폰트 파일의 공개 URL)"
+                      />
+                      <label className="flex items-center gap-1 text-xs text-gray-600 shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={font.isActive}
+                          onChange={(e) =>
+                            updateCustomFont(font.id, {
+                              isActive: e.target.checked,
+                            })
+                          }
+                        />
+                        적용
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeCustomFont(font.id)}
+                        className="text-xs text-red-600 hover:underline shrink-0"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="text-xs text-gray-400 mt-1">
-                입력하면 아래 텍스트 폰트/서체 설정보다 우선 적용돼요.
+                &quot;적용&quot;이 켜진 폰트만 실제로 주입되고, 아래 텍스트
+                서체 입력값보다 우선 적용돼요. 여러 개를 켜두면 목록 순서대로
+                폴백 체인으로 연결돼요.
               </p>
-            </div>
-            <div>
-              <label className="block text-sm mb-1">텍스트 폰트</label>
-              <select
-                className={inputClass}
-                value={mainLogo.textCustomFont}
-                onChange={(e) =>
-                  setMainLogo({
-                    ...mainLogo,
-                    textCustomFont: e.target.value as CustomFont,
-                  })
-                }
-              >
-                <option value="default">기본 (아래 서체 입력값 사용)</option>
-                <option value="Graphire">Graphire</option>
-                <option value="Primor">Primor</option>
-              </select>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
@@ -577,7 +652,6 @@ export default function AdminNavigationSettingsPage() {
                     setMainLogo({ ...mainLogo, fontFamily: e.target.value })
                   }
                   placeholder="예: 'Pretendard', sans-serif"
-                  disabled={mainLogo.textCustomFont !== "default"}
                 />
               </div>
               <div>

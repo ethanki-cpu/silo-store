@@ -54,6 +54,7 @@
 - EPIC-050 : Board Definition System으로 Salon des Cent Membership/Gallery/Archive 영역 게시판 생성(hub 3개 + 하위 14개, 전부 신규 DB 행) — 5번째 boardType "timeline" 추가(BoardRenderer 내 재사용 가능한 Timeline Engine), BoardDefinition에 accessLevel 필드 추가하고 "패트론 게시판"에 실제 serverAuth.ts 인가 로직 연결
 - EPIC-051 : Board Definition System으로 Studio(공간 문의) 영역 게시판 생성(hub 1개 + story 4개, 전부 신규 DB 행) — 새 예약 시스템 없이 BoardDefinition.ctas 필드로 "문의하기"/"예약하기"/"대표 프로젝트 보기" 버튼을 기존 /rental·/space-inquiry/*·/shop/projects(styling_projects) 페이지에 연결, hub 슬라이드에 대표 이미지(photo_url) 표시 추가
 - EPIC-052 : 마이페이지를 Personal Hub로 확장 — Tiptap Block Editor 도입(모든 Board Definition 게시판 글쓰기 폼 공용, posts.body에 HTML 저장 + 서버 sanitize), Timeline Engine 추출·재사용(groupByYearMonth+TimelineView), "나의 컬렉션" 비공개 유지하며 StoryCard로 시각 통일, 살롱/도슨트 수료증/공간/전시회 Placeholder를 실데이터로 교체, 버킷리스트 신규 기능(member_bucket_list) 추가
+- EPIC-053 : Block Editor 시스템 확장 — RichTextEditor → BlockEditor로 전면 재작성(툴바 확장/체크리스트/밑줄/정렬/형광펜/색상), 이미지 Drag&Drop/붙여넣기/여러장 업로드, Supabase Storage 연동(post-images/gallery/attachments), 자동 저장(localStorage)/임시 저장(서버 API), sanitize 확장(img/iframe/video/audio/table)
 
 ## 진행중
 (없음)

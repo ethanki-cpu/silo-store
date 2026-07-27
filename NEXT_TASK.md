@@ -1,7 +1,7 @@
 # NEXT_TASK
 
 ## 진행 중
-- 없음 (대기 중 — 다음 지시 대기)
+- **EPIC-053**: Block Editor 확장 — 기능 구현 완료, type-check/lint 통과. 브라우저에서 이미지 Drag&Drop/붙여넣기/자동 저장/임시 저장 복구 동작 확인 필요.
 
 ## 다음 작업
 - **EPIC-052 (중요)**: `member_bucket_list` 테이블을 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). `docs/database-schema.sql`의 "EPIC-052" 주석 아래 DDL 참고. 실행 전까지 `/mypage/bucketlist`에서 항목 추가 시 에러가 남.

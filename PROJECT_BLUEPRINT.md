@@ -25,7 +25,7 @@
 - **TypeScript** `^5`
 - **Supabase**: `@supabase/supabase-js` `^2.110.8`
 - **Tailwind CSS** `^4` (`@tailwindcss/postcss`)
-- **Tiptap**(ProseMirror) `^3` — `@tiptap/react`/`@tiptap/starter-kit`/`@tiptap/extension-link`/`@tiptap/extension-placeholder`/`@tiptap/pm` (EPIC-052, Block Editor). `isomorphic-dompurify`(EPIC-052, 게시글 HTML 저장/렌더링 정제)
+- **Tiptap**(ProseMirror) `^3` — `@tiptap/react`/`@tiptap/starter-kit`/`@tiptap/extension-link`/`@tiptap/extension-placeholder`/`@tiptap/pm` (EPIC-052). `isomorphic-dompurify`(EPIC-052, 게시글 HTML 저장/렌더링 정제). EPIC-053에서 `@tiptap/extension-underline`/`@tiptap/extension-text-align`/`@tiptap/extension-text-style`/`@tiptap/extension-highlight`/`@tiptap/extension-color`/`@tiptap/extension-image`/`@tiptap/extension-task-list`/`@tiptap/extension-task-item` 추가 설치.
 - **@dnd-kit** `core`/`sortable`/`utilities` (EPIC-035, 관리자 카테고리 드래그앤드롭)
 - **ESLint** `^9` + `eslint-config-next`
 - 그 외 별도 상태관리 라이브러리(Redux/Zustand 등), UI 컴포넌트 라이브러리, 테스트 러너는 사용하지 않음 (`package.json`에 존재하지 않음).
@@ -144,6 +144,8 @@ silo-store/
 
 - **`Navbar.tsx`**: 상단에 사일로상점/살롱데상/공간 문의/마이페이지 4개 진입점(화면 중앙 정렬) + 계정 영역(로그인 상태 표시, 마이페이지 링크, 로그아웃) 렌더링. `NAV_TABS`(`navConfig.ts`)를 그대로 순회하며 각 탭의 `type`(`sidebar-left`/`sidebar-right`/`dropdown`/`link`)에 따라 상호작용 방식만 분기하고, 라벨/링크/그룹은 하드코딩하지 않는다(EPIC-018). 사일로상점·살롱데상은 탭 클릭 또는 화면 좌/우 가장자리 아이콘(🔑/🚪) 클릭·hover 시 각각 좌/우 사이드바가 열리는 구조(초록 배경/흰 글씨). 공간 문의는 플로팅 드롭다운, 마이페이지는 단순 링크. `getActiveNavTabKey()`로 현재 경로에 맞는 탭을 하이라이트. 상세는 [docs/navigation-blueprint.md](docs/navigation-blueprint.md) 참고.
 - **`ComingSoon.tsx`**: `title`을 받아 "준비 중입니다" 안내만 보여주는 placeholder 컴포넌트. 4번 섹션의 미구현 살롱 기능들에서 사용.
+- **`BlockEditor`** (`src/components/editor/BlockEditor.tsx`): EPIC-053에서 `RichTextEditor.tsx`를 대체한 Tiptap 기반 Block Editor. 모든 Board Definition 게시판의 글쓰기 폼(`/boards/[id]/write`)에서 공용으로 사용. Toolbar 확장(굵게/기울임/밑줄/취소선/H1-H3/목록/체크리스트/인용/구분선/정렬/링크/이미지), 이미지 Drag&Drop/붙여넣기/여러장 업로드, 자동 저장(localStorage)/임시 저장(서버 API).
+- **`RichTextEditor`** (`src/components/editor/RichTextEditor.tsx`): **DEPRECATED (EPIC-053)** — `BlockEditor`로 대체됨.
 
 그 외 공용 UI 라이브러리(버튼/모달/폼 등 디자인 시스템)는 없음 — 각 페이지가 Tailwind 클래스를 인라인으로 직접 사용.
 

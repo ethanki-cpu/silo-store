@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useCallback, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
-import { RichTextEditor } from "@/components/editor/RichTextEditor";
+import { BlockEditor } from "@/components/editor/BlockEditor";
 
 type ConfirmedOrder = {
   id: string;
@@ -70,6 +70,47 @@ export default function WritePostPage() {
       });
   }, [boardType, member]);
 
+  const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
+
+  // EPIC-053: 자동 저장 — localStorage에 임시 저장 (브라우저 닫기 복구용)
+  const handleAutoSave = useCallback((html: string) => {
+    if (!id) return;
+    const draft = {
+      title,
+      body: html,
+      boardId: id,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(`draft-${id}`, JSON.stringify(draft));
+    setAutoSavedAt(draft.savedAt);
+  }, [id, title]);
+
+  // EPIC-053: 페이지 로드 시 임시 저장본 복구 확인
+  useEffect(() => {
+    const saved = localStorage.getItem(`draft-${id}`);
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved);
+        if (draft.boardId === id) {
+          const savedDate = new Date(draft.savedAt);
+          const hourAgo = Date.now() - 60 * 60 * 1000;
+          if (savedDate.getTime() > hourAgo) {
+            if (window.confirm(`${savedDate.toLocaleString()}에 임시 저장된 글이 있습니다. 복구하시겠습니까?`)) {
+              /* eslint-disable react-hooks/set-state-in-effect */
+              setTitle(draft.title || "");
+              setBody(draft.body || "");
+              /* eslint-enable react-hooks/set-state-in-effect */
+            } else {
+              localStorage.removeItem(`draft-${id}`);
+            }
+          }
+        }
+      } catch {
+        // Invalid draft, ignore
+      }
+    }
+  }, [id]);
+
   // Tiptap 에디터가 비어 있으면 "<p></p>"류의 빈 태그만 남긴다 — 네이티브
   // <textarea required>처럼 브라우저가 검증해주지 않아 직접 확인한다.
   const isBodyEmpty = body.replace(/<[^>]*>/g, "").trim().length === 0;
@@ -118,8 +159,12 @@ export default function WritePostPage() {
       return;
     }
 
+    // EPIC-053: 게시 완료 시 임시 저장본 삭제
+    localStorage.removeItem(`draft-${id}`);
     router.push(`/boards/${id}/${data.id}`);
   }
+
+  // EPIC-053: 임시 저장 복구 여부 확인용 상태 (제목만 따로 추적)
 
   if (definition && !definition.allowPosting) {
     return (
@@ -176,10 +221,8 @@ export default function WritePostPage() {
 
         <div>
           <label className="block text-sm mb-1">내용</label>
-          {/* EPIC-052: Tiptap 기반 Block Editor — posts.body에는 HTML
-              문자열로 저장(스키마 변경 없음, 상세 페이지에서 서버가
-              정제(sanitize)한 뒤 렌더링). */}
-          <RichTextEditor value={body} onChange={setBody} />
+        {/* EPIC-053: Block Editor — 자동 저장 + 이미지 Drag&Drop/붙여넣기 */}
+          <BlockEditor value={body} onChange={setBody} onAutoSave={handleAutoSave} />
         </div>
 
         {definition?.tags && (
@@ -204,6 +247,12 @@ export default function WritePostPage() {
             />
             도슨트 성격의 심층 글로 작성 (Great Gatsby 등급부터 가능)
           </label>
+        )}
+
+        {autoSavedAt && (
+          <p className="text-xs text-gray-400">
+            💾 {new Date(autoSavedAt).toLocaleString()}에 자동 저장됨
+          </p>
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}

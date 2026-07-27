@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-07-28 (EPIC-053)
+- **EPIC-053: 공통 Block Editor 시스템 구축**
+  - **Block Editor 확장(RichTextEditor → BlockEditor)**: `src/components/editor/BlockEditor.tsx`로 전면 재작성. EPIC-052의 기본 Tiptap에서 다음 확장:
+    - **Toolbar 확장**: 굵게/기울임/밑줄/취소선, H1/H2/H3 제목, 글머리/번호/체크리스트, 인용/구분선, 좌/중앙/우 정렬, 링크, 이미지 업로드 버튼
+    - **이미지 업로드**: Drag & Drop, 붙여넣기(Ctrl+V), 여러 장 업로드, Supabase Storage 자동 업로드
+    - **자동 저장**: 30초 간격 auto-save + localStorage 임시 저장(브라우저 닫기 복구)
+    - **체크리스트**: `@tiptap/extension-task-list`/`@tiptap/extension-task-item` 설치 및 연동
+    - **텍스트 스타일**: 밑줄(`@tiptap/extension-underline`), 정렬(`@tiptap/extension-text-align`), 형광펜(`@tiptap/extension-highlight`), 색상(`@tiptap/extension-color`)
+  - **Storage 유틸리티**: `src/lib/storage.ts` 신규 — `post-images`/`gallery`/`attachments` 버킷용 업로드/삭제 유틸리티 (URL + Storage Path 반환)
+  - **Block 타입 정의**: `src/lib/blocks.tsx` 신규 — Block 구조(JSON) + HTML 변환 + React 렌더러 (향후 확장 대비)
+  - **임시 저장 API**: `POST /api/boards/[id]/drafts` — 서버 사이드 임시 저장 지원
+  - **Sanitize 확장**: `src/lib/sanitize.ts` 확장 — img/figure/figcaption/video/audio/iframe/object/mark/div/span/table 허용 (YouTube/Vimeo/Maps/Spotify 임베드対応)
+  - **글쓰기 페이지 연동**: `src/app/boards/[id]/write/page.tsx` — BlockEditor로 교체, 자동 저장 콜백 연결, 임시 저장 복구 로직 추가
+  - **패키지 설치**: `@tiptap/extension-underline`, `@tiptap/extension-text-align`, `@tiptap/extension-text-style`, `@tiptap/extension-highlight`, `@tiptap/extension-color`, `@tiptap/extension-image`, `@tiptap/extension-task-list`, `@tiptap/extension-task-item`
+  - 검증: `npx tsc --noEmit` 통과. `npm run lint` EPIC-053 관련 파일 전부 통과.
+
 ## 2026-07-28 (EPIC-052)
 - **EPIC-052: 마이페이지를 Personal Hub로 확장 + Tiptap Block Editor 도입**
   - **사전 확인(AskUserQuestion)**: 이번 지시문은 두 가지 큰 갈림길이 있어 진행 전 사용자에게 직접 확인함 — (1) "나의 컬렉션"을 Board Definition의 공개 story 게시판으로 만들지, 아니면 지금처럼 비공개(member_collections)로 두고 시각적으로만 story 카드 스타일을 적용할지 → **비공개 유지 + 시각적 재사용**으로 결정. (2) Tiptap/Lexical Block Editor 도입을 이번 EPIC에 포함할지 → **지금 바로 Tiptap 통합 시작**으로 결정. 아래 항목은 전부 이 두 결정을 전제로 한다.

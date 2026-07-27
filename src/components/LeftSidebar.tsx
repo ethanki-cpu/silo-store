@@ -5,15 +5,27 @@ import type { NavTab } from "@/lib/navConfig";
 
 // EPIC-039: EPIC-037이 sidebar-left 탭을 다른 상위 탭과 동일한 작은 hover
 // 드롭다운으로 통합했지만, 실사용 결과 화면 전체 높이의 슬라이드인 패널이
-// 다시 필요하다는 피드백을 받아 복구한다. 다만 EPIC-037의 "hover로 열고
-// 클릭으로 고정, 바깥 클릭으로 닫기" 상태 관리 자체는 그대로 유지 —
-// Navbar.tsx가 관리하는 openTab/pinnedKey에서 파생한 `open` 값을 그대로
-// 받아쓰기만 하므로, 예전처럼 별도의 leftOpen state를 다시 두어 두 상태가
-// 충돌하는 일이 없다.
+// 다시 필요하다는 피드백을 받아 복구한다.
+//
+// EPIC-043: 여닫이 아이콘은 클릭으로만 열린다(hover로 열리지 않음 — 아래
+// 버튼에 onMouseEnter가 없는 이유). 패널이 열린 뒤 닫는 방법(바깥 클릭/✕/
+// 패널에서 마우스가 완전히 벗어남)은 그대로 유지. "온라인 도슨트
+// 라이브러리" 그룹만 기본 접힘 + hover로 펼쳐지는 아코디언으로 동작 —
+// 다른 그룹은 항상 펼쳐진 채로 둔다. 순수 CSS `group`/`group-hover`로
+// 구현(JS state 없음): 그룹 헤더와 펼쳐지는 목록이 같은 부모의 형제로,
+// 플로팅 팝업이 아니라 문서 흐름 안에서 그대로 이어지므로 별도의
+// "브릿지" 여백 없이도 hover가 끊기지 않는다.
+// groupLabel은 관리자가 site_navigations에서 자유롭게 수정 가능한 문자열이라
+// 정확히 일치시키면 라벨을 조금만 바꿔도(예: "온라인 도슨트 라이브러리" →
+// "온라인 도슨트 Online Docent") 아코디언이 깨진다 — "도슨트"가 포함된
+// 그룹이면 매칭되도록 완화해 이런 사소한 리네이밍에도 견고하게 했다.
+function isAccordionGroup(groupLabel: string): boolean {
+  return groupLabel.includes("도슨트");
+}
+
 export function LeftSidebar({
   tab,
   open,
-  onIconMouseEnter,
   onIconClick,
   onClose,
   onAmbientLeave,
@@ -22,7 +34,6 @@ export function LeftSidebar({
 }: {
   tab?: NavTab;
   open: boolean;
-  onIconMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onIconClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
   onAmbientLeave: () => void;
@@ -38,7 +49,6 @@ export function LeftSidebar({
         <button
           type="button"
           onClick={onIconClick}
-          onMouseEnter={onIconMouseEnter}
           aria-label={`${tab.label} 메뉴 열기`}
           className="fixed left-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-r-md bg-green-800 text-white p-2 shadow-md"
         >
@@ -74,23 +84,31 @@ export function LeftSidebar({
           </button>
         </div>
         <nav className="p-2 overflow-y-auto max-h-[calc(100vh-64px)]">
-          {(tab.groups ?? []).map((group) => (
-            <div key={group.groupLabel} className="mb-4">
-              <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60">
-                {group.groupLabel}
-              </p>
-              {group.items.map((item, idx) => (
-                <Link
-                  key={`${item.href}-${idx}`}
-                  href={item.href}
-                  onClick={onClose}
-                  className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          ))}
+          {(tab.groups ?? []).map((group) => {
+            const isAccordion = isAccordionGroup(group.groupLabel);
+            return (
+              <div
+                key={group.groupLabel}
+                className={`mb-4 ${isAccordion ? "group" : ""}`}
+              >
+                <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60 cursor-default">
+                  {group.groupLabel}
+                </p>
+                <div className={isAccordion ? "hidden group-hover:block" : ""}>
+                  {group.items.map((item, idx) => (
+                    <Link
+                      key={`${item.href}-${idx}`}
+                      href={item.href}
+                      onClick={onClose}
+                      className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </nav>
       </div>
     </>

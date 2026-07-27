@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
@@ -29,11 +29,14 @@ type MainLogoValue = {
   fontSizePx: number;
   textPosition: TextPosition;
   textCustomFont: CustomFont;
+  textColor: string;
 };
 
 const DEFAULT_LOGO_TEXT = "사일로 스토어";
 const DEFAULT_LOGO_HEIGHT_PX = 64;
 const DEFAULT_LOGO_FONT_SIZE_PX = 16;
+// EPIC-036: 사이드바(green-800, #166534)와 맞춘 기본 추가 텍스트 색상.
+const DEFAULT_LOGO_TEXT_COLOR = "#166534";
 
 const LOGO_ALIGN_CLASS: Record<LogoAlign, string> = {
   left: "justify-start",
@@ -108,6 +111,7 @@ export function Navbar() {
             fontSizePx: value.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX,
             textPosition: value.textPosition ?? "right",
             textCustomFont: value.textCustomFont ?? "default",
+            textColor: value.textColor || DEFAULT_LOGO_TEXT_COLOR,
           });
         }
       });
@@ -116,37 +120,72 @@ export function Navbar() {
     };
   }, []);
 
-  const [leftOpen, setLeftOpen] = useState(false);
-  const [rightOpen, setRightOpen] = useState(false);
-  const [dropdownTab, setDropdownTab] = useState<NavTab | null>(null);
-  const [dropdownPos, setDropdownPos] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
+  // EPIC-037: 상단 탭(dropdown/sidebar-left/sidebar-right 공통) hover 시
+  // 1차 하위 카테고리만 작은 팝업으로 노출하고, 클릭 시에는 그 팝업이
+  // "고정(pinned)"되어 바깥을 클릭하기 전까지 열려 있는다. openTab이 실제로
+  // 화면에 뜨는 팝업의 내용을, pinnedKey는 그 팝업이 hover가 아니라 클릭으로
+  // 고정된 상태인지를 나타낸다 — pinned 상태에서는 다른 탭에 마우스를 올려도
+  // 팝업이 바뀌지 않고(의도치 않은 깜빡임 방지), 바깥을 클릭해야만 닫힌다.
+  const [openTab, setOpenTab] = useState<NavTab | null>(null);
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
 
-  const leftSidebarTab = navTabs.find((t) => t.type === "sidebar-left");
-  const rightSidebarTab = navTabs.find((t) => t.type === "sidebar-right");
+  function closeTabPopup() {
+    setOpenTab(null);
+    setPopupPos(null);
+    setPinnedKey(null);
+  }
 
-  function openDropdown(tab: NavTab, e: React.MouseEvent<HTMLButtonElement>) {
+  function handleTabMouseEnter(
+    tab: NavTab,
+    e: React.MouseEvent<HTMLButtonElement>,
+  ) {
+    if (pinnedKey) return; // 다른 탭이 클릭으로 고정돼 있으면 hover로 바꾸지 않는다.
     const rect = e.currentTarget.getBoundingClientRect();
-    setDropdownPos({ top: rect.bottom, left: rect.left });
-    setDropdownTab(tab);
+    setPopupPos({ top: rect.bottom, left: rect.left });
+    setOpenTab(tab);
   }
 
-  function closeDropdown() {
-    setDropdownTab(null);
-    setDropdownPos(null);
+  function handleTabClick(tab: NavTab, e: React.MouseEvent<HTMLButtonElement>) {
+    if (pinnedKey === tab.key) {
+      closeTabPopup();
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPopupPos({ top: rect.bottom, left: rect.left });
+    setOpenTab(tab);
+    setPinnedKey(tab.key);
   }
+
+  function handlePopupMouseLeave() {
+    if (pinnedKey) return; // 고정된 상태는 바깥 클릭으로만 닫는다.
+    setOpenTab(null);
+    setPopupPos(null);
+  }
+
+  // 고정(pinned) 상태에서 팝업/탭 바깥을 클릭하면 고정을 해제하고 닫는다.
+  useEffect(() => {
+    if (!pinnedKey) return;
+    function handleDocumentMouseDown(e: MouseEvent) {
+      const target = e.target as Node;
+      if (popupRef.current?.contains(target)) return;
+      if (navRef.current?.contains(target)) return;
+      setOpenTab(null);
+      setPopupPos(null);
+      setPinnedKey(null);
+    }
+    document.addEventListener("mousedown", handleDocumentMouseDown);
+    return () => document.removeEventListener("mousedown", handleDocumentMouseDown);
+  }, [pinnedKey]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/");
     router.refresh();
-  }
-
-  function closeSidebars() {
-    setLeftOpen(false);
-    setRightOpen(false);
   }
 
   return (
@@ -179,7 +218,6 @@ export function Navbar() {
           </Link>
           {mainLogo?.extraText && (
             <span
-              className="text-gray-900"
               style={{
                 fontFamily:
                   mainLogo.textCustomFont && mainLogo.textCustomFont !== "default"
@@ -187,6 +225,7 @@ export function Navbar() {
                     : mainLogo.fontFamily || undefined,
                 fontWeight: mainLogo.bold ? "bold" : "normal",
                 fontSize: `${mainLogo.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX}px`,
+                color: mainLogo.textColor || DEFAULT_LOGO_TEXT_COLOR,
               }}
             >
               {mainLogo.extraText}
@@ -237,14 +276,20 @@ export function Navbar() {
 
       {/* 상단 탭: DB(site_navigations)에서 조회한 navTabs를 그대로 순회하며
           type에 따라 상호작용 방식만 분기. 라벨/링크/그룹 구성은 전부
-          DB(관리자 CMS, /admin/navigation)에서 온다. */}
-      <nav className="flex justify-center gap-1 px-4 overflow-x-auto whitespace-nowrap border-t border-gray-100">
+          DB(관리자 CMS, /admin/navigation)에서 온다.
+          EPIC-037: dropdown/sidebar-left/sidebar-right 3개 타입 모두 hover 시
+          1차 하위 카테고리 팝업을 노출하는 동일한 상호작용으로 통일 — 예전의
+          화면 전체 높이 슬라이드인 사이드바 대신 탭 바로 아래에 작은 팝업만
+          뜬다(아래 팝업 렌더링 참고). */}
+      <nav
+        ref={navRef}
+        className="flex justify-center gap-1 px-4 overflow-x-auto whitespace-nowrap border-t border-gray-100"
+      >
         {navTabs.map((tab) => {
-          const className = `${TAB_BUTTON_BASE} ${
-            activeTabKey === tab.key ? TAB_BUTTON_ACTIVE : TAB_BUTTON_INACTIVE
-          }`;
-
           if (tab.type === "link") {
+            const className = `${TAB_BUTTON_BASE} ${
+              activeTabKey === tab.key ? TAB_BUTTON_ACTIVE : TAB_BUTTON_INACTIVE
+            }`;
             return (
               <Link key={tab.key} href={tab.href!} className={className}>
                 {tab.label}
@@ -252,31 +297,27 @@ export function Navbar() {
             );
           }
 
-          if (tab.type === "dropdown") {
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={(e) => openDropdown(tab, e)}
-                onMouseEnter={(e) => openDropdown(tab, e)}
-                className={className}
-              >
-                {tab.label}
-              </button>
-            );
-          }
-
-          const openSidebar =
-            tab.type === "sidebar-left"
-              ? () => setLeftOpen(true)
-              : () => setRightOpen(true);
+          const isRouteActive = activeTabKey === tab.key;
+          const isOpen =
+            pinnedKey === tab.key || (!pinnedKey && openTab?.key === tab.key);
+          // 열려 있을 때(hover 미리보기 포함)는 사이드바와 동일한 테마 색상
+          // (green-800)으로, 그 외엔 hover 시에만 같은 색으로 바뀌도록 한다.
+          const className = [
+            TAB_BUTTON_BASE,
+            isRouteActive ? "border-gray-800 font-medium" : "border-transparent",
+            isOpen
+              ? "bg-green-800 text-white border-green-800"
+              : isRouteActive
+                ? "text-gray-900 hover:bg-green-800 hover:text-white hover:border-green-800"
+                : "text-gray-500 hover:text-white hover:bg-green-800 hover:border-green-800",
+          ].join(" ");
 
           return (
             <button
               key={tab.key}
               type="button"
-              onClick={openSidebar}
-              onMouseEnter={openSidebar}
+              onClick={(e) => handleTabClick(tab, e)}
+              onMouseEnter={(e) => handleTabMouseEnter(tab, e)}
               className={className}
             >
               {tab.label}
@@ -285,143 +326,52 @@ export function Navbar() {
         })}
       </nav>
 
-      {dropdownTab && dropdownPos && (
+      {/* EPIC-037: dropdown/sidebar-left/sidebar-right 공통 하위 카테고리 팝업.
+          groups(사이드바 타입)가 있으면 그룹 라벨+항목을, 없으면(dropdown 타입)
+          평평한 items 목록을 보여준다. 배경(fixed inset-0)은 클릭 시 팝업을
+          닫는 용도 — hover만으로는 열리고 닫히되, 클릭으로 고정된 뒤에는 이
+          배경을 포함한 바깥 클릭이 있어야 닫힌다(위 useEffect 참고). */}
+      {openTab && popupPos && (
         <>
-          <div onClick={closeDropdown} className="fixed inset-0 z-30" />
+          <div onClick={closeTabPopup} className="fixed inset-0 z-30" />
           <div
-            onMouseLeave={closeDropdown}
-            style={{ top: dropdownPos.top, left: dropdownPos.left }}
-            className="fixed z-40 w-56 rounded-md border border-gray-200 bg-white shadow-md py-1"
+            ref={popupRef}
+            onMouseLeave={handlePopupMouseLeave}
+            style={{ top: popupPos.top, left: popupPos.left }}
+            className="fixed z-40 w-64 max-h-[70vh] overflow-y-auto rounded-md border border-gray-200 bg-white shadow-md py-2"
           >
-            {(dropdownTab.items ?? []).map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={closeDropdown}
-                className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* 좌측 사이드바 (type: "sidebar-left") */}
-      {leftSidebarTab && (
-        <>
-          {!leftOpen && (
-            <button
-              type="button"
-              onClick={() => setLeftOpen(true)}
-              onMouseEnter={() => setLeftOpen(true)}
-              aria-label={`${leftSidebarTab.label} 메뉴 열기`}
-              className="fixed left-0 top-1/2 -translate-y-1/2 z-40 rounded-r-md bg-green-800 text-white px-2 py-3 text-lg shadow-md"
-            >
-              🔑
-            </button>
-          )}
-
-          <div
-            onMouseLeave={() => setLeftOpen(false)}
-            className={`fixed inset-y-0 left-0 z-50 w-64 bg-green-800 text-white transform transition-transform duration-200 ${
-              leftOpen ? "translate-x-0" : "-translate-x-full"
-            }`}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-white/20">
-              <span className="font-semibold">{leftSidebarTab.label}</span>
-              <button
-                type="button"
-                onClick={() => setLeftOpen(false)}
-                aria-label="닫기"
-                className="text-white/80 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            <nav className="p-2 overflow-y-auto max-h-[calc(100vh-64px)]">
-              {(leftSidebarTab.groups ?? []).map((group) => (
-                <div key={group.groupLabel} className="mb-4">
-                  <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+            {openTab.groups && openTab.groups.length > 0 ? (
+              openTab.groups.map((group) => (
+                <div key={group.groupLabel} className="mb-2 last:mb-0">
+                  <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
                     {group.groupLabel}
                   </p>
                   {group.items.map((item, idx) => (
                     <Link
                       key={`${item.href}-${idx}`}
                       href={item.href}
-                      onClick={closeSidebars}
-                      className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
+                      onClick={closeTabPopup}
+                      className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
                       {item.label}
                     </Link>
                   ))}
                 </div>
-              ))}
-            </nav>
+              ))
+            ) : (
+              (openTab.items ?? []).map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={closeTabPopup}
+                  className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  {item.label}
+                </Link>
+              ))
+            )}
           </div>
         </>
-      )}
-
-      {/* 우측 사이드바 (type: "sidebar-right") */}
-      {rightSidebarTab && (
-        <>
-          {!rightOpen && (
-            <button
-              type="button"
-              onClick={() => setRightOpen(true)}
-              onMouseEnter={() => setRightOpen(true)}
-              aria-label={`${rightSidebarTab.label} 메뉴 열기`}
-              className="fixed right-0 top-1/2 -translate-y-1/2 z-40 rounded-l-md bg-green-800 text-white px-2 py-3 text-lg shadow-md"
-            >
-              🚪
-            </button>
-          )}
-
-          <div
-            onMouseLeave={() => setRightOpen(false)}
-            className={`fixed inset-y-0 right-0 z-50 w-64 bg-green-800 text-white transform transition-transform duration-200 ${
-              rightOpen ? "translate-x-0" : "translate-x-full"
-            }`}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-white/20">
-              <span className="font-semibold">{rightSidebarTab.label}</span>
-              <button
-                type="button"
-                onClick={() => setRightOpen(false)}
-                aria-label="닫기"
-                className="text-white/80 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            <nav className="p-2 overflow-y-auto max-h-[calc(100vh-64px)]">
-              {(rightSidebarTab.groups ?? []).map((group) => (
-                <div key={group.groupLabel} className="mb-4">
-                  <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60">
-                    {group.groupLabel}
-                  </p>
-                  {group.items.map((item, idx) => (
-                    <Link
-                      key={`${item.href}-${idx}`}
-                      href={item.href}
-                      onClick={closeSidebars}
-                      className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              ))}
-            </nav>
-          </div>
-        </>
-      )}
-
-      {(leftOpen || rightOpen) && (
-        <div
-          onClick={closeSidebars}
-          className="fixed inset-0 z-30 bg-black/30"
-        />
       )}
     </header>
   );

@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-037)
+- **EPIC-037: Navigation hover & click UX improvement**
+  - `Navbar.tsx`: 상단 탭의 `dropdown`/`sidebar-left`/`sidebar-right` 3개 타입을 렌더링 방식 하나로 통일 — 예전에는 sidebar 타입이 화면 전체 높이로 슬라이드인하는 별도 패널(+ 화면 가장자리의 🔑/🚪 플로팅 버튼)이었지만, 이제 세 타입 모두 탭 바로 아래에 뜨는 작은 팝업(그룹이 있으면 그룹 라벨+항목, 없으면 dropdown의 평평한 항목 목록)으로 동작한다. 기존 `leftOpen`/`rightOpen`/`dropdownTab`/`dropdownPos`/`openDropdown`/`closeDropdown`/`closeSidebars`를 `openTab`/`popupPos`/`pinnedKey`와 `handleTabMouseEnter`/`handleTabClick`/`handlePopupMouseLeave`로 교체.
+  - Hover 시 탭 배경/텍스트가 사이드바와 동일한 테마 색상(`bg-green-800`/`text-white`)으로 바뀌고 탭 바로 아래에 팝업이 뜬다. 클릭 시에는 `pinnedKey`에 해당 탭의 `key`를 저장해 팝업을 "고정"하고, 고정된 동안에는 다른 탭에 마우스를 올려도 내용이 바뀌지 않는다(의도치 않은 전환 방지). 문서 전체에 `mousedown` 리스너를 다는 `useEffect`(의존성 `[pinnedKey]`)로 팝업/탭 바깥 클릭을 감지해 고정을 해제 — 팝업(`popupRef`)이나 탭이 속한 `<nav>`(`navRef`) 내부 클릭은 무시해 탭 전환이 자연스럽게 이어지도록 함.
+  - 검증: `npm run lint`(기존 25건 pre-existing 이슈만 유지, 신규 발생 없음)/`npx tsc --noEmit` 통과. 이번 세션 dev 서버에서 실제로 hover 시 팝업+테마 색상 전환, 클릭 후 마우스를 팝업 밖으로 옮겨도 유지되는 고정, 빈 공간 클릭 시 닫힘까지 직접 확인.
+
+## 2026-07-27 (EPIC-036)
+- **EPIC-036: Logo text color & slide background wallpaper**
+  - `admin/navigation/settings/page.tsx`: `main_logo`에 "추가 텍스트 색상"(`textColor`, 컬러 피커 + HEX 직접 입력) 필드 추가 — 기본값은 `Navbar.tsx` 사이드바에 쓰이는 짙은 녹색(Tailwind `green-800`, `#166534`)으로 맞춤. `hero_slideshow`에는 "여백 배경 이미지(Wallpaper)" 파일 첨부 필드(`wallpaperUrl`) 추가 — 로고/슬라이드 이미지와 동일한 `uploadImage()`/`public-assets` 버킷 업로드 로직 재사용.
+  - `Navbar.tsx`: 로고 옆 추가 텍스트의 하드코딩된 `text-gray-900` 클래스를 제거하고, `mainLogo.textColor`(없으면 기본값 `#166534`)를 인라인 `style={{ color }}`로 적용.
+  - `HeroSlideshow.tsx`: `wallpaperUrl` prop 추가. `objectFit==="contain"`이고 `wallpaperUrl`이 있을 때만 각 슬라이드 컨테이너에 `backgroundImage`/`backgroundSize: cover`/`backgroundPosition: center` 인라인 스타일을 적용해 이미지 좌우·상하 여백을 채움 — `cover` 모드에서는 여백이 애초에 없으므로 배경이 적용되지 않음.
+  - `src/app/page.tsx`: 홈페이지 Server Component가 `hero_slideshow` 조회 결과의 `wallpaperUrl`을 `HeroSlideshow`에 그대로 전달하도록 연결.
+  - 검증: `npm run lint` 통과 확인. 이번 세션은 dev 서버를 직접 띄운 세션이라 브라우저로 실제 렌더링(색상 피커 반영, wallpaper 배경)까지 확인 완료 — 자세한 내용은 세션 로그 참고.
+
 ## 2026-07-27 (EPIC-034-Ext)
 - **EPIC-034-Ext: Advanced logo text styling**
   - `admin/navigation/settings/page.tsx`: `main_logo`에 "텍스트 위치"(로고 좌/우, `textPosition`)와 "텍스트 폰트"(기본/Graphire/Primor Select, `textCustomFont`) 추가. EPIC-034의 자유 입력 서체 필드(`fontFamily`)는 유지하고 "기본" 선택 시에만 사용하도록 해 대체가 아닌 보완 방식으로 구현 — Graphire/Primor 선택 시 자유 입력란은 비활성화.

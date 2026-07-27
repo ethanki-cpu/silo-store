@@ -10,10 +10,13 @@ export function HeroSlideshow({
   slides,
   autoAdvanceSeconds = DEFAULT_AUTO_ADVANCE_SECONDS,
   objectFit = "cover",
+  wallpaperUrl,
 }: {
   slides: SlideItem[];
   autoAdvanceSeconds?: number;
   objectFit?: "cover" | "contain";
+  // EPIC-036: objectFit="contain"일 때 이미지 좌우/상하 여백을 채우는 배경.
+  wallpaperUrl?: string;
 }) {
   const [current, setCurrent] = useState(0);
 
@@ -27,6 +30,8 @@ export function HeroSlideshow({
 
   if (slides.length === 0) return null;
 
+  const showWallpaper = objectFit === "contain" && !!wallpaperUrl;
+
   return (
     <div className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden bg-gray-900">
       {slides.map((slide, idx) => (
@@ -35,6 +40,15 @@ export function HeroSlideshow({
           className={`absolute inset-0 transition-opacity duration-700 ${
             idx === current ? "opacity-100" : "opacity-0"
           }`}
+          style={
+            showWallpaper
+              ? {
+                  backgroundImage: `url(${wallpaperUrl})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }
+              : undefined
+          }
         >
           {slide.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element

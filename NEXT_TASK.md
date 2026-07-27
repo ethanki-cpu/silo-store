@@ -4,6 +4,9 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-037 후속**: 팝업이 탭 바로 아래(`top: rect.bottom`)에 붙어 있어 마우스가 버튼→팝업으로 자연스럽게 이동하면 계속 열려 있지만, 버튼에서 팝업을 거치지 않고 다른 곳으로 이동하면(예: 옆의 다른 탭으로 곧장 이동하지 않고 화면 아무 곳이나 이동) 팝업이 "hover 상태"로 남아있다가 실제로 팝업 영역을 스치기 전까지 안 닫히는 경우가 이론상 있을 수 있음(기존 dropdown 타입 코드의 동일한 설계를 그대로 계승). 사용자가 실사용 중 불편함을 느끼면 팝업 컨테이너에 약간의 patding/여유 공간을 두거나 hover-intent 딜레이 로직 추가를 검토할 것.
+- **EPIC-036 후속**: `package.json`에 `@dnd-kit/core`/`@dnd-kit/sortable`/`@dnd-kit/utilities`(EPIC-035)가 선언돼 있었으나 `node_modules`에 실제로 설치돼 있지 않아 `/admin/navigation`(`CategoryTreeManager`) 전체가 컴파일 에러로 로드되지 않는 상태였음 — 이번 EPIC 작업 중 `npm install`로 해결. 이 저장소를 여러 기기/세션에서 오가며 작업할 때는 `git pull` 후 `npm install`도 함께 실행할 것(그렇지 않으면 lockfile에는 있지만 로컬 `node_modules`에는 없는 패키지가 생길 수 있음).
+- **EPIC-036 후속**: `hero_slideshow.wallpaperUrl` 업로드/저장 자체는 로고·슬라이드 이미지와 동일한 `uploadImage()` 경로를 재사용해 구현했지만, 실제 파일 첨부→업로드→`objectFit="contain"` 상태에서 배경으로 렌더링되는지는 브라우저 자동화로 실제 파일 선택 다이얼로그를 조작할 수 없어 코드 리뷰 수준으로만 확인함 — 사용자가 직접 `/admin/navigation/settings`에서 이미지 채움 방식을 "원본 모두 보이게(contain)"로 바꾸고 Wallpaper 이미지를 업로드해 홈 히어로에서 여백이 채워지는지 확인 필요.
 - **EPIC-022 후속**: `member_collections`는 anon key REST 조회(`200 []`)로 라이브에 실제로 존재함을 EPIC-029 작업 중 확인함 — `docs/database-schema.sql` 상단 동기화 노트("아직 라이브 미적용")가 이 테이블에 한해 stale함. `member_follows`/`member_badges`/`member_visitors` 3개는 미확인 상태이므로 여전히 Supabase SQL Editor에서 실제 적용 여부 점검 필요(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). 문서 상단 노트 자체의 정정은 이번 EPIC 범위(수정 대상 파일 제한) 밖이라 별도 작업 필요.
 - **EPIC-022 후속**: "나의 살롱"/"나의 도슨트 수료증"/"나의 공간"/"나의 전시회"/"타임라인" 5개 탭의 데이터 소스 결정 필요(현재 Empty State만 존재).
 - **EPIC-022 후속**: `member_follows`(팔로우 버튼)/`member_visitors`(방문 기록 insert) 쓰기 경로 구현 필요 — 아마도 `/u/[memberId]` 페이지에 추가.

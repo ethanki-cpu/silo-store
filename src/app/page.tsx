@@ -13,6 +13,7 @@ type HeroSlideshowSetting = {
   slides?: SlideItem[];
   autoAdvanceSeconds?: number;
   objectFit?: "cover" | "contain";
+  wallpaperUrl?: string;
 };
 
 export default async function Home() {
@@ -34,6 +35,7 @@ export default async function Home() {
           slides={slides}
           autoAdvanceSeconds={setting?.autoAdvanceSeconds}
           objectFit={setting?.objectFit}
+          wallpaperUrl={setting?.wallpaperUrl}
         />
       ) : (
         <section className="flex flex-col items-center justify-center text-center py-32 px-8">

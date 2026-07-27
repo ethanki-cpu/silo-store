@@ -31,6 +31,12 @@ import {
 // 폰트(Graphire/Primor) 중 선택하는 textCustomFont로 보완 — "기본"이면
 // 기존 fontFamily 자유 입력값을 그대로 쓰고, Graphire/Primor를 고르면
 // 그 폰트명이 우선 적용된다(globals.css의 @font-face 뼈대 참고).
+//
+// EPIC-036: main_logo에 추가 텍스트 색상(textColor)을 추가 — 기본값은
+// Navbar.tsx 사이드바에 쓰이는 짙은 녹색(Tailwind green-800, #166534)과
+// 맞춰둔다. hero_slideshow에는 슬라이드가 objectFit="contain"일 때 생기는
+// 여백을 채울 배경 이미지(wallpaperUrl)를 추가 — 로고/슬라이드 이미지와
+// 동일한 uploadImage()/public-assets 버킷 업로드 로직을 재사용한다.
 
 type LogoAlign = "left" | "center" | "right";
 type TextPosition = "left" | "right";
@@ -48,12 +54,14 @@ type MainLogoValue = {
   fontSizePx: number;
   textPosition: TextPosition;
   textCustomFont: CustomFont;
+  textColor: string;
 };
 type SlideItem = { imageUrl: string; title: string; description: string };
 type HeroSlideshowValue = {
   slides: SlideItem[];
   autoAdvanceSeconds: number;
   objectFit: "cover" | "contain";
+  wallpaperUrl: string;
 };
 type HomeCurationValue = {
   domain: CategoryDomain;
@@ -73,11 +81,13 @@ const DEFAULT_MAIN_LOGO: MainLogoValue = {
   fontSizePx: 16,
   textPosition: "right",
   textCustomFont: "default",
+  textColor: "#166534",
 };
 const DEFAULT_HERO_SLIDESHOW: HeroSlideshowValue = {
   slides: [],
   autoAdvanceSeconds: 5,
   objectFit: "cover",
+  wallpaperUrl: "",
 };
 const DEFAULT_HOME_CURATION: HomeCurationValue = {
   domain: "shop",
@@ -130,6 +140,7 @@ export default function AdminNavigationSettingsPage() {
   const [uploadingSlideIdx, setUploadingSlideIdx] = useState<number | null>(
     null,
   );
+  const [uploadingWallpaper, setUploadingWallpaper] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -221,6 +232,19 @@ export default function AdminNavigationSettingsPage() {
       return;
     }
     updateSlide(index, { imageUrl: url });
+  }
+
+  async function handleWallpaperFileChange(file: File | null) {
+    if (!file) return;
+    setUploadingWallpaper(true);
+    setError(null);
+    const { url, error: uploadError } = await uploadImage(file, "wallpaper");
+    setUploadingWallpaper(false);
+    if (uploadError || !url) {
+      setError(uploadError ?? "업로드에 실패했어요.");
+      return;
+    }
+    setHeroSlideshow((prev) => ({ ...prev, wallpaperUrl: url }));
   }
 
   if (fetching) {
@@ -321,6 +345,27 @@ export default function AdminNavigationSettingsPage() {
                 }
                 placeholder="예: since 2024"
               />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">추가 텍스트 색상</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={mainLogo.textColor || DEFAULT_MAIN_LOGO.textColor}
+                  onChange={(e) =>
+                    setMainLogo({ ...mainLogo, textColor: e.target.value })
+                  }
+                  className="h-9 w-12 rounded border border-gray-300 p-1"
+                />
+                <input
+                  className={`${inputClass} w-32`}
+                  value={mainLogo.textColor}
+                  onChange={(e) =>
+                    setMainLogo({ ...mainLogo, textColor: e.target.value })
+                  }
+                  placeholder={DEFAULT_MAIN_LOGO.textColor}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -521,6 +566,36 @@ export default function AdminNavigationSettingsPage() {
                 <option value="contain">원본 모두 보이게 (contain)</option>
               </select>
             </div>
+          </div>
+
+          <div className="mb-3">
+            <label className="block text-sm mb-1">
+              여백 배경 이미지 (Wallpaper) — 이미지 채움 방식이
+              &quot;contain&quot;일 때 생기는 여백을 채워요
+            </label>
+            <input
+              className={inputClass}
+              placeholder="이미지 URL (또는 아래에서 파일 직접 업로드)"
+              value={heroSlideshow.wallpaperUrl}
+              onChange={(e) =>
+                setHeroSlideshow((prev) => ({
+                  ...prev,
+                  wallpaperUrl: e.target.value,
+                }))
+              }
+            />
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploadingWallpaper}
+              onChange={(e) =>
+                handleWallpaperFileChange(e.target.files?.[0] ?? null)
+              }
+              className="mt-2 text-sm"
+            />
+            {uploadingWallpaper && (
+              <p className="text-xs text-gray-400 mt-1">업로드 중...</p>
+            )}
           </div>
 
           <div className="flex items-center gap-3">

@@ -60,6 +60,11 @@ import {
 // 고도화 — 섹션 제목(title)을 추가하고, 여러 큐레이션 섹션을 추가/삭제/
 // 순서 변경(위/아래)할 수 있게 했다. 구버전 단일 객체 데이터는 로드 시
 // 블록 1개짜리 배열로 자동 이전한다.
+//
+// EPIC-041-042-HOTFIX: fontFileUrl/sidebar_icons(leftIconUrl/rightIconUrl)는
+// 파일 업로드(input type="file" + Storage 업로드) 대신 URL을 직접 붙여넣는
+// 텍스트 입력으로 되돌렸다 — 가장 단순하고 확실한 방식을 우선한다. 로고
+// 이미지/슬라이드/Wallpaper 이미지는 계속 파일 업로드를 쓴다(대상 아님).
 
 type LogoAlign = "left" | "center" | "right";
 type TextPosition = "left" | "right";
@@ -205,10 +210,6 @@ export default function AdminNavigationSettingsPage() {
   const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<
     number | null
   >(null);
-  const [uploadingIconSide, setUploadingIconSide] = useState<
-    "left" | "right" | null
-  >(null);
-  const [uploadingFont, setUploadingFont] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -383,19 +384,6 @@ export default function AdminNavigationSettingsPage() {
     updateWallpaper(index, url);
   }
 
-  async function handleFontFileChange(file: File | null) {
-    if (!file) return;
-    setUploadingFont(true);
-    setError(null);
-    const { url, error: uploadError } = await uploadImage(file, "logo_fonts");
-    setUploadingFont(false);
-    if (uploadError || !url) {
-      setError(uploadError ?? "업로드에 실패했어요.");
-      return;
-    }
-    setMainLogo((prev) => ({ ...prev, fontFileUrl: url }));
-  }
-
   function addCurationBlock() {
     setHomeCuration((prev) => ({
       blocks: [...prev.blocks, makeDefaultCurationBlock()],
@@ -425,25 +413,6 @@ export default function AdminNavigationSettingsPage() {
       [blocks[idx], blocks[targetIdx]] = [blocks[targetIdx], blocks[idx]];
       return { blocks };
     });
-  }
-
-  async function handleSidebarIconFileChange(
-    side: "left" | "right",
-    file: File | null,
-  ) {
-    if (!file) return;
-    setUploadingIconSide(side);
-    setError(null);
-    const { url, error: uploadError } = await uploadImage(file, "sidebar_icons");
-    setUploadingIconSide(null);
-    if (uploadError || !url) {
-      setError(uploadError ?? "업로드에 실패했어요.");
-      return;
-    }
-    setSidebarIcons((prev) => ({
-      ...prev,
-      [side === "left" ? "leftIconUrl" : "rightIconUrl"]: url,
-    }));
   }
 
   if (fetching) {
@@ -567,25 +536,18 @@ export default function AdminNavigationSettingsPage() {
             </div>
             <div>
               <label className="block text-sm mb-1">
-                커스텀 폰트 파일 업로드 (.woff, .woff2, .ttf 등)
+                커스텀 폰트 파일 URL (.woff, .woff2, .ttf 등)
               </label>
-              {mainLogo.fontFileUrl && (
-                <p className="text-xs text-gray-500 mb-1 truncate">
-                  현재: {mainLogo.fontFileUrl}
-                </p>
-              )}
               <input
-                type="file"
-                accept=".woff,.woff2,.ttf,.otf,font/*"
-                disabled={uploadingFont}
-                onChange={(e) => handleFontFileChange(e.target.files?.[0] ?? null)}
-                className="text-sm"
+                className={inputClass}
+                value={mainLogo.fontFileUrl}
+                onChange={(e) =>
+                  setMainLogo({ ...mainLogo, fontFileUrl: e.target.value })
+                }
+                placeholder="https://... (Supabase Storage에 올린 폰트 파일의 공개 URL)"
               />
-              {uploadingFont && (
-                <p className="text-xs text-gray-400 mt-1">업로드 중...</p>
-              )}
               <p className="text-xs text-gray-400 mt-1">
-                업로드하면 아래 텍스트 폰트/서체 설정보다 우선 적용돼요.
+                입력하면 아래 텍스트 폰트/서체 설정보다 우선 적용돼요.
               </p>
             </div>
             <div>
@@ -850,7 +812,7 @@ export default function AdminNavigationSettingsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1">
-                좌측 사이드바 아이콘 (사일로상점)
+                좌측 사이드바 아이콘 URL (사일로상점)
               </label>
               {sidebarIcons.leftIconUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -861,24 +823,17 @@ export default function AdminNavigationSettingsPage() {
                 />
               )}
               <input
-                type="file"
-                accept="image/*"
-                disabled={uploadingIconSide === "left"}
+                className={inputClass}
+                value={sidebarIcons.leftIconUrl}
                 onChange={(e) =>
-                  handleSidebarIconFileChange(
-                    "left",
-                    e.target.files?.[0] ?? null,
-                  )
+                  setSidebarIcons({ ...sidebarIcons, leftIconUrl: e.target.value })
                 }
-                className="text-sm"
+                placeholder="https://..."
               />
-              {uploadingIconSide === "left" && (
-                <p className="text-xs text-gray-400 mt-1">업로드 중...</p>
-              )}
             </div>
             <div>
               <label className="block text-sm mb-1">
-                우측 사이드바 아이콘 (살롱데상)
+                우측 사이드바 아이콘 URL (살롱데상)
               </label>
               {sidebarIcons.rightIconUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -889,20 +844,13 @@ export default function AdminNavigationSettingsPage() {
                 />
               )}
               <input
-                type="file"
-                accept="image/*"
-                disabled={uploadingIconSide === "right"}
+                className={inputClass}
+                value={sidebarIcons.rightIconUrl}
                 onChange={(e) =>
-                  handleSidebarIconFileChange(
-                    "right",
-                    e.target.files?.[0] ?? null,
-                  )
+                  setSidebarIcons({ ...sidebarIcons, rightIconUrl: e.target.value })
                 }
-                className="text-sm"
+                placeholder="https://..."
               />
-              {uploadingIconSide === "right" && (
-                <p className="text-xs text-gray-400 mt-1">업로드 중...</p>
-              )}
             </div>
           </div>
           <div className="mt-3">

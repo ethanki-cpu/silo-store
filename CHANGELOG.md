@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-041-042-HOTFIX)
+- **EPIC-041-042-HOTFIX: fix hover bug & switch to direct URL inputs**
+  - **드롭다운 hover 버그 완전 재구현**: `Navbar.tsx`의 상단 탭 드롭다운을 JS state(`openTab`/`popupPos`/`handleTabMouseEnter`/`handlePopupMouseLeave`, `position:fixed`)에서 순수 Tailwind `group`/`group-hover`로 전면 교체. 버그 원인은 트리거(탭 버튼)와 팝업이 서로 다른, 별개의 DOM 서브트리(팝업은 헤더 맨 끝에 fixed로 따로 렌더링)였다는 점 — 마우스가 그 사이를 이동할 때 각각의 enter/leave 타이밍이 어긋나면서 벗어나도 안 닫히는 경우가 생겼다. 이제 트리거+팝업을 같은 `relative group/tab` 컨테이너의 부모-자식으로 중첩해, 브라우저가 그 컨테이너 전체를 기준으로 `:hover`를 계산하므로 완전히 벗어나는 즉시 예외 없이 닫힌다. 탭↔팝업, 그룹↔2차 플라이아웃 사이의 시각적 간격은 각각 `pt-4`/`pl-2` **padding**(margin이 아님)으로 만들어 "투명한 다리" 역할을 하게 했다 — padding은 그 요소 박스의 일부라 마우스가 그 위를 지나도 hover가 끊기지 않는다. 이름 있는 그룹(`group/tab`, `group/row`)을 쓴 이유: 이름 없는 `group`을 중첩하면 Tailwind가 "가장 가까운 조상"이 아니라 "어떤 조상이든 `.group`이고 hover 중이면" 매칭해 상위 탭에 마우스를 올리기만 해도 모든 하위 그룹의 플라이아웃이 한꺼번에 열려버리는 문제가 있었음.
+  - `<nav>`의 `overflow-x-auto`(모바일 가로 스크롤용)를 `flex-wrap`으로 교체 — CSS 스펙상 `overflow-x`가 `visible`이 아니면 `overflow-y`도 `auto`로 강제 계산돼, 그 안에 중첩된 `position:absolute` 드롭다운이 잘려 보이는 문제를 `position:fixed` 없이 해결하기 위함(4개 탭 기준으로는 줄바꿈이 자연스러운 대안).
+  - **URL 직접 입력으로 전환**: `admin/navigation/settings/page.tsx`의 커스텀 폰트 파일 업로드와 좌/우 사이드바 아이콘 업로드(`input type="file"` + Storage 업로드)를 제거하고, Supabase Storage에 이미 올린 파일의 공개 URL을 직접 붙여넣는 텍스트 입력으로 교체 — 가장 단순하고 확실한 방식을 우선했다. 로고 이미지/슬라이드/Wallpaper 이미지는 대상이 아니라 계속 파일 업로드를 쓴다.
+  - 검증: `npm run lint`(26건, 직전과 동일 — 신규 이슈 없음)/`npx tsc --noEmit` 통과. `@font-face` 주입과 사이드바 아이콘 `src` 바인딩 로직은 EPIC-041에서 이미 구현된 그대로이며 이번엔 값의 출처만(업로드 → 직접 입력) 바뀌었으므로 코드 경로상 문제 없음을 확인. 다만 이번 세션은 Browser 창이 화면에 표시되지 않아 실제 마우스 hover(: hover는 진짜 커서 이동에만 반응하고 JS로 디스패치한 이벤트로는 재현되지 않음) 동작을 스크린샷으로 직접 확인하지 못했음 — 사용자가 직접 브라우저에서 탭 hover 후 마우스를 완전히 치웠을 때 즉시 닫히는지 확인 필요.
+
 ## 2026-07-27 (EPIC-041-042)
 - **EPIC-041-042: Unified UI polish — hover UX, custom fonts, icons, home curation**
   - **드롭다운 UX 수정**: `Navbar.tsx`의 상단 탭 다단계 팝업에서 "클릭으로 고정(pinned)" 개념을 완전히 제거했다 — `pinnedKey`/`handleTabClick`/outside-click `useEffect`/`navRef`를 모두 삭제하고, 탭 버튼에는 `onMouseEnter`만 남겼다. 팝업을 닫는 것도 오직 `onMouseLeave`(`handlePopupMouseLeave`)뿐이라 마우스가 완전히 벗어나면 예외 없이 즉시 닫힌다. 클릭으로 닫던 배경(backdrop) `<div>`도 제거 — pinned 상태가 없어 필요 없어졌고, 이전엔 이 배경이 hover 중 페이지의 다른 클릭을 가로채는 부작용이 있었다. 팝업은 여전히 `position: fixed`(JS로 좌표 계산) — 상단 nav의 `overflow-x-auto`가 CSS 스펙상 `overflow-y`도 `auto`로 강제해 `position: absolute` 팝업은 잘려 보이기 때문(2차 플라이아웃은 계속 순수 CSS `group-hover`).

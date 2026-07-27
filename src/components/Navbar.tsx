@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
@@ -173,24 +173,6 @@ export function Navbar() {
     };
   }, []);
 
-  // EPIC-041: 상단 탭(dropdown/sidebar-left/sidebar-right 공통) hover 시
-  // 1차 하위 카테고리만 작은 팝업으로 노출한다. EPIC-037~040이 썼던
-  // "클릭으로 고정(pinned)" 개념은 완전히 제거했다 — 클릭에 의존하거나
-  // 마우스가 벗어난 뒤에도 팝업이 남아있는 문제의 근본 원인이 바로 그
-  // pinnedKey 상태였기 때문. 이제 openTab/popupPos는 오직 마우스 진입/이탈
-  // (`handleTabMouseEnter`/`handlePopupMouseLeave`)로만 바뀌고, 탭 버튼에는
-  // onClick이 아예 없다 — 마우스가 완전히 벗어나면 예외 없이 즉시 닫힌다.
-  // 팝업을 `position: fixed`로 유지하는 이유: 상단 nav가 작은 화면에서
-  // 가로 스크롤되도록 `overflow-x-auto`를 쓰는데, CSS 스펙상 overflow-x가
-  // visible이 아니면 overflow-y도 auto로 강제 계산되어 `position: absolute`
-  // 팝업은 그 안에서 잘려 보인다 — `fixed`는 (transform/filter 없는 한)
-  // 조상의 overflow에 잘리지 않아 이 문제를 피한다.
-  const [openTab, setOpenTab] = useState<NavTab | null>(null);
-  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(
-    null,
-  );
-  const popupRef = useRef<HTMLDivElement | null>(null);
-
   const leftSidebarTab = navTabs.find((t) => t.type === "sidebar-left");
   const rightSidebarTab = navTabs.find((t) => t.type === "sidebar-right");
 
@@ -208,25 +190,6 @@ export function Navbar() {
   function closeSidebars() {
     setLeftOpen(false);
     setRightOpen(false);
-  }
-
-  function closeTabPopup() {
-    setOpenTab(null);
-    setPopupPos(null);
-  }
-
-  function handleTabMouseEnter(
-    tab: NavTab,
-    e: React.MouseEvent<HTMLButtonElement>,
-  ) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setPopupPos({ top: rect.bottom, left: rect.left });
-    setOpenTab(tab);
-  }
-
-  function handlePopupMouseLeave() {
-    setOpenTab(null);
-    setPopupPos(null);
   }
 
   async function handleLogout() {
@@ -336,11 +299,23 @@ export function Navbar() {
       {/* 상단 탭: DB(site_navigations)에서 조회한 navTabs를 그대로 순회하며
           type에 따라 상호작용 방식만 분기. 라벨/링크/그룹 구성은 전부
           DB(관리자 CMS, /admin/navigation)에서 온다.
-          EPIC-037: dropdown/sidebar-left/sidebar-right 3개 타입 모두 hover 시
-          1차 하위 카테고리 팝업을 노출하는 동일한 상호작용으로 통일 — 예전의
-          화면 전체 높이 슬라이드인 사이드바 대신 탭 바로 아래에 작은 팝업만
-          뜬다(아래 팝업 렌더링 참고). */}
-      <nav className="flex justify-center gap-1 px-4 overflow-x-auto whitespace-nowrap border-t border-gray-100">
+          EPIC-041-042-HOTFIX: 드롭다운을 JS state(openTab/popupPos + mouse
+          enter/leave 핸들러) 대신 순수 Tailwind `group`/`group-hover`로
+          재구현 — 마우스가 이동하는 서로 다른 두 DOM 요소(버튼과, 별도로
+          렌더링되던 fixed 팝업) 사이에서 enter/leave 타이밍이 어긋나
+          "벗어나도 안 닫히는" 버그가 있었다. 이제 트리거(버튼)와 팝업이
+          같은 `relative group/tab` 컨테이너 안에 중첩된 DOM 자식이라 CSS
+          :hover가 이 컨테이너 전체를 기준으로 계산되고, 여기서 완전히
+          벗어나는 즉시 브라우저가 알아서 닫는다 — JS는 전혀 관여하지
+          않는다. 탭↔팝업, 그룹↔플라이아웃 사이의 시각적 간격은 그 간격을
+          팝업/플라이아웃 wrapper 자신의 padding(pt-4/pl-2)으로 만들어
+          "투명한 다리" 역할을 하게 했다 — 그 패딩도 같은 hover 대상 박스의
+          일부라 마우스가 빈 공간을 지나도 hover가 끊기지 않는다. 이름 있는
+          그룹(`group/tab`, `group/row`)을 쓰는 이유: 이름 없는 `group`을
+          중첩하면 Tailwind가 "가장 가까운 조상"이 아니라 "어떤 조상이든
+          .group이고 hover 중이면" 매칭하므로, 상위 탭에 마우스를 올리기만
+          해도 모든 하위 그룹의 2차 플라이아웃이 한꺼번에 열려버린다. */}
+      <nav className="flex flex-wrap justify-center gap-1 px-4 border-t border-gray-100">
         {navTabs.map((tab) => {
           if (tab.type === "link") {
             const className = `${TAB_BUTTON_BASE} ${
@@ -354,83 +329,72 @@ export function Navbar() {
           }
 
           const isRouteActive = activeTabKey === tab.key;
-          const isOpen = openTab?.key === tab.key;
-          // 열려 있는 동안(순수 hover)은 사이드바와 동일한 테마 색상
-          // (green-800)으로, 그 외엔 hover 시에만 같은 색으로 바뀌도록 한다.
+          const hasChildren =
+            (tab.groups && tab.groups.length > 0) ||
+            (tab.items && tab.items.length > 0);
+
+          // hover 중(group-hover/tab)에는 사이드바와 동일한 테마 색상
+          // (green-800)으로, 그 외엔 route-active 여부만 반영한다.
           const className = [
             TAB_BUTTON_BASE,
             isRouteActive ? "border-gray-800 font-medium" : "border-transparent",
-            isOpen
-              ? "bg-green-800 text-white border-green-800"
-              : isRouteActive
-                ? "text-gray-900 hover:bg-green-800 hover:text-white hover:border-green-800"
-                : "text-gray-500 hover:text-white hover:bg-green-800 hover:border-green-800",
+            isRouteActive ? "text-gray-900" : "text-gray-500",
+            "group-hover/tab:bg-green-800 group-hover/tab:text-white group-hover/tab:border-green-800",
           ].join(" ");
 
           return (
-            <button
-              key={tab.key}
-              type="button"
-              onMouseEnter={(e) => handleTabMouseEnter(tab, e)}
-              className={className}
-            >
-              {tab.label}
-            </button>
+            <div key={tab.key} className="relative group/tab">
+              <button type="button" className={className}>
+                {tab.label}
+              </button>
+
+              {hasChildren && (
+                // 브릿지: top-full로 버튼 바로 아래에 붙이고, pt-4를 이
+                // wrapper 자신의 padding으로 둬 hover 시 그 여백까지 hover
+                // 판정 영역에 포함시킨다(마우스가 버튼→메뉴로 내려가는
+                // 동안 hover가 끊기지 않게).
+                <div className="hidden group-hover/tab:block absolute left-0 top-full pt-4 z-40">
+                  <div className="w-64 rounded-md border border-gray-200 bg-white shadow-md py-2">
+                    {tab.groups && tab.groups.length > 0
+                      ? tab.groups.map((group) => (
+                          <div key={group.groupLabel} className="relative group/row">
+                            <div className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50">
+                              <span>{group.groupLabel}</span>
+                              <span className="text-gray-400 text-xs">›</span>
+                            </div>
+                            {/* 2차 플라이아웃 — group-hover/row로만 노출, JS 없음.
+                                pl-2가 그룹 행↔플라이아웃 사이의 브릿지 역할. */}
+                            <div className="hidden group-hover/row:block absolute left-full top-0 pl-2 z-50">
+                              <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
+                                {group.items.map((item, idx) => (
+                                  <Link
+                                    key={`${item.href}-${idx}`}
+                                    href={item.href}
+                                    className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                  >
+                                    {item.label}
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      : (tab.items ?? []).map((item) => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                  </div>
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
-
-      {/* EPIC-041: 상단 탭 순수 hover 팝업 — dropdown/sidebar-left/sidebar-right
-          공통. groups가 있으면(사이드바 타입) 그룹 라벨을 1차 목록으로 보여
-          주고, 각 행에 마우스를 올리면 그 그룹의 items가 2차 플라이아웃으로
-          옆에 튀어나오는 다단계(Nested) 드롭다운이 된다(2차는 Tailwind
-          group/group-hover, 별도 JS state 없이 순수 CSS). groups가 없으면
-          (dropdown 타입, 예: 스튜디오) 예전처럼 평평한 items 목록. 전체 높이
-          사이드바(LeftSidebar/RightSidebar)와는 완전히 별개다. 클릭으로
-          닫는 배경(backdrop)은 두지 않는다 — pinned 상태가 없어 클릭으로
-          닫아야 할 일이 없고, 예전엔 이 배경이 hover 중 페이지의 다른 클릭을
-          가로채는 부작용이 있었다. */}
-      {openTab && popupPos && (
-        <div
-          ref={popupRef}
-          onMouseLeave={handlePopupMouseLeave}
-          style={{ top: popupPos.top, left: popupPos.left }}
-          className="fixed z-40 w-64 rounded-md border border-gray-200 bg-white shadow-md py-2"
-        >
-          {openTab.groups && openTab.groups.length > 0
-              ? openTab.groups.map((group) => (
-                  <div key={group.groupLabel} className="group relative">
-                    <div className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50">
-                      <span>{group.groupLabel}</span>
-                      <span className="text-gray-400 text-xs">›</span>
-                    </div>
-                    {/* 2차 플라이아웃 — group-hover로만 노출, JS state 없음. */}
-                    <div className="hidden group-hover:block absolute left-full top-0 z-50 ml-1 w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
-                      {group.items.map((item, idx) => (
-                        <Link
-                          key={`${item.href}-${idx}`}
-                          href={item.href}
-                          onClick={closeTabPopup}
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          {item.label}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              : (openTab.items ?? []).map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={closeTabPopup}
-                    className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-        </div>
-      )}
 
       {/* EPIC-040: 전체 높이 사이드바 열림 중 뒷배경을 어둡게 — 위 상단 탭
           팝업과는 별개 state(leftOpen/rightOpen)이므로 별도 backdrop. */}

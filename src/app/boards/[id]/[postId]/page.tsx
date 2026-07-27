@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/AuthProvider";
 import { PostDetailHeader } from "@/components/boards/PostDetailHeader";
 import { PostTags } from "@/components/boards/PostTags";
 import { PostActions } from "@/components/boards/PostActions";
+import { PostBody } from "@/components/boards/PostBody";
 import { CommentSection } from "@/components/boards/CommentSection";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 
@@ -219,9 +220,7 @@ export default function PostDetailPage() {
         <div className="max-w-2xl mx-auto w-full">
           <PostTags tags={displayTags} />
 
-          <p className="text-gray-800 leading-relaxed whitespace-pre-wrap mt-8 text-[15px]">
-            {post.body}
-          </p>
+          <PostBody body={post.body} />
 
           <PostActions
             likeCount={post.like_count}

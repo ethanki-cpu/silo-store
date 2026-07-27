@@ -9,6 +9,7 @@ import {
   type CollectionCategory,
   type CollectionModalItem,
 } from "./CollectionModal";
+import { StoryCard } from "@/components/boards/StoryCard";
 
 type Treasure = {
   id: string;
@@ -29,6 +30,9 @@ type CollectionItem = {
 // EPIC-045: 옛 CollectionsPanel.tsx가 9개 서브탭을 내부 state로 전환하며
 // 한 화면에서 다 그리던 것을, 라우트당 한 카테고리만 받는 형태로 분리 —
 // 데이터 조회/등록/수정/삭제 로직 자체는 그대로 재사용.
+// EPIC-052: "나의 컬렉션"은 비공개(member_collections, 스키마/공개 범위
+// 변경 없음)로 유지하되, 카드 마크업만 게시판 story 레이아웃과 공유하는
+// StoryCard로 통일 — 공개 게시판과 동일한 시각 언어를 재사용한다.
 export function CollectionCategoryPanel({
   memberId,
   category,
@@ -130,26 +134,17 @@ export function CollectionCategoryPanel({
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {treasures.map((t) => (
-              <div
+              <StoryCard
                 key={t.id}
-                className="rounded-lg border border-gray-200 overflow-hidden"
-              >
-                {t.item_photo_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={t.item_photo_url}
-                    alt={t.item_name}
-                    className="w-full aspect-square object-cover"
-                  />
-                )}
-                <div className="p-3">
-                  <p className="font-medium text-sm">{t.item_name}</p>
-                  <p className="text-xs text-gray-500 mt-1">
+                photoUrl={t.item_photo_url}
+                title={t.item_name}
+                meta={
+                  <>
                     {t.order_type === "purchase" ? "구매" : "대여"} ·{" "}
                     {new Date(t.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
+                  </>
+                }
+              />
             ))}
           </div>
         )
@@ -162,52 +157,40 @@ export function CollectionCategoryPanel({
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           {items.map((item) => (
-            <div
+            <StoryCard
               key={item.id}
-              className="relative rounded-lg border border-gray-200 overflow-hidden"
-            >
-              <div className="absolute top-2 right-2 z-10 flex gap-1">
-                <button
-                  type="button"
-                  aria-label="수정"
-                  onClick={() =>
-                    setModalItem({
-                      id: item.id,
-                      title: item.title,
-                      description: item.description,
-                      image_url: item.image_url,
-                    })
-                  }
-                  className="rounded-full bg-white/90 w-7 h-7 flex items-center justify-center shadow text-xs"
-                >
-                  ✏️
-                </button>
-                <button
-                  type="button"
-                  aria-label="삭제"
-                  onClick={() => handleDelete(item.id)}
-                  className="rounded-full bg-white/90 w-7 h-7 flex items-center justify-center shadow text-xs"
-                >
-                  🗑️
-                </button>
-              </div>
-              {item.image_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.image_url}
-                  alt={item.title}
-                  className="w-full aspect-square object-cover"
-                />
-              )}
-              <div className="p-3">
-                <p className="font-medium text-sm">{item.title}</p>
-                {item.description && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                    {item.description}
-                  </p>
-                )}
-              </div>
-            </div>
+              photoUrl={item.image_url}
+              title={item.title}
+              summary={item.description}
+              meta={new Date(item.created_at).toLocaleDateString()}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    aria-label="수정"
+                    onClick={() =>
+                      setModalItem({
+                        id: item.id,
+                        title: item.title,
+                        description: item.description,
+                        image_url: item.image_url,
+                      })
+                    }
+                    className="rounded-full bg-white/90 w-7 h-7 flex items-center justify-center shadow text-xs"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="삭제"
+                    onClick={() => handleDelete(item.id)}
+                    className="rounded-full bg-white/90 w-7 h-7 flex items-center justify-center shadow text-xs"
+                  >
+                    🗑️
+                  </button>
+                </>
+              }
+            />
           ))}
         </div>
       )}

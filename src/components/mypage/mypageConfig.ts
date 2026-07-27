@@ -9,8 +9,11 @@ export type MyPageTabId =
   | "badges"
   | "comments"
   | "timeline"
+  | "bucketlist"
   | "visitors";
 
+// EPIC-052: "Personal Hub" 확장 — 버킷리스트 탭 추가, 나머지 탭은 그대로
+// 유지(라우트 세그먼트/URL 불변).
 export const MYPAGE_TABS: { id: MyPageTabId; label: string }[] = [
   { id: "collections", label: "나의 컬렉션" },
   { id: "wishlist", label: "나의 위시리스트" },
@@ -22,6 +25,7 @@ export const MYPAGE_TABS: { id: MyPageTabId; label: string }[] = [
   { id: "badges", label: "받은 배지" },
   { id: "comments", label: "내가 쓴 댓글" },
   { id: "timeline", label: "타임라인" },
+  { id: "bucketlist", label: "버킷리스트" },
   { id: "visitors", label: "방문자 기록" },
 ];
 

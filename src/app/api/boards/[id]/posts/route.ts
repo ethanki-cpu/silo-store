@@ -8,6 +8,7 @@ import {
   RANK_LABELS,
 } from "@/lib/serverAuth";
 import { resolveBoardDefinition, isSortOption, type SortOption } from "@/lib/boardLayout";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 export async function GET(
   request: NextRequest,
@@ -259,6 +260,11 @@ export async function POST(
     );
   }
 
+  // EPIC-052: 클라이언트 에디터(Tiptap)를 거치지 않고 API를 직접 호출해도
+  // 안전하도록, 저장 직전에 서버에서 한 번 더 정제한다(Stored XSS 방지 —
+  // 클라이언트 쪽 정제만 믿지 않음).
+  const sanitizedBody = sanitizeHtml(postBody);
+
   const tier = await getTier(requester.member.membership_rank);
   const permission = canWriteToBoard(board, tier, isDocentPost);
 
@@ -298,7 +304,7 @@ export async function POST(
       board_id: id,
       author_id: requester.member.id,
       title,
-      body: postBody,
+      body: sanitizedBody,
       is_docent_post: isDocentPost,
       visibility: "public",
       order_id: validatedOrderId,
@@ -316,7 +322,7 @@ export async function POST(
         board_id: id,
         author_id: requester.member.id,
         title,
-        body: postBody,
+        body: sanitizedBody,
         is_docent_post: isDocentPost,
         visibility: "public",
         order_id: validatedOrderId,

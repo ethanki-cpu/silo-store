@@ -4,6 +4,14 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-052 (중요)**: `member_bucket_list` 테이블을 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). `docs/database-schema.sql`의 "EPIC-052" 주석 아래 DDL 참고. 실행 전까지 `/mypage/bucketlist`에서 항목 추가 시 에러가 남.
+- **EPIC-052 후속**: "받은 배지"의 "전체 랭킹"/"다음 배지 진행률"은 구현하지 않음 — 랭킹은 `member_badges`가 본인 행만 읽는 RLS라 다른 회원과 비교 집계하려면 공개 집계 뷰(예: `docent_content_popularity`처럼 `grant select`된 뷰)가 새로 필요하고, 진행률은 배지 획득 조건을 정의하는 규칙 테이블 자체가 없어(스키마 추측 금지) 계산 근거가 없다. 두 기능이 정말 필요하면 먼저 배지 규칙(조건/등급 체계)을 사용자와 정의해야 한다.
+- **EPIC-052 후속**: "나의 도슨트 수료증"은 `docent_purchases`(결제 확정)를 "수료"로 재해석했을 뿐, 실제 강의 진행률/모듈 개념은 없다 — 진짜 "진행률"이 필요하면 도슨트 콘텐츠에 모듈/챕터 개념을 추가하는 별도 스키마 설계가 선행돼야 함.
+- **EPIC-052 후속**: "나의 공간"의 공간 스타일링 신청 내역은 표시하지 않음(고객 신청을 기록하는 테이블이 없음, `styling_projects`는 관리자 포트폴리오 전용) — Studio 게시판 링크로만 안내. 실제 신청 내역이 필요해지면 고객 신청 테이블 설계가 먼저 필요.
+- **EPIC-052 후속**: "타임라인"은 `points_ledger`+`likes`+`member_follows`만 조합 — "도슨트"/"배지" 활동은 `points_ledger`에 대응하는 `reason` 값이 없어 타임라인에 포함되지 않는다(예: 도슨트 구매는 `shop_purchase`와 구분되지 않음, 배지 부여는 포인트 적립을 동반하지 않음). 필요하면 `points_ledger.reason`에 `docent_purchase`/`badge_granted` 같은 값을 추가하는 스키마 확장을 검토할 것.
+- **EPIC-052 후속**: Tiptap 에디터가 저장하는 HTML은 `src/lib/sanitize.ts`의 화이트리스트(`p/br/strong/em/s/u/h1-3/ul/ol/li/blockquote/a/code/pre`)만 허용 — 이미지/표/코드 하이라이팅 등 더 풍부한 서식이 필요하면 Tiptap 확장 추가 + 화이트리스트 확장이 함께 필요(허용 태그만 늘리고 확장을 안 붙이면 에디터에서 애초에 만들 수 없음).
+- **EPIC-052 후속**: 기존에 plain text로 저장된 글(EPIC-052 이전)은 여전히 `PostBody.tsx`가 태그 유무로 자동 판별해 줄바꿈만 살려 보여준다 — 일괄 HTML 변환 마이그레이션은 하지 않았음(필요성 낮다고 판단, 필요해지면 별도 스크립트로 처리).
+- **EPIC-052 후속**: 마이페이지 허브(`/mypage/page.tsx`)는 카드 그리드(대표 카드) 그대로 유지했고, 지시문이 요구한 "최근 활동/인기 콘텐츠/진행 현황/배지"를 탭마다 요약해 보여주는 리치 대시보드까지는 구현하지 않음(12개 탭 각각에 대한 요약 쿼리를 새로 설계해야 하는 큰 작업이라 이번 EPIC 범위에서 제외) — 필요하면 별도 확인 후 진행.
 - **EPIC-051 (중요)**: 신규 게시판 5개(`boards` insert)를 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). `docs/database-schema.sql`의 "EPIC-051" 주석 아래 INSERT 문 참고. 실행 전까지는 Studio hub와 4개 서비스 게시판이 어디에도 보이지 않는다(DB에 행이 없으니 정상).
 - **EPIC-051 후속**: "문의하기"/"예약하기" 버튼이 지금은 4개 게시판 전부 같은 href로 연결된다(별도 "단순 문의" 채널이 없어서) — 실제로 문의와 예약을 구분된 흐름으로 나누고 싶으면, 문의 전용 폼/연락 채널을 먼저 설계해야 한다(스키마 추측 금지 원칙상 이번 EPIC에서 임의로 만들지 않음).
 - **EPIC-051 후속**: "물품 대여"(`rental`)와 "공간 스타일링"(`styling`)의 신청 버튼은 여전히 `/space-inquiry/item-rental`·`/space-inquiry/styling` **placeholder(ComingSoon) 페이지**로 연결된다 — 이 두 페이지 자체는 아직 미구현이라(이전부터 있던 상태, 이번 EPIC 범위 아님), 실제로 신청까지 되게 하려면 그 페이지들의 구현이 먼저 필요하다.
@@ -86,6 +94,7 @@
 - **환경 메모**: Next.js(Turbopack)는 같은 프로젝트 디렉토리에 대해 dev 서버를 동시에 두 개 띄울 수 없다(`.next/dev/logs`의 락으로 감지, 포트를 바꿔도 무관하게 즉시 종료됨) — 이 저장소를 여러 세션이 동시에 작업할 때, 다른 세션이 이미 `npm run dev`를 띄워둔 상태라면 이번 세션에서는 로컬 브라우저 검증이 불가능하다. 사용자가 직접 다른 세션의 dev 서버를 내리거나, 그 세션에서 검증을 요청해야 함.
 
 ## 사용자 확인 필요
+- **EPIC-052**: DB 시드(`member_bucket_list`) 미적용 + 다른 세션의 3000번 포트 점유가 겹쳐 있어(환경 메모 참고), Tiptap 에디터 실제 타이핑/서식 적용, 상세 페이지 HTML 렌더링, 버킷리스트 추가/체크/삭제, 나의 살롱/도슨트 수료증/공간/전시회 패널의 실데이터 표시, 원글 이동 링크를 브라우저로 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 로그인 후 (1) 아무 게시판에 글쓰기로 들어가 굵게/목록/링크 서식이 적용되는지, 저장 후 상세 페이지에 서식이 그대로 보이는지, (2) `docs/database-schema.sql`의 EPIC-052 DDL 실행 후 `/mypage/bucketlist`에서 항목 추가·체크·삭제, (3) `/mypage`의 살롱/도슨트 수료증/공간/전시회/타임라인/내가 쓴 댓글(원글 이동) 탭이 실제 데이터를 보여주는지 확인 필요.
 - **EPIC-051**: DB 시드 실행 + 다른 세션의 3000번 포트 점유 둘 다 겹쳐 있어(환경 메모 참고) Studio hub와 4개 서비스 게시판, "문의하기"/"예약하기"/"대표 프로젝트 보기" 버튼이 실제로 올바른 페이지로 이동하는지, hub 슬라이드 카드에 대표 이미지가 보이는지 브라우저로 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 `docs/database-schema.sql`의 EPIC-051 INSERT 실행 후 `/boards` → "게시판 허브"에서 Studio 진입 → 1F/2F 대관·물품 대여·공간 스타일링 게시판 각각 열어 버튼 이동과 콘텐츠(공간 소개/이용 안내 등 직접 작성 필요)를 확인 필요.
 - **EPIC-050**: DB 시드 실행 + 다른 세션의 3000번 포트 점유 둘 다 겹쳐 있어(환경 메모 참고) Membership/Gallery/Archive 3개 hub와 그 하위 게시판, 그리고 "타임라인" 게시판의 연/월 그룹핑 렌더링을 브라우저로 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 `docs/database-schema.sql`의 EPIC-050 INSERT 실행 후 (1) `/boards` → "게시판 허브"에서 Membership/Gallery/Archive 진입 → 하위 게시판 카드 확인, (2) "패트론 게시판"을 비패트론 계정으로 열람 시도해 실제로 막히는지 확인, (3) "타임라인" 게시판에 글을 몇 개 써서 연/월별로 올바르게 묶여 보이는지 확인 필요.
 - **EPIC-049**: DB 시드 실행 + 다른 세션의 3000번 포트 점유 둘 다 겹쳐 있어(환경 메모 참고) Community hub 구조(Community → 출석체크/자유게시판/주제별 소통 게시판(hub)/요일별 클럽(hub)/월별 모임/설문(hub)/공연·전시회/이벤트 공지/Q&A)가 정상 노출되는지, 특히 기존 13개 클럽+7개 모임방이 `/boards` 평면 목록에서는 빠지고 `주제별 소통 게시판`/`요일별 클럽` hub 안에서는 정상적으로 보이는지 브라우저로 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 `docs/database-schema.sql`의 EPIC-049 INSERT를 실행한 뒤, `/boards` → "게시판 허브"에서 Community 진입 → 하위 게시판 9개 카드 → `주제별 소통 게시판`/`요일별 클럽` 재진입 → 각각의 13개/7개 자식 게시판이 예전과 동일한 URL(`/boards/[id]`)로 여전히 동작하는지 확인 필요.
@@ -105,4 +114,5 @@
 - **EPIC-034-Ext**: 같은 이유(다른 세션의 dev 서버 점유)로 텍스트 위치 반전(`flex-row-reverse`)과 폰트 Select 동작을 직접 검증하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 텍스트 위치를 좌/우로 바꿔보며 로고와의 순서가 바뀌는지, 폰트를 Graphire/Primor로 바꿨을 때 자유 입력 서체 필드가 비활성화되는지 확인 필요.
 
 ## 보류 중인 P2 이슈 (Error Triage Policy, CLAUDE.md 참고 — 사용자 지시 전까지 미수정)
+- **EPIC-052**: `BucketListPanel.tsx`도 동일 클래스(`set-state-in-effect`) 위반이 1건 추가됨(26→27) — 아래 전체 훑는 리팩터링 시 같이 처리할 것.
 - `npm run lint`가 프로젝트 전반(예: `AuthProvider.tsx`, `WishlistButton.tsx`, `attendance`, `clubs/[id]`, `docent/[id]`, `boards/[id]/[postId]`, `Navbar.tsx`(mounted 플래그), `admin/layout.tsx`(authorized 플래그), `admin/navigation/shared.tsx`(draft 재동기화 effect) 등 다수 파일)에서 `react-hooks/set-state-in-effect` 규칙 위반으로 실패 중 — EPIC-018 작업 범위 밖의 기존(pre-existing) 상태이며, 프로젝트 전체를 훑는 별도 작업이 필요.

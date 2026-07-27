@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
+import { RichTextEditor } from "@/components/editor/RichTextEditor";
 
 type ConfirmedOrder = {
   id: string;
@@ -69,9 +70,18 @@ export default function WritePostPage() {
       });
   }, [boardType, member]);
 
+  // Tiptap 에디터가 비어 있으면 "<p></p>"류의 빈 태그만 남긴다 — 네이티브
+  // <textarea required>처럼 브라우저가 검증해주지 않아 직접 확인한다.
+  const isBodyEmpty = body.replace(/<[^>]*>/g, "").trim().length === 0;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (isBodyEmpty) {
+      setError("내용을 입력해주세요.");
+      return;
+    }
 
     if (boardType === "adoption_story" && !orderId) {
       setError("어떤 물품을 구매하셨는지 선택해주세요.");
@@ -166,13 +176,10 @@ export default function WritePostPage() {
 
         <div>
           <label className="block text-sm mb-1">내용</label>
-          <textarea
-            required
-            rows={8}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2"
-          />
+          {/* EPIC-052: Tiptap 기반 Block Editor — posts.body에는 HTML
+              문자열로 저장(스키마 변경 없음, 상세 페이지에서 서버가
+              정제(sanitize)한 뒤 렌더링). */}
+          <RichTextEditor value={body} onChange={setBody} />
         </div>
 
         {definition?.tags && (

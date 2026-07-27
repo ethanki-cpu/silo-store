@@ -542,7 +542,7 @@ create table posts (
   board_id        uuid references boards(id),
   author_id       uuid not null references members(id),
   title           text,
-  body            text,  -- EPIC-052부터 Board Definition 게시판 글쓰기(Tiptap Block Editor)는 여기에 HTML 문자열을 저장(컬럼 타입/이름 변경 없음). 그 전에 작성된 글은 여전히 plain text — 렌더링 쪽(PostBody.tsx)이 태그 포함 여부로 자동 분기.
+  body            text,
   is_docent_post  boolean not null default false,
   visibility      text not null default 'public' check (visibility in ('public','private','friends')),
   like_count      int not null default 0,
@@ -739,17 +739,6 @@ create table member_visitors (
   owner_id    uuid not null references members(id) on delete cascade,
   visitor_id  uuid not null references members(id) on delete cascade,
   visited_at  timestamptz not null default now()
-);
-
--- 버킷리스트(EPIC-052). member_collections와 동일한 own-row 전용 패턴 —
--- 라이브 DB에는 아직 미적용, Supabase SQL Editor에서 직접 실행 필요.
-create table member_bucket_list (
-  id          uuid primary key default gen_random_uuid(),
-  member_id   uuid not null references members(id) on delete cascade,
-  year        int not null,
-  title       text not null,
-  is_done     boolean not null default false,
-  created_at  timestamptz not null default now()
 );
 
 -- =====================================================================
@@ -991,7 +980,6 @@ create index idx_member_collections_category on member_collections(category);
 create index idx_member_follows_following on member_follows(following_id);
 create index idx_member_badges_member on member_badges(member_id);
 create index idx_member_visitors_owner on member_visitors(owner_id);
-create index idx_member_bucket_list_member on member_bucket_list(member_id);
 create index idx_site_navigations_parent on site_navigations(parent_id);
 create index idx_site_categories_parent on site_categories(parent_id);
 create index idx_site_categories_domain on site_categories(domain);

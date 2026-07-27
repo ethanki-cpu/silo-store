@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { EmptyState } from "../EmptyState";
 
@@ -8,10 +9,16 @@ type RecentComment = {
   id: string;
   body: string;
   created_at: string;
+  post_id: string | null;
   post_title: string | null;
+  post_like_count: number | null;
+  board_id: string | null;
   board_name: string | null;
 };
 
+// EPIC-052: "내가 쓴 댓글" — 기존 목록에 "원글 이동" 링크를 추가하려면
+// post_id/board_id가 필요해 select를 확장했다(댓글 자체에는 좋아요 개념이
+// 없어, "좋아요 수"는 원글의 like_count로 표시 — 새 스키마 추측 없음).
 export function CommentsPanel({ memberId }: { memberId: string }) {
   const [comments, setComments] = useState<RecentComment[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -22,7 +29,9 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
     async function load() {
       const { data } = await supabase
         .from("comments")
-        .select("id, body, created_at, posts(title, boards(name))")
+        .select(
+          "id, body, created_at, posts(id, title, like_count, board_id, boards(name))",
+        )
         .eq("author_id", memberId)
         .order("created_at", { ascending: false })
         .limit(30);
@@ -33,7 +42,13 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
         id: string;
         body: string;
         created_at: string;
-        posts: { title: string | null; boards: { name: string } | null } | null;
+        posts: {
+          id: string;
+          title: string | null;
+          like_count: number;
+          board_id: string | null;
+          boards: { name: string } | null;
+        } | null;
       }[];
 
       setComments(
@@ -41,7 +56,10 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
           id: c.id,
           body: c.body,
           created_at: c.created_at,
+          post_id: c.posts?.id ?? null,
           post_title: c.posts?.title ?? null,
+          post_like_count: c.posts?.like_count ?? null,
+          board_id: c.posts?.board_id ?? null,
           board_name: c.posts?.boards?.name ?? null,
         })),
       );
@@ -61,16 +79,33 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
 
   return (
     <div className="space-y-2">
-      {comments.map((c) => (
-        <div key={c.id} className="rounded-lg border border-gray-200 p-3">
-          <p className="text-gray-800">{c.body}</p>
-          <p className="text-xs text-gray-400 mt-2">
-            {c.board_name ?? c.post_title ?? "게시글"}
-            {c.post_title ? ` · ${c.post_title}` : ""} ·{" "}
-            {new Date(c.created_at).toLocaleString()}
-          </p>
-        </div>
-      ))}
+      {comments.map((c) => {
+        const content = (
+          <>
+            <p className="text-gray-800">{c.body}</p>
+            <p className="text-xs text-gray-400 mt-2">
+              {c.board_name ?? c.post_title ?? "게시글"}
+              {c.post_title ? ` · ${c.post_title}` : ""}
+              {c.post_like_count !== null && ` · 좋아요 ${c.post_like_count}`}{" "}
+              · {new Date(c.created_at).toLocaleString()}
+            </p>
+          </>
+        );
+
+        return c.board_id && c.post_id ? (
+          <Link
+            key={c.id}
+            href={`/boards/${c.board_id}/${c.post_id}`}
+            className="block rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow"
+          >
+            {content}
+          </Link>
+        ) : (
+          <div key={c.id} className="rounded-lg border border-gray-200 p-3">
+            {content}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import type { BoardDefinition, BoardPost, HubFeed, HubChildBoard } from "@/lib/boardLayout";
-import { PostTags } from "./PostTags";
+import { StoryCard } from "./StoryCard";
+import { stripHtml } from "@/lib/sanitize";
+import { TimelineView } from "@/components/TimelineView";
 
 function PostBadges({ post, isQna }: { post: BoardPost; isQna: boolean }) {
   if (!post.is_best && !post.is_docent_post && !isQna) return null;
@@ -67,38 +69,28 @@ function CommunityList({
   );
 }
 
-// story: 카드형, 썸네일 포함 — 대표 이미지/제목/요약/태그/좋아요/조회수/작성일(+작성자).
+// story: 카드형, 썸네일 포함 — 대표 이미지/제목/요약/태그/좋아요/조회수/
+// 작성일(+작성자). 카드 마크업 자체는 공용 StoryCard(EPIC-052, 마이페이지
+// "나의 컬렉션"과 공유)에 위임한다.
 function StoryCards({ boardId, posts }: { boardId: string; posts: BoardPost[] }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       {posts.map((post) => (
-        <Link
+        <StoryCard
           key={post.id}
           href={`/boards/${boardId}/${post.id}`}
-          className="block group"
-        >
-          {post.photo_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={post.photo_url}
-              alt={post.title ?? ""}
-              className="w-full aspect-[4/3] object-cover"
-            />
-          )}
-          <h2 className="font-serif text-lg font-medium text-gray-900 mt-3 group-hover:underline">
-            {post.title}
-          </h2>
-          {post.body && (
-            <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-              {post.body}
-            </p>
-          )}
-          <PostTags tags={post.tags ?? []} />
-          <p className="text-xs uppercase tracking-wide text-gray-400 mt-2">
-            {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
-            {post.view_count ?? 0} · {new Date(post.created_at).toLocaleDateString()}
-          </p>
-        </Link>
+          photoUrl={post.photo_url}
+          title={post.title ?? ""}
+          summary={post.body ? stripHtml(post.body) : null}
+          tags={post.tags ?? []}
+          meta={
+            <>
+              {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
+              {post.view_count ?? 0} ·{" "}
+              {new Date(post.created_at).toLocaleDateString()}
+            </>
+          }
+        />
       ))}
     </div>
   );
@@ -139,69 +131,28 @@ function GalleryGrid({ boardId, posts }: { boardId: string; posts: BoardPost[] }
 // 독립 컴포넌트가 아니라 이 파일 안의 재사용 가능한 함수로 유지해, 향후
 // 마이페이지 타임라인 탭(현재 PlaceholderPanel) 등 다른 화면도 "정렬된
 // {created_at, title, ...} 목록"만 넘기면 같은 방식으로 묶을 수 있게 한다.
-function groupPostsByYearMonth(posts: BoardPost[]) {
-  const byYear = new Map<string, Map<string, BoardPost[]>>();
-
-  for (const post of posts) {
-    const date = new Date(post.created_at);
-    const year = String(date.getFullYear());
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-
-    if (!byYear.has(year)) byYear.set(year, new Map());
-    const byMonth = byYear.get(year)!;
-    if (!byMonth.has(month)) byMonth.set(month, []);
-    byMonth.get(month)!.push(post);
-  }
-
-  return byYear;
-}
-
 // timeline: 사일로상점+살롱데상의 모든 이벤트를 연/월/일 순으로 보여주는
-// 반응형 타임라인.
-function TimelineView({ boardId, posts }: { boardId: string; posts: BoardPost[] }) {
-  const grouped = groupPostsByYearMonth(posts);
-  const years = [...grouped.keys()].sort((a, b) => Number(b) - Number(a));
+// 반응형 타임라인 — 그룹핑/렌더링은 공용 Timeline Engine
+// (src/lib/timelineEngine.ts + src/components/TimelineView.tsx)을 그대로
+// 재사용하고, 여기서는 BoardPost를 그 계약({id, createdAt})에 맞게
+// 어댑팅만 한다.
+function BoardTimelineView({ boardId, posts }: { boardId: string; posts: BoardPost[] }) {
+  const entries = posts.map((post) => ({ ...post, createdAt: post.created_at }));
 
   return (
-    <div className="space-y-12">
-      {years.map((year) => {
-        const byMonth = grouped.get(year)!;
-        const months = [...byMonth.keys()].sort((a, b) => Number(b) - Number(a));
-
-        return (
-          <section key={year}>
-            <h2 className="font-serif text-2xl font-bold text-gray-900 mb-6">
-              {year}
-            </h2>
-            <div className="space-y-8 border-l border-gray-200 pl-6">
-              {months.map((month) => (
-                <div key={month}>
-                  <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-                    {year}년 {Number(month)}월
-                  </h3>
-                  <div className="space-y-3">
-                    {byMonth.get(month)!.map((post) => (
-                      <Link
-                        key={post.id}
-                        href={`/boards/${boardId}/${post.id}`}
-                        className="block group"
-                      >
-                        <p className="text-xs text-gray-400">
-                          {new Date(post.created_at).getDate()}일
-                        </p>
-                        <p className="font-serif text-gray-900 group-hover:underline">
-                          {post.title}
-                        </p>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        );
-      })}
-    </div>
+    <TimelineView
+      entries={entries}
+      renderItem={(post) => (
+        <Link href={`/boards/${boardId}/${post.id}`} className="block group">
+          <p className="text-xs text-gray-400">
+            {new Date(post.created_at).getDate()}일
+          </p>
+          <p className="font-serif text-gray-900 group-hover:underline">
+            {post.title}
+          </p>
+        </Link>
+      )}
+    />
   );
 }
 
@@ -350,7 +301,7 @@ export function BoardRenderer({
     case "gallery":
       return <GalleryGrid boardId={boardId} posts={posts} />;
     case "timeline":
-      return <TimelineView boardId={boardId} posts={posts} />;
+      return <BoardTimelineView boardId={boardId} posts={posts} />;
     case "community":
     default:
       return <CommunityList boardId={boardId} posts={posts} isQna={isQna} />;

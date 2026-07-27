@@ -25,6 +25,8 @@
 - **TypeScript** `^5`
 - **Supabase**: `@supabase/supabase-js` `^2.110.8`
 - **Tailwind CSS** `^4` (`@tailwindcss/postcss`)
+- **Tiptap**(ProseMirror) `^3` — `@tiptap/react`/`@tiptap/starter-kit`/`@tiptap/extension-link`/`@tiptap/extension-placeholder`/`@tiptap/pm` (EPIC-052, Block Editor). `isomorphic-dompurify`(EPIC-052, 게시글 HTML 저장/렌더링 정제)
+- **@dnd-kit** `core`/`sortable`/`utilities` (EPIC-035, 관리자 카테고리 드래그앤드롭)
 - **ESLint** `^9` + `eslint-config-next`
 - 그 외 별도 상태관리 라이브러리(Redux/Zustand 등), UI 컴포넌트 라이브러리, 테스트 러너는 사용하지 않음 (`package.json`에 존재하지 않음).
 
@@ -78,7 +80,7 @@ silo-store/
 | 온라인 도슨트 라이브러리 (EPIC-017, 살롱+사일로상점 공유) | `/docent/collections` | `docent_contents.era`(11개 시대/사조 태그, `기존 category`와 별개 축) 기준 하위 게시판. 최신글 1건, 전체 인기글, era별 인기글(구매 수 집계 뷰 `docent_content_popularity` 기준) 표시. 관리 화면 없음 — 기존 콘텐츠는 era=null이라 수동 태깅 필요 |
 | 살롱 출입(체크인) | `/salon/checkin` → `POST /api/salon-checkins` | 등급별 무료/유료 |
 | 공간 대관(스튜디오) | `/rental`, `/rental/[rentalTypeId]` | 1층/2층, 사진/영상 촬영 유형 |
-| 마이페이지 | `/mypage`(허브) + 11개 하위 라우트(EPIC-045) | "작은 박물관" 컨셉으로 재구성. `/mypage/layout.tsx`가 로그인 게이트+등급/포인트 요약+`MyPageNav`를 공유하고, 각 탭이 독립 라우트: `collections/[category]`(9개 서브카테고리: 나의 보물/책/영화/음악/예술가/장소/향기/브랜드/시대)/`wishlist`/`follow`/`salon`/`docent-certificate`/`space`/`exhibition`/`badges`/`comments`/`timeline`/`visitors`. 살롱/도슨트 수료증/공간/전시회/타임라인은 아직 `PlaceholderPanel`(데이터 소스 미지정) |
+| 마이페이지 | `/mypage`(허브) + 12개 하위 라우트(EPIC-045, EPIC-052에서 `bucketlist` 추가) | "Personal Hub"(EPIC-052) — 비공개 개인 데이터는 그대로 두고(`member_collections`/`orders`/`wishlists`/`member_follows`/`member_badges`/`member_visitors`/`comments`), Board Definition 게시판과 시각 언어(`StoryCard`)·Timeline Engine(`groupByYearMonth`+`TimelineView`)만 공유. `/mypage/layout.tsx`가 로그인 게이트+등급/포인트 요약+`MyPageNav`를 공유하고, 각 탭이 독립 라우트: `collections/[category]`(9개)/`wishlist`/`follow`/`salon`(reservations+salon_checkins+daily_checkins+poll_votes 종합)/`docent-certificate`(docent_purchases)/`space`(rental_bookings)/`exhibition`(개인 포토 글 재사용)/`badges`/`comments`(원글 이동 링크)/`timeline`(points_ledger+likes+member_follows)/`bucketlist`(신규, `member_bucket_list`)/`visitors`. |
 | 설정 | `/settings` | 이름·이메일 등 개인정보 전용 페이지, 본인 세션 기준으로만 조회(다른 회원 정보 접근 불가) |
 | 관리자 결제 확인 | `/admin/payments` | `orders`/`reservations`/`rental_bookings`/`docent_purchases` 통합 확인 화면, `is_admin` 전용 |
 | 자료 다운로드 | `/downloads` | 목록 공개, 업로드는 관리자 전용 |

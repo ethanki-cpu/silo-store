@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { EmptyState } from "../EmptyState";
 
+// EPIC-052: "향후 알림 시스템과 연동 가능하도록 설계" — member_follows에
+// follower_id/following_id가 이미 분리돼 있어, 알림 기능이 생기면 "누가
+// 나를 팔로우했다" 이벤트를 이 테이블의 insert 시점에 그대로 훅킹할 수
+// 있다(스키마 변경 없음, 이번 EPIC에서 실제 알림 발송 로직은 만들지 않음).
 type FollowRow = { id: string; name: string };
 
 async function resolveNames(ids: string[]): Promise<FollowRow[]> {

@@ -1,12 +1,15 @@
 "use client";
 
-import { PlaceholderPanel } from "@/components/mypage/panels/PlaceholderPanel";
+import { ExhibitionPanel } from "@/components/mypage/panels/ExhibitionPanel";
+import { useMyPageMember } from "@/components/mypage/MyPageContext";
 
 export default function MyPageExhibitionPage() {
+  const memberId = useMyPageMember();
+
   return (
     <div>
       <h2 className="text-lg font-semibold mb-4">나의 전시회</h2>
-      <PlaceholderPanel label="나의 전시회" />
+      <ExhibitionPanel memberId={memberId} />
     </div>
   );
 }

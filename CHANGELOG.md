@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-07-28 (EPIC-052)
+- **EPIC-052: 마이페이지를 Personal Hub로 확장 + Tiptap Block Editor 도입**
+  - **사전 확인(AskUserQuestion)**: 이번 지시문은 두 가지 큰 갈림길이 있어 진행 전 사용자에게 직접 확인함 — (1) "나의 컬렉션"을 Board Definition의 공개 story 게시판으로 만들지, 아니면 지금처럼 비공개(member_collections)로 두고 시각적으로만 story 카드 스타일을 적용할지 → **비공개 유지 + 시각적 재사용**으로 결정. (2) Tiptap/Lexical Block Editor 도입을 이번 EPIC에 포함할지 → **지금 바로 Tiptap 통합 시작**으로 결정. 아래 항목은 전부 이 두 결정을 전제로 한다.
+  - **Tiptap Block Editor 도입(엔진 레벨)**: `@tiptap/react`/`@tiptap/starter-kit`/`@tiptap/extension-link`/`@tiptap/extension-placeholder`/`@tiptap/pm`/`isomorphic-dompurify` 추가. `src/components/editor/RichTextEditor.tsx`(굵게/기울임/제목/목록/인용/링크 툴바) 신규 — 특정 게시판 전용이 아니라 `src/app/boards/[id]/write/page.tsx` 단 하나(모든 Board Definition 게시판이 공유하는 글쓰기 폼)에서 textarea를 대체해, 게시판이 몇 개가 늘어도 이 컴포넌트 하나만 재사용된다("향후 수십 개 게시판에서 재사용" 요구 반영).
+    - **저장 형식**: `posts.body`는 컬럼 변경 없이 Tiptap의 `getHTML()` 결과(HTML 문자열)를 그대로 저장 — 새 JSON 컬럼을 추가하지 않아 스키마 변경이 필요 없다.
+    - **보안(XSS)**: 클라이언트 에디터를 거치지 않고 API를 직접 호출해도 안전하도록 `src/lib/sanitize.ts`(`sanitizeHtml`/`stripHtml`, DOMPurify 기반 허용 태그 화이트리스트)를 만들어 `POST /api/boards/[id]/posts`에서 저장 직전 서버 측 정제를 수행(클라이언트 검증만 믿지 않음). 상세 페이지 렌더링(`PostBody.tsx`)에서도 한 번 더 정제하는 이중 방어.
+    - **레거시 호환**: 이전에 plain text로 저장된 글과 새 HTML 글이 같은 컬럼에 섞여 있어, `PostBody.tsx`가 태그 포함 여부(`/<[a-z][\s\S]*>/i`)로 렌더링 방식을 자동 분기(HTML이면 정제 후 렌더링, 아니면 기존처럼 줄바꿈만 유지) — 마이그레이션 스크립트 없이 하위 호환.
+    - **목록 요약 수정**: `BoardRenderer.tsx`의 story 카드 요약이 HTML 태그를 그대로 노출하던 문제를 `stripHtml()`로 수정.
+  - **"나의 컬렉션"을 story 카드로 시각적 통일**: `src/components/boards/StoryCard.tsx` 신규(공용 프레젠테이션 컴포넌트) — `BoardRenderer.tsx`의 story 레이아웃과 마이페이지 `CollectionCategoryPanel.tsx`가 이 컴포넌트 하나를 공유(중복 UI 없음). `member_collections`/`orders`(나의 보물) 스키마·공개 범위는 전혀 바꾸지 않음 — 여전히 본인만 보는 비공개 데이터.
+  - **Timeline Engine 추출 + 실제 재사용**: 기존 "타임라인" 게시판(`BoardRenderer.tsx`) 안에 갇혀 있던 연/월 그룹핑 로직을 `src/lib/timelineEngine.ts`(`groupByYearMonth`)+`src/components/TimelineView.tsx`(공용 렌더러)로 분리 — 게시글이 아닌 마이페이지 활동 로그도 "정렬된 `{id, createdAt}` 목록"만 맞추면 그대로 재사용 가능. `/mypage/timeline`(`TimelinePanel.tsx`)이 이를 실제로 사용해 `points_ledger`(글 작성/댓글/좋아요 받음/개념글 승격/상점 구매·대여/공간 대관/클럽 참여/출석)+`likes`(내가 준 좋아요)+`member_follows`(팔로우)를 종합 표시 — 새 활동 로그 테이블 없이 기존 3개 테이블만 조합.
+  - **PlaceholderPanel 4개를 실제 데이터로 교체**("단순 Placeholder 페이지를 만들지 않는다" 반영):
+    - **나의 살롱**(`SalonPanel.tsx`): `reservations`(클럽 예약)+`salon_checkins`(체크인)+`daily_checkins`(출석)+`poll_votes`(설문 참여) 4개 기존 테이블 종합.
+    - **나의 도슨트 수료증**(`DocentCertificatePanel.tsx`): 별도 수료증/진행률 테이블이 없어(스키마 추측 금지) 결제 확정된 `docent_purchases`를 "수료 완료"로 재해석 — 진행률(%)은 강의 모듈 개념 자체가 없어 표시하지 않고 완료/대기 건수만 표시.
+    - **나의 공간**(`SpacePanel.tsx`): `rental_bookings`(대관 예약)를 그대로 조회. 스타일링은 고객 신청을 기록하는 테이블이 없어(`styling_projects`는 관리자 포트폴리오) Studio 게시판으로 안내하는 링크만 제공.
+    - **나의 전시회**(`ExhibitionPanel.tsx`): 전용 전시 테이블 없이 기존 마이피드 API(`GET /api/members/[memberId]/posts`, `board_id IS NULL` 개인 글)를 재사용해 사진 있는 글만 필터링 — 새 쿼리/테이블 없음.
+  - **기존 실제 기능 강화**: `CommentsPanel.tsx`에 "원글 이동" 링크 추가(select에 `post_id`/`board_id` 확장) + 원글 좋아요 수 표시. `BadgesPanel.tsx`에 보유 배지 수 표시 — "전체 랭킹"/"다음 배지 진행률"은 (1) `member_badges`가 본인 행만 읽는 RLS라 다른 회원과의 비교를 클라이언트에서 계산할 수 없고 (2) 배지 획득 조건을 정의하는 규칙 테이블이 없어 보류(NEXT_TASK.md). `FollowPanel.tsx`는 "향후 알림 시스템 연동 가능하도록 설계" 요구를 `member_follows`의 기존 follower/following 분리 구조가 이미 충족한다고 보고 주석으로만 문서화(코드 변경 없음).
+  - **버킷리스트(신규 기능)**: `member_bucket_list`(연도/제목/완료 여부, own-row 전용) 신규 테이블 + `BucketListPanel.tsx`(추가/체크/삭제, 연도별·전체 완료율) + `/mypage/bucketlist` 라우트 — `mypageConfig.ts`의 `MYPAGE_TABS`에 탭 추가(기존 11개 탭 순서/URL 변경 없음).
+  - **DB(신규 1테이블)**: `member_bucket_list`. 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260728-0100.sql`로 백업. 그 외 스키마는 전부 기존 재사용(신규 컬럼/제약 변경 없음).
+  - 기존 URL/라우트 전부 유지 — `/mypage/*` 11개 경로 그대로, `/mypage/bucketlist` 1개만 추가. 게시판 쪽(`/boards/**`)도 라우팅 변경 없음(글쓰기 폼 내부 컴포넌트만 교체).
+  - 문서 동기화: `docs/database-schema.sql`, `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`.
+  - 검증: `npx tsc --noEmit` 통과. `npm run lint` 27건(기존 26건 + 신규 1건) — 신규 1건은 `BucketListPanel.tsx`의 `set-state-in-effect`로, 이미 저장소 전반에 퍼진 동일 클래스의 pre-existing P2 이슈와 같은 성격(CLAUDE.md 에러 트리아지 정책상 기능을 막지 않음, NEXT_TASK.md 기록). 다른 세션이 3000번 포트를 점유 중이고 `member_bucket_list` 시드도 라이브 미적용이라 브라우저로 Tiptap 에디터 실제 타이핑/버킷리스트 CRUD/각 패널의 실데이터 렌더링을 확인하지 못함 — 사용자 확인 필요(NEXT_TASK.md 참고).
+
 ## 2026-07-27 (EPIC-051)
 - **EPIC-051: Studio(공간 문의) 게시판 생성 + 기존 예약 Flow 연동(BoardDefinition.ctas)**
   - Board Definition System으로 게시판 5개(전부 신규 DB 행)를 추가 — 최상위 hub `Studio`(Silo Store/Online Docent/Heritage/Community/Membership/Gallery/Archive와 형제) + 하위 4개 story 게시판: `공간 촬영 대관(1층)`(studio-1f)/`공간 촬영 대관(2층)`(studio-2f)/`물품 대여`(rental)/`공간 스타일링`(styling).

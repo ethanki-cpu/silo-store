@@ -17,6 +17,7 @@ const TAB_ICONS: Record<string, string> = {
   badges: "🏅",
   comments: "💬",
   timeline: "🕰️",
+  bucketlist: "✅",
   visitors: "👣",
 };
 

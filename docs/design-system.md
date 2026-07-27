@@ -3,7 +3,7 @@
 > 이 프로젝트에는 별도의 디자인 시스템/컴포넌트 라이브러리가 없습니다. 이 문서는 실제 코드에서
 > 반복적으로 쓰이는 Tailwind 클래스 패턴을 역추적하여 정리한 **현재 상태 기준 참고 문서**입니다.
 > 새 화면을 만들 때는 여기 정리된 기존 관례를 우선 재사용하고, 새 패턴이 필요하면 이 문서도 함께 갱신합니다.
-> 최종 확인: 2026-07-26 (코드 기준).
+> 최종 확인: 2026-07-27 (코드 기준).
 
 ## 0. 프레임워크/설정 사실 확인
 
@@ -87,7 +87,7 @@
 
 ## 8. 컴포넌트 재사용 현황
 
-- 실제로 존재하는 공용 컴포넌트는 3개뿐: `Navbar`, `ComingSoon`, `WishlistButton`. 그 외 버튼/카드/인풋/배지/그리드는 전부 페이지마다 인라인 Tailwind 반복.
+- 공용 컴포넌트: `Navbar`, `ComingSoon`, `WishlistButton`, 그리고 EPIC-046의 `src/components/boards/*`(`BoardHeader`/`PostDetailHeader`/`PostTags`/`CommentSection`, §10 참고). 그 외 버튼/카드/인풋/배지/그리드는 대부분 페이지마다 인라인 Tailwind 반복.
 - `WishlistButton`은 호출부에서 `absolute top-2 right-2 z-10 rounded-full bg-white/90 w-8 h-8 flex items-center justify-center shadow` 래퍼가 `shop/page.tsx`와 `mypage/page.tsx`에 동일하게 복붙되어 있음 — **공용 컴포넌트로 추출할 후보**로 남겨둔다.
 - `ComingSoon`은 실제로 여러 placeholder 페이지에서 재사용되는, 이 프로젝트에서 몇 안 되는 "제대로 추출된" 컴포넌트 사례.
 
@@ -97,3 +97,17 @@
 2. 새로운 색상이 필요하면 먼저 §1에 이미 있는 팔레트(gray 기본 + green-800 sidebar + red/blue/amber 상태색)로 해결되는지 검토한다.
 3. "골동품/Time Slip" 감성을 실제로 UI에 반영하는 작업이라면, 이는 이 문서 전체를 다시 쓰는 수준의 디자인 리브랜딩이므로 별도 Epic으로 분리하고 사용자와 먼저 논의한다.
 4. 반복되는 새 인라인 패턴을 발견하면(예: WishlistButton 래퍼) 컴포넌트 추출을 고려하고, 추출 시 §8을 갱신한다.
+
+## 10. Editorial Board 디자인 시스템 (게시판 전용, EPIC-046)
+
+> §1~§9는 프로젝트 전반의 기본 룩(뉴트럴 그레이 + `bg-gray-800` 버튼)이고, 이 섹션은 **게시판(`/boards/**`)에만** 적용되는 별도 디자인 언어다. House of Honey류 매거진 기사 레이아웃을 참고해 재해석했다 — 그대로 복제하지 않고 이 프로젝트의 뉴트럴 팔레트를 유지한 채 타이포그래피/여백만으로 고급스러움을 만든다.
+
+- **배경**: 항상 명시적 `bg-white`(페이지 최상위 `<main>`에 직접 지정 — 전역 배경 토큰에 의존하지 않음).
+- **여백**: 페이지 패딩 `px-6 py-12`(§7의 `p-8`보다 넓음), 헤더 컨텐츠 `max-w-3xl`, 게시글 헤더(+대표 이미지) `max-w-4xl`, 본문/댓글은 그 안에서 다시 `max-w-2xl`로 좁혀 "읽기 좋은 폭" 확보.
+- **타이포그래피**: 게시판명·게시글 제목에 `font-serif`(Tailwind 기본 serif 스택, 별도 폰트 파일 로드 없음)로 나머지 sans-serif UI와 의도적으로 대비 — 매거진 마스트헤드 느낌. 메타 정보(No./작성일/Author/댓글 작성자)는 `text-xs uppercase tracking-wide text-gray-400` 캡션 스타일로 통일.
+- **레이아웃**:
+  - 카드/그림자 대신 `divide-y divide-gray-100` 또는 `border-t border-gray-200` 얇은 구분선(hairline)으로 목록/댓글을 나눈다(§5의 `rounded-lg border` 카드 패턴은 게시판에는 쓰지 않음).
+  - 게시글 헤더는 3열 그리드(`grid-cols-1 md:grid-cols-[1fr_2fr_1fr]`): 좌측 No./작성일, 가운데 큰 제목, 우측 Author 라벨+작성자명.
+  - 대표 이미지(`posts.photo_url`)가 있으면 헤더 바로 아래 `w-full aspect-[21/9] object-cover`로 풀와이드 배치.
+  - 태그는 `posts`에 전용 컬럼이 없어 게시판 카테고리/도슨트·개념글 여부를 `#태그` 칩(`rounded-full border border-gray-300 text-gray-500 text-xs`)으로 파생 표시.
+- **공용 컴포넌트**(`src/components/boards/`): `BoardHeader`(게시판명+글쓰기 버튼+divider), `PostDetailHeader`(3열 헤더+대표 이미지), `PostTags`(태그 칩), `CommentSection`(댓글 목록+작성 폼) — 모든 게시판(`/boards/[id]`, `/boards/[id]/[postId]`)이 이 4개를 그대로 공유한다.

@@ -96,8 +96,8 @@ export default function WritePostPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
-      <h1 className="text-2xl font-bold mb-6">글쓰기</h1>
+    <main className="flex-1 bg-white p-8 max-w-2xl mx-auto w-full">
+      <h1 className="font-serif text-2xl font-bold mb-6">글쓰기</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {boardType === "adoption_story" && (

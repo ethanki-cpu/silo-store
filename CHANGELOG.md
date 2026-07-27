@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-046)
+- **EPIC-046: Editorial Magazine board design system**
+  - 게시판(`/boards`, `/boards/[id]`, `/boards/[id]/[postId]`, `/boards/[id]/write`) 전체를 신문/매거진풍 "Editorial Magazine" 디자인 언어로 통일 — House of Honey류 기사 레이아웃의 정보 구조(좌: No./날짜, 중앙: 큰 제목, 우: Author/작성자)를 참고하되 새 색상 없이 기존 뉴트럴 팔레트+`font-serif`(Tailwind 기본 스택, 폰트 파일 추가 없음)만으로 재해석. 자세한 규칙은 `docs/design-system.md` §10 신설.
+  - 신규 공용 컴포넌트 4개(`src/components/boards/`): `BoardHeader`(게시판명+글쓰기 버튼+얇은 divider), `PostDetailHeader`(3열 헤더: No./작성일 · 큰 제목 · Author/작성자 + 대표 이미지 풀와이드), `PostTags`(태그 칩), `CommentSection`(댓글 목록+작성 폼, hairline 구분선) — `/boards/[id]`와 `/boards/[id]/[postId]` 두 라우트가 전부 이 컴포넌트로만 렌더링되므로 "모든 게시판이 동일한 컴포넌트 공유" 요구를 자동으로 만족(게시판별 커스텀 페이지가 없는 기존 아키텍처 그대로).
+  - **기존 기능 100% 유지, UI만 교체**: 좋아요/댓글/글쓰기/등급 게이팅 로직·API 호출은 한 줄도 바꾸지 않음(단, 응답에 필드 2개만 추가 — 아래 참고). 카드+그림자 리스트를 hairline 구분선 목록으로, 좁은 `max-w-2xl` 단일 폭을 헤더는 `max-w-4xl`/본문은 `max-w-2xl`로 이중화(넓은 여백+읽기 좋은 폭 동시 확보)해 시각만 재구성.
+  - **"태그 영역 추가" 처리 방식(판단 필요 사항)**: `posts` 테이블에 태그 전용 컬럼이 없어(스키마 변경 최소화 원칙) 새 컬럼을 추가하는 대신, 이미 있는 게시판 카테고리 + `is_docent_post`/`is_best` 여부를 `#태그` 칩으로 파생 표시(`PostTags.tsx`). 사용자가 직접 태그를 입력/편집하는 기능이 필요하면 `posts.tags`(배열) 컬럼 추가가 필요한 별도 스키마 작업.
+  - **"글 번호(No.)" 처리 방식**: 저장된 시퀀스 컬럼이 없어, `GET /api/boards/[id]/posts/[postId]`가 매 요청마다 "같은 게시판에서 이 글보다 먼저(또는 동시에) 작성된 글의 개수"를 계산해 `post.post_number`로 반환(1부터 시작, 시간순). 응답에 `post.photo_url`도 추가(기존 select에서 누락돼 있었음 — 대표 이미지 기능에 필요).
+  - 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260727-1929.sql`로 백업(실제 스키마 변경 없음).
+  - 검증: `npx tsc --noEmit`/`npm run lint`(26건, EPIC-045와 동일 — 신규 이슈 없음) 통과. dev 서버가 다른 세션에서 3000번 포트를 점유 중이라 이번 세션은 브라우저로 실제 레이아웃(3열 헤더, 풀와이드 이미지, hairline 목록)을 직접 확인하지 못함 — 사용자 확인 필요(아래 NEXT_TASK.md 참고).
+
 ## 2026-07-27 (EPIC-045)
 - **EPIC-045: Mypage restructure — museum-like collection, route-based tabs**
   - `/mypage`가 11개 탭을 `useState`로 전환하는 단일 페이지에서 각 탭이 독립된 URL을 갖는 라우트 구조로 재구성됨 — 지시문의 "각 하위 페이지는 앞으로 기능 확장이 쉽도록 독립 페이지/라우트 구조를 사용한다"에 따름. 새 `src/app/mypage/layout.tsx`가 로그인 게이트 + 등급/포인트 요약 조회 + `MyPageNav`를 공유 chrome으로 끌어올리고, `MyPageProvider`(`src/components/mypage/MyPageContext.tsx`)로 `memberId`를 하위 라우트에 전달한다.

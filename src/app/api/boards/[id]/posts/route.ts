@@ -43,7 +43,9 @@ export async function GET(
 
   const { data: posts, error: postsError } = await client
     .from("posts")
-    .select("id, title, body, is_docent_post, like_count, is_best, author_id, created_at")
+    .select(
+      "id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at",
+    )
     .eq("board_id", id)
     .order("created_at", { ascending: false });
 

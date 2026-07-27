@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
+import { BoardHeader } from "@/components/boards/BoardHeader";
 
 type Post = {
   id: string;
@@ -61,71 +62,67 @@ export default function BoardPostsPage() {
   }, [id, session, authLoading]);
 
   if (fetching) {
-    return <main className="flex-1 p-8">불러오는 중...</main>;
+    return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
   }
 
   if (error) {
     return (
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 bg-white">
         <p className="text-red-600">{error}</p>
       </main>
     );
   }
 
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">{board?.name}</h1>
-        <Link
-          href={`/boards/${id}/write`}
-          className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm"
-        >
-          글쓰기
-        </Link>
-      </div>
+    <main className="flex-1 bg-white px-6 py-12">
+      <div className="max-w-3xl mx-auto w-full">
+        <BoardHeader boardName={board?.name ?? ""} writeHref={`/boards/${id}/write`} />
 
-      {posts.length === 0 ? (
-        <p className="text-gray-500">아직 게시글이 없어요.</p>
-      ) : (
-        <div className="space-y-2">
-          {posts.map((post) => (
-            <Link
-              key={post.id}
-              href={`/boards/${id}/${post.id}`}
-              className="block rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center gap-2">
-                {post.is_best && (
-                  <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                    개념글
-                  </span>
-                )}
-                {post.is_docent_post && (
-                  <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                    도슨트
-                  </span>
-                )}
-                {board?.board_type === "qna" && (
-                  <span
-                    className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                      post.is_answered
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-100 text-gray-500"
-                    }`}
-                  >
-                    {post.is_answered ? "답변완료" : "답변대기"}
-                  </span>
-                )}
-                <h2 className="font-medium">{post.title}</h2>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {post.author_name} · 좋아요 {post.like_count} ·{" "}
-                {new Date(post.created_at).toLocaleString()}
-              </p>
-            </Link>
-          ))}
-        </div>
-      )}
+        {posts.length === 0 ? (
+          <p className="text-gray-400">아직 게시글이 없어요.</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {posts.map((post) => (
+              <Link
+                key={post.id}
+                href={`/boards/${id}/${post.id}`}
+                className="block py-5 group"
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  {post.is_best && (
+                    <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                      개념글
+                    </span>
+                  )}
+                  {post.is_docent_post && (
+                    <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                      도슨트
+                    </span>
+                  )}
+                  {board?.board_type === "qna" && (
+                    <span
+                      className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                        post.is_answered
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {post.is_answered ? "답변완료" : "답변대기"}
+                    </span>
+                  )}
+                </div>
+                <h2 className="font-serif text-lg font-medium text-gray-900 group-hover:underline">
+                  {post.title}
+                </h2>
+                <p className="text-xs uppercase tracking-wide text-gray-400 mt-1.5">
+                  {post.author_name} · 좋아요 {post.like_count} ·{" "}
+                  {new Date(post.created_at).toLocaleString()}
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </main>
   );
 }

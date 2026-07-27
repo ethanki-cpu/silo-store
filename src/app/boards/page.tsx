@@ -79,46 +79,55 @@ export default function BoardsPage() {
   }, [session, authLoading]);
 
   if (fetching) {
-    return <main className="flex-1 p-8">불러오는 중...</main>;
+    return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
   }
 
   return (
-    <main className="flex-1 p-8 max-w-3xl mx-auto w-full">
-      <h1 className="text-2xl font-bold mb-6">게시판</h1>
+    <main className="flex-1 bg-white px-6 py-12">
+      <div className="max-w-3xl mx-auto w-full">
+        <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 mb-4">
+          게시판
+        </h1>
+        <div className="border-t border-gray-200 mb-8" />
 
-      {GROUP_LABELS.map((group) => {
-        const items = boards.filter(group.match);
-        if (items.length === 0) return null;
+        {GROUP_LABELS.map((group) => {
+          const items = boards.filter(group.match);
+          if (items.length === 0) return null;
 
-        return (
-          <section key={group.key} className="mb-8">
-            <h2 className="text-sm font-semibold text-gray-500 mb-2">
-              {group.title}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {items.map((board) =>
-                board.locked ? (
-                  <div
-                    key={board.id}
-                    className="rounded-lg border border-gray-200 p-3 bg-gray-50 text-gray-400 cursor-not-allowed"
-                  >
-                    <p className="font-medium">🔒 {board.name}</p>
-                    <p className="text-xs mt-1">{board.lockMessage}</p>
-                  </div>
-                ) : (
-                  <Link
-                    key={board.id}
-                    href={`/boards/${board.id}`}
-                    className="rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow"
-                  >
-                    <p className="font-medium">{board.name}</p>
-                  </Link>
-                ),
-              )}
-            </div>
-          </section>
-        );
-      })}
+          return (
+            <section key={group.key} className="mb-10">
+              <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
+                {group.title}
+              </h2>
+              <div className="divide-y divide-gray-100">
+                {items.map((board) =>
+                  board.locked ? (
+                    <div
+                      key={board.id}
+                      className="py-3 text-gray-300 cursor-not-allowed"
+                    >
+                      <p className="font-serif font-medium">
+                        🔒 {board.name}
+                      </p>
+                      <p className="text-xs mt-1">{board.lockMessage}</p>
+                    </div>
+                  ) : (
+                    <Link
+                      key={board.id}
+                      href={`/boards/${board.id}`}
+                      className="block py-3 group"
+                    >
+                      <p className="font-serif font-medium text-gray-900 group-hover:underline">
+                        {board.name}
+                      </p>
+                    </Link>
+                  ),
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </main>
   );
 }

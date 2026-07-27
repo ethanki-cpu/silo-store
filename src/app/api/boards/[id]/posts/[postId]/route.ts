@@ -38,7 +38,7 @@ export async function GET(
   const { data: post, error: postError } = await client
     .from("posts")
     .select(
-      "id, board_id, title, body, is_docent_post, like_count, is_best, author_id, created_at",
+      "id, board_id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at",
     )
     .eq("id", postId)
     .eq("board_id", id)
@@ -50,6 +50,14 @@ export async function GET(
       { status: 404 },
     );
   }
+
+  // EPIC-046: "글 번호(No.)" — 별도 시퀀스 컬럼이 없어, 같은 게시판에서
+  // 이 글보다 먼저(또는 동시에) 작성된 글의 개수로 파생 계산한다(1부터 시작).
+  const { count: postNumber } = await client
+    .from("posts")
+    .select("id", { count: "exact", head: true })
+    .eq("board_id", id)
+    .lte("created_at", post.created_at);
 
   const { data: comments } = await client
     .from("comments")
@@ -80,7 +88,11 @@ export async function GET(
 
   return NextResponse.json({
     board,
-    post: { ...post, author_name: nameById.get(post.author_id) ?? "알 수 없음" },
+    post: {
+      ...post,
+      author_name: nameById.get(post.author_id) ?? "알 수 없음",
+      post_number: postNumber ?? null,
+    },
     comments: (comments ?? []).map((c) => ({
       ...c,
       author_name: nameById.get(c.author_id) ?? "알 수 없음",

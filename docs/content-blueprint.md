@@ -10,8 +10,9 @@
 **목적**: 8개 `board_type`으로 구분된 커뮤니티 토론 시스템, 등급 게이팅은 [membership-blueprint.md](membership-blueprint.md) 참고.
 
 - 라우트: `/boards`(목록, 8개 그룹으로 클라이언트 분류) · `/boards/[id]`(글 목록, `개념글`/`도슨트`/`답변완료`·`답변대기` 배지) · `/boards/[id]/write`(글쓰기 — `adoption_story` 보드는 본인의 `confirmed` 주문을 드롭다운으로 선택해야 함) · `/boards/[id]/[postId]`(상세, 댓글, 좋아요)
-- API: `GET /api/boards` · `GET/POST /api/boards/[id]/posts` · `GET /api/boards/[id]/posts/[postId]` · `POST .../comments` · `POST .../like`
-- 필드: `boards(id, name, category, board_type, min_rank_to_write)` / `posts(id, board_id, author_id, title, body, is_docent_post, visibility, like_count, is_best, photo_url, order_id, created_at)`
+- **디자인(EPIC-046)**: 모든 게시판이 "Editorial Magazine" 디자인 언어를 공유 — 상세 규칙은 [design-system.md §10](design-system.md#10-editorial-board-디자인-시스템-게시판-전용-epic-046), 공용 컴포넌트는 `src/components/boards/{BoardHeader,PostDetailHeader,PostTags,CommentSection}.tsx`.
+- API: `GET /api/boards` · `GET/POST /api/boards/[id]/posts` · `GET /api/boards/[id]/posts/[postId]`(응답에 `post.photo_url`/`post.post_number` 포함 — `post_number`는 저장 컬럼이 아니라 같은 게시판 내 작성 순서를 매 요청마다 계산한 파생값) · `POST .../comments` · `POST .../like`
+- 필드: `boards(id, name, category, board_type, min_rank_to_write)` / `posts(id, board_id, author_id, title, body, is_docent_post, visibility, like_count, is_best, photo_url, order_id, created_at)` — 태그 전용 컬럼은 없고, 게시판 카테고리/도슨트·개념글 여부를 태그처럼 파생 표시(EPIC-046)
 - 포인트: 글 작성 5P, 댓글 1P, 좋아요 받음 2P/개, `like_count >= 10` 도달 시 `is_best=true` 승격 + 50P
 
 **연결**: `posts.order_id → orders.id` — After Adoption 글은 반드시 `orders.payment_status='confirmed'`인 본인 주문을 참조해야 작성 가능(서버에서 검증).

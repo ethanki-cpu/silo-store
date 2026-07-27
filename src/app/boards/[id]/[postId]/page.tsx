@@ -3,6 +3,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
+import { PostDetailHeader } from "@/components/boards/PostDetailHeader";
+import { PostTags } from "@/components/boards/PostTags";
+import { CommentSection } from "@/components/boards/CommentSection";
 
 type PostDetail = {
   id: string;
@@ -11,8 +14,17 @@ type PostDetail = {
   is_docent_post: boolean;
   like_count: number;
   is_best: boolean;
+  photo_url: string | null;
   author_name: string;
   created_at: string;
+  post_number: number | null;
+};
+
+type Board = {
+  id: string;
+  name: string;
+  category: string | null;
+  board_type: string;
 };
 
 type Comment = {
@@ -26,6 +38,7 @@ export default function PostDetailPage() {
   const { id, postId } = useParams<{ id: string; postId: string }>();
   const { session, loading: authLoading } = useAuth();
 
+  const [board, setBoard] = useState<Board | null>(null);
   const [post, setPost] = useState<PostDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [likedByMe, setLikedByMe] = useState(false);
@@ -54,6 +67,7 @@ export default function PostDetailPage() {
       return;
     }
 
+    setBoard(data.board);
     setPost(data.post);
     setComments(data.comments);
     setLikedByMe(data.likedByMe);
@@ -124,12 +138,12 @@ export default function PostDetailPage() {
   }
 
   if (fetching) {
-    return <main className="flex-1 p-8">불러오는 중...</main>;
+    return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
   }
 
   if (error && !post) {
     return (
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 bg-white">
         <p className="text-red-600">{error}</p>
       </main>
     );
@@ -137,73 +151,54 @@ export default function PostDetailPage() {
 
   if (!post) return null;
 
+  // EPIC-046: 별도 태그 컬럼이 없어 게시판 카테고리/도슨트·개념글 여부를
+  // 태그처럼 파생 표시(자세한 배경은 PostTags.tsx 참고).
+  const derivedTags = [
+    board?.category,
+    post.is_docent_post ? "도슨트" : null,
+    post.is_best ? "개념글" : null,
+  ].filter((t): t is string => Boolean(t));
+
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
-      <div className="flex items-center gap-2 mb-2">
-        {post.is_best && (
-          <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-            개념글
-          </span>
-        )}
-        {post.is_docent_post && (
-          <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-            도슨트
-          </span>
-        )}
-      </div>
-
-      <h1 className="text-2xl font-bold">{post.title}</h1>
-      <p className="text-xs text-gray-500 mt-1">
-        {post.author_name} · {new Date(post.created_at).toLocaleString()}
-      </p>
-
-      <p className="text-gray-800 whitespace-pre-wrap mt-6">{post.body}</p>
-
-      <button
-        onClick={handleLike}
-        disabled={likeSubmitting}
-        className={`mt-6 rounded-md px-4 py-2 text-sm border ${
-          likedByMe
-            ? "bg-red-50 border-red-300 text-red-600"
-            : "bg-white border-gray-300 text-gray-700"
-        }`}
-      >
-        {likedByMe ? "♥" : "♡"} 좋아요 {post.like_count}
-      </button>
-
-      {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
-
-      <h2 className="text-lg font-semibold mt-10 mb-3">
-        댓글 {comments.length}
-      </h2>
-
-      <form onSubmit={handleComment} className="flex gap-2 mb-4">
-        <input
-          type="text"
-          required
-          value={commentBody}
-          onChange={(e) => setCommentBody(e.target.value)}
-          placeholder="댓글을 입력하세요"
-          className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+    <main className="flex-1 bg-white px-6 py-12">
+      <div className="max-w-4xl mx-auto w-full">
+        <PostDetailHeader
+          postNumber={post.post_number}
+          createdAt={post.created_at}
+          title={post.title}
+          authorName={post.author_name}
+          photoUrl={post.photo_url}
         />
-        <button
-          type="submit"
-          disabled={commentSubmitting}
-          className="rounded-md bg-gray-800 text-white px-3 py-2 text-sm disabled:opacity-50"
-        >
-          등록
-        </button>
-      </form>
 
-      <div className="space-y-3">
-        {comments.map((c) => (
-          <div key={c.id} className="border-b border-gray-100 pb-2">
-            <p className="text-sm text-gray-800">{c.body}</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {c.author_name} · {new Date(c.created_at).toLocaleString()}
-            </p>
-          </div>
-        ))}
+        <div className="max-w-2xl mx-auto w-full">
+          <PostTags tags={derivedTags} />
+
+          <p className="text-gray-800 leading-relaxed whitespace-pre-wrap mt-8 text-[15px]">
+            {post.body}
+          </p>
+
+          <button
+            onClick={handleLike}
+            disabled={likeSubmitting}
+            className={`mt-8 rounded-md px-4 py-2 text-sm border ${
+              likedByMe
+                ? "bg-red-50 border-red-300 text-red-600"
+                : "bg-white border-gray-300 text-gray-700"
+            }`}
+          >
+            {likedByMe ? "♥" : "♡"} 좋아요 {post.like_count}
+          </button>
+
+          {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+
+          <CommentSection
+            comments={comments}
+            commentBody={commentBody}
+            onCommentBodyChange={setCommentBody}
+            onSubmit={handleComment}
+            submitting={commentSubmitting}
+          />
+        </div>
       </div>
     </main>
   );

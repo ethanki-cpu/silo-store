@@ -43,6 +43,45 @@ type SiteNavRow = {
   target_type: DbTargetType;
 };
 
+// EPIC-044: 헤리티지(할머니/할아버지)·클럽·주제별 게시판 등 이름이
+// 무한히 늘어나는 카테고리는 사람 수만큼 페이지를 만들지 않고, 이름을
+// URL 파라미터로 넘겨 UniversalBoard를 렌더링하는 동적 라우트
+// (/heritage/grandma/[name], /heritage/grandpa/[name],
+// /community/club/[name])로 소화한다. 아래는 그 동적 라우트로 링크를
+// 거는 사이드바 항목을 만드는 헬퍼.
+function toDynamicNavItems(basePath: string, names: string[]): NavItem[] {
+  return names.map((name) => ({
+    label: name,
+    href: `${basePath}/${encodeURIComponent(name)}`,
+  }));
+}
+
+const HERITAGE_GRANDMA_NAMES = [
+  "Agatha", "Amanda", "Angie", "Anne", "Alyssa", "Becky", "Beth", "Betty",
+  "Brenda", "Claire", "Christine", "Cindy", "Deborah", "Donna", "Edna",
+  "Elaine", "Elena", "Francis", "Ingrid", "Isabelle", "Janette", "Janice",
+  "Jean", "Joanne", "Joyce", "Judy", "Julie", "Karen", "Kristen", "Leslie",
+  "Letty", "Loraine", "Nancy", "Marie", "Martha", "Maxine", "Melinda",
+  "Pamela", "Patricia", "Phyllis", "Priscilla", "Rita", "Samantha",
+  "Shannon", "Shella", "Selina", "Sue", "Susan", "Tammy", "Teresa", "Tracy",
+];
+
+const HERITAGE_GRANDPA_NAMES = [
+  "Arthur", "Ben", "Derek", "Eddy", "Frank", "Gerry", "James", "John",
+  "Manny", "Philip", "Randy", "Robert", "Steven", "Theo", "Timothy", "Tom",
+  "Tuco",
+];
+
+const SALON_TOPIC_BOARD_NAMES = [
+  "경제", "예술", "세계역사", "과학", "코메디", "문학", "건강", "정치",
+  "영화", "심리", "스포츠", "인간 집사들", "따듯한 세상 클럽",
+];
+
+const SALON_WEEKDAY_CLUB_NAMES = [
+  "월요반란", "책 낭송", "행간의 조각가", "놀아보자 영어", "비포 선라이즈 소셜",
+  "무슨일이든 일어날수있어", "연극이 끝나고 난 뒤",
+];
+
 // site_navigations를 DB에서 아직 읽지 못했을 때(최초 로딩 중, 네트워크 실패 등)
 // 화면에 아무 탭도 뜨지 않는 것을 막기 위한 폴백. EPIC-023 이전 하드코딩값과
 // 동일하며, DB 마이그레이션 전/후 UX가 끊기지 않도록 하는 임시 스냅샷일 뿐
@@ -60,6 +99,14 @@ const FALLBACK_NAV_TABS: NavTab[] = [
           { label: "분양 후기", href: "/boards" },
         ],
       },
+      {
+        groupLabel: "사일로 헤리티지 · 할머니",
+        items: toDynamicNavItems("/heritage/grandma", HERITAGE_GRANDMA_NAMES),
+      },
+      {
+        groupLabel: "사일로 헤리티지 · 할아버지",
+        items: toDynamicNavItems("/heritage/grandpa", HERITAGE_GRANDPA_NAMES),
+      },
     ],
   },
   {
@@ -73,6 +120,14 @@ const FALLBACK_NAV_TABS: NavTab[] = [
           { label: "출석체크", href: "/attendance" },
           { label: "자유게시판", href: "/boards" },
         ],
+      },
+      {
+        groupLabel: "주제별 소통게시판",
+        items: toDynamicNavItems("/community/club", SALON_TOPIC_BOARD_NAMES),
+      },
+      {
+        groupLabel: "요일별 클럽",
+        items: toDynamicNavItems("/community/club", SALON_WEEKDAY_CLUB_NAMES),
       },
     ],
   },

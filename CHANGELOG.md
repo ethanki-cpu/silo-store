@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-044)
+- **EPIC-044: Dynamic routing, navigation data & universal board component**
+  - `src/components/shared/UniversalBoard.tsx` 신규 작성: 이름/주제가 무한히 늘어나는 카테고리(헤리티지 인물, 클럽 등)를 위한 공용 게시판 템플릿 — 검색창, 정렬 드롭다운(조회수순/좋아요순/최신날짜순), 목록, 하단 총 페이지 수 통계. `posts`/`totalPages`는 옵션 prop(기본 빈 배열)으로, 카테고리별 실제 데이터 소스가 아직 없어 UI 뼈대만 구현.
+  - 동적 라우트 3개 신규: `src/app/heritage/grandma/[name]/page.tsx`, `heritage/grandpa/[name]/page.tsx`, `community/club/[name]/page.tsx` — 각각 `params`를 `await`해 이름을 제목으로 표시하고 `<UniversalBoard />`를 렌더링.
+  - `src/lib/navConfig.ts`의 `FALLBACK_NAV_TABS`에 사이드바 메뉴 데이터 대량 주입: `silostore`(사일로상점) 탭에 "사일로 헤리티지 · 할머니"(51명)/"사일로 헤리티지 · 할아버지"(17명) 그룹, `salon`(살롱데상) 탭에 "주제별 소통게시판"(13개 주제)/"요일별 클럽"(7개) 그룹 추가 — 전부 위 동적 라우트로 링크. **주제별 소통게시판은 전용 라우트가 지시문에 없어 `community/club/[name]`을 재사용**(요일별 클럽과 공유).
+  - `LeftSidebar.tsx`의 `isAccordionGroup`을 "헤리티지" 포함 그룹도 매칭하도록 확장 — 51명+17명 목록이 항상 펼쳐진 채로 있으면 사이드바가 지나치게 길어져, "도슨트" 그룹과 동일하게 hover 펼침 아코디언으로 처리.
+  - **LeftSidebar.tsx/RightSidebar.tsx 자체는 데이터를 소유하지 않음**: 두 컴포넌트는 `navConfig.ts`가 넘긴 `tab.groups`를 그대로 렌더링하는 순수 뷰라, 실제 대량 데이터는 그 데이터가 흘러나오는 지점인 `FALLBACK_NAV_TABS`에 주입했다(지시문의 "LeftSidebar/RightSidebar 데이터 바인딩" 문구와 실제 아키텍처가 달라 판단해 처리). `site_navigations`(DB)가 채워지면 이 폴백은 무시되므로, 운영 반영을 원하면 같은 항목을 DB에도 시딩해야 함 — Management API 토큰이 없어 DB 작업은 하지 않음.
+  - 검증: `npx tsc --noEmit`/`npm run lint`(26건, 기존과 동일 — 신규 이슈 없음) 통과.
+
 ## 2026-07-27 (EPIC-043)
 - **EPIC-043: Font settings overhaul, sidebar click-only + hover accordion (성능 최적화는 보류)**
   - **폰트 설정 개편**: 작동하지 않던(폰트 파일 자체가 없는) "텍스트 폰트" select(`textCustomFont`: Graphire/Primor)를 `admin/navigation/settings/page.tsx`와 `Navbar.tsx`에서 완전히 삭제. 단일 `main_logo.fontFileUrl`을 `customFonts`(배열, 각 항목 `{ id, url, isActive }`)로 교체 — 관리자 폼에서 여러 폰트를 등록해두고 각각 "적용" 체크박스로 켜고 끌 수 있다. `Navbar.tsx`는 `isActive`인 항목들만 등록 순서대로 `@font-face`를 각각 주입하고, 그 순서 그대로 `font-family` 폴백 체인(`'SiloCustomLogoFont-{id}', ..., 자유입력 fontFamily 또는 sans-serif`)을 구성해 로고 좌/우 텍스트에 적용한다. 구버전 단일 `fontFileUrl`은 로드 시 1개짜리 배열로 자동 이전(관리자 폼과 `Navbar.tsx` 양쪽 모두).

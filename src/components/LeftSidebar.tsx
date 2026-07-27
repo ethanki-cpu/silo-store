@@ -19,8 +19,12 @@ import type { NavTab } from "@/lib/navConfig";
 // 정확히 일치시키면 라벨을 조금만 바꿔도(예: "온라인 도슨트 라이브러리" →
 // "온라인 도슨트 Online Docent") 아코디언이 깨진다 — "도슨트"가 포함된
 // 그룹이면 매칭되도록 완화해 이런 사소한 리네이밍에도 견고하게 했다.
+//
+// EPIC-044: "사일로 헤리티지" 그룹은 할머니/할아버지 이름 수십 개가 들어가
+// 항상 펼쳐두면 사이드바가 지나치게 길어지므로, 같은 이유로 hover 아코디언
+// 대상에 포함한다.
 function isAccordionGroup(groupLabel: string): boolean {
-  return groupLabel.includes("도슨트");
+  return groupLabel.includes("도슨트") || groupLabel.includes("헤리티지");
 }
 
 export function LeftSidebar({

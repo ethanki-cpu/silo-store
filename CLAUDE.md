@@ -4,6 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
+## AI Working Rules
+
+이 저장소에서 작업할 때 지켜야 하는 Git 브랜치 전략 및 동기화 규칙이다. 아래 규칙 4번(WIP Push)은 "Git operating rules" 절의 "커밋/푸시는 사용자 승인 후에만" 원칙에 대한 명시적 예외로, 사용자가 작업 중단/퇴근을 알리는 시점에는 승인을 별도로 구하지 않고 즉시 커밋·푸시한다.
+
+1. **No Direct Commits to Main** — `main` 브랜치에서 직접 코드를 수정하거나 커밋하지 않는다.
+2. **Feature Branch Workflow** — 새로운 EPIC이나 작업을 시작할 때는 반드시 `main`을 최신 상태로 pull 받은 후, `feature/EPIC-<번호>` 또는 `feature/<작업명>` 형식의 새 브랜치를 생성해 이동한 뒤 작업한다.
+3. **Sync First** — 사용자가 작업 시작을 알리면, 다른 작업에 앞서 `git fetch`와 `git status`로 원격 저장소와 로컬의 상태를 먼저 확인하고 그 결과를 사용자에게 보고한다.
+4. **WIP Push** — 사용자가 작업을 중단하거나 퇴근한다고 알리면, 현재 브랜치에 진행 중인 모든 변경 사항을 커밋하고 반드시 `origin`에 push하여 다른 기기에서 이어서 작업할 수 있도록 백업한다.
+
 ## Commands
 
 ```bash

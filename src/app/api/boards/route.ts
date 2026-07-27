@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { getRequestMember, getTier, canReadBoard, RANK_LABELS } from "@/lib/serverAuth";
+import { resolveBoardDefinition } from "@/lib/boardLayout";
 
 export async function GET(request: NextRequest) {
   const { data: boards, error } = await supabase
@@ -19,11 +20,12 @@ export async function GET(request: NextRequest) {
 
   const result = boards.map((board) => {
     const locked = !canReadBoard(board, tier);
+    const definition = resolveBoardDefinition(board);
     return {
       ...board,
       locked,
       lockMessage: locked
-        ? `${RANK_LABELS[3]} 등급부터 열람 가능`
+        ? `${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능`
         : null,
     };
   });

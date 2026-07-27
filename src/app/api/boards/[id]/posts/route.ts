@@ -7,31 +7,13 @@ import {
   canWriteToBoard,
   RANK_LABELS,
 } from "@/lib/serverAuth";
-
-const PAGE_SIZE = 10;
-
-type SortOption = "latest" | "popular" | "views" | "comments" | "oldest";
-
-function isSortOption(value: string | null): value is SortOption {
-  return (
-    value === "latest" ||
-    value === "popular" ||
-    value === "views" ||
-    value === "comments" ||
-    value === "oldest"
-  );
-}
+import { resolveBoardDefinition, isSortOption, type SortOption } from "@/lib/boardLayout";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const searchParams = request.nextUrl.searchParams;
-  const page = Math.max(1, Number(searchParams.get("page")) || 1);
-  const q = (searchParams.get("q") ?? "").trim().toLowerCase();
-  const sortParam = searchParams.get("sort");
-  const sort: SortOption = isSortOption(sortParam) ? sortParam : "latest";
 
   const { data: board, error: boardError } = await supabase
     .from("boards")
@@ -46,21 +28,36 @@ export async function GET(
     );
   }
 
+  // Board Definition System(EPIC-047): 검색/정렬/페이지네이션 동작 자체가
+  // 게시판 설정에 따라 달라진다 — 하드코딩된 상수 대신 이 게시판이 어떤
+  // BoardDefinition에 속하는지부터 정한다.
+  const definition = resolveBoardDefinition(board);
+
   const requester = await getRequestMember(request);
   const tier = requester ? await getTier(requester.member.membership_rank) : null;
 
   if (!canReadBoard(board, tier)) {
     return NextResponse.json(
-      { error: `이 게시판은 ${RANK_LABELS[3]} 등급부터 열람 가능해요.` },
+      {
+        error: `이 게시판은 ${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능해요.`,
+      },
       { status: 403 },
     );
   }
 
+  const searchParams = request.nextUrl.searchParams;
+  const page = definition.pageable ? Math.max(1, Number(searchParams.get("page")) || 1) : 1;
+  const q = definition.searchable ? (searchParams.get("q") ?? "").trim().toLowerCase() : "";
+  const sortParam = searchParams.get("sort");
+  const sort: SortOption = definition.sortable && isSortOption(sortParam)
+    ? sortParam
+    : definition.defaultSort;
+
   const client = requester ? requester.scopedClient : supabase;
 
-  // Board Engine(EPIC-047): 게시판 규모가 크지 않아 검색/정렬/페이지네이션을
-  // DB 쪽 복잡한 OR/배열-포함 쿼리로 밀어넣는 대신, 전체를 가져와 라우트
-  // 핸들러에서 처리한다(이 저장소의 다른 라우트들과 동일한 접근).
+  // 게시판 규모가 크지 않아 검색/정렬/페이지네이션을 DB 쪽 복잡한 OR/배열-
+  // 포함 쿼리로 밀어넣는 대신, 전체를 가져와 라우트 핸들러에서 처리한다
+  // (이 저장소의 다른 라우트들과 동일한 접근).
   //
   // tags/view_count/updated_at는 라이브 DB에 아직 마이그레이션되지 않았을
   // 수 있다 — 없는 컬럼을 select하면 PostgREST가 쿼리 전체를 42703으로
@@ -159,7 +156,7 @@ export async function GET(
     ...post,
     author_name: nameById.get(post.author_id) ?? "알 수 없음",
     comment_count: commentCountByPostId.get(post.id) ?? 0,
-    tags: (post.tags ?? []) as string[],
+    tags: definition.tags ? ((post.tags ?? []) as string[]) : [],
     ...(board.board_type === "qna"
       ? { is_answered: answeredByPostId.get(post.id) ?? false }
       : {}),
@@ -177,6 +174,9 @@ export async function GET(
     });
   }
 
+  // sort는 definition.sortable이 false면 이미 defaultSort로 고정돼 있으므로,
+  // 정렬 자체는 항상 적용해도 안전하다(비정렬형 게시판도 결정적인 순서는
+  // 필요).
   enriched.sort((a, b) => {
     switch (sort) {
       case "popular":
@@ -194,15 +194,16 @@ export async function GET(
   });
 
   const totalCount = enriched.length;
-  const start = (page - 1) * PAGE_SIZE;
-  const pageItems = enriched.slice(start, start + PAGE_SIZE);
+  const pageSize = definition.pageable ? definition.pageSize : totalCount || 1;
+  const start = (page - 1) * pageSize;
+  const pageItems = definition.pageable ? enriched.slice(start, start + pageSize) : enriched;
 
   return NextResponse.json({
     board,
     posts: pageItems,
     totalCount,
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
   });
 }
 
@@ -230,14 +231,26 @@ export async function POST(
     );
   }
 
+  const definition = resolveBoardDefinition(board);
+
+  if (!definition.allowPosting) {
+    return NextResponse.json(
+      { error: "이 게시판에는 글을 쓸 수 없어요." },
+      { status: 403 },
+    );
+  }
+
   const body = await request.json();
   const title = body?.title as string | undefined;
   const postBody = body?.body as string | undefined;
   const isDocentPost = Boolean(body?.isDocentPost);
   const orderId = body?.orderId as string | undefined;
-  const tags = Array.isArray(body?.tags)
-    ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim())
-    : [];
+  const tags =
+    definition.tags && Array.isArray(body?.tags)
+      ? (body.tags as unknown[])
+          .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+          .map((t) => t.trim())
+      : [];
 
   if (!title || !postBody) {
     return NextResponse.json(

@@ -110,12 +110,12 @@
   - 게시글 헤더는 3열 그리드(`grid-cols-1 md:grid-cols-[1fr_2fr_1fr]`): 좌측 No./작성일(+수정일), 가운데 큰 제목+좋아요/조회/댓글 통계, 우측 Author 라벨+작성자명(프로필 링크).
   - 대표 이미지(`posts.photo_url`)가 있으면 헤더 바로 아래 `w-full aspect-[21/9] object-cover`로 풀와이드 배치.
   - 태그는 `posts.tags`(EPIC-047, text[]) + 게시판 카테고리/도슨트·개념글 여부를 함께 `#태그` 칩(`rounded-full border border-gray-300 text-gray-500 text-xs`)으로 표시.
-- **Board Engine(EPIC-047)**: `board_type`(8종, 등급/쓰기 권한 축)과 별개로 `src/lib/boardLayout.ts`의 `getBoardLayoutType()`이 화면 레이아웃 3종으로 매핑한다 — `community`(목록형, 썸네일 없음), `story`(카드형+썸네일, `adoption_story`), `gallery`(이미지 중심 Masonry, `archive`). `/boards`(디렉토리)는 네 번째 레이아웃 `hub`로, 하위 게시판 전체의 최신글/인기글/추천글을 슬라이드+카드로 종합 표시(`/api/boards/feed`).
-- **공용 컴포넌트**(`src/components/boards/`, 모든 게시판이 그대로 공유):
-  - `BoardHeader` — 게시판명 + 검색/정렬 툴바 + 글쓰기 버튼 + divider
-  - `BoardRenderer` — layoutType에 따라 community/story/gallery 중 하나를 렌더링(게시판마다 화면을 새로 만들지 않는 핵심 스위치)
-  - `Pagination` — 10개 단위, 페이지 번호 최대 10개 블록 표시
+- **Board Definition System(EPIC-047)**: `board_type`(8종, 등급/쓰기 권한 축)과 화면 동작은 `src/lib/boardLayout.ts`의 `BOARD_DEFINITIONS` config 레지스트리로 완전히 분리돼 있다. 각 게시판 그룹(general/topic/group/patron/artist_promo/adoption_story/archive/qna)은 `BoardDefinition`(레이아웃/검색·정렬·페이지네이션 가능 여부/좋아요·댓글·북마크·태그 노출 여부/기본 정렬/페이지 크기 등)을 갖고, `resolveBoardDefinition({board_type, category})`가 DB 게시판 행 하나를 정의 하나로 해석한다 — 새 게시판 "종류"를 추가할 때 페이지/컴포넌트 코드를 만들 필요 없이 이 레지스트리에 항목 하나만 추가하면 된다. `boardType` 필드가 화면 레이아웃 4종을 결정 — `community`(목록형, 썸네일 없음), `story`(카드형+썸네일, `adoption_story`), `gallery`(이미지 중심 Masonry, `archive`), `hub`(`/boards` 디렉토리 전용 — 하위 게시판 전체의 최신글/인기글/추천글을 슬라이드+카드로 종합 표시, `/api/boards/feed`).
+- **공용 컴포넌트**(`src/components/boards/`, 모든 게시판이 그대로 공유하며 `definition`을 직접 받아 동작):
+  - `BoardHeader` — 게시판명 + 검색/정렬 툴바(`definition.searchable`/`sortable`이 꺼지면 미표시) + 글쓰기 버튼(`definition.allowPosting`) + divider
+  - `BoardRenderer` — `definition.boardType`에 따라 community/story/gallery 중 하나를 렌더링(게시판마다 화면을 새로 만들지 않는 핵심 스위치)
+  - `Pagination` — `definition.pageSize` 단위(기본 10, 게시판별로 다를 수 있음), 페이지 번호 최대 10개 블록 표시
   - `PostDetailHeader` — 3열 헤더 + 대표 이미지 + 통계
-  - `PostTags` — 태그 칩
-  - `PostActions` — 좋아요/북마크/공유 버튼 행
-  - `CommentSection` — 댓글 목록(작성자 프로필 링크 포함) + 작성 폼
+  - `PostTags` — 태그 칩(`definition.tags`가 꺼진 게시판은 자유 태그 없이 배지만)
+  - `PostActions` — 좋아요/북마크/공유 버튼 행(`showLike`/`showBookmark`로 `definition.likes`/`bookmarks` 반영, 공유는 토글 없이 항상 표시)
+  - `CommentSection` — 댓글 목록(작성자 프로필 링크 포함) + 작성 폼(`definition.comments`가 꺼지면 섹션 자체 미표시)

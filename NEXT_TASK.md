@@ -5,7 +5,10 @@
 
 ## 다음 작업
 - **EPIC-047 (중요)**: `posts.view_count`/`tags`/`updated_at` 컬럼과 `post_bookmarks` 테이블을 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). 실행 전까지는 코드의 폴백 로직 덕분에 게시판 읽기/쓰기 자체는 동작하지만, 조회수는 항상 0, 태그는 항상 빈 배열, 북마크는 503 에러로 보인다. `docs/database-schema.sql`의 posts 테이블 정의와 §14(`post_bookmarks`) 참고. `view_count` 갱신을 위해 `grant update (like_count, is_best, view_count) on posts to authenticated;`도 함께 실행해야 함(기존 GRANT 확장, 파일 하단 RLS 섹션 TODO 참고).
-- **EPIC-047 후속**: 게시판 레이아웃 매핑(`adoption_story`→story, `archive`→gallery, 나머지→community)은 전용 컬럼 없이 지시문 스펙과 기존 board_type 의미를 근거로 판단한 것 — 실제 화면에서 어울리지 않으면(예: "모임별 게시판"도 사진이 많다면 story가 더 어울릴 수 있음) `src/lib/boardLayout.ts`의 매핑만 수정하면 된다(레이아웃 컴포넌트 자체는 그대로 재사용).
+- **EPIC-047 후속**: 게시판 레이아웃 매핑(`adoption_story`→story, `archive`→gallery, 나머지→community)은 전용 컬럼 없이 지시문 스펙과 기존 board_type 의미를 근거로 판단한 것 — 실제 화면에서 어울리지 않으면(예: "모임별 게시판"도 사진이 많다면 story가 더 어울릴 수 있음) `src/lib/boardLayout.ts`의 `BOARD_DEFINITIONS`에서 해당 항목의 `boardType`만 수정하면 된다(레이아웃 컴포넌트 자체는 그대로 재사용).
+- **EPIC-047 Part 2 후속(중요)**: 다음 EPIC부터 새 게시판을 추가할 때는 (1) `boards` 테이블에 새 board_type 시드 행 추가 (2) `src/lib/boardLayout.ts`의 `BOARD_DEFINITIONS`/`BOARD_GROUP_ORDER`에 정의 한 항목 추가 — 이 두 가지만 하면 되고 페이지/컴포넌트 코드는 건드리지 않는다. `resolveBoardDefinition()`이 board_type을 못 찾으면 조용히 "topic" 정의로 대체하니, 새 board_type을 seed했는데 화면이 이상하게 나오면 정의 추가를 빠뜨린 게 아닌지 먼저 확인할 것.
+- **EPIC-047 Part 2 후속**: `BoardDefinition`의 `visibility`/`parent` 필드는 아직 어떤 코드도 참조하지 않는 예약 필드다 — "비공개 게시판" 개념이나 Heritage→Renaissance 같은 실제 계층형 hub가 필요해지면 이 두 필드를 실제로 배선하는 작업이 필요하다(현재는 8개 그룹이 전부 평면 구조).
+- **EPIC-047 Part 2 후속**: `membership` 필드는 잠금 안내 문구(`RANK_LABELS[definition.membership]`) 생성에만 쓰이고, 실제 읽기/쓰기 인가는 여전히 `serverAuth.ts`의 `canReadBoard`/`canWriteToBoard`(등급별 boolean 플래그 기반)가 담당한다 — 새 게시판 정의를 추가할 때 `membership` 숫자만 바꿔서는 실제 열람 제한이 바뀌지 않으니, 진짜 등급 제한이 필요하면 `canReadBoard`/`canWriteToBoard`도 함께 확장해야 한다는 점을 놓치지 말 것.
 - **EPIC-047 후속**: "추천글"은 별도 플래그 없이 기존 `is_best`(좋아요 10개 이상 승격) 재사용 — 진짜 "추천"(관리자 선정 등) 개념이 필요해지면 별도 플래그/스키마가 필요.
 - **EPIC-047 후속**: 게시글 수정(edit) 기능 자체가 없어 `updated_at`은 항상 `created_at`과 동일하게 표시됨 — "수정일"이 의미를 가지려면 게시글 수정 API/UI를 별도로 구현해야 함.
 - **EPIC-047 후속**: 검색/정렬/페이지네이션은 게시판 규모가 크지 않다는 전제로 매 요청마다 게시판 전체 글을 가져와 라우트 핸들러에서 처리 — 게시글이 아주 많아지면(수천 건 이상) DB 쪽 페이지네이션(LIMIT/OFFSET + 인덱스 활용 검색)으로 전환 검토.
@@ -64,6 +67,7 @@
 - **환경 메모**: Next.js(Turbopack)는 같은 프로젝트 디렉토리에 대해 dev 서버를 동시에 두 개 띄울 수 없다(`.next/dev/logs`의 락으로 감지, 포트를 바꿔도 무관하게 즉시 종료됨) — 이 저장소를 여러 세션이 동시에 작업할 때, 다른 세션이 이미 `npm run dev`를 띄워둔 상태라면 이번 세션에서는 로컬 브라우저 검증이 불가능하다. 사용자가 직접 다른 세션의 dev 서버를 내리거나, 그 세션에서 검증을 요청해야 함.
 
 ## 사용자 확인 필요
+- **EPIC-047 Part 2**: 다른 세션이 3000번 포트를 점유 중이라(환경 메모 참고) Board Definition System 도입 후에도 8개 게시판 그룹의 실제 동작(검색/정렬/페이지네이션 노출 여부, 좋아요/북마크/댓글/태그 노출 여부)이 이전과 동일하게 보이는지 브라우저로 직접 재확인하지 못함(type-check/lint만 통과 확인) — 코드상으로는 모든 토글이 기존과 동일한 값으로 설정돼 있어 변화가 없어야 정상. 특히 `archive`(자료게시판)만 `pageSize:20`으로 바뀌어 있으니, 한 페이지에 게시글이 20개까지 보이는지 확인 필요.
 - **EPIC-047**: 다른 세션이 3000번 포트를 점유 중이라(환경 메모 참고) 검색/정렬/페이지네이션/북마크/공유/hub 피드 등을 브라우저로 직접 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 게시판에서 검색어 입력, 정렬 옵션 변경, 페이지 이동, 좋아요/북마크/공유 버튼, `/boards`의 최신글/인기글/추천글 섹션이 기대대로 동작하는지 확인 필요. 특히 `posts.view_count`/`tags`/`updated_at`/`post_bookmarks`를 라이브에 아직 안 올렸다면 조회수 0/태그 없음/북마크 503이 정상 동작(마이그레이션 후 다시 확인).
 - **EPIC-046**: 다른 세션이 3000번 포트를 점유 중이라(환경 메모 참고) 게시판 3개 화면(목록/상세/게시판 디렉토리)의 실제 렌더링(3열 헤더, `font-serif` 제목, 대표 이미지 풀와이드, hairline 목록/댓글)을 브라우저로 직접 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 아무 게시판이나 열어 새 레이아웃과 좋아요/댓글/글쓰기 기존 기능이 그대로 동작하는지 확인 필요.
 - **EPIC-045**: `/mypage`가 로그인 필요 페이지라 실제 로그인 세션으로 라우트 이동(허브 → 각 섹션 → 컬렉션 9개 카테고리)과 데이터 렌더링을 시각적으로 검증하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 로그인 후 `/mypage` 허브 카드 클릭 → 각 섹션 이동 → `MyPageNav`/`CollectionsSubNav`의 활성 탭 표시가 URL과 맞는지, "나의 컬렉션"에서 등록/수정/삭제가 여전히 정상 동작하는지 확인 필요.

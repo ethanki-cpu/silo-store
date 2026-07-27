@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { getRequestMember, getTier, canReadBoard } from "@/lib/serverAuth";
+import { HUB_DEFINITION } from "@/lib/boardLayout";
 
-const FEED_LIMIT = 10;
+const FEED_LIMIT = HUB_DEFINITION.pageSize;
 
-// Board Engine(EPIC-047) — /boards(hub) 상단에 표시할 "최신글/인기글/추천글"
-// 종합 피드. "추천글"에 대응하는 별도 테이블/플래그가 없어(스키마 변경
-// 최소화 원칙), 이미 "좋아요 10개 이상으로 승격"된 기존 is_best(개념글)
-// 플래그를 추천글로 재해석해 사용한다.
+// Board Definition System(EPIC-047) — /boards(hub) 상단에 표시할
+// "최신글/인기글/추천글" 종합 피드. "추천글"에 대응하는 별도 테이블/플래그가
+// 없어(스키마 변경 최소화 원칙), 이미 "좋아요 10개 이상으로 승격"된 기존
+// is_best(개념글) 플래그를 추천글로 재해석해 사용한다.
 export async function GET(request: NextRequest) {
   const { data: boards } = await supabase
     .from("boards")

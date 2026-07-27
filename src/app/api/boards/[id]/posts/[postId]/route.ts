@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { getRequestMember, getTier, canReadBoard, RANK_LABELS } from "@/lib/serverAuth";
+import { resolveBoardDefinition } from "@/lib/boardLayout";
 
 const richFields =
   "id, board_id, title, body, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
@@ -26,6 +27,8 @@ export async function GET(
     );
   }
 
+  const definition = resolveBoardDefinition(board);
+
   const requester = await getRequestMember(request);
   const tier = requester
     ? await getTier(requester.member.membership_rank)
@@ -33,7 +36,9 @@ export async function GET(
 
   if (!canReadBoard(board, tier)) {
     return NextResponse.json(
-      { error: `이 게시판은 ${RANK_LABELS[3]} 등급부터 열람 가능해요.` },
+      {
+        error: `이 게시판은 ${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능해요.`,
+      },
       { status: 403 },
     );
   }
@@ -118,11 +123,13 @@ export async function GET(
     .eq("board_id", id)
     .lte("created_at", normalizedPost.created_at);
 
-  const { data: comments } = await client
-    .from("comments")
-    .select("id, body, author_id, created_at")
-    .eq("post_id", postId)
-    .order("created_at", { ascending: true });
+  const { data: comments } = definition.comments
+    ? await client
+        .from("comments")
+        .select("id, body, author_id, created_at")
+        .eq("post_id", postId)
+        .order("created_at", { ascending: true })
+    : { data: [] as { id: string; body: string; author_id: string; created_at: string }[] };
 
   const authorIds = [
     ...new Set([
@@ -140,23 +147,27 @@ export async function GET(
   let likedByMe = false;
   let bookmarkedByMe = false;
   if (requester) {
-    const { data: myLike } = await requester.scopedClient
-      .from("likes")
-      .select("id")
-      .eq("post_id", postId)
-      .eq("member_id", requester.member.id)
-      .maybeSingle();
-    likedByMe = !!myLike;
+    if (definition.likes) {
+      const { data: myLike } = await requester.scopedClient
+        .from("likes")
+        .select("id")
+        .eq("post_id", postId)
+        .eq("member_id", requester.member.id)
+        .maybeSingle();
+      likedByMe = !!myLike;
+    }
 
     // post_bookmarks가 라이브 DB에 아직 없을 수 있어(마이그레이션 전) 에러는
     // 무시하고 기본값 false로 둔다.
-    const { data: myBookmark } = await requester.scopedClient
-      .from("post_bookmarks")
-      .select("id")
-      .eq("post_id", postId)
-      .eq("member_id", requester.member.id)
-      .maybeSingle();
-    bookmarkedByMe = !!myBookmark;
+    if (definition.bookmarks) {
+      const { data: myBookmark } = await requester.scopedClient
+        .from("post_bookmarks")
+        .select("id")
+        .eq("post_id", postId)
+        .eq("member_id", requester.member.id)
+        .maybeSingle();
+      bookmarkedByMe = !!myBookmark;
+    }
   }
 
   return NextResponse.json({
@@ -164,6 +175,7 @@ export async function GET(
     post: {
       ...normalizedPost,
       view_count: usedRichFields ? (normalizedPost.view_count ?? 0) + 1 : 0,
+      tags: definition.tags ? (normalizedPost.tags ?? []) : [],
       author_name: nameById.get(normalizedPost.author_id) ?? "알 수 없음",
       post_number: postNumber ?? null,
     },

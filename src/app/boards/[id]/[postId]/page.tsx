@@ -7,6 +7,7 @@ import { PostDetailHeader } from "@/components/boards/PostDetailHeader";
 import { PostTags } from "@/components/boards/PostTags";
 import { PostActions } from "@/components/boards/PostActions";
 import { CommentSection } from "@/components/boards/CommentSection";
+import { resolveBoardDefinition } from "@/lib/boardLayout";
 
 type PostDetail = {
   id: string;
@@ -184,6 +185,12 @@ export default function PostDetailPage() {
 
   if (!post) return null;
 
+  // Board Definition System(EPIC-047): 좋아요/북마크/댓글 노출 여부는 이
+  // 정의 하나로 결정한다(board_type별 하드코딩 분기 없음).
+  const definition = resolveBoardDefinition(
+    board ?? { board_type: "topic", category: null },
+  );
+
   // EPIC-046/047: 별도 태그 컬럼 값(post.tags)에 게시판 카테고리/도슨트·
   // 개념글 여부를 함께 얹어 보여준다.
   const displayTags = [
@@ -221,20 +228,24 @@ export default function PostDetailPage() {
             likedByMe={likedByMe}
             onToggleLike={handleLike}
             likeSubmitting={likeSubmitting}
+            showLike={definition.likes}
             bookmarkedByMe={bookmarkedByMe}
             onToggleBookmark={handleBookmark}
             bookmarkSubmitting={bookmarkSubmitting}
+            showBookmark={definition.bookmarks}
           />
 
           {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
 
-          <CommentSection
-            comments={comments}
-            commentBody={commentBody}
-            onCommentBodyChange={setCommentBody}
-            onSubmit={handleComment}
-            submitting={commentSubmitting}
-          />
+          {definition.comments && (
+            <CommentSection
+              comments={comments}
+              commentBody={commentBody}
+              onCommentBodyChange={setCommentBody}
+              onSubmit={handleComment}
+              submitting={commentSubmitting}
+            />
+          )}
         </div>
       </div>
     </main>

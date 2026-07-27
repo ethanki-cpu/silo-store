@@ -48,7 +48,7 @@
 - EPIC-044 : 동적 라우팅, 내비게이션 데이터 대량 주입 및 UniversalBoard 컴포넌트
 - EPIC-045 : 마이페이지 재구성 — 박물관 컨셉, 라우트 기반 탭 구조
 - EPIC-046 : 게시판 디자인 시스템을 Editorial Magazine으로 통일
-- EPIC-047 : 게시판 공통 Board Engine(BoardRenderer 기반 community/story/gallery/hub) 구축
+- EPIC-047 : 게시판 공통 Board Engine 구축(Part 1: BoardRenderer 기반 community/story/gallery/hub) + Board Definition System 전환(Part 2: config만으로 게시판을 정의하는 BOARD_DEFINITIONS 레지스트리, 하드코딩된 그룹 판별 로직 제거)
 
 ## 진행중
 (없음)

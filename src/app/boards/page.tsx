@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
+import {
+  BOARD_DEFINITIONS,
+  BOARD_GROUP_ORDER,
+  resolveBoardDefinition,
+} from "@/lib/boardLayout";
 
 type Board = {
   id: string;
@@ -19,41 +24,6 @@ type Board = {
   locked: boolean;
   lockMessage: string | null;
 };
-
-const GROUP_LABELS: { key: string; title: string; match: (b: Board) => boolean }[] = [
-  {
-    key: "general",
-    title: "자유게시판",
-    match: (b) => b.board_type === "topic" && b.category === "general",
-  },
-  {
-    key: "topic",
-    title: "클럽 주제 게시판",
-    match: (b) => b.board_type === "topic" && b.category !== "general",
-  },
-  { key: "group", title: "모임별 게시판", match: (b) => b.board_type === "group" },
-  { key: "patron", title: "패트론 전용", match: (b) => b.board_type === "patron" },
-  {
-    key: "artist_promo",
-    title: "아티스트 홍보",
-    match: (b) => b.board_type === "artist_promo",
-  },
-  {
-    key: "adoption_story",
-    title: "After Adoption",
-    match: (b) => b.board_type === "adoption_story",
-  },
-  {
-    key: "archive",
-    title: "자료게시판",
-    match: (b) => b.board_type === "archive",
-  },
-  {
-    key: "qna",
-    title: "질문과 답변",
-    match: (b) => b.board_type === "qna",
-  },
-];
 
 type FeedItem = {
   id: string;
@@ -189,14 +159,16 @@ export default function BoardsPage() {
 
         <div className="border-t border-gray-200 mb-8" />
 
-        {GROUP_LABELS.map((group) => {
-          const items = boards.filter(group.match);
+        {BOARD_GROUP_ORDER.map((groupKey) => {
+          const items = boards.filter(
+            (b) => resolveBoardDefinition(b).id === groupKey,
+          );
           if (items.length === 0) return null;
 
           return (
-            <section key={group.key} className="mb-10">
+            <section key={groupKey} className="mb-10">
               <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-                {group.title}
+                {BOARD_DEFINITIONS[groupKey].title_ko}
               </h2>
               <div className="divide-y divide-gray-100">
                 {items.map((board) =>

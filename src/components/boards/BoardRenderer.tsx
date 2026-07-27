@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { BoardLayoutType, BoardPost } from "@/lib/boardLayout";
+import type { BoardDefinition, BoardPost } from "@/lib/boardLayout";
 
 function PostBadges({ post, isQna }: { post: BoardPost; isQna: boolean }) {
   if (!post.is_best && !post.is_docent_post && !isQna) return null;
@@ -133,15 +133,19 @@ function GalleryGrid({ boardId, posts }: { boardId: string; posts: BoardPost[] }
   );
 }
 
-// Board Engine(EPIC-047): 게시판별로 화면을 새로 만들지 않고, layoutType
-// 하나로 community/story/gallery 세 레이아웃 중 하나를 선택해 렌더링한다.
+// Board Definition System(EPIC-047): 게시판별로 화면을 새로 만들지 않고,
+// BoardDefinition.boardType 하나로 community/story/gallery 세 레이아웃 중
+// 하나를 선택해 렌더링한다 — definition을 통째로 받는 이유는, 태그/썸네일
+// 같은 세부 토글도 여기서 그대로 참조할 수 있게 하기 위함(현재 3개
+// 레이아웃 함수는 공통 필드만 쓰지만, 새 정의가 늘어도 이 함수 시그니처를
+// 바꿀 필요가 없다).
 export function BoardRenderer({
-  layoutType,
+  definition,
   boardId,
   posts,
   isQna,
 }: {
-  layoutType: BoardLayoutType;
+  definition: BoardDefinition;
   boardId: string;
   posts: BoardPost[];
   isQna: boolean;
@@ -150,12 +154,13 @@ export function BoardRenderer({
     return <p className="text-gray-400">아직 게시글이 없어요.</p>;
   }
 
-  switch (layoutType) {
+  switch (definition.boardType) {
     case "story":
       return <StoryCards boardId={boardId} posts={posts} />;
     case "gallery":
       return <GalleryGrid boardId={boardId} posts={posts} />;
     case "community":
+    case "hub":
     default:
       return <CommunityList boardId={boardId} posts={posts} isQna={isQna} />;
   }

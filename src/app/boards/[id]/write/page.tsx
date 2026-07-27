@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
+import { resolveBoardDefinition } from "@/lib/boardLayout";
 
 type ConfirmedOrder = {
   id: string;
@@ -17,6 +18,7 @@ export default function WritePostPage() {
   const router = useRouter();
 
   const [boardType, setBoardType] = useState<string | null>(null);
+  const [boardCategory, setBoardCategory] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [isDocentPost, setIsDocentPost] = useState(false);
@@ -29,11 +31,20 @@ export default function WritePostPage() {
   useEffect(() => {
     supabase
       .from("boards")
-      .select("board_type")
+      .select("board_type, category")
       .eq("id", id)
       .single()
-      .then(({ data }) => setBoardType(data?.board_type ?? null));
+      .then(({ data }) => {
+        setBoardType(data?.board_type ?? null);
+        setBoardCategory(data?.category ?? null);
+      });
   }, [id]);
+
+  // Board Definition System(EPIC-047): 태그 입력 노출 여부/글쓰기 허용
+  // 여부는 이 정의 하나로 결정한다(board_type별 하드코딩 분기 없음).
+  const definition = boardType
+    ? resolveBoardDefinition({ board_type: boardType, category: boardCategory })
+    : null;
 
   useEffect(() => {
     if (boardType !== "adoption_story" || !member) return;
@@ -100,6 +111,15 @@ export default function WritePostPage() {
     router.push(`/boards/${id}/${data.id}`);
   }
 
+  if (definition && !definition.allowPosting) {
+    return (
+      <main className="flex-1 bg-white p-8 max-w-2xl mx-auto w-full">
+        <h1 className="font-serif text-2xl font-bold mb-6">글쓰기</h1>
+        <p className="text-gray-500">이 게시판에는 글을 쓸 수 없어요.</p>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 bg-white p-8 max-w-2xl mx-auto w-full">
       <h1 className="font-serif text-2xl font-bold mb-6">글쓰기</h1>
@@ -155,16 +175,18 @@ export default function WritePostPage() {
           />
         </div>
 
-        <div>
-          <label className="block text-sm mb-1">태그 (쉼표로 구분, 선택)</label>
-          <input
-            type="text"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-            placeholder="예: 여행, 후기, 사진"
-            className="w-full rounded-md border border-gray-300 px-3 py-2"
-          />
-        </div>
+        {definition?.tags && (
+          <div>
+            <label className="block text-sm mb-1">태그 (쉼표로 구분, 선택)</label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="예: 여행, 후기, 사진"
+              className="w-full rounded-md border border-gray-300 px-3 py-2"
+            />
+          </div>
+        )}
 
         {boardType !== "adoption_story" && (
           <label className="flex items-center gap-2 text-sm text-gray-600">

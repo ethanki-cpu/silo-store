@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/AuthProvider";
 import { BoardHeader } from "@/components/boards/BoardHeader";
 import { BoardRenderer } from "@/components/boards/BoardRenderer";
 import { Pagination } from "@/components/boards/Pagination";
-import { getBoardLayoutType, type BoardPost, type SortOption } from "@/lib/boardLayout";
+import { resolveBoardDefinition, type BoardPost, type SortOption } from "@/lib/boardLayout";
 
 type Board = {
   id: string;
@@ -21,6 +21,7 @@ export default function BoardPostsPage() {
   const [board, setBoard] = useState<Board | null>(null);
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortOption>("latest");
   const [q, setQ] = useState("");
@@ -57,6 +58,7 @@ export default function BoardPostsPage() {
       setBoard(data.board);
       setPosts(data.posts);
       setTotalCount(data.totalCount);
+      setPageSize(data.pageSize);
       setFetching(false);
     }, 250);
 
@@ -85,8 +87,12 @@ export default function BoardPostsPage() {
     );
   }
 
-  const layoutType = board ? getBoardLayoutType(board.board_type) : "community";
-  const totalPages = Math.max(1, Math.ceil(totalCount / 10));
+  // Board Definition System(EPIC-047): 화면 레이아웃/토글은 전부 이 정의
+  // 하나에서 온다 — board_type별로 페이지 코드를 분기하지 않는다.
+  const definition = resolveBoardDefinition(
+    board ?? { board_type: "topic", category: null },
+  );
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return (
     <main className="flex-1 bg-white px-6 py-12">
@@ -94,6 +100,7 @@ export default function BoardPostsPage() {
         <BoardHeader
           boardName={board?.name ?? ""}
           writeHref={`/boards/${id}/write`}
+          definition={definition}
           q={q}
           onQueryChange={handleQueryChange}
           sort={sort}
@@ -101,13 +108,15 @@ export default function BoardPostsPage() {
         />
 
         <BoardRenderer
-          layoutType={layoutType}
+          definition={definition}
           boardId={String(id)}
           posts={posts}
           isQna={board?.board_type === "qna"}
         />
 
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        {definition.pageable && (
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        )}
       </div>
     </main>
   );

@@ -226,17 +226,27 @@ function FeedSlide({
             <Link
               key={item.id}
               href={`/boards/${item.board_id}/${item.id}`}
-              className="shrink-0 w-56 rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow"
+              className="shrink-0 w-56 rounded-lg border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
             >
-              <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">
-                {item.board_name}
-              </p>
-              <p className="font-serif font-medium text-gray-900 line-clamp-2">
-                {item.title}
-              </p>
-              <p className="text-xs text-gray-400 mt-2">
-                {item.author_name} · 좋아요 {item.like_count}
-              </p>
+              {item.photo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.photo_url}
+                  alt={item.title ?? ""}
+                  className="w-full aspect-[4/3] object-cover"
+                />
+              )}
+              <div className="p-4">
+                <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">
+                  {item.board_name}
+                </p>
+                <p className="font-serif font-medium text-gray-900 line-clamp-2">
+                  {item.title}
+                </p>
+                <p className="text-xs text-gray-400 mt-2">
+                  {item.author_name} · 좋아요 {item.like_count}
+                </p>
+              </div>
             </Link>
           ))}
         </div>

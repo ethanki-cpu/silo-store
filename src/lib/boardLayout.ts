@@ -78,6 +78,11 @@ export type BoardDefinition = {
   defaultSort: SortOption;
   pageSize: number;
   description: string;
+  // EPIC-051: "문의하기"/"예약하기" 같은 액션 버튼 — 기존 예약 Flow(예:
+  // `/rental?floor=...`) 등 이미 있는 페이지로 연결하기 위한 순수 config
+  // 필드다. 새 예약 시스템/컴포넌트를 만들지 않고, BoardHeader가 이 값을
+  // 그대로 링크 버튼으로 렌더링만 한다.
+  ctas?: { label: string; href: string }[];
 };
 
 // hub 레이아웃이 화면에 보여줄 종합 피드(최신글/인기글/추천글) 한 건.
@@ -89,6 +94,10 @@ export type HubFeedItem = {
   like_count: number;
   author_name: string;
   created_at: string;
+  // EPIC-051: Studio처럼 대표 이미지가 중요한 도메인의 hub 슬라이드에서
+  // 썸네일을 보여주기 위해 추가 — 없으면(기존 도메인) 카드가 텍스트만
+  // 보여주던 대로 그대로 동작(하위 호환).
+  photo_url: string | null;
 };
 
 export type HubFeed = {
@@ -359,6 +368,9 @@ function story(input: {
   title_en: string;
   parent: string;
   description: string;
+  // EPIC-051: Studio 서비스 게시판처럼 실제 예약/문의 페이지로 연결하는
+  // 버튼이 필요한 경우에만 채운다(그 외 story 게시판은 생략).
+  ctas?: { label: string; href: string }[];
 }): BoardDefinition {
   return {
     id: input.slug,
@@ -381,6 +393,7 @@ function story(input: {
     defaultSort: "latest",
     pageSize: 10,
     description: input.description,
+    ctas: input.ctas,
   };
 }
 
@@ -1017,6 +1030,70 @@ export const INDIVIDUAL_BOARD_DEFINITIONS = {
     parent: "archive",
     description:
       "사일로상점과 살롱데상의 모든 이벤트를 연/월/일 순으로 보여주는 반응형 타임라인",
+  }),
+
+  // EPIC-051: Studio(공간 문의) 영역 — Silo Store/Online Docent/Heritage/
+  // Community/Membership/Gallery/Archive와 형제 관계인 8번째 최상위 hub.
+  // 예약/신청 버튼은 새 예약 시스템을 만들지 않고 전부 기존 실제 페이지
+  // (/rental, /space-inquiry/*)로 연결한다 — ctas 필드 참고.
+  studio: hub({
+    slug: "studio",
+    title_ko: "Studio",
+    title_en: "Studio",
+    description:
+      "Studio 메인 허브 — 4개 서비스(공간 대관 1F/2F, 물품 대여, 공간 스타일링)의 최신 포트폴리오/대표 이미지/추천 콘텐츠 종합",
+  }),
+  "studio-1f": story({
+    slug: "studio-1f",
+    title_ko: "공간 촬영 대관 (1층 사일로상점)",
+    title_en: "Studio Rental (1F)",
+    parent: "studio",
+    description:
+      "공간 소개/이용 안내/이용 요금/시설 안내/촬영 사례/FAQ. 실제 예약은 기존 /rental 페이지(1층 사일로상점) 재사용",
+    // 문의/예약 모두 같은 /rental 페이지로 연결 — 이 프로젝트에는 예약과
+    // 별개인 "단순 문의" 전용 채널이 없어(새 시스템을 만들지 않기 위해)
+    // 두 버튼이 같은 실제 예약 Flow로 이어진다(NEXT_TASK.md 참고).
+    ctas: [
+      { label: "문의하기", href: "/rental?floor=1f_silostore" },
+      { label: "예약하기", href: "/rental?floor=1f_silostore" },
+    ],
+  }),
+  "studio-2f": story({
+    slug: "studio-2f",
+    title_ko: "공간 촬영 대관 (2층 살롱데상)",
+    title_en: "Studio Rental (2F)",
+    parent: "studio",
+    description:
+      "구조는 1층과 동일. 실제 예약은 기존 /rental 페이지(2층 살롱데상) 재사용",
+    ctas: [
+      { label: "문의하기", href: "/rental?floor=2f_salon" },
+      { label: "예약하기", href: "/rental?floor=2f_salon" },
+    ],
+  }),
+  rental: story({
+    slug: "rental",
+    title_ko: "물품 대여",
+    title_en: "Item Rental",
+    parent: "studio",
+    description:
+      "대여 안내/대여 절차/대여 사례/이용 규정. 신청은 기존 /space-inquiry/item-rental 페이지 재사용",
+    ctas: [
+      { label: "문의하기", href: "/space-inquiry/item-rental" },
+      { label: "예약하기", href: "/space-inquiry/item-rental" },
+    ],
+  }),
+  styling: story({
+    slug: "styling",
+    title_ko: "공간 스타일링",
+    title_en: "Space Styling",
+    parent: "studio",
+    description:
+      "공간 스타일링 소개/진행 절차. 대표 프로젝트는 별도 DB 없이 기존 styling_projects를 그대로 보여주는 기존 /shop/projects 페이지를 재사용하고, 신청은 기존 /space-inquiry/styling 페이지 재사용",
+    ctas: [
+      { label: "대표 프로젝트 보기", href: "/shop/projects" },
+      { label: "문의하기", href: "/space-inquiry/styling" },
+      { label: "신청하기", href: "/space-inquiry/styling" },
+    ],
   }),
 } as const satisfies Record<string, BoardDefinition>;
 

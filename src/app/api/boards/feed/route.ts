@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   const { data: posts } = await supabase
     .from("posts")
-    .select("id, board_id, title, like_count, is_best, author_id, created_at")
+    .select("id, board_id, title, like_count, is_best, photo_url, author_id, created_at")
     .in("board_id", readableBoardIds)
     .eq("visibility", "public")
     .order("created_at", { ascending: false })
@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       board_name: boardNameById.get(p.board_id ?? "") ?? "",
       title: p.title,
       like_count: p.like_count,
+      photo_url: p.photo_url,
       author_name: nameById.get(p.author_id) ?? "알 수 없음",
       created_at: p.created_at,
     };

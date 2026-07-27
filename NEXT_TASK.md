@@ -4,6 +4,11 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-051 (중요)**: 신규 게시판 5개(`boards` insert)를 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). `docs/database-schema.sql`의 "EPIC-051" 주석 아래 INSERT 문 참고. 실행 전까지는 Studio hub와 4개 서비스 게시판이 어디에도 보이지 않는다(DB에 행이 없으니 정상).
+- **EPIC-051 후속**: "문의하기"/"예약하기" 버튼이 지금은 4개 게시판 전부 같은 href로 연결된다(별도 "단순 문의" 채널이 없어서) — 실제로 문의와 예약을 구분된 흐름으로 나누고 싶으면, 문의 전용 폼/연락 채널을 먼저 설계해야 한다(스키마 추측 금지 원칙상 이번 EPIC에서 임의로 만들지 않음).
+- **EPIC-051 후속**: "물품 대여"(`rental`)와 "공간 스타일링"(`styling`)의 신청 버튼은 여전히 `/space-inquiry/item-rental`·`/space-inquiry/styling` **placeholder(ComingSoon) 페이지**로 연결된다 — 이 두 페이지 자체는 아직 미구현이라(이전부터 있던 상태, 이번 EPIC 범위 아님), 실제로 신청까지 되게 하려면 그 페이지들의 구현이 먼저 필요하다.
+- **EPIC-051 후속**: "공간 스타일링" 게시판의 "대표 프로젝트" CTA는 `/shop/projects`로 연결되지만, 그 페이지에서 다시 이 Studio 게시판으로 돌아오는 링크는 없다(단방향) — 양방향으로 연결하고 싶으면 `/shop/projects`(또는 `[id]` 상세)에 "Studio 공간 스타일링 게시판" 링크를 추가하는 별도 작업이 필요(새 페이지 수정이라 이번 EPIC 범위 밖).
+- **EPIC-051 후속**: hub 슬라이드 썸네일(`HubFeedItem.photo_url`)은 이번에 추가돼 Silo Store/Online Docent/Heritage/Community/Membership/Gallery/Archive hub에도 소급 적용됨 — 해당 게시판들에 `photo_url` 있는 글이 이미 있다면 이제 카드에 썸네일이 보일 것(의도된 개선, 회귀 아님).
 - **EPIC-050 (중요)**: 신규 게시판 17개(`boards` insert)를 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). `docs/database-schema.sql`의 "EPIC-050" 주석 아래 INSERT 문 참고. 실행 전까지는 Membership/Gallery/Archive 영역 게시판이 어디에도 보이지 않는다(DB에 행이 없으니 정상).
 - **EPIC-050 후속(중요, 보안 관련)**: "패트론 게시판"(`patron-board`)의 실제 잠금은 `src/lib/serverAuth.ts`의 `canReadBoard`/`canWriteToBoard`가 `resolveBoardDefinition(board).accessLevel === "patron"`을 확인하는 방식으로 구현됨 — DB 시드 실행 전에는 이 게시판 자체가 존재하지 않으니 테스트 불가하고, 실행 후에는 반드시 비패트론 계정으로 읽기(403)와 글쓰기(403) 둘 다 직접 확인할 것(로그인 세션 관련 정책상 에이전트가 직접 검증 못함).
 - **EPIC-050 후속**: "비밀의 방 도슨트"(`secret-room-docent`)는 `accessLevel:"secret_room"`만 지정돼 있고 실제 인가 로직은 아직 없음 — 지금은 다른 일반 게시판과 동일하게 전체 공개 상태다. 실제 "비밀의 방" 개념(기존 `salon_rooms`/`salon_room_access`, 시험 통과 여부)과 연결할지, 아니면 단순 패트론 등급 게이팅으로 충분한지 사용자와 논의 후 `serverAuth.ts`에 분기를 추가할 것.
@@ -81,6 +86,7 @@
 - **환경 메모**: Next.js(Turbopack)는 같은 프로젝트 디렉토리에 대해 dev 서버를 동시에 두 개 띄울 수 없다(`.next/dev/logs`의 락으로 감지, 포트를 바꿔도 무관하게 즉시 종료됨) — 이 저장소를 여러 세션이 동시에 작업할 때, 다른 세션이 이미 `npm run dev`를 띄워둔 상태라면 이번 세션에서는 로컬 브라우저 검증이 불가능하다. 사용자가 직접 다른 세션의 dev 서버를 내리거나, 그 세션에서 검증을 요청해야 함.
 
 ## 사용자 확인 필요
+- **EPIC-051**: DB 시드 실행 + 다른 세션의 3000번 포트 점유 둘 다 겹쳐 있어(환경 메모 참고) Studio hub와 4개 서비스 게시판, "문의하기"/"예약하기"/"대표 프로젝트 보기" 버튼이 실제로 올바른 페이지로 이동하는지, hub 슬라이드 카드에 대표 이미지가 보이는지 브라우저로 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 `docs/database-schema.sql`의 EPIC-051 INSERT 실행 후 `/boards` → "게시판 허브"에서 Studio 진입 → 1F/2F 대관·물품 대여·공간 스타일링 게시판 각각 열어 버튼 이동과 콘텐츠(공간 소개/이용 안내 등 직접 작성 필요)를 확인 필요.
 - **EPIC-050**: DB 시드 실행 + 다른 세션의 3000번 포트 점유 둘 다 겹쳐 있어(환경 메모 참고) Membership/Gallery/Archive 3개 hub와 그 하위 게시판, 그리고 "타임라인" 게시판의 연/월 그룹핑 렌더링을 브라우저로 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 `docs/database-schema.sql`의 EPIC-050 INSERT 실행 후 (1) `/boards` → "게시판 허브"에서 Membership/Gallery/Archive 진입 → 하위 게시판 카드 확인, (2) "패트론 게시판"을 비패트론 계정으로 열람 시도해 실제로 막히는지 확인, (3) "타임라인" 게시판에 글을 몇 개 써서 연/월별로 올바르게 묶여 보이는지 확인 필요.
 - **EPIC-049**: DB 시드 실행 + 다른 세션의 3000번 포트 점유 둘 다 겹쳐 있어(환경 메모 참고) Community hub 구조(Community → 출석체크/자유게시판/주제별 소통 게시판(hub)/요일별 클럽(hub)/월별 모임/설문(hub)/공연·전시회/이벤트 공지/Q&A)가 정상 노출되는지, 특히 기존 13개 클럽+7개 모임방이 `/boards` 평면 목록에서는 빠지고 `주제별 소통 게시판`/`요일별 클럽` hub 안에서는 정상적으로 보이는지 브라우저로 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 `docs/database-schema.sql`의 EPIC-049 INSERT를 실행한 뒤, `/boards` → "게시판 허브"에서 Community 진입 → 하위 게시판 9개 카드 → `주제별 소통 게시판`/`요일별 클럽` 재진입 → 각각의 13개/7개 자식 게시판이 예전과 동일한 URL(`/boards/[id]`)로 여전히 동작하는지 확인 필요.
 - **EPIC-048**: DB 시드 실행 + 다른 세션의 3000번 포트 점유 둘 다 겹쳐 있어(환경 메모 참고) 신규 게시판 20개가 `/boards` 디렉토리의 "게시판 허브" 섹션과 각 hub의 하위 게시판 카드/피드 슬라이드에 정상 노출되는지 브라우저로 확인하지 못함(type-check/lint만 통과 확인) — 사용자가 직접 `docs/database-schema.sql`의 EPIC-048 INSERT를 실행한 뒤, `/boards`에서 "게시판 허브" 3개 카드 → 각 hub 진입 → 하위 게시판 카드 → 실제 게시판(글쓰기/좋아요/댓글/북마크/태그) 순서로 확인 필요.

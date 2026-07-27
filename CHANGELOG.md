@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-051)
+- **EPIC-051: Studio(공간 문의) 게시판 생성 + 기존 예약 Flow 연동(BoardDefinition.ctas)**
+  - Board Definition System으로 게시판 5개(전부 신규 DB 행)를 추가 — 최상위 hub `Studio`(Silo Store/Online Docent/Heritage/Community/Membership/Gallery/Archive와 형제) + 하위 4개 story 게시판: `공간 촬영 대관(1층)`(studio-1f)/`공간 촬영 대관(2층)`(studio-2f)/`물품 대여`(rental)/`공간 스타일링`(styling).
+  - **`BoardDefinition`에 `ctas` 필드 추가**: `{label, href}[]` — "문의하기"/"예약하기" 같은 액션 버튼을 config로 지정하면 `BoardHeader`가 그대로 링크 버튼으로 렌더링한다. **새 예약 시스템/컴포넌트를 전혀 만들지 않고**, 이미 있는 실제 페이지로만 연결: `studio-1f`→`/rental?floor=1f_silostore`, `studio-2f`→`/rental?floor=2f_salon`, `rental`→`/space-inquiry/item-rental`, `styling`→`/shop/projects`(대표 프로젝트) + `/space-inquiry/styling`(문의/신청). 세 페이지 모두 기존에 실제로 존재하는 라우트임을 코드로 직접 확인 후 연결.
+  - **"문의하기"/"예약하기"가 같은 페이지로 연결되는 이유(판단 필요 사항)**: 이 프로젝트에는 예약과 별개인 "단순 문의" 전용 채널이 없다 — 새 시스템을 만들지 않기 위해(주의사항) 두 버튼을 지시대로 둘 다 표시하되, 둘 다 같은 실제 예약/문의 Flow(`/rental?floor=...`, `/space-inquiry/*`)로 연결했다. 별도의 문의 전용 폼이 필요하면 사용자 확인 후 별도 작업 필요.
+  - **"공간 스타일링"의 "대표 프로젝트"/"프로젝트 슬라이드" 처리(판단 필요 사항)**: 지시대로 `styling_projects`용 새 DB/컴포넌트를 만들지 않고, 이미 그 테이블을 그대로 조회해 보여주는 기존 `/shop/projects`(목록, industry 필터) 페이지를 `ctas`의 "대표 프로젝트 보기" 링크로 재사용했다 — `styling` 게시판 자체는 소개/절차 등 일반 콘텐츠(posts)만 담당.
+  - **hub 슬라이드에 대표 이미지 표시(EPIC-051, 이 EPIC에서만 추가된 개선)**: `Studio` hub가 "최신 포트폴리오/대표 이미지/추천 콘텐츠"를 슬라이드로 보여줘야 해서, `HubFeedItem`에 `photo_url` 필드를 추가하고 `/api/boards/feed`가 이를 select+반환하도록, `FeedSlide`(BoardRenderer.tsx)가 있으면 썸네일을 렌더링하도록 확장 — 기존 hub(Silo Store 등)는 `photo_url`이 없는 글도 많아 하위 호환(썸네일 없으면 기존처럼 텍스트만).
+  - **"모든 Studio 서비스에 공통" 목록이 이전 EPIC들보다 짧은 점(판단 필요 사항)**: 지시문의 "공통" 목록(검색/정렬/페이지네이션/공유/북마크/좋아요/태그)에 글쓰기 버튼/댓글/조회수/작성자/작성일/수정일이 빠져 있었지만, "실제 콘텐츠를 등록하고 운영할 수 있도록"이라는 상위 목표와 모순되지 않도록 글쓰기(공간 소개/이용 안내/FAQ 등록 수단)는 유지했다 — 나머지(댓글/조회수 등)도 기존 `story()` 헬퍼 그대로 켜져 있어 다른 story 게시판과 동일하게 동작(제외하라는 명시적 지시는 없었다고 판단).
+  - DB(신규 5행): `board_type='topic'` 재사용, `category`에 slug. 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260727-2205.sql`로 백업.
+  - **재사용한 기존 기능**: `/rental`+`rental_types`+`rental_bookings`(공간 대관 예약), `/space-inquiry/item-rental`·`/space-inquiry/styling`(기존 문의 placeholder 페이지), `/shop/projects`+`styling_projects`(스타일링 포트폴리오) — 전부 코드/스키마 변경 없이 링크만 추가.
+  - 기존 게시판(그룹 8종 + EPIC-048~050의 68개)의 동작은 변경 없음. 기존 라우팅과 URL 전부 유지.
+  - 문서 동기화: `docs/database-schema.sql`, `docs/content-blueprint.md`, `docs/navigation-blueprint.md`, `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint`(26건, EPIC-050과 동일 — 신규 이슈 없음) 통과. 다른 세션이 3000번 포트를 점유 중이고 DB 시드도 라이브 미적용이라, 브라우저로 실제 문의/예약 버튼 클릭 이동과 hub 썸네일 노출을 확인하지 못함 — 사용자 확인 필요(NEXT_TASK.md 참고).
+
 ## 2026-07-27 (EPIC-050)
 - **EPIC-050: Salon des Cent Membership/Gallery/Archive 게시판 생성 + Timeline Engine + 실제 인가 연결**
   - Board Definition System으로 게시판 17개(전부 신규 DB 행)를 추가 생성 — 새 페이지/컴포넌트 없이 `src/lib/boardLayout.ts`에 정의만 추가. 구조: 최상위 hub 3개(`Membership`/`Gallery`/`Archive`, Silo Store/Online Docent/Heritage/Community와 형제). `Membership` 하위 6개(나의 보물 이야기 story/나의 아티스트 소개/마음일기/패트론 게시판/한문장 소설 프로젝트/비밀의 방 도슨트). `Gallery` 하위 5개 story(시상식/공연들/파티/운명의 방문자들/패트론들). `Archive` 하위 3개(소개지 story/포스터 story/타임라인 timeline).

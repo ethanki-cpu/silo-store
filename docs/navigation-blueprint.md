@@ -206,7 +206,7 @@ export function getActiveNavTabKey(
 
 - 4개 탭에 3가지 다른 UI 패턴(sidebar / dropdown / plain link)이 쓰인다 — 새 탭 추가 시 `NavTabType`(`sidebar-left`/`sidebar-right`/`dropdown`/`link`) 중 하나를 정해야 한다. `sidebar-left`/`sidebar-right` 타입은 각각 하나씩만 존재해야 한다(Navbar가 `find()`로 첫 번째 일치 탭만 사용).
 - 여러 사이드바 항목이 동일한 href로 수렴한다(자유게시판/주제별 소통 게시판/Q&A/패트론 게시판 → 전부 `/boards`; 소개지/포스터 → 전부 `/downloads`). 실제 필터링은 아직 없음.
-- EPIC-016(`/shop/projects*`)은 완전히 구현되었지만 nav에 진입점이 없고, 반대로 `/space-inquiry/styling`은 nav에 연결되어 있지만 placeholder다 — 같은 개념("공간 스타일링")이 두 개의 분리된 표면으로 존재한다.
+- EPIC-016(`/shop/projects*`)은 완전히 구현되었지만 nav에 진입점이 없고, 반대로 `/space-inquiry/styling`은 nav에 연결되어 있지만 placeholder다 — 같은 개념("공간 스타일링")이 두 개의 분리된 표면으로 존재한다. **(EPIC-051)** Board Definition System의 `Studio → 공간 스타일링` 게시판(`/boards/[id]`)이 `ctas`로 두 표면을 모두 링크(대표 프로젝트→`/shop/projects`, 문의/신청→`/space-inquiry/styling`)해 이어주지만, nav 자체의 이 불일치를 근본적으로 해소한 것은 아니다.
 - EPIC-017(위시리스트)은 전용 페이지 없이 `/shop`, `/shop/[id]`, `/mypage`에 임베드된 `WishlistButton`으로만 존재한다.
 - **(EPIC-018)** "마이페이지"는 이제 상단 탭(`type: "link"`)과 계정 영역 링크 두 곳에 동시에 존재한다 — 의도적인 중복(계정 영역은 "기존 위치 유지" 요구사항으로 남겨둠).
 - 홈(`/`)은 아직 실제 랜딩 페이지가 아니다.

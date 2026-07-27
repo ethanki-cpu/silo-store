@@ -27,6 +27,7 @@ export function BoardHeader({
   const showSearch = definition.searchable && Boolean(onQueryChange);
   const showSort = definition.sortable && Boolean(onSortChange);
   const showWrite = definition.allowPosting && Boolean(writeHref);
+  const ctas = definition.ctas ?? [];
 
   return (
     <header className="mb-10">
@@ -34,14 +35,28 @@ export function BoardHeader({
         <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">
           {boardName}
         </h1>
-        {showWrite && (
-          <Link
-            href={writeHref!}
-            className="shrink-0 rounded-md bg-gray-900 text-white px-4 py-2 text-sm hover:bg-gray-700 transition-colors"
-          >
-            글쓰기
-          </Link>
-        )}
+        <div className="shrink-0 flex items-center gap-2">
+          {/* EPIC-051: "문의하기"/"예약하기" 같은 액션 버튼 — 새 예약
+              시스템 없이 BoardDefinition.ctas에 지정된 기존 실제 페이지로
+              그대로 연결한다. */}
+          {ctas.map((cta) => (
+            <Link
+              key={cta.href + cta.label}
+              href={cta.href}
+              className="rounded-md border border-gray-300 text-gray-700 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+            >
+              {cta.label}
+            </Link>
+          ))}
+          {showWrite && (
+            <Link
+              href={writeHref!}
+              className="rounded-md bg-gray-900 text-white px-4 py-2 text-sm hover:bg-gray-700 transition-colors"
+            >
+              글쓰기
+            </Link>
+          )}
+        </div>
       </div>
 
       {(showSearch || showSort) && (

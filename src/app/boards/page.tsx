@@ -86,9 +86,14 @@ export default function BoardsPage() {
         />
 
         {(() => {
-          const hubBoards = boards.filter(
-            (b) => resolveBoardDefinition(b).boardType === "hub",
-          );
+          // EPIC-049: Community 허브 아래 salon-topics/salon-weekday/survey
+          // 처럼 hub가 다른 hub의 자식인 중첩 구조가 생겨서, 최상위 디렉토리
+          // 바로가기는 parent가 없는 최상위 hub만 보여준다(중첩 hub는 그
+          // 부모 hub의 "하위 게시판 카드"에서 접근).
+          const hubBoards = boards.filter((b) => {
+            const def = resolveBoardDefinition(b);
+            return def.boardType === "hub" && def.parent === null;
+          });
           if (hubBoards.length === 0) return null;
 
           return (

@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-049)
+- **EPIC-049: Salon des Cent Community 영역 게시판 생성 — Board Definition만 추가**
+  - Board Definition System(EPIC-047/048)을 재사용해 Community 영역 게시판을 생성 — 새 페이지/컴포넌트 없이 `src/lib/boardLayout.ts`의 `INDIVIDUAL_BOARD_DEFINITIONS`에 정의 31개(신규 게시판 정의) 추가. 구조: 최상위 hub `Community`(Silo Store/Online Docent/Heritage와 형제) 아래 `출석체크/예술가의 달력`(attendance)·`자유게시판`(free)·`주제별 소통 게시판`(salon-topics, hub)·`요일별 클럽`(salon-weekday, hub)·`월별 모임`(monthly-salon)·`설문 [우리들 맴]`(survey, hub)·`공연/전시회 소개`(events, story)·`이벤트 공지`(notice, story)·`Q&A 고민 게시판`(qna) 9개, 그 아래 `salon-topics`의 자식 13개(경제/예술/세계역사/과학/코메디/문학/건강/정치/영화/심리/스포츠/인간 집사들/따듯한 세상 클럽)와 `salon-weekday`의 자식 7개(월요반란/책 낭송/행간의 조각가/놀아보자 영어클럽/비포 선라이즈/무슨일이든 일어날수있어/연극이 끝나고 난 뒤).
+  - **"기존 DB 최대 재사용"을 문자 그대로 적용(판단 필요 사항)**: 13개 클럽 + 7개 요일별 모임방은 EPIC-018 이전부터 이미 `boards`에 시딩돼 있던 진짜 board_type='topic'/'group' 행이라, **새 DB 행을 만들지 않고** 기존 `category` 값(economy/art/history/.../mon/tue/.../sun)을 그대로 slug로 참조하는 개별 `BoardDefinition`만 추가했다. `resolveBoardDefinition()`은 개별 slug 매칭을 그룹 매칭보다 먼저 시도하므로, 이 20개 게시판은 이제 기존 "클럽 주제 게시판"/"모임별 게시판" 그룹 대신 `salon-topics`/`salon-weekday` hub의 자식으로 재분류된다 — DB 행/URL은 완전히 그대로지만, `/boards` 최상위 디렉토리의 평면 그룹 목록에서는 빠지고(같은 항목이 두 곳에 중복 표시되지 않도록) `Community → 주제별 소통 게시판`/`Community → 요일별 클럽` hub를 통해서 찾게 된다(시각적 재구성, 데이터 변경 없음).
+  - **신규 DB 행은 10개뿐**: `community`/`attendance`/`free`/`salon-topics`/`salon-weekday`/`monthly-salon`/`survey`/`events`/`notice`/`qna` — `board_type='topic'` 재사용, `category`에 slug. 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260727-2145.sql`로 백업.
+  - **"category='qna'" 신규 게시판과 기존 "질문과 답변"(board_type='qna', category=null) 게시판은 서로 다른 별개 게시판이다** — 지시문이 Community 하위에 별도의 "Q&A 고민 게시판"을 요구해 slug 문자열이 우연히 같을 뿐, `resolveBoardDefinition()`은 `category`가 null인지 여부로 정확히 구분한다(충돌 없음, 코드로 직접 확인).
+  - **"출석 체크"/"오늘의 예술가·음악가·..." 및 "각 모임방 추가 기능"(주간 참석 신청/참석 버튼/참석 인원 표시/주간 일정 표시) 처리(판단 필요 사항)**: 새 컴포넌트를 만들지 않기 위해(BoardRenderer만 사용 원칙) 전용 UI를 구현하지 않고, 각 게시판 설명(`description`)에 의도만 기록 — 실제 콘텐츠는 해당 게시판에 일반 글(제목/본문/태그)로 작성하는 방식으로 대체한다. 기존 `/attendance`(`daily_checkins`)나 `club_sessions`/`reservations`와는 별개 시스템이며 연동하지 않음(지시문의 "배지/포인트 연동 가능하도록 구조 유지"는 지금 당장 연동하라는 뜻이 아니라 향후 확장 여지만 남겨두라는 의미로 해석).
+  - **"설문 [우리들 맴]"(survey, hub) 처리(판단 필요 사항)**: "설문 카드/종료일/참여자 수/진행중·종료" 전용 카드 UI는 새 컴포넌트가 필요해 구현하지 않고 표준 hub 레이아웃만 적용. 지시문에 이 hub의 하위 게시판이 명시돼 있지 않아 자식 게시판 없이 생성(하위 설문 게시판이 추가되면 자동으로 피드에 집계됨).
+  - `/boards`(최상위 디렉토리)의 "게시판 허브" 바로가기 섹션이 `parent === null`인 hub만 보이도록 필터 수정 — Community 하위의 중첩 hub(salon-topics/salon-weekday/survey)까지 평면으로 다 나열되면 산만해지므로, 최상위 4개 hub(Silo Store/Online Docent/Heritage/Community)만 노출하고 중첩 hub는 각자의 부모 hub 카드를 통해 접근한다.
+  - 기존 게시판(그룹 8종 + EPIC-048의 20개)의 동작은 변경 없음. 기존 라우팅과 URL 전부 유지.
+  - 문서 동기화: `docs/database-schema.sql`, `docs/content-blueprint.md`, `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint`(26건, EPIC-048과 동일 — 신규 이슈 없음) 통과. 다른 세션이 3000번 포트를 점유 중이고 DB 시드도 라이브 미적용이라 브라우저로 실제 노출을 확인하지 못함 — 사용자 확인 필요(NEXT_TASK.md 참고).
+
 ## 2026-07-27 (EPIC-048)
 - **EPIC-048: Silo Store 실제 게시판 20개 생성 — Board Definition만 추가**
   - EPIC-047에서 구축한 Board Definition System을 실제로 사용해 게시판 20개(hub 3개: Silo Store/Online Docent/Heritage, story 17개: 사일로 보물들/보물 목록/입양신청서 라이브러리/분양 후기/시대별 11개(르네상스~디지털)/Grandmas/Grandpas)를 생성. **새 React 페이지/컴포넌트를 만들지 않고**, `src/lib/boardLayout.ts`에 `INDIVIDUAL_BOARD_DEFINITIONS` 레지스트리(개별 게시판 20개 config)만 추가하고 기존 `/boards/[id]` 라우트+`BoardRenderer`가 그대로 소화하도록 함.

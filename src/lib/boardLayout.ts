@@ -376,10 +376,13 @@ function story(input: {
   };
 }
 
-function hub(input: {
+// EPIC-049: community() — 썸네일 없는 목록형 게시판(자유게시판/클럽/모임방
+// 등). story()/hub()와 같은 이유로 반복 하드코딩을 피하려고 만든 헬퍼.
+function community(input: {
   slug: string;
   title_ko: string;
   title_en: string;
+  parent: string;
   description: string;
 }): BoardDefinition {
   return {
@@ -387,7 +390,41 @@ function hub(input: {
     slug: input.slug,
     title_ko: input.title_ko,
     title_en: input.title_en,
-    parent: null,
+    parent: input.parent,
+    boardType: "community",
+    visibility: "public",
+    membership: 0,
+    searchable: true,
+    pageable: true,
+    sortable: true,
+    thumbnail: false,
+    comments: true,
+    likes: true,
+    bookmarks: true,
+    tags: true,
+    allowPosting: true,
+    defaultSort: "latest",
+    pageSize: 10,
+    description: input.description,
+  };
+}
+
+function hub(input: {
+  slug: string;
+  title_ko: string;
+  title_en: string;
+  description: string;
+  // EPIC-049: Community 허브 아래 "주제별 소통 게시판"/"요일별 클럽"/
+  // "설문"처럼 hub가 다른 hub의 자식이 되는 중첩 구조가 처음 생겨서 옵션화
+  // — 생략하면 EPIC-048의 최상위 hub(Silo Store 등)처럼 parent가 없다.
+  parent?: string;
+}): BoardDefinition {
+  return {
+    id: input.slug,
+    slug: input.slug,
+    title_ko: input.title_ko,
+    title_en: input.title_en,
+    parent: input.parent ?? null,
     boardType: "hub",
     visibility: "public",
     membership: 0,
@@ -551,6 +588,246 @@ export const INDIVIDUAL_BOARD_DEFINITIONS = {
     title_en: "Grandpas",
     parent: "heritage",
     description: "할아버지들의 이야기를 나누는 스토리 게시판",
+  }),
+
+  // EPIC-049: Salon des Cent(살롱데상) Community 영역. 최상위 hub는
+  // "community" — Silo Store/Online Docent/Heritage와 형제 관계의 4번째
+  // 최상위 hub.
+  community: hub({
+    slug: "community",
+    title_ko: "Community",
+    title_en: "Community",
+    description: "Salon des Cent Community 메인 허브",
+  }),
+  // "매일 출석 체크 버튼"/"오늘의 예술가·음악가·화가·작가·경제학자·과학자·
+  // 심리학자·역사 속 사건·명언" 등은 새 컴포넌트를 만들지 않기 위해(주의
+  // 사항: BoardRenderer만 사용) 이 게시판의 일반 글(제목/본문/태그)로
+  // 작성하는 방식으로 구현 — 실제 출석 체크(`/attendance`, `daily_checkins`)
+  // 와는 별개 시스템이며, "출석 성공 시 배지/포인트 연동 가능하도록 구조
+  // 유지"라는 지시대로 지금은 연동하지 않고 좋아요/댓글/태그 등 기존 필드만
+  // 그대로 둔다(NEXT_TASK.md 참고).
+  attendance: community({
+    slug: "attendance",
+    title_ko: "출석체크 / 예술가의 달력",
+    title_en: "Attendance / Artist's Calendar",
+    parent: "community",
+    description:
+      "매일 출석 체크 + 오늘의 예술가/음악가/화가/작가/경제학자/과학자/심리학자/역사 속 사건/명언을 나누는 게시판",
+  }),
+  free: community({
+    slug: "free",
+    title_ko: "자유게시판",
+    title_en: "Free Board",
+    parent: "community",
+    description: "Salon des Cent Community 자유게시판(썸네일 없음)",
+  }),
+
+  "salon-topics": hub({
+    slug: "salon-topics",
+    title_ko: "주제별 소통 게시판",
+    title_en: "Topic Clubs",
+    parent: "community",
+    description: "13개 주제별 클럽 게시판의 최신글/인기글/추천글 종합",
+  }),
+  // 아래 13개는 EPIC-018 이전부터 이미 boards(board_type='topic')에 시딩돼
+  // 있던 실제 클럽 게시판을 그대로 재사용한다(신규 DB 행 아님) — category
+  // 값(economy/art/...)이 이미 slug 역할을 하고 있어 그대로 키로 썼다.
+  economy: community({
+    slug: "economy",
+    title_ko: "경제 클럽",
+    title_en: "Economy Club",
+    parent: "salon-topics",
+    description: "경제 클럽 주제 게시판",
+  }),
+  art: community({
+    slug: "art",
+    title_ko: "예술 클럽",
+    title_en: "Art Club",
+    parent: "salon-topics",
+    description: "예술 클럽 주제 게시판",
+  }),
+  history: community({
+    slug: "history",
+    title_ko: "세계역사 클럽",
+    title_en: "World History Club",
+    parent: "salon-topics",
+    description: "세계역사 클럽 주제 게시판",
+  }),
+  science: community({
+    slug: "science",
+    title_ko: "과학 클럽",
+    title_en: "Science Club",
+    parent: "salon-topics",
+    description: "과학 클럽 주제 게시판",
+  }),
+  comedy: community({
+    slug: "comedy",
+    title_ko: "코메디 클럽",
+    title_en: "Comedy Club",
+    parent: "salon-topics",
+    description: "코메디 클럽 주제 게시판",
+  }),
+  literature: community({
+    slug: "literature",
+    title_ko: "문학 클럽",
+    title_en: "Literature Club",
+    parent: "salon-topics",
+    description: "문학 클럽 주제 게시판",
+  }),
+  health: community({
+    slug: "health",
+    title_ko: "건강 클럽",
+    title_en: "Health Club",
+    parent: "salon-topics",
+    description: "건강 클럽 주제 게시판",
+  }),
+  politics: community({
+    slug: "politics",
+    title_ko: "정치 클럽",
+    title_en: "Politics Club",
+    parent: "salon-topics",
+    description: "정치 클럽 주제 게시판",
+  }),
+  movie: community({
+    slug: "movie",
+    title_ko: "영화 클럽",
+    title_en: "Movie Club",
+    parent: "salon-topics",
+    description: "영화 클럽 주제 게시판",
+  }),
+  psychology: community({
+    slug: "psychology",
+    title_ko: "심리 클럽",
+    title_en: "Psychology Club",
+    parent: "salon-topics",
+    description: "심리 클럽 주제 게시판",
+  }),
+  sports: community({
+    slug: "sports",
+    title_ko: "스포츠 클럽",
+    title_en: "Sports Club",
+    parent: "salon-topics",
+    description: "스포츠 클럽 주제 게시판",
+  }),
+  pets: community({
+    slug: "pets",
+    title_ko: "인간 집사들 클럽",
+    title_en: "Pet Owners Club",
+    parent: "salon-topics",
+    description: "인간 집사들 클럽 주제 게시판",
+  }),
+  warmth: community({
+    slug: "warmth",
+    title_ko: "따듯한 세상 클럽",
+    title_en: "Warm World Club",
+    parent: "salon-topics",
+    description: "따듯한 세상 클럽 주제 게시판",
+  }),
+
+  "salon-weekday": hub({
+    slug: "salon-weekday",
+    title_ko: "요일별 클럽",
+    title_en: "Weekday Clubs",
+    parent: "community",
+    description: "요일별(월~일) 클럽 모임방 게시판의 최신글/인기글/추천글 종합",
+  }),
+  // 아래 7개도 위 13개와 동일하게 기존 boards(board_type='group') 행을
+  // 재사용한다(신규 DB 행 아님). "주간 참석 신청/참석 버튼/참석 인원 표시/
+  // 주간 일정 표시/모임 설명"은 새 컴포넌트를 만들지 않기 위해 이 게시판의
+  // 일반 글(공지성 게시글)로 안내하는 방식으로 구현 — 실제 예약(`club_sessions`/
+  // `reservations`)과는 별개 시스템이며 연동하지 않는다(NEXT_TASK.md 참고).
+  mon: community({
+    slug: "mon",
+    title_ko: "월요반란",
+    title_en: "Monday Rebellion",
+    parent: "salon-weekday",
+    description: "월요반란 클럽 모임방 게시판 — 주간 참석 신청/일정/모임 설명 안내",
+  }),
+  tue: community({
+    slug: "tue",
+    title_ko: "책 낭송",
+    title_en: "Book Read-along",
+    parent: "salon-weekday",
+    description: "책 낭송 클럽 모임방 게시판 — 주간 참석 신청/일정/모임 설명 안내",
+  }),
+  wed: community({
+    slug: "wed",
+    title_ko: "행간의 조각가",
+    title_en: "Text Sculptor",
+    parent: "salon-weekday",
+    description: "행간의 조각가 모임방 게시판 — 주간 참석 신청/일정/모임 설명 안내",
+  }),
+  thu: community({
+    slug: "thu",
+    title_ko: "놀아보자 영어클럽",
+    title_en: "Have Fun English Club",
+    parent: "salon-weekday",
+    description: "놀아보자 영어클럽 모임방 게시판 — 주간 참석 신청/일정/모임 설명 안내",
+  }),
+  fri: community({
+    slug: "fri",
+    title_ko: "비포 선라이즈",
+    title_en: "Before Sunrise Social",
+    parent: "salon-weekday",
+    description: "비포 선라이즈 소셜클럽 모임방 게시판 — 주간 참석 신청/일정/모임 설명 안내",
+  }),
+  sat: community({
+    slug: "sat",
+    title_ko: "무슨일이든 일어날수있어",
+    title_en: "Whatever Can Happen",
+    parent: "salon-weekday",
+    description: "무슨일이든 일어날수있어 클럽 모임방 게시판 — 주간 참석 신청/일정/모임 설명 안내",
+  }),
+  sun: community({
+    slug: "sun",
+    title_ko: "연극이 끝나고 난 뒤",
+    title_en: "After Theater",
+    parent: "salon-weekday",
+    description: "연극이 끝나고 난 뒤 클럽 모임방 게시판 — 주간 참석 신청/일정/모임 설명 안내",
+  }),
+
+  "monthly-salon": community({
+    slug: "monthly-salon",
+    title_ko: "월별 모임",
+    title_en: "Monthly Salon",
+    parent: "community",
+    description: "월별 정기 모임 안내 게시판",
+  }),
+
+  // "설문 카드/종료일/참여자 수/진행중·종료" 같은 전용 카드 UI는 새
+  // 컴포넌트를 만들지 않기 위해 구현하지 않음 — hub 레이아웃(자식 게시판
+  // 피드+카드)만 그대로 적용한다. 지시문에는 이 hub의 하위 게시판이 명시돼
+  // 있지 않아 자식 게시판 없이 생성함(NEXT_TASK.md 참고).
+  survey: hub({
+    slug: "survey",
+    title_ko: "설문 [우리들 맴]",
+    title_en: "Survey",
+    parent: "community",
+    description: "설문 모음 — 하위 설문 게시판이 추가되면 이 hub에 자동 집계됨",
+  }),
+
+  events: story({
+    slug: "events",
+    title_ko: "공연 / 전시회 소개",
+    title_en: "Events & Exhibitions",
+    parent: "community",
+    description: "공연/전시회를 소개하는 스토리 게시판",
+  }),
+
+  notice: story({
+    slug: "notice",
+    title_ko: "이벤트 공지",
+    title_en: "Notice",
+    parent: "community",
+    description: "이벤트 공지를 소개하는 스토리 게시판",
+  }),
+
+  qna: community({
+    slug: "qna",
+    title_ko: "Q&A 고민 게시판",
+    title_en: "Q&A",
+    parent: "community",
+    description: "고민을 나누는 Q&A 게시판(사이트 전역 질문과 답변 게시판과는 별개)",
   }),
 } as const satisfies Record<string, BoardDefinition>;
 

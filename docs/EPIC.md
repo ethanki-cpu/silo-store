@@ -50,6 +50,7 @@
 - EPIC-046 : 게시판 디자인 시스템을 Editorial Magazine으로 통일
 - EPIC-047 : 게시판 공통 Board Engine 구축(Part 1: BoardRenderer 기반 community/story/gallery/hub) + Board Definition System 전환(Part 2: config만으로 게시판을 정의하는 BOARD_DEFINITIONS 레지스트리, 하드코딩된 그룹 판별 로직 제거)
 - EPIC-048 : Board Definition System으로 Silo Store 실제 게시판 20개 생성(hub 3개: Silo Store/Online Docent/Heritage + story 17개) — 새 페이지/컴포넌트 없이 config 추가만으로 생성, BoardRenderer의 hub 레이아웃 실제 구현
+- EPIC-049 : Board Definition System으로 Salon des Cent Community 영역 게시판 생성(최상위 hub Community + 하위 9개(중첩 hub 3개 포함) + 기존 DB의 클럽 13개/모임방 7개를 재분류) — 새 DB 행은 10개만 추가, 나머지 20개는 기존 board_type='topic'/'group' 행 재사용, 새 페이지/컴포넌트 없이 config 추가만으로 생성
 
 ## 진행중
 (없음)

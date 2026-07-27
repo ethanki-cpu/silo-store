@@ -432,9 +432,6 @@ create table posts (
   photo_url       text,               -- 개인 페이지(마이피드) 글의 첨부 사진
   order_id        uuid references orders(id),  -- After Adoption 후기가 어떤 구매 건에 대한 글인지 연결
   is_hidden       boolean not null default false,  -- 관리자 전용 숨김 플래그(EPIC-031). 작성자 본인의 visibility='private' 설정과는 별개 — 라이브 DB에는 아직 미적용, Supabase SQL Editor에서 ALTER TABLE 직접 실행 필요.
-  view_count      int not null default 0,  -- 조회수(Board Engine, EPIC-047). 상세 조회 시마다 증가 — 라이브 DB에는 아직 미적용.
-  tags            text[] not null default '{}'::text[],  -- 태그(Board Engine, EPIC-047). 글쓰기 폼에서 쉼표로 구분 입력 — 라이브 DB에는 아직 미적용.
-  updated_at      timestamptz not null default now(),  -- 수정일(Board Engine, EPIC-047). 게시글 수정 기능 자체가 아직 없어 현재는 항상 created_at과 동일값 — 라이브 DB에는 아직 미적용.
   created_at      timestamptz not null default now()
 );
 
@@ -820,21 +817,6 @@ insert into site_settings (setting_key, setting_value) values
   ('home_curation', '{"domain":"shop","slugs":[],"sortBy":"latest"}');
 
 -- =====================================================================
--- 14. 게시글 북마크 (Board Engine, EPIC-047)
---    wishlists와 동일한 패턴(select/insert/delete 모두 본인 전용, likes와
---    달리 다른 회원이 볼 필요가 없어 공개 select가 아님) — 라이브 DB에는
---    아직 미적용, Supabase SQL Editor에서 직접 실행 필요.
--- =====================================================================
-
-create table post_bookmarks (
-  id          uuid primary key default gen_random_uuid(),
-  member_id   uuid not null references members(id),
-  post_id     uuid not null references posts(id) on delete cascade,
-  created_at  timestamptz not null default now(),
-  unique (member_id, post_id)
-);
-
--- =====================================================================
 -- 인덱스
 -- =====================================================================
 
@@ -865,8 +847,6 @@ create index idx_member_visitors_owner on member_visitors(owner_id);
 create index idx_site_navigations_parent on site_navigations(parent_id);
 create index idx_site_categories_parent on site_categories(parent_id);
 create index idx_site_categories_domain on site_categories(domain);
-create index idx_post_bookmarks_member on post_bookmarks(member_id);
-create index idx_post_bookmarks_post on post_bookmarks(post_id);
 
 -- =====================================================================
 -- Row Level Security
@@ -875,10 +855,3 @@ create index idx_post_bookmarks_post on post_bookmarks(post_id);
 -- 정책 조건(누가 읽고/쓸 수 있는지)은 이 파일에 옮기지 않음 — 추측 방지.
 -- ⚠️ TODO: 정확한 RLS 정책은 PROJECT_BLUEPRINT.md의 "TODO / 확인 필요" 참고,
 --    필요 시 Supabase pg_policies를 직접 조회해서 확인할 것.
--- ⚠️ EPIC-047 TODO: posts.view_count도 like_count/is_best와 동일하게 "다른
---    회원(작성자 아님)이 컬럼 하나만 업데이트"하는 컬럼이라, CLAUDE.md에
---    문서화된 컬럼 단위 GRANT 패턴을 그대로 확장해야 함:
---      revoke update on posts from authenticated;
---      grant update (like_count, is_best, view_count) on posts to authenticated;
---    post_bookmarks는 own-row 전용(select/insert/delete 모두 member_id=본인)
---    RLS만 있으면 되고 별도 GRANT는 불필요(wishlists와 동일 패턴).

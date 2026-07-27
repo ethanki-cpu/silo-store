@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-047)
+- **EPIC-047: Common Board Engine — BoardRenderer 기반 community/story/gallery/hub**
+  - 게시판별로 화면을 개별 구현하지 않도록, `src/lib/boardLayout.ts`의 `getBoardLayoutType(board_type)`이 기존 8종 `board_type`(등급/쓰기 권한 축, 그대로 유지)을 화면 레이아웃 3종으로 매핑하고, `BoardRenderer.tsx`가 그 값 하나로 community(목록형)/story(카드형+썸네일)/gallery(이미지 중심 Masonry) 중 하나를 렌더링한다. `/boards/[id]` 라우트 하나가 모든 게시판을 처리하므로 "동일 컴포넌트 공유"가 아키텍처상 자동 보장됨.
+  - **매핑 판단(스키마 변경 없이 처리, 판단 필요 사항)**: 전용 `display_type` 컬럼을 추가하는 대신 기존 `board_type`에서 코드로 파생 — `adoption_story`→story(대표 이미지+요약이 있는 후기 성격), `archive`→gallery(자료게시판=이미지/첨부 위주로 가정), 나머지(topic/group/patron/artist_promo/qna)→community. `/boards`(게시판 디렉토리)는 특정 게시판이 아니라 네 번째 레이아웃 `hub`로 취급 — 하위 게시판 전체의 최신글/인기글/추천글을 슬라이드+카드로 종합 표시.
+  - **공통 기능**: 검색(제목/내용/작성자/태그, `GET /api/boards/[id]/posts?q=`), 정렬 5종(최신순/인기순/조회순/댓글순/오래된순, `?sort=`), 페이지네이션(10개 단위, 페이지 번호 최대 10개 블록 — `Pagination.tsx`), 글쓰기 버튼(`BoardHeader`, 기존 유지), 좋아요(기존 유지), 조회수(`posts.view_count`, 상세 조회마다 +1), 댓글수(목록 API가 매 요청 시 집계), 태그(`posts.tags`, 글쓰기 폼에 쉼표 구분 입력 필드 추가), 공유(현재 URL 클립보드 복사, 서버 연동 없음), 북마크(`post_bookmarks` 신규 테이블, own-row 토글), 작성일/수정일(`updated_at` 추가 — 게시글 수정 기능 자체가 없어 현재는 항상 `created_at`과 동일), 작성자 프로필(게시글 작성자 + 댓글 작성자 모두 `/u/[memberId]`로 링크).
+  - **"추천글" 처리(판단 필요 사항)**: hub의 "추천글"에 대응하는 별도 플래그가 없어, 이미 "좋아요 10개 이상으로 승격"되는 기존 `is_best`(개념글) 플래그를 추천글로 재해석해 사용(`GET /api/boards/feed`) — 새 컬럼을 추가하지 않음.
+  - **신규 파일**: `src/lib/boardLayout.ts`(레이아웃 매핑+타입+정렬 옵션), `src/components/boards/{BoardRenderer,Pagination,PostActions}.tsx`(신규), `PostDetailHeader.tsx`/`CommentSection.tsx`/`BoardHeader.tsx`(EPIC-046에서 확장), `src/app/api/boards/[id]/posts/[postId]/bookmark/route.ts`, `src/app/api/boards/feed/route.ts`.
+  - **DB(최소 변경)**: `posts`에 `view_count`(int, default 0), `tags`(text[], default '{}'), `updated_at`(timestamptz, default now()) 3개 컬럼 추가. 신규 테이블 `post_bookmarks`(wishlists와 동일한 own-row 패턴). 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260727-2050.sql`로 백업. `view_count` 갱신을 위한 `posts` 컬럼별 GRANT 확장(`like_count, is_best` → `like_count, is_best, view_count`)도 문서화(라이브 미적용, Supabase SQL Editor에서 직접 실행 필요 — `docs/database-schema.sql` RLS 섹션 TODO 참고).
+  - **마이그레이션 전에도 안 깨지도록 방어적으로 구현**: 새 컬럼(`tags`/`view_count`/`updated_at`)이 라이브 DB에 없으면 PostgREST가 select 전체를 42703으로 실패시키므로, 목록/상세 조회와 글쓰기(태그 insert) 모두 "새 컬럼 포함 시도 → 실패 시 레거시 컬럼으로 재시도"하는 폴백을 넣어 마이그레이션 전에도 게시판 읽기/쓰기 자체는 계속 동작한다(태그/조회수만 0/빈 배열로 보임). `post_bookmarks`가 없을 때도 북마크 버튼은 503 안내만 뜨고 나머지 기능에는 영향 없음.
+  - 기존 좋아요/댓글/글쓰기/등급 게이팅 로직은 변경하지 않음. 기존 라우팅과 URL 전부 유지(`/boards`, `/boards/[id]`, `/boards/[id]/write`, `/boards/[id]/[postId]`).
+  - 문서 동기화: `docs/database-schema.sql`, `docs/design-system.md`(§10 확장), `docs/content-blueprint.md`(§1 확장), `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`(EPIC-022~047 그동안 누락된 항목 일괄 보충 — 여러 세션에 걸쳐 CLAUDE.md 규칙에도 불구하고 갱신되지 않고 있었음).
+  - 검증: `npx tsc --noEmit`/`npm run lint`(26건, EPIC-046과 동일 — 신규 이슈 없음) 통과. 다른 세션이 3000번 포트를 점유 중이라 브라우저로 실제 검색/정렬/페이지네이션/북마크/공유 동작을 직접 확인하지 못함 — 사용자 확인 필요(아래 NEXT_TASK.md 참고).
+
 ## 2026-07-27 (EPIC-046)
 - **EPIC-046: Editorial Magazine board design system**
   - 게시판(`/boards`, `/boards/[id]`, `/boards/[id]/[postId]`, `/boards/[id]/write`) 전체를 신문/매거진풍 "Editorial Magazine" 디자인 언어로 통일 — House of Honey류 기사 레이아웃의 정보 구조(좌: No./날짜, 중앙: 큰 제목, 우: Author/작성자)를 참고하되 새 색상 없이 기존 뉴트럴 팔레트+`font-serif`(Tailwind 기본 스택, 폰트 파일 추가 없음)만으로 재해석. 자세한 규칙은 `docs/design-system.md` §10 신설.

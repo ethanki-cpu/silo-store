@@ -1,23 +1,37 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
-// EPIC-046: Editorial Magazine 게시글 헤더 — 좌측 글 번호/작성일, 가운데
-// 큰 제목, 우측 Author/작성자. 대표 이미지가 있으면 헤더 아래 Full Width로
-// 표시한다(reading-width 제한 없이 페이지 폭 전체).
+// EPIC-046/047: Editorial Magazine 게시글 헤더 — 좌측 글 번호/작성일, 가운데
+// 큰 제목, 우측 Author/작성자(프로필 링크). 대표 이미지가 있으면 헤더
+// 아래 Full Width로 표시한다(reading-width 제한 없이 페이지 폭 전체).
+// 좋아요/조회/댓글 수는 Board Engine(EPIC-047) 공통 통계 라인으로 표시.
 export function PostDetailHeader({
   postNumber,
   createdAt,
+  updatedAt,
   title,
+  authorId,
   authorName,
   photoUrl,
+  likeCount,
+  viewCount,
+  commentCount,
   badges,
 }: {
   postNumber: number | null;
   createdAt: string;
+  updatedAt?: string;
   title: string;
+  authorId: string;
   authorName: string;
   photoUrl?: string | null;
+  likeCount: number;
+  viewCount: number | null;
+  commentCount: number;
   badges?: ReactNode;
 }) {
+  const wasEdited = updatedAt && updatedAt !== createdAt;
+
   return (
     <div>
       <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr_1fr] gap-4 md:gap-8 items-start">
@@ -30,6 +44,11 @@ export function PostDetailHeader({
           <p className="text-xs uppercase tracking-wide text-gray-400 mt-1">
             {new Date(createdAt).toLocaleDateString()}
           </p>
+          {wasEdited && (
+            <p className="text-xs uppercase tracking-wide text-gray-300 mt-1">
+              수정 {new Date(updatedAt!).toLocaleDateString()}
+            </p>
+          )}
         </div>
 
         <div className="order-1 md:order-2 text-center">
@@ -41,15 +60,21 @@ export function PostDetailHeader({
           <h1 className="font-serif text-2xl sm:text-3xl font-bold leading-snug text-gray-900">
             {title}
           </h1>
+          <p className="text-xs uppercase tracking-wide text-gray-400 mt-3">
+            좋아요 {likeCount} · 조회 {viewCount ?? 0} · 댓글 {commentCount}
+          </p>
         </div>
 
         <div className="order-3 md:text-right">
           <p className="text-xs uppercase tracking-wide text-gray-400">
             Author
           </p>
-          <p className="text-sm font-medium text-gray-800 mt-1">
+          <Link
+            href={`/u/${authorId}`}
+            className="text-sm font-medium text-gray-800 mt-1 block hover:underline"
+          >
             {authorName}
-          </p>
+          </Link>
         </div>
       </div>
 

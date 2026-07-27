@@ -98,7 +98,7 @@
 3. "골동품/Time Slip" 감성을 실제로 UI에 반영하는 작업이라면, 이는 이 문서 전체를 다시 쓰는 수준의 디자인 리브랜딩이므로 별도 Epic으로 분리하고 사용자와 먼저 논의한다.
 4. 반복되는 새 인라인 패턴을 발견하면(예: WishlistButton 래퍼) 컴포넌트 추출을 고려하고, 추출 시 §8을 갱신한다.
 
-## 10. Editorial Board 디자인 시스템 (게시판 전용, EPIC-046)
+## 10. Editorial Board 디자인 시스템 + Board Engine (게시판 전용, EPIC-046/047)
 
 > §1~§9는 프로젝트 전반의 기본 룩(뉴트럴 그레이 + `bg-gray-800` 버튼)이고, 이 섹션은 **게시판(`/boards/**`)에만** 적용되는 별도 디자인 언어다. House of Honey류 매거진 기사 레이아웃을 참고해 재해석했다 — 그대로 복제하지 않고 이 프로젝트의 뉴트럴 팔레트를 유지한 채 타이포그래피/여백만으로 고급스러움을 만든다.
 
@@ -107,7 +107,15 @@
 - **타이포그래피**: 게시판명·게시글 제목에 `font-serif`(Tailwind 기본 serif 스택, 별도 폰트 파일 로드 없음)로 나머지 sans-serif UI와 의도적으로 대비 — 매거진 마스트헤드 느낌. 메타 정보(No./작성일/Author/댓글 작성자)는 `text-xs uppercase tracking-wide text-gray-400` 캡션 스타일로 통일.
 - **레이아웃**:
   - 카드/그림자 대신 `divide-y divide-gray-100` 또는 `border-t border-gray-200` 얇은 구분선(hairline)으로 목록/댓글을 나눈다(§5의 `rounded-lg border` 카드 패턴은 게시판에는 쓰지 않음).
-  - 게시글 헤더는 3열 그리드(`grid-cols-1 md:grid-cols-[1fr_2fr_1fr]`): 좌측 No./작성일, 가운데 큰 제목, 우측 Author 라벨+작성자명.
+  - 게시글 헤더는 3열 그리드(`grid-cols-1 md:grid-cols-[1fr_2fr_1fr]`): 좌측 No./작성일(+수정일), 가운데 큰 제목+좋아요/조회/댓글 통계, 우측 Author 라벨+작성자명(프로필 링크).
   - 대표 이미지(`posts.photo_url`)가 있으면 헤더 바로 아래 `w-full aspect-[21/9] object-cover`로 풀와이드 배치.
-  - 태그는 `posts`에 전용 컬럼이 없어 게시판 카테고리/도슨트·개념글 여부를 `#태그` 칩(`rounded-full border border-gray-300 text-gray-500 text-xs`)으로 파생 표시.
-- **공용 컴포넌트**(`src/components/boards/`): `BoardHeader`(게시판명+글쓰기 버튼+divider), `PostDetailHeader`(3열 헤더+대표 이미지), `PostTags`(태그 칩), `CommentSection`(댓글 목록+작성 폼) — 모든 게시판(`/boards/[id]`, `/boards/[id]/[postId]`)이 이 4개를 그대로 공유한다.
+  - 태그는 `posts.tags`(EPIC-047, text[]) + 게시판 카테고리/도슨트·개념글 여부를 함께 `#태그` 칩(`rounded-full border border-gray-300 text-gray-500 text-xs`)으로 표시.
+- **Board Engine(EPIC-047)**: `board_type`(8종, 등급/쓰기 권한 축)과 별개로 `src/lib/boardLayout.ts`의 `getBoardLayoutType()`이 화면 레이아웃 3종으로 매핑한다 — `community`(목록형, 썸네일 없음), `story`(카드형+썸네일, `adoption_story`), `gallery`(이미지 중심 Masonry, `archive`). `/boards`(디렉토리)는 네 번째 레이아웃 `hub`로, 하위 게시판 전체의 최신글/인기글/추천글을 슬라이드+카드로 종합 표시(`/api/boards/feed`).
+- **공용 컴포넌트**(`src/components/boards/`, 모든 게시판이 그대로 공유):
+  - `BoardHeader` — 게시판명 + 검색/정렬 툴바 + 글쓰기 버튼 + divider
+  - `BoardRenderer` — layoutType에 따라 community/story/gallery 중 하나를 렌더링(게시판마다 화면을 새로 만들지 않는 핵심 스위치)
+  - `Pagination` — 10개 단위, 페이지 번호 최대 10개 블록 표시
+  - `PostDetailHeader` — 3열 헤더 + 대표 이미지 + 통계
+  - `PostTags` — 태그 칩
+  - `PostActions` — 좋아요/북마크/공유 버튼 행
+  - `CommentSection` — 댓글 목록(작성자 프로필 링크 포함) + 작성 폼

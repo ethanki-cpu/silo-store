@@ -1,16 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import type { FormEvent } from "react";
 
 type Comment = {
   id: string;
   body: string;
+  author_id: string;
   author_name: string;
   created_at: string;
 };
 
-// EPIC-046: 댓글 영역도 게시글과 동일한 Editorial 톤 — 카드형 박스 대신
-// 얇은 구분선(hairline)으로 나눈 목록, 작성자명은 소문자 캡션 스타일.
+// EPIC-046/047: 댓글 영역도 게시글과 동일한 Editorial 톤 — 카드형 박스 대신
+// 얇은 구분선(hairline)으로 나눈 목록. 작성자명은 Board Engine의 "작성자
+// 프로필" 공통 기능에 맞춰 프로필(/u/[memberId])로 링크한다.
 export function CommentSection({
   comments,
   commentBody,
@@ -58,7 +61,10 @@ export function CommentSection({
                 {c.body}
               </p>
               <p className="text-xs uppercase tracking-wide text-gray-400 mt-2">
-                {c.author_name} · {new Date(c.created_at).toLocaleString()}
+                <Link href={`/u/${c.author_id}`} className="hover:underline">
+                  {c.author_name}
+                </Link>{" "}
+                · {new Date(c.created_at).toLocaleString()}
               </p>
             </div>
           ))}

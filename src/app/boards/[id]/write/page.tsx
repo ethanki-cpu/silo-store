@@ -21,6 +21,7 @@ export default function WritePostPage() {
   const [body, setBody] = useState("");
   const [isDocentPost, setIsDocentPost] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
   const [confirmedOrders, setConfirmedOrders] = useState<ConfirmedOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -80,6 +81,10 @@ export default function WritePostPage() {
         title,
         body,
         isDocentPost,
+        tags: tagsInput
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0),
         ...(boardType === "adoption_story" ? { orderId } : {}),
       }),
     });
@@ -146,6 +151,17 @@ export default function WritePostPage() {
             rows={8}
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm mb-1">태그 (쉼표로 구분, 선택)</label>
+          <input
+            type="text"
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+            placeholder="예: 여행, 후기, 사진"
             className="w-full rounded-md border border-gray-300 px-3 py-2"
           />
         </div>

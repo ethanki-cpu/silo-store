@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { PostDetailHeader } from "@/components/boards/PostDetailHeader";
 import { PostTags } from "@/components/boards/PostTags";
+import { PostActions } from "@/components/boards/PostActions";
 import { CommentSection } from "@/components/boards/CommentSection";
 
 type PostDetail = {
@@ -15,8 +16,12 @@ type PostDetail = {
   like_count: number;
   is_best: boolean;
   photo_url: string | null;
+  tags: string[] | null;
+  view_count: number | null;
+  author_id: string;
   author_name: string;
   created_at: string;
+  updated_at?: string;
   post_number: number | null;
 };
 
@@ -30,6 +35,7 @@ type Board = {
 type Comment = {
   id: string;
   body: string;
+  author_id: string;
   author_name: string;
   created_at: string;
 };
@@ -42,12 +48,14 @@ export default function PostDetailPage() {
   const [post, setPost] = useState<PostDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [likedByMe, setLikedByMe] = useState(false);
+  const [bookmarkedByMe, setBookmarkedByMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
 
   const [commentBody, setCommentBody] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [likeSubmitting, setLikeSubmitting] = useState(false);
+  const [bookmarkSubmitting, setBookmarkSubmitting] = useState(false);
 
   async function load() {
     setFetching(true);
@@ -71,6 +79,7 @@ export default function PostDetailPage() {
     setPost(data.post);
     setComments(data.comments);
     setLikedByMe(data.likedByMe);
+    setBookmarkedByMe(data.bookmarkedByMe);
     setFetching(false);
   }
 
@@ -108,6 +117,30 @@ export default function PostDetailPage() {
           }
         : prev,
     );
+  }
+
+  async function handleBookmark() {
+    if (!session) {
+      setError("로그인이 필요해요.");
+      return;
+    }
+
+    setBookmarkSubmitting(true);
+
+    const res = await fetch(`/api/boards/${id}/posts/${postId}/bookmark`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    const data = await res.json();
+    setBookmarkSubmitting(false);
+
+    if (!res.ok) {
+      setError(data.error ?? "북마크 기능을 아직 사용할 수 없어요.");
+      return;
+    }
+
+    setBookmarkedByMe(data.bookmarked);
   }
 
   async function handleComment(e: FormEvent) {
@@ -151,9 +184,10 @@ export default function PostDetailPage() {
 
   if (!post) return null;
 
-  // EPIC-046: 별도 태그 컬럼이 없어 게시판 카테고리/도슨트·개념글 여부를
-  // 태그처럼 파생 표시(자세한 배경은 PostTags.tsx 참고).
-  const derivedTags = [
+  // EPIC-046/047: 별도 태그 컬럼 값(post.tags)에 게시판 카테고리/도슨트·
+  // 개념글 여부를 함께 얹어 보여준다.
+  const displayTags = [
+    ...(post.tags ?? []),
     board?.category,
     post.is_docent_post ? "도슨트" : null,
     post.is_best ? "개념글" : null,
@@ -165,29 +199,32 @@ export default function PostDetailPage() {
         <PostDetailHeader
           postNumber={post.post_number}
           createdAt={post.created_at}
+          updatedAt={post.updated_at}
           title={post.title}
+          authorId={post.author_id}
           authorName={post.author_name}
           photoUrl={post.photo_url}
+          likeCount={post.like_count}
+          viewCount={post.view_count}
+          commentCount={comments.length}
         />
 
         <div className="max-w-2xl mx-auto w-full">
-          <PostTags tags={derivedTags} />
+          <PostTags tags={displayTags} />
 
           <p className="text-gray-800 leading-relaxed whitespace-pre-wrap mt-8 text-[15px]">
             {post.body}
           </p>
 
-          <button
-            onClick={handleLike}
-            disabled={likeSubmitting}
-            className={`mt-8 rounded-md px-4 py-2 text-sm border ${
-              likedByMe
-                ? "bg-red-50 border-red-300 text-red-600"
-                : "bg-white border-gray-300 text-gray-700"
-            }`}
-          >
-            {likedByMe ? "♥" : "♡"} 좋아요 {post.like_count}
-          </button>
+          <PostActions
+            likeCount={post.like_count}
+            likedByMe={likedByMe}
+            onToggleLike={handleLike}
+            likeSubmitting={likeSubmitting}
+            bookmarkedByMe={bookmarkedByMe}
+            onToggleBookmark={handleBookmark}
+            bookmarkSubmitting={bookmarkSubmitting}
+          />
 
           {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
 

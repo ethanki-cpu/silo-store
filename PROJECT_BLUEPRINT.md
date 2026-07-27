@@ -72,7 +72,7 @@ silo-store/
 | 물품 구매/대여 주문 | `/shop/[id]` → `POST /api/orders` | 등급별 할인/적립 서버 계산 |
 | 찜(Wishlist) (EPIC-017) | `/shop`, `/shop/[id]` 카드·상세의 하트 버튼, `/mypage` "찜 목록" | `wishlists` 테이블(likes와 동일 패턴), 로그인 필요, 다시 누르면 해제 |
 | 클럽모임 목록/상세 | `/clubs`, `/clubs/[id]` | 요일별 클럽, 세션 예약 |
-| 게시판(소통 게시판) | `/boards`, `/boards/[id]`, `/boards/[id]/write`, `/boards/[id]/[postId]` | 자유/클럽주제/모임별/패트론/아티스트홍보/After Adoption/자료게시판/Q&A 등 `board_type`별 열람·쓰기 권한 분기. 디자인은 EPIC-046부터 "Editorial Magazine" 시스템(`docs/design-system.md` §10, 공용 컴포넌트 `src/components/boards/*`)으로 전 게시판 통일 |
+| 게시판(소통 게시판) | `/boards`(hub), `/boards/[id]`, `/boards/[id]/write`, `/boards/[id]/[postId]` | 자유/클럽주제/모임별/패트론/아티스트홍보/After Adoption/자료게시판/Q&A 등 `board_type`별 열람·쓰기 권한 분기. 디자인은 EPIC-046부터 "Editorial Magazine" 시스템, EPIC-047부터 공통 Board Engine(`BoardRenderer` 기반 community/story/gallery/hub 4종 레이아웃 + 검색/정렬/페이지네이션/북마크/공유)으로 전 게시판 통일 — 상세는 `docs/design-system.md` §10, `docs/content-blueprint.md` §1 |
 | 개인 페이지(마이피드) | `/me`, `/me/write`, `/u/[memberId]` | 공개범위(public/private/friends) 있는 개인 글 |
 | 온라인 도슨트 콘텐츠 | `/docent`, `/docent/[id]`, `/docent/library` | 사일로상점/살롱 카테고리, 인물(figure_name)별 그룹 보기, 구매 라이브러리 |
 | 온라인 도슨트 라이브러리 (EPIC-017, 살롱+사일로상점 공유) | `/docent/collections` | `docent_contents.era`(11개 시대/사조 태그, `기존 category`와 별개 축) 기준 하위 게시판. 최신글 1건, 전체 인기글, era별 인기글(구매 수 집계 뷰 `docent_content_popularity` 기준) 표시. 관리 화면 없음 — 기존 콘텐츠는 era=null이라 수동 태깅 필요 |

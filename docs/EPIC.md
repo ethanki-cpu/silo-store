@@ -22,6 +22,33 @@
 - EPIC-019 : Studio Navigation Rename ("공간 문의" → "스튜디오" 라벨 변경)
 - EPIC-020 : Google OAuth "No API key found in request" 버그 수정 (`.env.local`의 `NEXT_PUBLIC_SUPABASE_URL` `/rest/v1/` 접미사 제거)
 - EPIC-021 : Bug Investigation — Google 로그인 재확인 및 해결 (PC별 `.env.local`/서버 재시작 필요성 확인)
+- EPIC-022 : 마이페이지 11개 탭 재구성 + `member_collections`/`member_follows`/`member_badges`/`member_visitors` 스키마 설계
+- EPIC-023 : 동적 네비게이션(`site_navigations`) + 카테고리(`site_categories`) 관리자 CMS
+- EPIC-024 : 관리자 대시보드 레이아웃 및 인증 가드 수정
+- EPIC-025 : 관리자 대시보드 재구성 및 중첩 라우팅
+- EPIC-026 : 관리자 홈페이지 설정(`site_settings`) 구현
+- EPIC-027 : BugFix — Navigation Editor 저장 기능 추가
+- EPIC-028 : 관리자 게시글 관리(상점/살롱) 구현
+- EPIC-029 : 나의 컬렉션(Member Collections) CRUD 구현
+- EPIC-030 : 스튜디오 포트폴리오 등록 — 제출 UX 개선
+- EPIC-031 : 관리자 게시글 관리 — 페이지네이션 및 `is_hidden` 컬럼
+- EPIC-032 : 홈페이지 & Navbar `site_settings` 연동
+- EPIC-033 : 관리자 CMS — 파일 직접 업로드 및 로고/슬라이드쇼 동적 스타일링
+- EPIC-034 : 로고 및 헤더 고급 커스터마이징
+- EPIC-034-Ext : 로고 텍스트 고급 스타일링
+- EPIC-035 : Tistory 스타일 드래그앤드롭 카테고리 CMS
+- EPIC-035-Fix : 카테고리 CMS 일원화 및 구버전 페이지 정리
+- EPIC-036 : 로고 텍스트 색상 및 슬라이드 배경 Wallpaper
+- EPIC-037 : 내비게이션 hover/click UX 개선
+- EPIC-039 : 마스터 UI 개선 — 사이드바/아이콘/로고 텍스트/hover/랜덤 Wallpaper
+- EPIC-040 : 마스터 UI — 중첩 드롭다운, 독립 사이드바, 로고 텍스트, 랜덤 Wallpaper
+- EPIC-041-042 : UI 통합 개선 — hover UX, 커스텀 폰트, 아이콘, 홈 큐레이션
+- EPIC-041-042-HOTFIX : hover 버그 수정 및 직접 URL 입력 방식 전환
+- EPIC-043 : 폰트 설정 개편, 사이드바 클릭 전용 + hover 아코디언
+- EPIC-044 : 동적 라우팅, 내비게이션 데이터 대량 주입 및 UniversalBoard 컴포넌트
+- EPIC-045 : 마이페이지 재구성 — 박물관 컨셉, 라우트 기반 탭 구조
+- EPIC-046 : 게시판 디자인 시스템을 Editorial Magazine으로 통일
+- EPIC-047 : 게시판 공통 Board Engine(BoardRenderer 기반 community/story/gallery/hub) 구축
 
 ## 진행중
 (없음)

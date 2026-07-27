@@ -13,6 +13,41 @@ const TAB_BUTTON_ACTIVE = "border-gray-800 text-gray-900 font-medium";
 const TAB_BUTTON_INACTIVE =
   "border-transparent text-gray-500 hover:text-gray-700";
 
+type LogoAlign = "left" | "center" | "right";
+type TextPosition = "left" | "right";
+type CustomFont = "default" | "Graphire" | "Primor";
+
+type MainLogoValue = {
+  type: "text" | "image";
+  text: string;
+  imageUrl: string;
+  heightPx: number;
+  align: LogoAlign;
+  extraText: string;
+  fontFamily: string;
+  bold: boolean;
+  fontSizePx: number;
+  textPosition: TextPosition;
+  textCustomFont: CustomFont;
+};
+
+const DEFAULT_LOGO_TEXT = "사일로 스토어";
+const DEFAULT_LOGO_HEIGHT_PX = 64;
+const DEFAULT_LOGO_FONT_SIZE_PX = 16;
+
+const LOGO_ALIGN_CLASS: Record<LogoAlign, string> = {
+  left: "justify-start",
+  center: "justify-center",
+  right: "justify-end",
+};
+
+// EPIC-034-Ext: 커스텀 폰트(Graphire/Primor)는 아직 실제 폰트 파일이
+// 없어(globals.css @font-face 뼈대만 존재) serif로 자연스럽게 대체된다.
+const CUSTOM_FONT_STACK: Record<Exclude<CustomFont, "default">, string> = {
+  Graphire: "'Graphire', serif",
+  Primor: "'Primor', serif",
+};
+
 export function Navbar() {
   const { session, member, loading } = useAuth();
   const router = useRouter();
@@ -40,6 +75,42 @@ export function Navbar() {
     fetchNavTabs().then((tabs) => {
       if (!cancelled) setNavTabs(tabs);
     });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
+  // site_settings.main_logo를 조회해 로고를 대체한다. 테이블이 아직 라이브에
+  // 없거나(EPIC-026 후속) 값이 비어 있으면 기존 하드코딩 텍스트로 대체되어
+  // 로고가 아예 비는 일은 없다.
+  const [mainLogo, setMainLogo] = useState<MainLogoValue | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "main_logo")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const value = data?.setting_value as Partial<MainLogoValue> | null;
+        if (value && (value.text || value.imageUrl)) {
+          setMainLogo({
+            type: value.type === "image" ? "image" : "text",
+            text: value.text ?? "",
+            imageUrl: value.imageUrl ?? "",
+            heightPx: value.heightPx || DEFAULT_LOGO_HEIGHT_PX,
+            align: value.align ?? "left",
+            extraText: value.extraText ?? "",
+            fontFamily: value.fontFamily ?? "",
+            bold: value.bold ?? false,
+            fontSizePx: value.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX,
+            textPosition: value.textPosition ?? "right",
+            textCustomFont: value.textCustomFont ?? "default",
+          });
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -80,12 +151,50 @@ export function Navbar() {
 
   return (
     <header className="border-b border-gray-200">
-      <div className="flex items-center justify-between p-4">
-        <Link href="/" className="font-bold">
-          사일로 스토어
-        </Link>
+      <div className="flex items-center p-4 gap-4">
+        {/* EPIC-034: 로고+추가텍스트를 계정 영역과 별개의 flex-1 컨테이너로
+            감싸, "정렬 위치" 설정이 로그인/마이페이지 등 계정 영역 배치는
+            건드리지 않고 로고 블록 안에서만 좌/중앙/우측으로 움직이게 한다. */}
+        <div
+          className={`flex items-center gap-2 flex-1 min-w-0 ${
+            LOGO_ALIGN_CLASS[mainLogo?.align ?? "left"]
+          } ${
+            // EPIC-034-Ext: textPosition="left"면 추가 텍스트가 로고보다 먼저
+            // 오도록 렌더링 순서를 뒤집는다.
+            mainLogo?.textPosition === "left" ? "flex-row-reverse" : ""
+          }`}
+        >
+          <Link href="/" className="font-bold shrink-0">
+            {mainLogo?.type === "image" && mainLogo.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={mainLogo.imageUrl}
+                alt={mainLogo.text || DEFAULT_LOGO_TEXT}
+                className="w-auto"
+                style={{ height: mainLogo.heightPx || DEFAULT_LOGO_HEIGHT_PX }}
+              />
+            ) : (
+              mainLogo?.text || DEFAULT_LOGO_TEXT
+            )}
+          </Link>
+          {mainLogo?.extraText && (
+            <span
+              className="text-gray-900"
+              style={{
+                fontFamily:
+                  mainLogo.textCustomFont && mainLogo.textCustomFont !== "default"
+                    ? CUSTOM_FONT_STACK[mainLogo.textCustomFont]
+                    : mainLogo.fontFamily || undefined,
+                fontWeight: mainLogo.bold ? "bold" : "normal",
+                fontSize: `${mainLogo.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX}px`,
+              }}
+            >
+              {mainLogo.extraText}
+            </span>
+          )}
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           {mounted && !loading && session && member?.is_admin && (
             <Link
               href="/admin/payments"

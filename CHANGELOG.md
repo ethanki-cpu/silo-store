@@ -1,5 +1,47 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-034-Ext)
+- **EPIC-034-Ext: Advanced logo text styling**
+  - `admin/navigation/settings/page.tsx`: `main_logo`에 "텍스트 위치"(로고 좌/우, `textPosition`)와 "텍스트 폰트"(기본/Graphire/Primor Select, `textCustomFont`) 추가. EPIC-034의 자유 입력 서체 필드(`fontFamily`)는 유지하고 "기본" 선택 시에만 사용하도록 해 대체가 아닌 보완 방식으로 구현 — Graphire/Primor 선택 시 자유 입력란은 비활성화.
+  - `Navbar.tsx`: `textPosition==="left"`일 때 로고+텍스트 컨테이너에 `flex-row-reverse`를 적용해 렌더링 순서를 반전. 텍스트 색상은 `text-gray-900`으로 하드코딩(헤더 기본 톤과 통일). `textCustomFont`가 Graphire/Primor면 `"'Graphire', serif"`/`"'Primor', serif"` 형태로 serif 폴백을 포함해 인라인 `fontFamily`로 적용, 기본이면 기존 자유 입력값 사용.
+  - `globals.css`: 최상단에 `Graphire`/`Primor` `@font-face` 뼈대를 주석으로 추가 — 실제 폰트 파일이 없어 비활성 상태(파일 추가 후 경로 채우고 주석 해제하면 적용). 그 전까지는 Navbar가 serif로 자연스럽게 대체.
+  - 검증: `npm run type-check`/`npm run lint` 통과 확인. 실제 렌더링(정렬/폰트 전환)은 아래 "localhost 확인 불가" 사유로 직접 확인하지 못함.
+
+## 2026-07-27 (EPIC-035-Fix)
+- **EPIC-035-Fix: Unify category CMS & clean up old pages**
+  - 구버전 `top-tabs`/`sidebar-left`/`sidebar-right` 3개 페이지(정적 `NavNodeEditor` 기반)를 삭제 — EPIC-035의 `CategoryTreeManager`(드래그앤드롭 통합 화면, `/admin/navigation`)로 `site_navigations` 관리 UI를 일원화.
+  - `admin/navigation/layout.tsx`의 서브 탭을 4개에서 "카테고리 통합 관리"(`/admin/navigation`)와 "홈페이지 설정 관리"(`/admin/navigation/settings`) 2개로 정리. `admin/layout.tsx`의 상위 "메뉴/카테고리 관리" 탭은 이미 `/admin/navigation`으로 연결돼 있어 별도 수정 불필요함을 확인.
+  - `admin/navigation/shared.tsx`의 `NavNodeEditor`/`CategoryRowEditor`/`NavRow`/`TargetType` 등은 삭제된 3개 페이지에서만 쓰이던 export라 이제 죽은 코드가 됐지만, 이번 EPIC 수정 대상 파일에 `shared.tsx`가 없어 정리하지 않음(`DOMAIN_OPTIONS`/`inputClass` 등은 `settings/page.tsx`가 계속 사용해 남겨둠).
+  - 검증: `npm run type-check`/`npm run lint` 통과 확인, 삭제된 라우트에 대한 참조가 남아있지 않음을 grep으로 확인.
+
+## 2026-07-27 (EPIC-035)
+- **EPIC-035: Tistory-style drag-and-drop category CMS**
+  - `site_navigations`(상단 탭/좌측·우측 사이드바 트리)에 `topic`(주제/태그), `thumbnail_url`(대표 이미지), `description`(카테고리 소개), `is_public`(공개 여부, default true) 4개 컬럼 추가. "카테고리"라는 표현이 `site_navigations`(내비 트리)와 `site_categories`(상점/살롱/도슨트 등 도메인 카테고리) 둘 다를 가리킬 수 있어 모호했지만, "상단 탭/좌측/우측 사이드바 공통 적용"이라는 지시 문구와 `parent_id`+`sort_order`를 이미 갖춘 트리 구조가 필요하다는 점에서 `site_navigations` 쪽으로 판단해 진행. 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260727-0035.sql`로 백업.
+  - `src/components/admin/CategoryTreeManager.tsx` 신규 작성: `@dnd-kit/core`+`@dnd-kit/sortable`로 구현한 재사용 가능한 트리 관리 컴포넌트. `targetTypes` prop으로 상단 탭/좌측/우측 사이드바 중 어느 트리를 다룰지 지정. 각 행에 [추가]/[수정]/[관리]/[삭제] 버튼, 드래그 핸들(⠿)을 배치 — 같은 부모 밑에서 위/아래로 끌면 순서(`sort_order`)만 바뀌고, 다른 행 위로 끌어다 놓으면 그 행의 하위 항목으로 즉시 재부모화(`parent_id` 변경)되어 DB에 반영. [관리] 클릭 시 공개 설정/주제·태그/대표 이미지(Supabase Storage `public-assets` 버킷 직접 업로드 또는 URL)/카테고리 소개를 편집하는 모달 표시.
+  - `admin/navigation/page.tsx`: 기존에 `top-tabs`로 단순 리다이렉트하던 인덱스 페이지를 `CategoryTreeManager` 3개(상단 탭/왼쪽 사이드바/오른쪽 사이드바)를 한 화면에 나란히 보여주는 통합 관리 화면으로 교체. 이번 EPIC의 수정 대상 파일이 이 파일로 한정되어 있어, 기존 `top-tabs`/`sidebar-left`/`sidebar-right`(EPIC-023/025/027, 정적 `NavNodeEditor` 기반) 3개 페이지는 그대로 남아있음 — 같은 테이블을 보므로 어느 화면에서 편집해도 결과는 동일하게 반영됨.
+  - 검증: `npm run type-check`/`npm run lint` 통과 확인(신규 파일의 유일한 lint 에러는 기존 `shared.tsx`의 `NavNodeEditor`와 동일한 패턴의 사전 존재 `set-state-in-effect` 이슈). Drag & Drop 실제 동작과 새 컬럼 저장은 라이브 DB에 컬럼이 없어 로컬에서 직접 확인하지 못함(아래 참고).
+
+## 2026-07-27 (EPIC-034)
+- **EPIC-034: Advanced logo & header customization**
+  - `admin/navigation/settings/page.tsx`: `main_logo` 설정에 정렬 위치(좌/중앙/우, `align`), 로고 옆 추가 텍스트(`extraText`), 텍스트 서체(`fontFamily`)/굵기(`bold`)/크기(px, `fontSizePx`) 필드 추가. 기존과 동일하게 `setting_value`(jsonb) 안에 전체 `mainLogo` 객체를 그대로 저장해 병합.
+  - `Navbar.tsx`: 로고+추가텍스트를 계정 영역(로그인/마이페이지 등)과 분리된 `flex-1` 컨테이너로 감싸고, 그 컨테이너에만 `justify-start`/`justify-center`/`justify-end`를 동적 적용 — 헤더 전체에 justify를 걸면 우측 계정 영역까지 로고 옆으로 끌려오는 문제가 있어, "로고 정렬"의 실제 의도(로고 블록 자체의 위치)를 살리면서 계정 영역 배치는 그대로 유지하도록 범위를 좁혔다. 추가 텍스트가 있으면 로고 옆에 `fontFamily`/`fontWeight`/`fontSize` 인라인 스타일로 렌더링.
+  - 검증: `npm run type-check`/`npm run lint` 통과 확인. `site_settings` 라이브 미적용 + 로컬 포트 점유로 실제 렌더링은 직접 확인하지 못함(아래 참고).
+
+## 2026-07-27 (EPIC-033)
+- **EPIC-033: Admin CMS — direct file upload & dynamic logo/slideshow styling**
+  - `admin/navigation/settings/page.tsx`: 메인 로고·슬라이드 이미지에 `<input type="file" accept="image/*">`를 추가 — 선택 시 Supabase Storage(`public-assets` 버킷, `main_logo/`·`slides/` 경로)에 즉시 업로드하고 반환된 public URL을 기존 URL 텍스트 입력값에 그대로 채운다(URL 직접 입력도 fallback으로 계속 동작). 업로드 실패(버킷 미생성 등)는 기존 에러 배너로 표시.
+  - `main_logo`에 "로고 높이 (px)" 숫자 필드(`heightPx`, 기본 64) 추가. `hero_slideshow`에 "자동 전환 시간 (초)"(`autoAdvanceSeconds`, 기본 5)와 "이미지 채움 방식"(`objectFit`: cover/contain) 필드 추가 — `setting_value`가 jsonb라 스키마 변경 없이 안전하게 저장됨. `addSlide`/`updateSlide`/`removeSlide`가 기존에 `{ slides }`만 반환해 새 필드를 매번 지워버리던 버그를 `...prev` 스프레드로 수정.
+  - `Navbar.tsx`: 로고 `<img>`의 고정 `h-16` 클래스를 제거하고 `mainLogo.heightPx`를 인라인 `style.height`로 동적 적용(기본 64px).
+  - `HeroSlideshow.tsx`: `autoAdvanceSeconds`/`objectFit`을 props로 받아 `setInterval` 주기와 `object-cover`/`object-contain` 클래스에 반영(둘 다 기본값 있어 하위호환).
+  - `src/app/page.tsx`(지시문의 수정 대상 파일 목록에는 없었지만, `HeroSlideshow`에 새 설정값을 실제로 전달하는 연결 지점이라 함께 수정 — 그 외 로직 변경 없음): `hero_slideshow`의 `autoAdvanceSeconds`/`objectFit`도 함께 조회해 `HeroSlideshow`에 전달.
+  - 검증: `npm run type-check`/`npm run lint` 통과 확인. `public-assets` Storage 버킷 존재 여부와 실제 업로드 동작은 라이브 환경에서 사용자 확인 필요(아래 참고).
+
+## 2026-07-26 (EPIC-032)
+- **EPIC-032: Homepage & Navbar site_settings integration**
+  - `Navbar.tsx`: `site_settings.main_logo`를 클라이언트에서 조회(`fetchNavTabs`와 동일한 패턴)해 로고를 대체. `type: "image"`이고 `imageUrl`이 있으면 이미지로, 아니면 저장된 텍스트로 렌더링하고, 값이 없거나 테이블이 아직 라이브에 없으면 기존 하드코딩 텍스트("사일로 스토어")로 자동 대체(로고가 비는 일 없음). `Navbar`는 `useAuth`/`useSearchParams`에 의존하는 기존 Client Component 구조라 async Server Component로 전환하지 않고, EPIC-023의 `fetchNavTabs()`와 같은 최소 지연 클라이언트 패칭 패턴을 그대로 따름.
+  - `src/app/page.tsx`: 그대로 남아있던 create-next-app 기본 템플릿을 실제 홈페이지로 교체. async Server Component로 `site_settings.hero_slideshow`를 서버에서 직접 조회(깜빡임 없음) — 슬라이드가 있으면 이미지·제목·설명 카드 그리드로, 없으면(테이블 미적용 포함) 브랜드 텍스트 + `/shop` 링크로 이루어진 기본 히어로 섹션을 표시.
+  - 검증: `npm run type-check`/`npm run lint` 통과 확인. `site_settings` 테이블이 라이브 DB에 아직 없어(EPIC-026 후속) 실제 데이터 연동은 로컬에서 직접 확인하지 못함 — 아래 참고.
+
 ## 2026-07-26 (EPIC-031)
 - **EPIC-031: Admin Post Management — pagination & is_hidden column**
   - `posts` 테이블에 관리자 전용 숨김 플래그 `is_hidden`(boolean, not null default false) 컬럼 추가(`docs/database-schema.sql`, 라이브 DB에는 아직 미적용 — 아래 ALTER TABLE 문을 Supabase SQL Editor에서 직접 실행 필요). EPIC-028에서 임시로 `posts.visibility='private'`를 재사용하던 "숨기기"가 작성자 본인의 비공개 설정과 뒤섞이던 문제를 해결.

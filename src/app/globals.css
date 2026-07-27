@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+/* EPIC-034-Ext: Navbar 로고 옆 추가 텍스트에서 선택할 수 있는 커스텀 폰트
+   뼈대. 아직 실제 폰트 파일이 없어 주석 처리해둔 상태 — 폰트 파일을
+   public/fonts/ 등에 추가한 뒤 src 경로를 채우고 주석을 해제할 것.
+   그 전까지는 Navbar.tsx가 'Graphire'/'Primor' 뒤에 serif로 자연스럽게
+   대체(fallback)한다. */
+/*
+@font-face {
+  font-family: "Graphire";
+  src: url("/fonts/Graphire.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Primor";
+  src: url("/fonts/Primor.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+*/
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

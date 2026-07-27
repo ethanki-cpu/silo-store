@@ -1,65 +1,54 @@
-import Image from "next/image";
+import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
+import { HeroSlideshow } from "@/components/HeroSlideshow";
 
-export default function Home() {
+// EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
+// site_settings.hero_slideshow를 조회해 최상단 히어로 배너를 렌더링한다.
+// Server Component에서 직접 조회 — 클라이언트 쪽 깜빡임 없이 첫 렌더부터
+// 완성된 화면을 내려준다. 테이블이 아직 라이브에 없거나(EPIC-026 후속)
+// 슬라이드가 비어 있으면 기본 히어로 UI로 대체된다.
+
+type SlideItem = { imageUrl: string; title: string; description: string };
+type HeroSlideshowSetting = {
+  slides?: SlideItem[];
+  autoAdvanceSeconds?: number;
+  objectFit?: "cover" | "contain";
+};
+
+export default async function Home() {
+  const { data } = await supabase
+    .from("site_settings")
+    .select("setting_value")
+    .eq("setting_key", "hero_slideshow")
+    .maybeSingle();
+
+  const setting = data?.setting_value as HeroSlideshowSetting | null;
+  const slides = (setting?.slides ?? []).filter(
+    (s) => s.imageUrl || s.title || s.description,
+  );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="flex-1">
+      {slides.length > 0 ? (
+        <HeroSlideshow
+          slides={slides}
+          autoAdvanceSeconds={setting?.autoAdvanceSeconds}
+          objectFit={setting?.objectFit}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+      ) : (
+        <section className="flex flex-col items-center justify-center text-center py-32 px-8">
+          <h1 className="text-3xl font-bold mb-4">사일로 스토어</h1>
+          <p className="max-w-md text-gray-500 mb-8">
+            물건과 사람, 취향이 오가는 멤버십 커뮤니티.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/shop"
+            className="rounded-md bg-gray-800 text-white px-4 py-2 text-sm"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+            사일로상점 둘러보기
+          </Link>
+        </section>
+      )}
     </div>
   );
 }

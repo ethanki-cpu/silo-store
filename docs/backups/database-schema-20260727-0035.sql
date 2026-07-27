@@ -633,19 +633,15 @@ create table member_visitors (
 -- parent_id가 null이면 최상위 탭. key는 최상위 탭에만 부여(getActiveNavTabKey
 -- 판정용 문자열, src/lib/navConfig.ts와 1:1 대응) — 하위 그룹/항목은 null.
 create table site_navigations (
-  id            uuid primary key default gen_random_uuid(),
-  key           text unique,
-  title         text not null,
-  href          text,
-  parent_id     uuid references site_navigations(id) on delete cascade,
-  target_type   text not null check (target_type in ('tab','sidebar_left','sidebar_right','dropdown')),
-  sort_order    int not null default 0,
-  is_active     boolean not null default true,
-  topic         varchar,          -- EPIC-035: 주제/태그. 라이브 DB에는 아직 미적용(아래 ALTER TABLE 참고)
-  thumbnail_url text,             -- EPIC-035: 관리자 CMS "관리" 모달에서 Supabase Storage(public-assets)로 업로드한 대표 이미지
-  description   text,            -- EPIC-035: 카테고리 소개
-  is_public     boolean not null default true,  -- EPIC-035: "공개 설정" — is_active(내비 자체 노출)와는 별개 필드
-  created_at    timestamptz not null default now()
+  id          uuid primary key default gen_random_uuid(),
+  key         text unique,
+  title       text not null,
+  href        text,
+  parent_id   uuid references site_navigations(id) on delete cascade,
+  target_type text not null check (target_type in ('tab','sidebar_left','sidebar_right','dropdown')),
+  sort_order  int not null default 0,
+  is_active   boolean not null default true,
+  created_at  timestamptz not null default now()
 );
 
 -- 상점/살롱/컬렉션/도슨트 카테고리. 현재 시드 데이터는 전부 parent_id=null

@@ -5,11 +5,15 @@ import { usePathname } from "next/navigation";
 
 // EPIC-025: "메뉴/카테고리 관리" 2-Depth 서브 탭. is_admin 가드는
 // src/app/admin/layout.tsx가 이미 처리했으므로 여기서는 서브 네비게이션만 그린다.
+//
+// EPIC-035-Fix: top-tabs/sidebar-left/sidebar-right 3개 서브 탭(정적
+// NavNodeEditor 기반)은 EPIC-035의 CategoryTreeManager(드래그앤드롭 통합
+// 관리 화면, /admin/navigation 자체)로 대체되어 삭제 — 같은 site_navigations
+// 를 다루는 UI가 두 벌로 병존하던 문제 해소. 이제 서브 탭은 "카테고리 통합
+// 관리"(트리 D&D)와 "홈페이지 설정 관리"(로고/슬라이드쇼/노출 필터) 2개뿐.
 const SUB_NAV = [
+  { href: "/admin/navigation", label: "카테고리 통합 관리" },
   { href: "/admin/navigation/settings", label: "홈페이지 설정 관리" },
-  { href: "/admin/navigation/top-tabs", label: "상단 탭 / 카테고리 관리" },
-  { href: "/admin/navigation/sidebar-left", label: "왼쪽 사이드바 메뉴 관리" },
-  { href: "/admin/navigation/sidebar-right", label: "오른쪽 사이드바 메뉴 관리" },
 ];
 
 export default function AdminNavigationLayout({

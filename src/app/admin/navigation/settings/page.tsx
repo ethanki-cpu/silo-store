@@ -31,6 +31,40 @@ import {
 // 폰트(Graphire/Primor) 중 선택하는 textCustomFont로 보완 — "기본"이면
 // 기존 fontFamily 자유 입력값을 그대로 쓰고, Graphire/Primor를 고르면
 // 그 폰트명이 우선 적용된다(globals.css의 @font-face 뼈대 참고).
+//
+// EPIC-036: main_logo에 추가 텍스트 색상(textColor)을 추가 — 기본값은
+// Navbar.tsx 사이드바에 쓰이는 짙은 녹색(Tailwind green-800, #166534)과
+// 맞춰둔다. hero_slideshow에는 슬라이드가 objectFit="contain"일 때 생기는
+// 여백을 채울 배경 이미지(wallpaperUrl)를 추가 — 로고/슬라이드 이미지와
+// 동일한 uploadImage()/public-assets 버킷 업로드 로직을 재사용한다.
+//
+// EPIC-039: main_logo의 단일 extraText+textPosition을 leftText/rightText로
+// 분리 — 로고 이미지를 중앙에 두고 양옆에 대칭으로 텍스트를 배치하기 위함.
+// align(로고 정렬 위치)은 이 대칭 레이아웃과 함께 쓰기엔 의미가 겹쳐 UI에서
+// 제거했고(중앙 고정), 기존 데이터 호환을 위해 타입/기본값에는 남겨둔다.
+// 기존에 extraText+textPosition으로 저장돼 있던 값은 로드 시 1회 자동으로
+// leftText 또는 rightText로 옮겨준다(아래 load() 참고).
+// hero_slideshow.wallpaperUrl(단일 문자열)은 wallpaperUrls(문자열 배열,
+// 최대 10개)로 교체 — HeroSlideshow.tsx가 매 슬라이드 전환마다 이 배열
+// 중 하나를 무작위로 골라 배경으로 쓴다. 기존 단일 값은 로드 시 배열의
+// 첫 항목으로 자동 이전된다.
+// 새 site_settings 키 "sidebar_icons"(leftIconUrl/rightIconUrl) 추가 —
+// Navbar의 좌/우 사이드바 여닫이 버튼에 쓰이는 커스텀 아이콘 이미지.
+//
+// EPIC-041: main_logo에 커스텀 폰트 파일 업로드(fontFileUrl, .woff/.ttf 등)
+// 추가 — Navbar.tsx가 이 URL이 있으면 @font-face를 동적으로 주입해 좌/우
+// 텍스트에 최우선으로 적용한다(textCustomFont/fontFamily보다 우선).
+// sidebar_icons에 아이콘 크기(iconSizePx) 추가 — 기본값은 기존 하드코딩
+// 크기였던 32px(w-8 h-8)와 맞춘다.
+// home_curation을 단일 설정에서 "블록" 배열(HomeCurationBlock[])로
+// 고도화 — 섹션 제목(title)을 추가하고, 여러 큐레이션 섹션을 추가/삭제/
+// 순서 변경(위/아래)할 수 있게 했다. 구버전 단일 객체 데이터는 로드 시
+// 블록 1개짜리 배열로 자동 이전한다.
+//
+// EPIC-041-042-HOTFIX: fontFileUrl/sidebar_icons(leftIconUrl/rightIconUrl)는
+// 파일 업로드(input type="file" + Storage 업로드) 대신 URL을 직접 붙여넣는
+// 텍스트 입력으로 되돌렸다 — 가장 단순하고 확실한 방식을 우선한다. 로고
+// 이미지/슬라이드/Wallpaper 이미지는 계속 파일 업로드를 쓴다(대상 아님).
 
 type LogoAlign = "left" | "center" | "right";
 type TextPosition = "left" | "right";
@@ -42,24 +76,46 @@ type MainLogoValue = {
   imageUrl: string;
   heightPx: number;
   align: LogoAlign;
+  /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용으로만 읽는다. */
   extraText: string;
   fontFamily: string;
   bold: boolean;
   fontSizePx: number;
+  /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용으로만 읽는다. */
   textPosition: TextPosition;
   textCustomFont: CustomFont;
+  textColor: string;
+  leftText: string;
+  rightText: string;
+  fontFileUrl: string;
 };
 type SlideItem = { imageUrl: string; title: string; description: string };
 type HeroSlideshowValue = {
   slides: SlideItem[];
   autoAdvanceSeconds: number;
   objectFit: "cover" | "contain";
+  /** @deprecated EPIC-039: wallpaperUrls(배열)로 대체. 구버전 데이터 호환용으로만 읽는다. */
+  wallpaperUrl: string;
+  wallpaperUrls: string[];
 };
-type HomeCurationValue = {
+type HomeCurationBlock = {
+  id: string;
+  title: string;
   domain: CategoryDomain;
   slugs: string[];
   sortBy: "latest" | "popular";
 };
+type HomeCurationSettingValue = {
+  blocks: HomeCurationBlock[];
+};
+type SidebarIconsValue = {
+  leftIconUrl: string;
+  rightIconUrl: string;
+  iconSizePx: number;
+};
+
+const MAX_WALLPAPERS = 10;
+const DEFAULT_ICON_SIZE_PX = 32;
 
 const DEFAULT_MAIN_LOGO: MainLogoValue = {
   type: "text",
@@ -73,16 +129,34 @@ const DEFAULT_MAIN_LOGO: MainLogoValue = {
   fontSizePx: 16,
   textPosition: "right",
   textCustomFont: "default",
+  textColor: "#166534",
+  leftText: "",
+  rightText: "",
+  fontFileUrl: "",
 };
 const DEFAULT_HERO_SLIDESHOW: HeroSlideshowValue = {
   slides: [],
   autoAdvanceSeconds: 5,
   objectFit: "cover",
+  wallpaperUrl: "",
+  wallpaperUrls: [],
 };
-const DEFAULT_HOME_CURATION: HomeCurationValue = {
-  domain: "shop",
-  slugs: [],
-  sortBy: "latest",
+function makeDefaultCurationBlock(): HomeCurationBlock {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: "",
+    domain: "shop",
+    slugs: [],
+    sortBy: "latest",
+  };
+}
+const DEFAULT_HOME_CURATION: HomeCurationSettingValue = {
+  blocks: [],
+};
+const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
+  leftIconUrl: "",
+  rightIconUrl: "",
+  iconSizePx: DEFAULT_ICON_SIZE_PX,
 };
 
 const STORAGE_BUCKET = "public-assets";
@@ -122,21 +196,32 @@ export default function AdminNavigationSettingsPage() {
   const [heroSlideshow, setHeroSlideshow] = useState<HeroSlideshowValue>(
     DEFAULT_HERO_SLIDESHOW,
   );
-  const [homeCuration, setHomeCuration] = useState<HomeCurationValue>(
+  const [homeCuration, setHomeCuration] = useState<HomeCurationSettingValue>(
     DEFAULT_HOME_CURATION,
+  );
+  const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
+    DEFAULT_SIDEBAR_ICONS,
   );
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingSlideIdx, setUploadingSlideIdx] = useState<number | null>(
     null,
   );
+  const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<
+    number | null
+  >(null);
 
   useEffect(() => {
     async function load() {
       const { data, error: fetchError } = await supabase
         .from("site_settings")
         .select("setting_key, setting_value")
-        .in("setting_key", ["main_logo", "hero_slideshow", "home_curation"]);
+        .in("setting_key", [
+          "main_logo",
+          "hero_slideshow",
+          "home_curation",
+          "sidebar_icons",
+        ]);
 
       if (fetchError) {
         setError(fetchError.message);
@@ -146,15 +231,57 @@ export default function AdminNavigationSettingsPage() {
 
       for (const row of data ?? []) {
         if (row.setting_key === "main_logo") {
-          setMainLogo({ ...DEFAULT_MAIN_LOGO, ...(row.setting_value as object) });
+          const value = {
+            ...DEFAULT_MAIN_LOGO,
+            ...(row.setting_value as Partial<MainLogoValue>),
+          };
+          // EPIC-039: 구버전 extraText+textPosition을 leftText/rightText로 1회 이전.
+          if (!value.leftText && !value.rightText && value.extraText) {
+            if (value.textPosition === "left") {
+              value.leftText = value.extraText;
+            } else {
+              value.rightText = value.extraText;
+            }
+          }
+          setMainLogo(value);
         } else if (row.setting_key === "hero_slideshow") {
-          setHeroSlideshow({
+          const value = {
             ...DEFAULT_HERO_SLIDESHOW,
-            ...(row.setting_value as object),
-          });
+            ...(row.setting_value as Partial<HeroSlideshowValue>),
+          };
+          // EPIC-039: 구버전 단일 wallpaperUrl을 wallpaperUrls 배열로 1회 이전.
+          if (value.wallpaperUrls.length === 0 && value.wallpaperUrl) {
+            value.wallpaperUrls = [value.wallpaperUrl];
+          }
+          setHeroSlideshow(value);
         } else if (row.setting_key === "home_curation") {
-          setHomeCuration({
-            ...DEFAULT_HOME_CURATION,
+          const raw = row.setting_value as
+            | Partial<HomeCurationSettingValue>
+            | (Partial<HomeCurationBlock> & { blocks?: undefined })
+            | null;
+          // EPIC-041: 구버전은 { domain, slugs, sortBy } 단일 객체였다 —
+          // blocks 배열이 없고 domain 필드가 있으면 그 값을 블록 1개로 이전.
+          if (raw && !raw.blocks && "domain" in raw) {
+            const legacy = raw as Partial<HomeCurationBlock>;
+            setHomeCuration({
+              blocks: [
+                {
+                  ...makeDefaultCurationBlock(),
+                  title: "홈 큐레이션",
+                  domain: legacy.domain ?? "shop",
+                  slugs: legacy.slugs ?? [],
+                  sortBy: legacy.sortBy ?? "latest",
+                },
+              ],
+            });
+          } else {
+            setHomeCuration({
+              blocks: raw?.blocks ?? [],
+            });
+          }
+        } else if (row.setting_key === "sidebar_icons") {
+          setSidebarIcons({
+            ...DEFAULT_SIDEBAR_ICONS,
             ...(row.setting_value as object),
           });
         }
@@ -221,6 +348,71 @@ export default function AdminNavigationSettingsPage() {
       return;
     }
     updateSlide(index, { imageUrl: url });
+  }
+
+  function addWallpaper() {
+    setHeroSlideshow((prev) => {
+      if (prev.wallpaperUrls.length >= MAX_WALLPAPERS) return prev;
+      return { ...prev, wallpaperUrls: [...prev.wallpaperUrls, ""] };
+    });
+  }
+
+  function updateWallpaper(index: number, url: string) {
+    setHeroSlideshow((prev) => ({
+      ...prev,
+      wallpaperUrls: prev.wallpaperUrls.map((u, i) => (i === index ? url : u)),
+    }));
+  }
+
+  function removeWallpaper(index: number) {
+    setHeroSlideshow((prev) => ({
+      ...prev,
+      wallpaperUrls: prev.wallpaperUrls.filter((_, i) => i !== index),
+    }));
+  }
+
+  async function handleWallpaperFileChange(index: number, file: File | null) {
+    if (!file) return;
+    setUploadingWallpaperIdx(index);
+    setError(null);
+    const { url, error: uploadError } = await uploadImage(file, "wallpaper");
+    setUploadingWallpaperIdx(null);
+    if (uploadError || !url) {
+      setError(uploadError ?? "업로드에 실패했어요.");
+      return;
+    }
+    updateWallpaper(index, url);
+  }
+
+  function addCurationBlock() {
+    setHomeCuration((prev) => ({
+      blocks: [...prev.blocks, makeDefaultCurationBlock()],
+    }));
+  }
+
+  function updateCurationBlock(id: string, patch: Partial<HomeCurationBlock>) {
+    setHomeCuration((prev) => ({
+      blocks: prev.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    }));
+  }
+
+  function removeCurationBlock(id: string) {
+    setHomeCuration((prev) => ({
+      blocks: prev.blocks.filter((b) => b.id !== id),
+    }));
+  }
+
+  function moveCurationBlock(id: string, direction: "up" | "down") {
+    setHomeCuration((prev) => {
+      const idx = prev.blocks.findIndex((b) => b.id === id);
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (idx < 0 || targetIdx < 0 || targetIdx >= prev.blocks.length) {
+        return prev;
+      }
+      const blocks = [...prev.blocks];
+      [blocks[idx], blocks[targetIdx]] = [blocks[targetIdx], blocks[idx]];
+      return { blocks };
+    });
   }
 
   if (fetching) {
@@ -294,68 +486,86 @@ export default function AdminNavigationSettingsPage() {
                 }
               />
             </div>
+            {/* EPIC-039: 로고 이미지를 중앙에 두고 양옆에 대칭으로 텍스트를
+                배치하는 레이아웃으로 바뀌어, 기존 "정렬 위치"(좌/중앙/우)는
+                이 레이아웃과 함께 쓰기 어려워 UI에서 제거했다(항상 중앙). */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm mb-1">로고 좌측 텍스트 (선택)</label>
+                <input
+                  className={inputClass}
+                  value={mainLogo.leftText}
+                  onChange={(e) =>
+                    setMainLogo({ ...mainLogo, leftText: e.target.value })
+                  }
+                  placeholder="예: since 2024"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">로고 우측 텍스트 (선택)</label>
+                <input
+                  className={inputClass}
+                  value={mainLogo.rightText}
+                  onChange={(e) =>
+                    setMainLogo({ ...mainLogo, rightText: e.target.value })
+                  }
+                  placeholder="예: Retrouvailles"
+                />
+              </div>
+            </div>
             <div>
-              <label className="block text-sm mb-1">로고 정렬 위치</label>
+              <label className="block text-sm mb-1">좌/우 텍스트 색상</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={mainLogo.textColor || DEFAULT_MAIN_LOGO.textColor}
+                  onChange={(e) =>
+                    setMainLogo({ ...mainLogo, textColor: e.target.value })
+                  }
+                  className="h-9 w-12 rounded border border-gray-300 p-1"
+                />
+                <input
+                  className={`${inputClass} w-32`}
+                  value={mainLogo.textColor}
+                  onChange={(e) =>
+                    setMainLogo({ ...mainLogo, textColor: e.target.value })
+                  }
+                  placeholder={DEFAULT_MAIN_LOGO.textColor}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">
+                커스텀 폰트 파일 URL (.woff, .woff2, .ttf 등)
+              </label>
+              <input
+                className={inputClass}
+                value={mainLogo.fontFileUrl}
+                onChange={(e) =>
+                  setMainLogo({ ...mainLogo, fontFileUrl: e.target.value })
+                }
+                placeholder="https://... (Supabase Storage에 올린 폰트 파일의 공개 URL)"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                입력하면 아래 텍스트 폰트/서체 설정보다 우선 적용돼요.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">텍스트 폰트</label>
               <select
                 className={inputClass}
-                value={mainLogo.align}
+                value={mainLogo.textCustomFont}
                 onChange={(e) =>
                   setMainLogo({
                     ...mainLogo,
-                    align: e.target.value as LogoAlign,
+                    textCustomFont: e.target.value as CustomFont,
                   })
                 }
               >
-                <option value="left">좌측</option>
-                <option value="center">중앙</option>
-                <option value="right">우측</option>
+                <option value="default">기본 (아래 서체 입력값 사용)</option>
+                <option value="Graphire">Graphire</option>
+                <option value="Primor">Primor</option>
               </select>
-            </div>
-            <div>
-              <label className="block text-sm mb-1">로고 옆 추가 텍스트 (선택)</label>
-              <input
-                className={inputClass}
-                value={mainLogo.extraText}
-                onChange={(e) =>
-                  setMainLogo({ ...mainLogo, extraText: e.target.value })
-                }
-                placeholder="예: since 2024"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm mb-1">텍스트 위치</label>
-                <select
-                  className={inputClass}
-                  value={mainLogo.textPosition}
-                  onChange={(e) =>
-                    setMainLogo({
-                      ...mainLogo,
-                      textPosition: e.target.value as TextPosition,
-                    })
-                  }
-                >
-                  <option value="left">로고 좌측</option>
-                  <option value="right">로고 우측</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm mb-1">텍스트 폰트</label>
-                <select
-                  className={inputClass}
-                  value={mainLogo.textCustomFont}
-                  onChange={(e) =>
-                    setMainLogo({
-                      ...mainLogo,
-                      textCustomFont: e.target.value as CustomFont,
-                    })
-                  }
-                >
-                  <option value="default">기본 (아래 서체 입력값 사용)</option>
-                  <option value="Graphire">Graphire</option>
-                  <option value="Primor">Primor</option>
-                </select>
-              </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
@@ -523,6 +733,64 @@ export default function AdminNavigationSettingsPage() {
             </div>
           </div>
 
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm">
+                여백 배경 이미지 (Wallpaper, 최대 {MAX_WALLPAPERS}개) — 이미지
+                채움 방식이 &quot;contain&quot;일 때 생기는 여백을, 슬라이드가
+                바뀔 때마다 이 중 하나를 무작위로 골라 채워요
+              </label>
+              <button
+                type="button"
+                onClick={addWallpaper}
+                disabled={heroSlideshow.wallpaperUrls.length >= MAX_WALLPAPERS}
+                className={smallButtonClass}
+              >
+                + 추가
+              </button>
+            </div>
+            {heroSlideshow.wallpaperUrls.length === 0 ? (
+              <p className="text-sm text-gray-400">
+                아직 추가된 배경 이미지가 없어요.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {heroSlideshow.wallpaperUrls.map((url, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      className={inputClass}
+                      placeholder="이미지 URL (또는 파일 직접 업로드)"
+                      value={url}
+                      onChange={(e) => updateWallpaper(idx, e.target.value)}
+                    />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingWallpaperIdx === idx}
+                      onChange={(e) =>
+                        handleWallpaperFileChange(
+                          idx,
+                          e.target.files?.[0] ?? null,
+                        )
+                      }
+                      className="text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeWallpaper(idx)}
+                      className="text-xs text-red-600 hover:underline shrink-0"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+                {uploadingWallpaperIdx !== null && (
+                  <p className="text-xs text-gray-400">업로드 중...</p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -537,66 +805,210 @@ export default function AdminNavigationSettingsPage() {
           </div>
         </section>
 
-        {/* 노출 필터 */}
+        {/* EPIC-039: 좌/우 사이드바 여닫이 버튼에 쓰이는 커스텀 아이콘.
+            비어 있으면 Navbar.tsx가 기존 🔑/🚪 이모지로 대체한다. */}
         <section className="rounded-lg border border-gray-200 p-4">
-          <h2 className="text-lg font-semibold mb-3">노출 필터 (홈 큐레이션)</h2>
-          <div className="space-y-2">
-            <div>
-              <label className="block text-sm mb-1">대상 도메인</label>
-              <select
-                className={inputClass}
-                value={homeCuration.domain}
-                onChange={(e) =>
-                  setHomeCuration({
-                    ...homeCuration,
-                    domain: e.target.value as CategoryDomain,
-                  })
-                }
-              >
-                {DOMAIN_OPTIONS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <h2 className="text-lg font-semibold mb-3">사이드바 아이콘</h2>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1">
-                노출할 카테고리 slug (쉼표로 구분, 비우면 전체)
+                좌측 사이드바 아이콘 URL (사일로상점)
               </label>
+              {sidebarIcons.leftIconUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={sidebarIcons.leftIconUrl}
+                  alt="좌측 사이드바 아이콘"
+                  className="w-8 h-8 mb-2 object-contain"
+                />
+              )}
               <input
                 className={inputClass}
-                value={homeCuration.slugs.join(", ")}
+                value={sidebarIcons.leftIconUrl}
                 onChange={(e) =>
-                  setHomeCuration({
-                    ...homeCuration,
-                    slugs: e.target.value
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
+                  setSidebarIcons({ ...sidebarIcons, leftIconUrl: e.target.value })
                 }
-                placeholder="예: renaissance, baroque"
+                placeholder="https://..."
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">정렬 기준</label>
-              <select
+              <label className="block text-sm mb-1">
+                우측 사이드바 아이콘 URL (살롱데상)
+              </label>
+              {sidebarIcons.rightIconUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={sidebarIcons.rightIconUrl}
+                  alt="우측 사이드바 아이콘"
+                  className="w-8 h-8 mb-2 object-contain"
+                />
+              )}
+              <input
                 className={inputClass}
-                value={homeCuration.sortBy}
+                value={sidebarIcons.rightIconUrl}
                 onChange={(e) =>
-                  setHomeCuration({
-                    ...homeCuration,
-                    sortBy: e.target.value as "latest" | "popular",
-                  })
+                  setSidebarIcons({ ...sidebarIcons, rightIconUrl: e.target.value })
                 }
-              >
-                <option value="latest">최신순</option>
-                <option value="popular">인기순</option>
-              </select>
+                placeholder="https://..."
+              />
             </div>
           </div>
+          <div className="mt-3">
+            <label className="block text-sm mb-1">아이콘 크기 (px)</label>
+            <input
+              type="number"
+              min={16}
+              max={96}
+              className={`${inputClass} w-28`}
+              value={sidebarIcons.iconSizePx}
+              onChange={(e) =>
+                setSidebarIcons({
+                  ...sidebarIcons,
+                  iconSizePx: Number(e.target.value) || DEFAULT_ICON_SIZE_PX,
+                })
+              }
+            />
+          </div>
           <div className="flex items-center gap-3 mt-3">
+            <button
+              type="button"
+              onClick={() => handleSave("sidebar_icons", sidebarIcons)}
+              className={primaryButtonClass}
+            >
+              저장하기
+            </button>
+            {savedKey === "sidebar_icons" && (
+              <span className="text-sm text-green-600">저장됐어요.</span>
+            )}
+          </div>
+        </section>
+
+        {/* EPIC-041: 노출 필터(홈 큐레이션) — 단일 필터에서 여러 개의
+            "큐레이션 블록"(섹션 제목 + 필터 기준 + 타겟 값)을 추가/삭제/
+            순서 변경할 수 있는 동적 배열 폼으로 확장. 저장된 순서 그대로
+            page.tsx가 <HomeCurationSlider>를 렌더링한다. */}
+        <section className="rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold">노출 필터 (홈 큐레이션)</h2>
+            <button
+              type="button"
+              onClick={addCurationBlock}
+              className={smallButtonClass}
+            >
+              + 큐레이션 블록 추가
+            </button>
+          </div>
+
+          {homeCuration.blocks.length === 0 ? (
+            <p className="text-sm text-gray-400 mb-3">
+              아직 추가된 큐레이션 블록이 없어요.
+            </p>
+          ) : (
+            <div className="space-y-3 mb-3">
+              {homeCuration.blocks.map((block, idx) => (
+                <div
+                  key={block.id}
+                  className="rounded-md border border-gray-200 p-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-500">
+                      블록 #{idx + 1}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => moveCurationBlock(block.id, "up")}
+                        disabled={idx === 0}
+                        className="text-xs text-gray-500 hover:underline disabled:opacity-30"
+                      >
+                        위로
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveCurationBlock(block.id, "down")}
+                        disabled={idx === homeCuration.blocks.length - 1}
+                        className="text-xs text-gray-500 hover:underline disabled:opacity-30"
+                      >
+                        아래로
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeCurationBlock(block.id)}
+                        className="text-xs text-red-600 hover:underline"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    className={inputClass}
+                    placeholder="섹션 제목 (예: 이번 주 신상 보물)"
+                    value={block.title}
+                    onChange={(e) =>
+                      updateCurationBlock(block.id, { title: e.target.value })
+                    }
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm mb-1">
+                        필터 기준 (대상 도메인)
+                      </label>
+                      <select
+                        className={inputClass}
+                        value={block.domain}
+                        onChange={(e) =>
+                          updateCurationBlock(block.id, {
+                            domain: e.target.value as CategoryDomain,
+                          })
+                        }
+                      >
+                        {DOMAIN_OPTIONS.map((d) => (
+                          <option key={d.value} value={d.value}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1">정렬 기준</label>
+                      <select
+                        className={inputClass}
+                        value={block.sortBy}
+                        onChange={(e) =>
+                          updateCurationBlock(block.id, {
+                            sortBy: e.target.value as "latest" | "popular",
+                          })
+                        }
+                      >
+                        <option value="latest">최신순</option>
+                        <option value="popular">인기순</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">
+                      타겟 값 — 카테고리/태그 slug (쉼표로 구분, 비우면 전체)
+                    </label>
+                    <input
+                      className={inputClass}
+                      value={block.slugs.join(", ")}
+                      onChange={(e) =>
+                        updateCurationBlock(block.id, {
+                          slugs: e.target.value
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder="예: renaissance, baroque"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => handleSave("home_curation", homeCuration)}

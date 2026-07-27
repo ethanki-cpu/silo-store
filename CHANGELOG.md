@@ -1,5 +1,50 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-041-042-HOTFIX)
+- **EPIC-041-042-HOTFIX: fix hover bug & switch to direct URL inputs**
+  - **드롭다운 hover 버그 완전 재구현**: `Navbar.tsx`의 상단 탭 드롭다운을 JS state(`openTab`/`popupPos`/`handleTabMouseEnter`/`handlePopupMouseLeave`, `position:fixed`)에서 순수 Tailwind `group`/`group-hover`로 전면 교체. 버그 원인은 트리거(탭 버튼)와 팝업이 서로 다른, 별개의 DOM 서브트리(팝업은 헤더 맨 끝에 fixed로 따로 렌더링)였다는 점 — 마우스가 그 사이를 이동할 때 각각의 enter/leave 타이밍이 어긋나면서 벗어나도 안 닫히는 경우가 생겼다. 이제 트리거+팝업을 같은 `relative group/tab` 컨테이너의 부모-자식으로 중첩해, 브라우저가 그 컨테이너 전체를 기준으로 `:hover`를 계산하므로 완전히 벗어나는 즉시 예외 없이 닫힌다. 탭↔팝업, 그룹↔2차 플라이아웃 사이의 시각적 간격은 각각 `pt-4`/`pl-2` **padding**(margin이 아님)으로 만들어 "투명한 다리" 역할을 하게 했다 — padding은 그 요소 박스의 일부라 마우스가 그 위를 지나도 hover가 끊기지 않는다. 이름 있는 그룹(`group/tab`, `group/row`)을 쓴 이유: 이름 없는 `group`을 중첩하면 Tailwind가 "가장 가까운 조상"이 아니라 "어떤 조상이든 `.group`이고 hover 중이면" 매칭해 상위 탭에 마우스를 올리기만 해도 모든 하위 그룹의 플라이아웃이 한꺼번에 열려버리는 문제가 있었음.
+  - `<nav>`의 `overflow-x-auto`(모바일 가로 스크롤용)를 `flex-wrap`으로 교체 — CSS 스펙상 `overflow-x`가 `visible`이 아니면 `overflow-y`도 `auto`로 강제 계산돼, 그 안에 중첩된 `position:absolute` 드롭다운이 잘려 보이는 문제를 `position:fixed` 없이 해결하기 위함(4개 탭 기준으로는 줄바꿈이 자연스러운 대안).
+  - **URL 직접 입력으로 전환**: `admin/navigation/settings/page.tsx`의 커스텀 폰트 파일 업로드와 좌/우 사이드바 아이콘 업로드(`input type="file"` + Storage 업로드)를 제거하고, Supabase Storage에 이미 올린 파일의 공개 URL을 직접 붙여넣는 텍스트 입력으로 교체 — 가장 단순하고 확실한 방식을 우선했다. 로고 이미지/슬라이드/Wallpaper 이미지는 대상이 아니라 계속 파일 업로드를 쓴다.
+  - 검증: `npm run lint`(26건, 직전과 동일 — 신규 이슈 없음)/`npx tsc --noEmit` 통과. `@font-face` 주입과 사이드바 아이콘 `src` 바인딩 로직은 EPIC-041에서 이미 구현된 그대로이며 이번엔 값의 출처만(업로드 → 직접 입력) 바뀌었으므로 코드 경로상 문제 없음을 확인. 다만 이번 세션은 Browser 창이 화면에 표시되지 않아 실제 마우스 hover(: hover는 진짜 커서 이동에만 반응하고 JS로 디스패치한 이벤트로는 재현되지 않음) 동작을 스크린샷으로 직접 확인하지 못했음 — 사용자가 직접 브라우저에서 탭 hover 후 마우스를 완전히 치웠을 때 즉시 닫히는지 확인 필요.
+
+## 2026-07-27 (EPIC-041-042)
+- **EPIC-041-042: Unified UI polish — hover UX, custom fonts, icons, home curation**
+  - **드롭다운 UX 수정**: `Navbar.tsx`의 상단 탭 다단계 팝업에서 "클릭으로 고정(pinned)" 개념을 완전히 제거했다 — `pinnedKey`/`handleTabClick`/outside-click `useEffect`/`navRef`를 모두 삭제하고, 탭 버튼에는 `onMouseEnter`만 남겼다. 팝업을 닫는 것도 오직 `onMouseLeave`(`handlePopupMouseLeave`)뿐이라 마우스가 완전히 벗어나면 예외 없이 즉시 닫힌다. 클릭으로 닫던 배경(backdrop) `<div>`도 제거 — pinned 상태가 없어 필요 없어졌고, 이전엔 이 배경이 hover 중 페이지의 다른 클릭을 가로채는 부작용이 있었다. 팝업은 여전히 `position: fixed`(JS로 좌표 계산) — 상단 nav의 `overflow-x-auto`가 CSS 스펙상 `overflow-y`도 `auto`로 강제해 `position: absolute` 팝업은 잘려 보이기 때문(2차 플라이아웃은 계속 순수 CSS `group-hover`).
+  - **커스텀 폰트 업로드**: `admin/navigation/settings/page.tsx`에 "커스텀 폰트 파일 업로드(.woff/.woff2/.ttf/.otf)" 필드 추가 — `public-assets`/`logo_fonts` 폴더에 업로드하고 URL을 `main_logo.fontFileUrl`로 저장. `Navbar.tsx`는 이 URL이 있으면 `<style>` 태그로 `@font-face`(`font-family: 'SiloCustomLogoFont'`)를 동적 주입하고, 로고 좌/우 텍스트의 `fontFamily`에 최우선 적용(기존 Graphire/Primor/자유 입력 서체보다 우선).
+  - **아이콘 크기 설정**: `sidebar_icons`에 `iconSizePx`(기본 32px, 기존 `w-8 h-8` 하드코딩과 동일) 추가 — 관리자 폼에 숫자 입력 필드, `LeftSidebar`/`RightSidebar`가 `width`/`height` 인라인 스타일로 반영.
+  - **홈 큐레이션 동적 배열**: `home_curation` 설정을 단일 객체에서 `HomeCurationBlock[]`(섹션 제목 + 필터 기준(도메인) + 타겟 값(slug) + 정렬)로 고도화 — 관리자 폼에 블록 추가/삭제/위로·아래로 이동 UI 추가. 구버전 단일 객체 데이터는 로드 시 블록 1개로 자동 이전(관리자 폼과 `page.tsx` 양쪽 모두). 신규 `src/components/HomeCurationSlider.tsx`(섹션 제목 + 가로 스크롤 썸네일, 표시 전용)를 만들고 `page.tsx`가 저장된 순서대로 렌더링 — `domain==="shop"` 블록은 `items` 테이블을 실제로 조회(카테고리 slug 필터, `status='available'`)하고, salon/collection/docent 도메인은 아직 각 화면의 실제 스키마를 확인하지 않아 UI 확인용 더미 데이터로 대체(스키마 추측 금지 원칙에 따름 — NEXT_TASK.md 참고).
+  - 검증: `npm run lint`(26건, EPIC-040과 동일 — 신규 이슈 없음)/`npx tsc --noEmit` 통과. 이번 세션 dev 서버에서 직접 확인 — hover 팝업이 마우스가 벗어나면 즉시 닫힘(브라우저 자동화 도구의 합성 마우스 이동이 실제 `mouseout`을 늘 발생시키지 않는 경우가 있어, 실제 `mouseout` 이벤트를 직접 디스패치해 닫힘을 재확인함), 홈 큐레이션 블록이 구버전 데이터에서 자동 이전되어 실제 `items` 테이블 데이터("아르누보 유리 램프")로 렌더링되는 것까지 확인. 폰트 파일 업로드/아이콘 크기 반영은 실제 파일 업로드 다이얼로그 조작이 불가해 코드 리뷰 수준으로만 확인.
+
+## 2026-07-27 (EPIC-040)
+- **EPIC-040: Master UI — nested dropdown, independent sidebars, logo texts, random wallpapers**
+  - **다단계(Nested) 드롭다운**: `Navbar.tsx`의 상단 탭 hover 팝업이 groups(사이드바 타입, 예: 사일로상점/살롱데상)를 가질 때 이제 그룹 라벨을 1차 목록으로 보여주고, 각 행에 마우스를 올리면 그 그룹의 items가 2차 플라이아웃으로 옆에 튀어나온다 — 별도 JS state 없이 Tailwind `group`/`group-hover`만으로 구현(플라이아웃이 부모 팝업 바깥으로도 잘리지 않게 팝업의 `max-h-[70vh] overflow-y-auto`를 제거). `dropdown` 타입(예: 스튜디오)은 groups가 없어 기존처럼 평평한 목록.
+  - **좌/우 사이드바 독립 state 복구**: EPIC-039는 전체 높이 사이드바(open 여부)를 상단 탭 hover/pin 상태(`openTab`/`pinnedKey`)에서 파생시켰는데, 그러면 상단 탭 hover가 곧 전체 사이드바를 열어버려 이번 EPIC의 "탭 hover 시 작은 다단계 팝업" 요구와 근본적으로 충돌했다(하나의 hover가 두 다른 UI를 동시에 열 수 없음). `leftOpen`/`rightOpen`을 다시 독립적인 `useState`로 되돌려, 전체 사이드바는 오직 `LeftSidebar`/`RightSidebar` 자신의 여닫이 아이콘 버튼(hover로 열기/✕·바깥 클릭·패널에서 마우스가 벗어나면 닫기)으로만 제어한다 — 상단 탭 쪽 다단계 팝업과는 완전히 별개의 UI/상태.
+  - 사이드바 아이콘 업로드, 로고 좌/우 텍스트, 슬라이드쇼 다중 Wallpaper 랜덤 배경은 EPIC-039에서 이미 구현된 것을 그대로 사용(이번 EPIC에서 관련 파일을 다시 건드리지 않음) — 상세 내용은 위 EPIC-039 항목 참고.
+  - 검증: `npm run lint`(26건, EPIC-039와 동일 — 신규 이슈 없음)/`npx tsc --noEmit` 통과. 이번 세션 dev 서버에서 직접 확인: 상단 탭 hover → 1차 그룹 팝업 → 그룹 hover 시 2차 아이템 플라이아웃, 사이드바 아이콘(🔑) hover-열림/✕-닫힘/바깥 클릭-닫힘(별도 상태로 상단 탭 팝업과 무관하게 동작), 로고 좌/우 텍스트("I'm your" / "SILO") 실 데이터로 대칭 렌더링, 슬라이드쇼 wallpaper가 재로딩마다 다른 이미지로 무작위 표시되는 것까지 확인.
+
+## 2026-07-27 (EPIC-039)
+- **EPIC-039: Master UI polish — sidebars, icons, logo texts, hover, random wallpapers**
+  - **사이드바 복구**: EPIC-037이 sidebar-left/sidebar-right를 dropdown과 동일한 작은 팝업으로 통합했던 것을, 화면 전체 높이의 슬라이드인 패널로 복구했다. 다만 EPIC-037의 "hover로 열고 클릭으로 고정, 바깥 클릭으로 닫기" 상태 관리(`openTab`/`pinnedKey`)는 그대로 재사용 — `leftOpen`/`rightOpen`을 별도 state로 다시 두지 않고 `pinnedKey === tab.key || (!pinnedKey && openTab?.key === tab.key)`로 파생시켜, "Hover 로직과 충돌하던 사이드바 State"가 다시 생기지 않게 했다. 패널 UI 자체는 `src/components/LeftSidebar.tsx`/`RightSidebar.tsx` 2개 컴포넌트로 분리.
+  - **사이드바 아이콘**: `admin/navigation/settings/page.tsx`에 좌/우 사이드바 아이콘 파일 업로드(새 `site_settings` 키 `sidebar_icons`, `public-assets`/`sidebar_icons` 폴더) 추가. `LeftSidebar`/`RightSidebar`의 여닫이 버튼이 이 아이콘을 `w-8 h-8`로 렌더링하고, 아이콘이 없으면 기존 🔑/🚪 이모지로 자동 대체.
+  - **로고 좌/우 텍스트**: `main_logo`의 단일 `extraText`+`textPosition`을 `leftText`/`rightText`로 분리 — 로고 이미지를 중앙에 두고 양옆에 동일한 `flex-1` 폭으로 대칭 배치. 이 레이아웃이 EPIC-034의 "정렬 위치"(`align`)와 의미가 겹쳐 관리자 UI에서 정렬 select는 제거(항상 중앙). 구버전 `extraText`+`textPosition` 데이터는 로드 시 1회 `leftText`/`rightText`로 자동 이전(`align`/`extraText`/`textPosition` 필드 자체는 구버전 호환을 위해 타입에는 남겨둠).
+  - **상단 탭 hover 일관성**: dropdown/sidebar-left/sidebar-right 3개 타입은 EPIC-037부터 이미 동일한 hover-팝업 상호작용을 공유 — 이번 EPIC은 사이드바 타입의 팝업 내용만 컴팩트 박스에서 전체 패널로 바꿨을 뿐, 트리거 메커니즘(hover 미리보기/클릭 고정/바깥 클릭 해제)은 손대지 않았다. `link` 타입(마이페이지)은 하위 항목이 데이터 모델에 없어(그룹/아이템 없음) 실제 드롭다운 노출은 적용하지 않고, 시각적 일관성만 위해 동일한 hover 테마 색상(`hover:bg-green-800`)을 추가했다 — 실제 서브메뉴가 필요하면 `site_navigations`에 자식 행을 추가하는 별도(데이터) 작업이 필요하다.
+  - **슬라이드쇼 랜덤 배경**: `hero_slideshow.wallpaperUrl`(단일 문자열)을 `wallpaperUrls`(최대 10개 배열)로 교체 — 관리자 폼은 슬라이드 목록과 동일한 "+ 추가/삭제" 패턴의 반복 업로드 UI. `HeroSlideshow.tsx`는 슬라이드 인덱스(`current`)가 바뀔 때마다 이펙트에서 `Math.random()`으로 하나를 골라 `useState`에 담아 배경으로 적용 — `Math.random()`은 순수하지 않아 렌더/`useMemo` 안에서 호출할 수 없다(`react-hooks/purity`)는 새 ESLint 규칙 때문에 useEffect+setState 방식을 택함(모든 슬라이드가 같은 배경을 공유해 크로스페이드 중 배경이 어긋나 보이지 않게 함). 구버전 단일 `wallpaperUrl`은 로드 시 1개짜리 배열로 자동 이전.
+  - 검증: `npm run lint`(26건 → 27건, +1은 위 wallpaper 이펙트의 `react-hooks/set-state-in-effect` — 이미 저장소 전반에 퍼져 있는 동일 클래스의 pre-existing 이슈, NEXT_TASK.md의 P2 항목과 동일 성격)/`npx tsc --noEmit` 통과. 이번 세션 dev 서버에서 직접 확인: 사이드바 hover-열림/클릭-고정/바깥 클릭-닫힘, 로고 좌측 텍스트 마이그레이션 표시, 관리자 폼의 새 필드(좌/우 텍스트, Wallpaper 다중 업로드, 사이드바 아이콘) 렌더링까지 확인. Wallpaper 실제 파일 업로드/랜덤 배경 렌더링과 사이드바 아이콘 업로드는 실제 파일 다이얼로그 조작이 불가해 코드 리뷰 수준으로만 확인(NEXT_TASK.md 참고).
+
+## 2026-07-27 (EPIC-037)
+- **EPIC-037: Navigation hover & click UX improvement**
+  - `Navbar.tsx`: 상단 탭의 `dropdown`/`sidebar-left`/`sidebar-right` 3개 타입을 렌더링 방식 하나로 통일 — 예전에는 sidebar 타입이 화면 전체 높이로 슬라이드인하는 별도 패널(+ 화면 가장자리의 🔑/🚪 플로팅 버튼)이었지만, 이제 세 타입 모두 탭 바로 아래에 뜨는 작은 팝업(그룹이 있으면 그룹 라벨+항목, 없으면 dropdown의 평평한 항목 목록)으로 동작한다. 기존 `leftOpen`/`rightOpen`/`dropdownTab`/`dropdownPos`/`openDropdown`/`closeDropdown`/`closeSidebars`를 `openTab`/`popupPos`/`pinnedKey`와 `handleTabMouseEnter`/`handleTabClick`/`handlePopupMouseLeave`로 교체.
+  - Hover 시 탭 배경/텍스트가 사이드바와 동일한 테마 색상(`bg-green-800`/`text-white`)으로 바뀌고 탭 바로 아래에 팝업이 뜬다. 클릭 시에는 `pinnedKey`에 해당 탭의 `key`를 저장해 팝업을 "고정"하고, 고정된 동안에는 다른 탭에 마우스를 올려도 내용이 바뀌지 않는다(의도치 않은 전환 방지). 문서 전체에 `mousedown` 리스너를 다는 `useEffect`(의존성 `[pinnedKey]`)로 팝업/탭 바깥 클릭을 감지해 고정을 해제 — 팝업(`popupRef`)이나 탭이 속한 `<nav>`(`navRef`) 내부 클릭은 무시해 탭 전환이 자연스럽게 이어지도록 함.
+  - 검증: `npm run lint`(기존 25건 pre-existing 이슈만 유지, 신규 발생 없음)/`npx tsc --noEmit` 통과. 이번 세션 dev 서버에서 실제로 hover 시 팝업+테마 색상 전환, 클릭 후 마우스를 팝업 밖으로 옮겨도 유지되는 고정, 빈 공간 클릭 시 닫힘까지 직접 확인.
+
+## 2026-07-27 (EPIC-036)
+- **EPIC-036: Logo text color & slide background wallpaper**
+  - `admin/navigation/settings/page.tsx`: `main_logo`에 "추가 텍스트 색상"(`textColor`, 컬러 피커 + HEX 직접 입력) 필드 추가 — 기본값은 `Navbar.tsx` 사이드바에 쓰이는 짙은 녹색(Tailwind `green-800`, `#166534`)으로 맞춤. `hero_slideshow`에는 "여백 배경 이미지(Wallpaper)" 파일 첨부 필드(`wallpaperUrl`) 추가 — 로고/슬라이드 이미지와 동일한 `uploadImage()`/`public-assets` 버킷 업로드 로직 재사용.
+  - `Navbar.tsx`: 로고 옆 추가 텍스트의 하드코딩된 `text-gray-900` 클래스를 제거하고, `mainLogo.textColor`(없으면 기본값 `#166534`)를 인라인 `style={{ color }}`로 적용.
+  - `HeroSlideshow.tsx`: `wallpaperUrl` prop 추가. `objectFit==="contain"`이고 `wallpaperUrl`이 있을 때만 각 슬라이드 컨테이너에 `backgroundImage`/`backgroundSize: cover`/`backgroundPosition: center` 인라인 스타일을 적용해 이미지 좌우·상하 여백을 채움 — `cover` 모드에서는 여백이 애초에 없으므로 배경이 적용되지 않음.
+  - `src/app/page.tsx`: 홈페이지 Server Component가 `hero_slideshow` 조회 결과의 `wallpaperUrl`을 `HeroSlideshow`에 그대로 전달하도록 연결.
+  - 검증: `npm run lint` 통과 확인. 이번 세션은 dev 서버를 직접 띄운 세션이라 브라우저로 실제 렌더링(색상 피커 반영, wallpaper 배경)까지 확인 완료 — 자세한 내용은 세션 로그 참고.
+
 ## 2026-07-27 (EPIC-034-Ext)
 - **EPIC-034-Ext: Advanced logo text styling**
   - `admin/navigation/settings/page.tsx`: `main_logo`에 "텍스트 위치"(로고 좌/우, `textPosition`)와 "텍스트 폰트"(기본/Graphire/Primor Select, `textCustomFont`) 추가. EPIC-034의 자유 입력 서체 필드(`fontFamily`)는 유지하고 "기본" 선택 시에만 사용하도록 해 대체가 아닌 보완 방식으로 구현 — Graphire/Primor 선택 시 자유 입력란은 비활성화.

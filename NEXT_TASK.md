@@ -4,6 +4,20 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-041-042-HOTFIX 후속**: 이번 세션은 Browser 창이 화면에 표시되지 않는 상태라(`screenshot`/`hover` 등 실제 커서 이동이 필요한 도구가 모두 실패) 재구현한 순수 CSS `group`/`group-hover` 드롭다운의 실제 마우스 동작(hover 열림, 완전히 벗어났을 때 즉시 닫힘, 2차 플라이아웃)을 스크린샷으로 직접 확인하지 못했다 — `npm run lint`/`npx tsc --noEmit`만 통과 확인. 사용자가 직접 상단 탭에 마우스를 올려 1차/2차 드롭다운이 뜨는지, 마우스를 빈 공간으로 치웠을 때 즉시 닫히는지, 특히 화면 오른쪽에 가까운 탭에서 2차 플라이아웃이 뷰포트 밖으로 잘리지 않는지 확인 필요.
+- **EPIC-041-042-HOTFIX 후속**: `<nav>`의 가로 스크롤(`overflow-x-auto`)을 `flex-wrap`으로 바꿔, 아주 좁은 화면(탭 4개가 한 줄에 안 들어가는 경우)에서는 스크롤 대신 다음 줄로 넘어간다 — 실사용 중 이 레이아웃이 어색하면 별도 반응형 처리를 검토할 것.
+- **EPIC-041-042 후속**: `src/app/page.tsx`의 홈 큐레이션은 `domain==="shop"`만 `items` 테이블을 실제로 조회하고, `salon`/`collection`/`docent` 도메인은 각 화면(예: `/clubs`, `/docent`)의 실제 테이블·컬럼을 확인하지 않은 채 추측으로 조회하지 않기 위해 더미 데이터로 대체해뒀음 — 실사용 데이터가 필요해지면 각 도메인 화면의 조회 로직을 참고해 `fetchCurationItems()`에 추가할 것.
+- **EPIC-041-042 후속**: 커스텀 폰트 업로드(`main_logo.fontFileUrl`)는 실제 폰트 파일 업로드를 브라우저 자동화로 재현할 수 없어 코드 리뷰 수준으로만 확인함 — 사용자가 직접 `.woff`/`.ttf` 파일을 업로드해 로고 좌/우 텍스트에 실제로 적용되는지 확인 필요.
+- **EPIC-041-042 후속**: 사이드바 아이콘 크기(`iconSizePx`) 필드도 같은 이유로 실제 값 변경 후 아이콘 크기가 바뀌는지 직접 확인 필요.
+- **EPIC-040 후속**: 2차 플라이아웃(`group-hover:block absolute left-full`)은 화면 오른쪽 끝에 가까운 탭(예: 맨 오른쪽 탭)에서 열리면 뷰포트 밖으로 잘려 나갈 수 있음 — 현재는 항상 오른쪽으로만 펼쳐짐. 실사용 중 잘림 현상이 발견되면 뷰포트 우측 여백을 계산해 필요 시 왼쪽으로 펼치는 로직을 추가할 것.
+- **EPIC-039 후속**: `sidebar_icons`는 새 `site_settings` 키라 라이브 DB에 해당 row가 없으면(최초 1회) 조회는 정상 동작하되(빈 값으로 처리) 관리자 화면에서 저장 시 `site_settings` 테이블 자체는 이미 있으므로(EPIC-026) upsert가 그대로 새 row를 만든다 — 별도 DDL 불필요, 확인만 하면 됨.
+- **EPIC-039 후속**: `main_logo`의 `align`/`extraText`/`textPosition` 필드는 이제 UI에서 노출되지 않고 렌더링에도 쓰이지 않는 죽은 필드가 됐다(구버전 데이터 호환을 위한 타입 정의 및 1회 마이그레이션 용도로만 존재). 사용자가 확인 후 완전히 무의미하다고 판단되면 별도 정리(스키마/타입에서 제거) 작업을 검토할 것 — 이번 EPIC 범위 밖.
+- **EPIC-039 후속**: `link` 타입 상단 탭(마이페이지)은 하위 그룹/아이템이 데이터 모델에 없어 hover 시 드롭다운을 띄우지 못하고 색상 힌트만 적용했음 — "모든 상위 탭 hover 시 하위 메뉴 노출"을 문자 그대로 마이페이지에도 적용하려면 `site_navigations`에 마이페이지 하위 항목(예: 마이페이지/설정/로그아웃 등)을 추가하는 별도 데이터 작업이 필요함(추측으로 만들지 않음).
+- **EPIC-039 후속**: `HeroSlideshow.tsx`의 wallpaper 랜덤 선택(`Math.random()`)을 `useEffect`+`setState`로 구현해 `react-hooks/set-state-in-effect` 위반이 1건 늘었음(26→27, 이미 저장소 전반에 퍼진 동일 클래스 pre-existing 이슈와 같은 성격) — 아래 "보류 중인 P2 이슈"와 함께 전체 훑는 리팩터링 시 같이 처리할 것.
+- **EPIC-039 후속**: Wallpaper 다중 업로드/사이드바 아이콘 업로드는 실제 파일 선택 다이얼로그를 자동화로 조작할 수 없어 코드 리뷰 수준으로만 확인함 — 사용자가 직접 `/admin/navigation/settings`에서 배경 이미지 여러 개를 업로드하고 슬라이드쇼가 "contain" 모드로 전환될 때 배경이 무작위로 바뀌는지, 사이드바 아이콘이 실제로 🔑/🚪 이모지를 대체하는지 확인 필요.
+- **EPIC-037 후속**: 팝업이 탭 바로 아래(`top: rect.bottom`)에 붙어 있어 마우스가 버튼→팝업으로 자연스럽게 이동하면 계속 열려 있지만, 버튼에서 팝업을 거치지 않고 다른 곳으로 이동하면(예: 옆의 다른 탭으로 곧장 이동하지 않고 화면 아무 곳이나 이동) 팝업이 "hover 상태"로 남아있다가 실제로 팝업 영역을 스치기 전까지 안 닫히는 경우가 이론상 있을 수 있음(기존 dropdown 타입 코드의 동일한 설계를 그대로 계승). 사용자가 실사용 중 불편함을 느끼면 팝업 컨테이너에 약간의 patding/여유 공간을 두거나 hover-intent 딜레이 로직 추가를 검토할 것.
+- **EPIC-036 후속**: `package.json`에 `@dnd-kit/core`/`@dnd-kit/sortable`/`@dnd-kit/utilities`(EPIC-035)가 선언돼 있었으나 `node_modules`에 실제로 설치돼 있지 않아 `/admin/navigation`(`CategoryTreeManager`) 전체가 컴파일 에러로 로드되지 않는 상태였음 — 이번 EPIC 작업 중 `npm install`로 해결. 이 저장소를 여러 기기/세션에서 오가며 작업할 때는 `git pull` 후 `npm install`도 함께 실행할 것(그렇지 않으면 lockfile에는 있지만 로컬 `node_modules`에는 없는 패키지가 생길 수 있음).
+- **EPIC-036 후속**: `hero_slideshow.wallpaperUrl` 업로드/저장 자체는 로고·슬라이드 이미지와 동일한 `uploadImage()` 경로를 재사용해 구현했지만, 실제 파일 첨부→업로드→`objectFit="contain"` 상태에서 배경으로 렌더링되는지는 브라우저 자동화로 실제 파일 선택 다이얼로그를 조작할 수 없어 코드 리뷰 수준으로만 확인함 — 사용자가 직접 `/admin/navigation/settings`에서 이미지 채움 방식을 "원본 모두 보이게(contain)"로 바꾸고 Wallpaper 이미지를 업로드해 홈 히어로에서 여백이 채워지는지 확인 필요.
 - **EPIC-022 후속**: `member_collections`는 anon key REST 조회(`200 []`)로 라이브에 실제로 존재함을 EPIC-029 작업 중 확인함 — `docs/database-schema.sql` 상단 동기화 노트("아직 라이브 미적용")가 이 테이블에 한해 stale함. `member_follows`/`member_badges`/`member_visitors` 3개는 미확인 상태이므로 여전히 Supabase SQL Editor에서 실제 적용 여부 점검 필요(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). 문서 상단 노트 자체의 정정은 이번 EPIC 범위(수정 대상 파일 제한) 밖이라 별도 작업 필요.
 - **EPIC-022 후속**: "나의 살롱"/"나의 도슨트 수료증"/"나의 공간"/"나의 전시회"/"타임라인" 5개 탭의 데이터 소스 결정 필요(현재 Empty State만 존재).
 - **EPIC-022 후속**: `member_follows`(팔로우 버튼)/`member_visitors`(방문 기록 insert) 쓰기 경로 구현 필요 — 아마도 `/u/[memberId]` 페이지에 추가.

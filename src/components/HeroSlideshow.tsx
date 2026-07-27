@@ -10,13 +10,15 @@ export function HeroSlideshow({
   slides,
   autoAdvanceSeconds = DEFAULT_AUTO_ADVANCE_SECONDS,
   objectFit = "cover",
-  wallpaperUrl,
+  wallpaperUrls,
 }: {
   slides: SlideItem[];
   autoAdvanceSeconds?: number;
   objectFit?: "cover" | "contain";
-  // EPIC-036: objectFit="contain"일 때 이미지 좌우/상하 여백을 채우는 배경.
-  wallpaperUrl?: string;
+  // EPIC-036/039: objectFit="contain"일 때 이미지 좌우/상하 여백을 채우는
+  // 배경 후보 목록(최대 10개) — 슬라이드가 바뀔 때마다 이 중 하나를
+  // 무작위로 골라 적용한다.
+  wallpaperUrls?: string[];
 }) {
   const [current, setCurrent] = useState(0);
 
@@ -28,9 +30,26 @@ export function HeroSlideshow({
     return () => clearInterval(timer);
   }, [slides.length, autoAdvanceSeconds]);
 
+  // EPIC-039: `current`가 바뀔 때(= 슬라이드 전환 시)마다 한 번만 다시 뽑는다.
+  // Math.random()은 순수하지 않아 렌더 중(useMemo 포함)에는 호출할 수 없으므로
+  // (react-hooks/purity) 이펙트 안에서 뽑아 state에 담는다. 모든 슬라이드가
+  // 같은 배경을 공유해야 크로스페이드 전환 중에 배경이 서로 어긋나 보이지 않는다.
+  const [activeWallpaper, setActiveWallpaper] = useState<string | undefined>(
+    undefined,
+  );
+  useEffect(() => {
+    if (!wallpaperUrls || wallpaperUrls.length === 0) {
+      setActiveWallpaper(undefined);
+      return;
+    }
+    setActiveWallpaper(
+      wallpaperUrls[Math.floor(Math.random() * wallpaperUrls.length)],
+    );
+  }, [current, wallpaperUrls]);
+
   if (slides.length === 0) return null;
 
-  const showWallpaper = objectFit === "contain" && !!wallpaperUrl;
+  const showWallpaper = objectFit === "contain" && !!activeWallpaper;
 
   return (
     <div className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden bg-gray-900">
@@ -43,7 +62,7 @@ export function HeroSlideshow({
           style={
             showWallpaper
               ? {
-                  backgroundImage: `url(${wallpaperUrl})`,
+                  backgroundImage: `url(${activeWallpaper})`,
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                 }

@@ -135,6 +135,76 @@ function GalleryGrid({ boardId, posts }: { boardId: string; posts: BoardPost[] }
   );
 }
 
+// Timeline Engine(EPIC-050): 연→월 순으로 묶어 보여주는 그룹핑 로직 —
+// 독립 컴포넌트가 아니라 이 파일 안의 재사용 가능한 함수로 유지해, 향후
+// 마이페이지 타임라인 탭(현재 PlaceholderPanel) 등 다른 화면도 "정렬된
+// {created_at, title, ...} 목록"만 넘기면 같은 방식으로 묶을 수 있게 한다.
+function groupPostsByYearMonth(posts: BoardPost[]) {
+  const byYear = new Map<string, Map<string, BoardPost[]>>();
+
+  for (const post of posts) {
+    const date = new Date(post.created_at);
+    const year = String(date.getFullYear());
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+
+    if (!byYear.has(year)) byYear.set(year, new Map());
+    const byMonth = byYear.get(year)!;
+    if (!byMonth.has(month)) byMonth.set(month, []);
+    byMonth.get(month)!.push(post);
+  }
+
+  return byYear;
+}
+
+// timeline: 사일로상점+살롱데상의 모든 이벤트를 연/월/일 순으로 보여주는
+// 반응형 타임라인.
+function TimelineView({ boardId, posts }: { boardId: string; posts: BoardPost[] }) {
+  const grouped = groupPostsByYearMonth(posts);
+  const years = [...grouped.keys()].sort((a, b) => Number(b) - Number(a));
+
+  return (
+    <div className="space-y-12">
+      {years.map((year) => {
+        const byMonth = grouped.get(year)!;
+        const months = [...byMonth.keys()].sort((a, b) => Number(b) - Number(a));
+
+        return (
+          <section key={year}>
+            <h2 className="font-serif text-2xl font-bold text-gray-900 mb-6">
+              {year}
+            </h2>
+            <div className="space-y-8 border-l border-gray-200 pl-6">
+              {months.map((month) => (
+                <div key={month}>
+                  <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
+                    {year}년 {Number(month)}월
+                  </h3>
+                  <div className="space-y-3">
+                    {byMonth.get(month)!.map((post) => (
+                      <Link
+                        key={post.id}
+                        href={`/boards/${boardId}/${post.id}`}
+                        className="block group"
+                      >
+                        <p className="text-xs text-gray-400">
+                          {new Date(post.created_at).getDate()}일
+                        </p>
+                        <p className="font-serif text-gray-900 group-hover:underline">
+                          {post.title}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 // hub: 하위 게시판의 최신글/인기글/추천글 슬라이드 + 하위 게시판 카드.
 function FeedSlide({
   title,
@@ -229,9 +299,10 @@ function HubView({
   );
 }
 
-// Board Definition System(EPIC-047/048): 게시판별로 화면을 새로 만들지
-// 않고, BoardDefinition.boardType 하나로 community/story/gallery/hub 네
-// 레이아웃 중 하나를 선택해 렌더링한다 — definition을 통째로 받는 이유는,
+// Board Definition System(EPIC-047~050): 게시판별로 화면을 새로 만들지
+// 않고, BoardDefinition.boardType 하나로 community/story/gallery/hub/
+// timeline 다섯 레이아웃 중 하나를 선택해 렌더링한다 — definition을 통째로
+// 받는 이유는,
 // 태그/썸네일 같은 세부 토글도 여기서 그대로 참조할 수 있게 하기 위함.
 // hub는 자기 자신의 글 목록(posts)이 아니라 하위 게시판들의 종합 피드
 // (hubFeed)+카드(hubChildBoards)를 받아 그린다.
@@ -268,6 +339,8 @@ export function BoardRenderer({
       return <StoryCards boardId={boardId} posts={posts} />;
     case "gallery":
       return <GalleryGrid boardId={boardId} posts={posts} />;
+    case "timeline":
+      return <TimelineView boardId={boardId} posts={posts} />;
     case "community":
     default:
       return <CommunityList boardId={boardId} posts={posts} isQna={isQna} />;

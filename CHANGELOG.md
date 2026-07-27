@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-07-27 (EPIC-050)
+- **EPIC-050: Salon des Cent Membership/Gallery/Archive 게시판 생성 + Timeline Engine + 실제 인가 연결**
+  - Board Definition System으로 게시판 17개(전부 신규 DB 행)를 추가 생성 — 새 페이지/컴포넌트 없이 `src/lib/boardLayout.ts`에 정의만 추가. 구조: 최상위 hub 3개(`Membership`/`Gallery`/`Archive`, Silo Store/Online Docent/Heritage/Community와 형제). `Membership` 하위 6개(나의 보물 이야기 story/나의 아티스트 소개/마음일기/패트론 게시판/한문장 소설 프로젝트/비밀의 방 도슨트). `Gallery` 하위 5개 story(시상식/공연들/파티/운명의 방문자들/패트론들). `Archive` 하위 3개(소개지 story/포스터 story/타임라인 timeline).
+  - **5번째 boardType "timeline" 추가**: `BoardLayoutType`에 `"timeline"` 추가하고 `BoardRenderer.tsx`에 `TimelineView`+`groupPostsByYearMonth`를 실제 구현(연→월→일 순 그룹핑, 반응형). **Timeline Engine은 독립 컴포넌트가 아니라 BoardRenderer.tsx 내부의 재사용 가능한 함수**로 유지 — "정렬된 `{created_at, title, ...}` 목록"에만 의존하므로, 향후 마이페이지 타임라인 탭(현재 `PlaceholderPanel`)이 같은 그룹핑 로직을 그대로 가져다 쓸 수 있는 구조(이번 EPIC에서 mypage 쪽 연동까지 하지는 않음 — NEXT_TASK.md 참고).
+  - **`accessLevel` 필드 추가 + "패트론 게시판"에 실제 인가 연결(판단 필요 사항)**: `BoardDefinition`에 `accessLevel?: "patron" | "secret_room"` 추가. 지시문이 "패트론 게시판"엔 "멤버십 권한 적용"(현재형, 적용하라는 지시)이라 표현한 반면 "비밀의 방 도슨트"엔 "accessLevel만 지정"(구조만 유지하라는 지시)이라고 구분해서 표현한 것으로 판단해, 두 게시판을 다르게 처리했다:
+    - **패트론 게시판**: `src/lib/serverAuth.ts`의 `canReadBoard`/`canWriteToBoard`를 확장해 `resolveBoardDefinition(board).accessLevel === "patron"`이면 실제 `board_type`(재사용한 `'topic'`)과 무관하게 `membership_tiers.board_has_patron_board` 플래그로 읽기/쓰기 모두 막는다 — board_type 하나만 보고 게이팅하던 기존 로직의 사각지대(새 게시판이 다 `'topic'`을 재사용하다 보니 패트론 전용으로 만들 방법이 없었음)를 config 기반으로 메운 것. 기존 8개 그룹(특히 원본 `patron` board_type 게시판)의 동작은 그대로.
+    - **비밀의 방 도슨트**: `accessLevel:"secret_room"`만 지정하고 `canReadBoard`/`canWriteToBoard`에는 아무 분기도 추가하지 않음 — 지금은 다른 일반 게시판과 동일하게 전체 공개(구조만 준비, 실제 시험/권한 로직은 `salon_rooms`/`salon_room_access`와의 연동 여부를 사용자와 논의 후 진행, NEXT_TASK.md 참고).
+  - **"단순 Placeholder를 만들지 않는다" 확인**: 이 17개 게시판은 다른 EPIC-047~049 게시판과 동일하게 실제 `posts`/`comments`/`likes`/`post_bookmarks` 테이블 기반으로 글쓰기·좋아요·댓글·북마크·태그·검색·정렬·페이지네이션이 전부 즉시 동작한다 — UI만 있는 정적 화면이 아니라 실제 서비스 가능한 게시판(단, 아래 "구조만 유지" 항목들은 예외).
+  - **"Gallery" 5개는 기존 ComingSoon 페이지와 같은 주제(판단 필요 사항)**: `docs/content-blueprint.md`에 "전부 미구현(ComingSoon)"으로 기록돼 있던 `/salon/gallery/{awards,performances,parties,visitors,patrons}` 5개 서브페이지와 동일한 주제를 이번에 실제 게시판으로 구현했다. 지시문에 기존 페이지를 대체/연결하라는 내용이 없고 "새 React 페이지 생성 금지"만 있어, **기존 ComingSoon 페이지 자체는 건드리지 않았다** — 실제 콘텐츠는 새 `/boards/[id]` 게시판이 담당하고, 내비게이션 연결은 별도 작업으로 남김(NEXT_TASK.md 참고).
+  - **"나의 보물 이야기"/"패트론 게시판"의 실제 데이터 연동은 하지 않음**: 지시문의 "연동 가능한 구조를 유지한다"를 "지금 연동하라"가 아니라 "나중에 연동할 여지를 남겨두라"로 해석 — 마이페이지 컬렉션, 등급 시스템 어느 쪽도 이 게시판들의 `posts`와 실제로 조인/동기화하지 않는다.
+  - **DB(신규 17행)**: 전부 새 게시판이라 재사용할 기존 행이 없음(EPIC-049와 달리) — `board_type='topic'` 재사용, `category`에 slug. 작업 전 `docs/database-schema.sql`을 `docs/backups/database-schema-20260727-2155.sql`로 백업.
+  - 기존 게시판(그룹 8종 + EPIC-048/049의 51개)의 동작은 변경 없음. 기존 라우팅과 URL 전부 유지.
+  - 문서 동기화: `docs/database-schema.sql`, `docs/content-blueprint.md`, `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint`(26건, EPIC-049와 동일 — 신규 이슈 없음) 통과. 다른 세션이 3000번 포트를 점유 중이고 DB 시드도 라이브 미적용이라, 브라우저로 타임라인 렌더링/패트론 게시판 실제 잠금 동작을 확인하지 못함 — 사용자 확인 필요(NEXT_TASK.md 참고).
+
 ## 2026-07-27 (EPIC-049)
 - **EPIC-049: Salon des Cent Community 영역 게시판 생성 — Board Definition만 추가**
   - Board Definition System(EPIC-047/048)을 재사용해 Community 영역 게시판을 생성 — 새 페이지/컴포넌트 없이 `src/lib/boardLayout.ts`의 `INDIVIDUAL_BOARD_DEFINITIONS`에 정의 31개(신규 게시판 정의) 추가. 구조: 최상위 hub `Community`(Silo Store/Online Docent/Heritage와 형제) 아래 `출석체크/예술가의 달력`(attendance)·`자유게시판`(free)·`주제별 소통 게시판`(salon-topics, hub)·`요일별 클럽`(salon-weekday, hub)·`월별 모임`(monthly-salon)·`설문 [우리들 맴]`(survey, hub)·`공연/전시회 소개`(events, story)·`이벤트 공지`(notice, story)·`Q&A 고민 게시판`(qna) 9개, 그 아래 `salon-topics`의 자식 13개(경제/예술/세계역사/과학/코메디/문학/건강/정치/영화/심리/스포츠/인간 집사들/따듯한 세상 클럽)와 `salon-weekday`의 자식 7개(월요반란/책 낭송/행간의 조각가/놀아보자 영어클럽/비포 선라이즈/무슨일이든 일어날수있어/연극이 끝나고 난 뒤).

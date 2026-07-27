@@ -47,7 +47,9 @@ export type BoardPost = {
   is_answered?: boolean;
 };
 
-export type BoardLayoutType = "community" | "story" | "gallery" | "hub";
+// EPIC-050: "timeline"은 연/월/일 순으로 묶어 보여주는 5번째 레이아웃 —
+// 사일로상점+살롱데상 전체 이벤트를 시간순으로 훑어보는 Archive 전용 게시판.
+export type BoardLayoutType = "community" | "story" | "gallery" | "hub" | "timeline";
 
 export type BoardDefinition = {
   id: string;
@@ -58,6 +60,12 @@ export type BoardDefinition = {
   boardType: BoardLayoutType;
   visibility: "public" | "private";
   membership: number; // 이 그룹의 최소 열람 등급(0=전체 공개) — 표시/안내용, 실제 인가는 serverAuth.ts
+  // EPIC-050: board_type(등급 판정 축)과 별개로, 이 개별 게시판에 특수
+  // 접근 규칙이 있음을 표시하는 태그. 지금은 "patron"만 serverAuth.ts에
+  // 실제로 연결돼 있고(canReadBoard/canWriteToBoard), 그 외 값(예:
+  // "secret_room")은 향후 실제 인가 로직을 연결하기 전까지 구조만
+  // 유지하는 표시용 필드다(NEXT_TASK.md 참고).
+  accessLevel?: "patron" | "secret_room";
   searchable: boolean;
   pageable: boolean;
   sortable: boolean;
@@ -378,12 +386,16 @@ function story(input: {
 
 // EPIC-049: community() — 썸네일 없는 목록형 게시판(자유게시판/클럽/모임방
 // 등). story()/hub()와 같은 이유로 반복 하드코딩을 피하려고 만든 헬퍼.
+// EPIC-050: accessLevel(선택)을 추가 — "patron"을 주면 membership도 함께
+// 3으로 맞춰(표시용) serverAuth.ts의 실제 게이팅과 안내 문구가 어긋나지
+// 않게 한다.
 function community(input: {
   slug: string;
   title_ko: string;
   title_en: string;
   parent: string;
   description: string;
+  accessLevel?: BoardDefinition["accessLevel"];
 }): BoardDefinition {
   return {
     id: input.slug,
@@ -393,7 +405,8 @@ function community(input: {
     parent: input.parent,
     boardType: "community",
     visibility: "public",
-    membership: 0,
+    membership: input.accessLevel === "patron" ? 3 : 0,
+    accessLevel: input.accessLevel,
     searchable: true,
     pageable: true,
     sortable: true,
@@ -439,6 +452,39 @@ function hub(input: {
     allowPosting: false,
     defaultSort: "latest",
     pageSize: 10,
+    description: input.description,
+  };
+}
+
+// EPIC-050: timeline() — 연/월/일 순으로 묶어 보여주는 게시판(Timeline
+// Engine, BoardRenderer.tsx의 TimelineView 참고).
+function timeline(input: {
+  slug: string;
+  title_ko: string;
+  title_en: string;
+  parent: string;
+  description: string;
+}): BoardDefinition {
+  return {
+    id: input.slug,
+    slug: input.slug,
+    title_ko: input.title_ko,
+    title_en: input.title_en,
+    parent: input.parent,
+    boardType: "timeline",
+    visibility: "public",
+    membership: 0,
+    searchable: true,
+    pageable: true,
+    sortable: true,
+    thumbnail: true,
+    comments: true,
+    likes: true,
+    bookmarks: true,
+    tags: true,
+    allowPosting: true,
+    defaultSort: "latest",
+    pageSize: 20,
     description: input.description,
   };
 }
@@ -828,6 +874,149 @@ export const INDIVIDUAL_BOARD_DEFINITIONS = {
     title_en: "Q&A",
     parent: "community",
     description: "고민을 나누는 Q&A 게시판(사이트 전역 질문과 답변 게시판과는 별개)",
+  }),
+
+  // EPIC-050: Membership 영역 — Silo Store/Online Docent/Heritage/
+  // Community와 형제 관계인 5번째 최상위 hub.
+  membership: hub({
+    slug: "membership",
+    title_ko: "Membership",
+    title_en: "Membership",
+    description: "Membership 메인 허브 — 하위 게시판의 최신글/인기글/추천글 종합",
+  }),
+  "my-treasures": story({
+    slug: "my-treasures",
+    title_ko: "나의 보물 이야기",
+    title_en: "My Treasures",
+    parent: "membership",
+    description:
+      "회원들의 '나의 보물' 스토리 게시판. 마이페이지 '나의 컬렉션 > 나의 보물'과 연동 가능한 구조를 유지(현재는 미연동 — NEXT_TASK.md 참고)",
+  }),
+  "artist-intro": community({
+    slug: "artist-intro",
+    title_ko: "나의 아티스트 소개",
+    title_en: "My Artist Introduction",
+    parent: "membership",
+    description: "회원 본인을 아티스트로 소개하는 게시판",
+  }),
+  "mind-diary": community({
+    slug: "mind-diary",
+    title_ko: "마음일기",
+    title_en: "Mind Diary",
+    parent: "membership",
+    description: "마음일기를 나누는 게시판",
+  }),
+  // "멤버십 권한 적용" 지시를 실제로 반영 — accessLevel:"patron"이면
+  // community()가 membership:3으로도 맞추고, serverAuth.ts의
+  // canReadBoard/canWriteToBoard가 이 accessLevel을 읽어 패트론 등급
+  // 미만은 읽기/쓰기 모두 막는다(이 EPIC에서 유일하게 실제로 인가 로직을
+  // 연결한 게시판 — 나머지 accessLevel은 구조만 유지).
+  "patron-board": community({
+    slug: "patron-board",
+    title_ko: "패트론 게시판",
+    title_en: "Patron Board",
+    parent: "membership",
+    description: "패트론 등급 전용 게시판(실제 읽기/쓰기 권한 적용)",
+    accessLevel: "patron",
+  }),
+  "one-line-novel": community({
+    slug: "one-line-novel",
+    title_ko: "한문장 소설 프로젝트",
+    title_en: "One-Line Novel Project",
+    parent: "membership",
+    description: "한 문장씩 이어 쓰는 소설 프로젝트 게시판",
+  }),
+  // "권한 필요(accessLevel만 지정)" 지시대로, accessLevel 필드만 표시용으로
+  // 지정하고 실제 인가 로직은 아직 연결하지 않는다(향후 salon_rooms/
+  // salon_room_access 같은 실제 시험/권한 시스템과 연결할 자리 — NEXT_TASK.md 참고).
+  "secret-room-docent": community({
+    slug: "secret-room-docent",
+    title_ko: "비밀의 방 도슨트",
+    title_en: "Secret Room Docent",
+    parent: "membership",
+    description: "비밀의 방 전용 도슨트 게시판(접근 조건은 향후 확정 — 현재는 표시만)",
+    accessLevel: "secret_room",
+  }),
+
+  // EPIC-050: Gallery 영역 — docs/content-blueprint.md에 "전부 미구현
+  // (ComingSoon)"으로 기록돼 있던 /salon/gallery/* 5개 서브페이지와 동일한
+  // 주제를 Board Definition으로 실제 구현. 기존 ComingSoon 페이지 자체는
+  // 건드리지 않음(새 페이지 생성/수정 금지) — 실제 콘텐츠는 이 게시판들이
+  // 대신 담당하게 된다(NEXT_TASK.md에 내비게이션 연결 필요 항목 기록).
+  gallery: hub({
+    slug: "gallery",
+    title_ko: "Gallery",
+    title_en: "Gallery",
+    description: "Gallery 메인 허브 — 하위 게시판의 최신글/인기글/추천글 종합",
+  }),
+  awards: story({
+    slug: "awards",
+    title_ko: "시상식",
+    title_en: "Awards",
+    parent: "gallery",
+    description: "시상식을 소개하는 스토리 게시판",
+  }),
+  performances: story({
+    slug: "performances",
+    title_ko: "공연들",
+    title_en: "Performances",
+    parent: "gallery",
+    description: "공연을 소개하는 스토리 게시판",
+  }),
+  parties: story({
+    slug: "parties",
+    title_ko: "파티",
+    title_en: "Parties",
+    parent: "gallery",
+    description: "파티를 소개하는 스토리 게시판",
+  }),
+  "gallery-visitors": story({
+    slug: "gallery-visitors",
+    title_ko: "운명의 방문자들",
+    title_en: "Fateful Visitors",
+    parent: "gallery",
+    description: "방문자들의 이야기를 소개하는 스토리 게시판",
+  }),
+  patrons: story({
+    slug: "patrons",
+    title_ko: "패트론들",
+    title_en: "Patrons",
+    parent: "gallery",
+    description: "패트론들을 소개하는 스토리 게시판",
+  }),
+
+  // EPIC-050: Archive 영역.
+  archive: hub({
+    slug: "archive",
+    title_ko: "Archive",
+    title_en: "Archive",
+    description: "Archive 메인 허브 — 하위 게시판의 최신글/인기글/추천글 종합",
+  }),
+  brochure: story({
+    slug: "brochure",
+    title_ko: "소개지",
+    title_en: "Brochure",
+    parent: "archive",
+    description: "소개지를 아카이빙하는 스토리 게시판",
+  }),
+  poster: story({
+    slug: "poster",
+    title_ko: "포스터",
+    title_en: "Poster",
+    parent: "archive",
+    description: "포스터를 아카이빙하는 스토리 게시판",
+  }),
+  // "Timeline Engine" — 독립 컴포넌트가 아니라 BoardRenderer.tsx 안의
+  // TimelineView(+groupPostsByYearMonth)를 재사용. 향후 마이페이지
+  // 타임라인 탭(현재 PlaceholderPanel)도 같은 그룹핑 로직을 재사용할 수
+  // 있도록 posts 형태(제목/작성일 등 범용 필드)에만 의존하게 만들었다.
+  timeline: timeline({
+    slug: "timeline",
+    title_ko: "타임라인",
+    title_en: "Timeline",
+    parent: "archive",
+    description:
+      "사일로상점과 살롱데상의 모든 이벤트를 연/월/일 순으로 보여주는 반응형 타임라인",
   }),
 } as const satisfies Record<string, BoardDefinition>;
 

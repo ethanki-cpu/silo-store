@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { resolveBoardDefinition } from "@/lib/boardLayout";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -69,11 +70,27 @@ export async function getTier(rank: number): Promise<TierFlags | null> {
 }
 
 export function canReadBoard(
-  board: { board_type: string },
+  board: { board_type: string; category?: string | null },
   tier: TierFlags | null,
 ): boolean {
-  if (board.board_type !== "patron") return true;
-  return !!tier?.board_has_patron_board;
+  if (board.board_type === "patron") {
+    return !!tier?.board_has_patron_board;
+  }
+
+  // EPIC-050: Board Definition의 accessLevel이 "patron"으로 지정된
+  // 개별 게시판(예: 패트론 게시판)은 실제 board_type과 무관하게 동일한
+  // 패트론 등급 플래그로 게이팅한다 — "멤버십 권한 적용" 지시를 실제로
+  // 반영하기 위함. accessLevel이 없거나 다른 값(예: "secret_room")이면
+  // 아직 실제 게이팅 로직을 연결하지 않고 구조만 유지한다(NEXT_TASK.md 참고).
+  const definition = resolveBoardDefinition({
+    board_type: board.board_type,
+    category: board.category ?? null,
+  });
+  if (definition.accessLevel === "patron") {
+    return !!tier?.board_has_patron_board;
+  }
+
+  return true;
 }
 
 export function canWriteToBoard(
@@ -89,6 +106,17 @@ export function canWriteToBoard(
     return {
       ok: false,
       error: `도슨트 글쓰기는 ${RANK_LABELS[2]} 등급부터 가능해요.`,
+    };
+  }
+
+  // EPIC-050: canReadBoard와 동일한 이유로, accessLevel==="patron"인
+  // 개별 게시판은 board_type과 무관하게 글쓰기도 패트론 등급으로 막는다 —
+  // 읽기만 막고 쓰기는 board_type='topic' 취급으로 뚫리는 걸 방지.
+  const definition = resolveBoardDefinition(board);
+  if (definition.accessLevel === "patron" && !tier.board_has_patron_board) {
+    return {
+      ok: false,
+      error: `패트론 전용 게시판이에요. ${RANK_LABELS[3]} 등급부터 이용 가능해요.`,
     };
   }
 

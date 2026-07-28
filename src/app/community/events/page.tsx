@@ -6,14 +6,14 @@ import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 
 // EPIC-062: Page Architecture — Navigation은 Board가 아니라 이 독립 Page로
-// 연결된다. page_builder(slug="community-performances")의 published 모듈만 렌더링한다.
-export default function CommunityPerformancesPage() {
+// 연결된다. page_builder(slug="community-events")의 published 모듈만 렌더링한다.
+export default function CommunityEventsPage() {
   const [modules, setModules] = useState<PageModuleRow[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    fetchPublishedPageBySlug("community-performances").then((result) => {
+    fetchPublishedPageBySlug("community-events").then((result) => {
       if (cancelled) return;
       setModules(result?.modules ?? []);
       setLoading(false);
@@ -29,7 +29,7 @@ export default function CommunityPerformancesPage() {
 
   return (
     <>
-      <PageEditButton slug="community-performances" />
+      <PageEditButton slug="community-events" />
       <main className="flex-1 bg-white px-6 py-12">
         <div className="max-w-3xl mx-auto w-full">
           <PageBuilderRenderer modules={modules ?? []} />

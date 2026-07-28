@@ -40,9 +40,11 @@ values
   ('community-topics', '주제별 소통', '주제별 소통 게시판 목록입니다. 관심 있는 주제를 선택해 대화에 참여해 보세요.', 'published'),
   ('community-weekday', '요일별 모임', '요일별로 열리는 클럽 모임 목록입니다.', 'published'),
   ('treasures', '사일로 보물들', '사일로상점의 보물 목록과 분양 후 이야기를 모아보는 허브입니다.', 'published'),
+  ('shop-reviews', '분양 후기', '사일로 보물을 입양(구매/대여)한 회원들의 후기 게시판입니다.', 'published'),
+  ('membership-patron', '패트론 게시판', '패트론 등급 전용 라운지 게시판입니다.', 'published'),
   ('community-general', '자유게시판', '자유롭게 이야기 나누는 게시판입니다.', 'published'),
   ('community-qna', 'Q&A', '궁금한 점을 묻고 답하는 게시판입니다.', 'published'),
-  ('community-performances', '공연 / 전시회 소개', '커뮤니티 회원들의 공연/전시회 소식을 소개합니다.', 'published'),
+  ('community-events', '공연 / 전시회 소개', '커뮤니티 회원들의 공연/전시회 소식을 소개합니다.', 'published'),
   ('attendance', '출석체크', '매일 출석하고 포인트를 적립하는 페이지입니다(기존 기능 유지, 메타데이터만 등록).', 'published'),
   ('polls', '설문', '회원 설문조사 페이지입니다(기존 기능 유지, 메타데이터만 등록).', 'published'),
   ('event-notices', '이벤트 공지', '이벤트 공지 페이지입니다(기존 기능 유지, 메타데이터만 등록).', 'published'),
@@ -52,7 +54,7 @@ on conflict (slug) do update set status = 'published', title = excluded.title, d
 
 
 delete from page_modules where page_id in (select id from page_builder where slug in (
-  'community-topics-economy', 'community-topics-art', 'community-topics-world-history', 'community-topics-science', 'community-topics-comedy', 'community-topics-literature', 'community-topics-health', 'community-topics-politics', 'community-topics-movie', 'community-topics-psychology', 'community-topics-sports', 'community-topics-pet-owners', 'community-topics-warm-world', 'community-weekday-monday', 'community-weekday-book', 'community-weekday-between-lines', 'community-weekday-english-play', 'community-weekday-before-sunrise', 'community-weekday-anything-can-happen', 'community-weekday-after-the-play', 'docent-renaissance', 'docent-baroque', 'docent-rococo', 'docent-neoclassicism', 'docent-regency', 'docent-victoria', 'docent-art-nouveau', 'docent-art-deco', 'docent-beat-generation', 'docent-counterculture', 'docent-digital', 'community-topics', 'community-weekday', 'treasures', 'community-general', 'community-qna', 'community-performances', 'attendance', 'polls', 'event-notices', 'monthly-events'
+  'community-topics-economy', 'community-topics-art', 'community-topics-world-history', 'community-topics-science', 'community-topics-comedy', 'community-topics-literature', 'community-topics-health', 'community-topics-politics', 'community-topics-movie', 'community-topics-psychology', 'community-topics-sports', 'community-topics-pet-owners', 'community-topics-warm-world', 'community-weekday-monday', 'community-weekday-book', 'community-weekday-between-lines', 'community-weekday-english-play', 'community-weekday-before-sunrise', 'community-weekday-anything-can-happen', 'community-weekday-after-the-play', 'docent-renaissance', 'docent-baroque', 'docent-rococo', 'docent-neoclassicism', 'docent-regency', 'docent-victoria', 'docent-art-nouveau', 'docent-art-deco', 'docent-beat-generation', 'docent-counterculture', 'docent-digital', 'community-topics', 'community-weekday', 'treasures', 'shop-reviews', 'membership-patron', 'community-general', 'community-qna', 'community-events', 'attendance', 'polls', 'event-notices', 'monthly-events'
 ));
 
 insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'hero', null, jsonb_build_object('title','경제 클럽','subtitle','살롱데상 · Community · 주제별 소통','description','경제 클럽 게시판입니다.','breadcrumb','[{"label":"홈","href":"/"},{"label":"살롱데상"},{"label":"Community","href":"/community"},{"label":"주제별 소통","href":"/community/topics"},{"label":"경제 클럽"}]'::jsonb), 0 from page_builder where slug = 'community-topics-economy';
@@ -225,9 +227,18 @@ insert into page_modules (page_id, module_type, board_id, settings, sort_order) 
 
 insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'hero', null, jsonb_build_object('title','사일로 보물들','subtitle','사일로상점','description','사일로상점의 보물 목록과 분양 후 이야기를 모아보는 허브입니다.','breadcrumb','[{"label":"홈","href":"/"},{"label":"사일로상점"},{"label":"사일로 보물들"}]'::jsonb), 0 from page_builder where slug = 'treasures';
 
-insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'application', null, jsonb_build_object('actions', jsonb_build_array(jsonb_build_object('label','보물 목록','href','/shop'))), 1 from page_builder where slug = 'treasures';
+insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'application', null, jsonb_build_object('actions', jsonb_build_array(
+    jsonb_build_object('label','보물 목록','href','/shop'),
+    jsonb_build_object('label','분양 후기','href','/shop/reviews')
+  )), 1 from page_builder where slug = 'treasures';
 
-insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'board', '9645e2c9-fb60-423a-a024-a4e56d41dd68', '{}'::jsonb, 2 from page_builder where slug = 'treasures';
+insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'hero', null, jsonb_build_object('title','분양 후기','subtitle','사일로상점','description','사일로 보물을 입양(구매/대여)한 회원들의 후기 게시판입니다.','breadcrumb','[{"label":"홈","href":"/"},{"label":"사일로상점"},{"label":"분양 후기"}]'::jsonb), 0 from page_builder where slug = 'shop-reviews';
+
+insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'board', '9645e2c9-fb60-423a-a024-a4e56d41dd68', '{}'::jsonb, 1 from page_builder where slug = 'shop-reviews';
+
+insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'hero', null, jsonb_build_object('title','패트론 게시판','subtitle','살롱데상 · Membership','description','패트론 등급 전용 라운지 게시판입니다.','breadcrumb','[{"label":"홈","href":"/"},{"label":"살롱데상"},{"label":"Membership","href":"/membership"},{"label":"패트론 게시판"}]'::jsonb), 0 from page_builder where slug = 'membership-patron';
+
+insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'board', 'f6301106-2633-400b-bb82-7f871236b0fe', '{}'::jsonb, 1 from page_builder where slug = 'membership-patron';
 
 insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'hero', null, jsonb_build_object('title','자유게시판','subtitle','살롱데상 · Community','description','자유롭게 이야기 나누는 게시판입니다.','breadcrumb','[{"label":"홈","href":"/"},{"label":"살롱데상"},{"label":"Community","href":"/community"},{"label":"자유게시판"}]'::jsonb), 0 from page_builder where slug = 'community-general';
 
@@ -237,7 +248,7 @@ insert into page_modules (page_id, module_type, board_id, settings, sort_order) 
 
 insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'board', '2af851de-05d2-4150-8005-238cfe11147a', '{}'::jsonb, 1 from page_builder where slug = 'community-qna';
 
-insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'hero', null, jsonb_build_object('title','공연 / 전시회 소개','subtitle','살롱데상 · Community','description','커뮤니티 회원들의 공연/전시회 소식을 소개합니다.','breadcrumb','[{"label":"홈","href":"/"},{"label":"살롱데상"},{"label":"Community","href":"/community"},{"label":"공연 / 전시회 소개"}]'::jsonb), 0 from page_builder where slug = 'community-performances';
+insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'hero', null, jsonb_build_object('title','공연 / 전시회 소개','subtitle','살롱데상 · Community','description','커뮤니티 회원들의 공연/전시회 소식을 소개합니다.','breadcrumb','[{"label":"홈","href":"/"},{"label":"살롱데상"},{"label":"Community","href":"/community"},{"label":"공연 / 전시회 소개"}]'::jsonb), 0 from page_builder where slug = 'community-events';
 
-insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'text', null, jsonb_build_object('text', '공연/전시회 소식이 이 자리에 곧 추가됩니다.'), 1 from page_builder where slug = 'community-performances';
+insert into page_modules (page_id, module_type, board_id, settings, sort_order) select id, 'text', null, jsonb_build_object('text', '공연/전시회 소식이 이 자리에 곧 추가됩니다.'), 1 from page_builder where slug = 'community-events';
 

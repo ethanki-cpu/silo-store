@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 import { COLLECTION_SUBTABS, type CollectionSubKey } from "./mypageConfig";
 import {
   CollectionModal,
@@ -130,7 +130,7 @@ export function CollectionCategoryPanel({
         <p className="text-gray-500">불러오는 중...</p>
       ) : category === "treasure" ? (
         treasures.length === 0 ? (
-          <EmptyState message="아직 입양(구매/대여)한 물품이 없어요." />
+          <EmptyState title="아직 입양(구매/대여)한 물품이 없어요." />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {treasures.map((t) => (
@@ -150,7 +150,7 @@ export function CollectionCategoryPanel({
         )
       ) : items.length === 0 ? (
         <EmptyState
-          message={`아직 등록한 ${
+          title={`아직 등록한 ${
             COLLECTION_SUBTABS.find((s) => s.key === category)?.label ?? ""
           }이(가) 없어요.`}
         />

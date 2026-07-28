@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 // EPIC-052: "향후 알림 시스템과 연동 가능하도록 설계" — member_follows에
 // follower_id/following_id가 이미 분리돼 있어, 알림 기능이 생기면 "누가
@@ -93,7 +93,7 @@ export function FollowPanel({ memberId }: { memberId: string }) {
         <p className="text-gray-500">불러오는 중...</p>
       ) : list.length === 0 ? (
         <EmptyState
-          message={
+          title={
             tab === "following"
               ? "아직 팔로우한 회원이 없어요."
               : "아직 나를 팔로우한 회원이 없어요."

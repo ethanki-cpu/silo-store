@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 type RecentComment = {
   id: string;
@@ -74,7 +74,7 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
 
   if (loadingData) return <p className="text-gray-500">불러오는 중...</p>;
   if (comments.length === 0) {
-    return <EmptyState message="아직 작성한 댓글이 없어요." />;
+    return <EmptyState title="아직 작성한 댓글이 없어요." />;
   }
 
   return (

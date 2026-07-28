@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 type ExhibitPost = {
   id: string;
@@ -45,7 +45,7 @@ export function ExhibitionPanel({ memberId }: { memberId: string }) {
 
   if (loadingData) return <p className="text-gray-500">불러오는 중...</p>;
   if (posts.length === 0) {
-    return <EmptyState message="아직 사진과 함께 남긴 전시 글이 없어요." />;
+    return <EmptyState title="아직 사진과 함께 남긴 전시 글이 없어요." />;
   }
 
   return (

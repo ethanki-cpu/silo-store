@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 type SalonItem = {
   id: string;
@@ -127,7 +127,7 @@ export function SalonPanel({ memberId }: { memberId: string }) {
 
   if (loadingData) return <p className="text-gray-500">불러오는 중...</p>;
   if (items.length === 0) {
-    return <EmptyState message="아직 살롱 활동 기록이 없어요." />;
+    return <EmptyState title="아직 살롱 활동 기록이 없어요." />;
   }
 
   return (

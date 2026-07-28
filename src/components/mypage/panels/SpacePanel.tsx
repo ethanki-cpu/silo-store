@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 type SpaceBooking = {
   id: string;
@@ -64,7 +64,7 @@ export function SpacePanel({ memberId }: { memberId: string }) {
   return (
     <div>
       {bookings.length === 0 ? (
-        <EmptyState message="아직 대관 예약 내역이 없어요." />
+        <EmptyState title="아직 대관 예약 내역이 없어요." />
       ) : (
         <div className="space-y-2 mb-6">
           {bookings.map((b) => (

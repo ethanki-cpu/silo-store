@@ -45,10 +45,12 @@ type SiteNavRow = {
 
 // EPIC-044: 헤리티지(할머니/할아버지)·클럽·주제별 게시판 등 이름이
 // 무한히 늘어나는 카테고리는 사람 수만큼 페이지를 만들지 않고, 이름을
-// URL 파라미터로 넘겨 UniversalBoard를 렌더링하는 동적 라우트
-// (/heritage/grandma/[name], /heritage/grandpa/[name],
-// /community/club/[name])로 소화한다. 아래는 그 동적 라우트로 링크를
-// 거는 사이드바 항목을 만드는 헬퍼.
+// URL 파라미터로 넘기는 동적 라우트(/heritage/grandma/[name],
+// /heritage/grandpa/[name], /community/club/[name])로 소화한다. 아래는 그
+// 동적 라우트로 링크를 거는 사이드바 항목을 만드는 헬퍼.
+// EPIC-055: 이 동적 라우트들은 실데이터 없는 뼈대였던 UniversalBoard 대신
+// Universal Board System(BoardModule + PageTemplate)에 실제로 연결됐다 —
+// 상세는 각 page.tsx 참고.
 function toDynamicNavItems(basePath: string, names: string[]): NavItem[] {
   return names.map((name) => ({
     label: name,

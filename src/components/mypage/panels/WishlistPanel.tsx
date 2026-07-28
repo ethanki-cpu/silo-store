@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { WishlistButton } from "@/components/WishlistButton";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 type WishlistItem = {
   wishlist_id: string;
@@ -58,7 +58,7 @@ export function WishlistPanel({ memberId }: { memberId: string }) {
 
   if (loadingData) return <p className="text-gray-500">불러오는 중...</p>;
   if (items.length === 0) {
-    return <EmptyState message="아직 찜한 물품이 없어요." />;
+    return <EmptyState title="아직 찜한 물품이 없어요." />;
   }
 
   return (

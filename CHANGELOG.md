@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-07-28 (EPIC-055)
+- **EPIC-055: Universal Board System 완성 — 모든 페이지를 실제 게시판(Board)에 연결(새 페이지/기능/DB/Board 컴포넌트 없이 연결과 중복 제거만)**
+  - **발견: `src/components/shared/UniversalBoard.tsx`(EPIC-044) — 실데이터 없는 뼈대 stub이 3개 페이지 그룹에서 여전히 쓰이고 있었다.** `/heritage/grandma/[name]`·`/heritage/grandpa/[name]`·`/community/club/[name]`(최대 69개 이름별 URL: 할머니 50 + 할아버지 17 + 클럽/주제 20)이 전부 `posts=[]` 고정값의 독자적인 검색/정렬 로직(Universal Board System과 완전히 무관, `BoardRenderer`/`BoardModule`을 전혀 쓰지 않는 별개 구현)만 렌더링하고 있어 실제 게시판과 연결돼 있지 않았다.
+  - **연결**: 3개 페이지 그룹 전부 `UniversalBoard` → `PageTemplate`+`BoardModule`(EPIC-054C/054F)로 교체. 할머니/할아버지는 개인별 게시판이 없어(새 DB 금지) 전체가 공유하는 `grandmas`/`grandpas` 스토리 게시판(`src/lib/boardLayout.ts`, 기존 정의)에 연결하고 이름은 페이지 제목으로만 사용(검색창으로 특정 이름 필터링 가능, 기존 `BoardModule` 기능 그대로). 클럽/주제별 게시판은 EPIC-049 때 이미 실제 board 행(name=클럽 이름)으로 존재하므로, `src/lib/useHubBoardId.ts`에 추가한 `useBoardIdByName(name)` 훅으로 정확히 이름이 일치하는 그 board에 그대로 연결(새 board 생성 없음).
+  - **중복 제거 ①**: `src/components/shared/UniversalBoard.tsx` 완전 삭제(대체 후 참조 없음 확인) — 자체 검색/정렬 재구현이 사라지고 Universal Board System(`BoardHeader`/`BoardRenderer`/`Pagination`) 하나로 통일.
+  - **중복 제거 ②**: `src/components/mypage/EmptyState.tsx`(마이페이지 전용, `message` prop)가 Board System의 `src/components/modules/EmptyState.tsx`(`title` prop)와 사실상 동일한 컴포넌트로 중복 존재 — 마이페이지 패널 11개 + `CollectionCategoryPanel.tsx` 총 12곳의 import와 prop명(`message`→`title`)을 일괄 전환하고 마이페이지 전용 버전을 삭제. 이제 게시판이든 마이페이지든 "콘텐츠 없음" 상태는 컴포넌트 하나만 공유.
+  - **Board Config 단순화 확인**: `src/lib/boardLayout.ts`의 `BOARD_DEFINITIONS`/`INDIVIDUAL_BOARD_DEFINITIONS` + `resolveBoardDefinition()`가 이미 "설정 파일 하나만 수정해 새 게시판 추가" 구조를 만족함을 재확인(EPIC-047부터 유지) — 이번 EPIC은 이 구조를 변경하지 않고 그대로 재사용.
+  - **범위 밖(의도적, 지시 반영)**: `/shop`(아이템 카탈로그)·`/docent`(도슨트 콘텐츠)는 `posts`/`boards` 테이블과 무관한 별개 데이터 도메인이라 Board 연결 대상이 아님(게시판이 아님). 마이페이지 개인 데이터 패널(컬렉션/위시리스트/팔로우 등)도 개인 전용 데이터라 실제 `board_id` 연결 대상 아님 — EmptyState 컴포넌트만 공유. `silo-store`/`online-docent` hub는 EPIC-054F와 동일하게 "새 페이지 금지"로 전용 URL을 만들지 않음(`/boards` 디렉토리 슬라이드로만 노출, 기존과 동일). `salon-topics`/`salon-weekday`/`survey` 중첩 hub도 전용 URL 없음(Community 허브 하위 카드로만 접근, 기존과 동일). 새 Editor/Block/DB/Storage/Upload/Authentication/Design은 전혀 만들지 않음.
+  - 문서 동기화: `docs/STAGES.md`(Stage 1 Board System 진행률), `docs/PROJECT_DASHBOARD.md`, `docs/EPIC.md`, `NEXT_TASK.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint` 통과(신규/수정 파일 관련 에러 0건). 로컬 dev 서버로 `/heritage/grandma/Agatha`(Board 미연결 상태 EmptyState 정상), `/community/club/경제`(동일하게 EmptyState — 라이브 DB에 클럽 board 행 자체가 아직 없음을 확인), `/boards`(기존 6개 legacy 게시판만 실제 존재함을 재확인) 콘솔 에러 없이 확인.
+
 ## 2026-07-28 (EPIC-054F)
 - **EPIC-054F: 모든 상위/하위 카테고리 메뉴가 실제 Page(Route)를 갖도록 정비 — 새 기능/디자인/DB/게시판/Block/Editor 없이 Page 생성만**
   - **조사**: EPIC-054D 감사(navConfig.ts/Board Definition System 전수 확인) 결과를 근거로, 지시받은 카테고리 목록(Studio/Community/Membership/Gallery/Archive/Online Docent/Heritage/마이페이지) 각각의 실제 Route 존재 여부를 재확인 — 마이페이지 12개 탭은 전부 이미 실제 페이지 보유(변경 없음), Online Docent(`/docent`)는 이미 완전히 구현됨(변경 없음). **Community**(`/community/club/[name]`만 있고 `/community` 자체는 없음), **Heritage**(`/heritage/grandma|grandpa/[name]`만 있고 `/heritage` 자체는 없음), **Studio**/**Membership**/**Gallery**/**Archive**(디렉토리 자체가 아예 없음) 6곳이 실제 404 상태임을 확인 — 전부 Board Definition System의 hub 정의(`src/lib/boardLayout.ts`)는 이미 존재하지만 그 hub를 가리키는 Route가 없던 상태.

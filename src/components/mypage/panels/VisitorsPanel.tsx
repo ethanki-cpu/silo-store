@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 type Visitor = { id: string; name: string; visited_at: string };
 
@@ -63,7 +63,7 @@ export function VisitorsPanel({ memberId }: { memberId: string }) {
 
   if (loadingData) return <p className="text-gray-500">불러오는 중...</p>;
   if (visitors.length === 0) {
-    return <EmptyState message="아직 방문자가 없어요." />;
+    return <EmptyState title="아직 방문자가 없어요." />;
   }
 
   return (

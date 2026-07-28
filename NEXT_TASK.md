@@ -4,6 +4,8 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-055 후속**: `/community/club/[name]`은 `useBoardIdByName`으로 board 행의 `name` 컬럼과 URL의 이름을 정확히 문자열 일치시켜 찾는다 — 라이브 DB에 클럽/주제 게시판 20개(EPIC-049)가 시딩되면(`SALON_TOPIC_BOARD_NAMES`/`SALON_WEEKDAY_CLUB_NAMES`, `src/lib/navConfig.ts`) 각 board의 `name` 컬럼 값이 이 배열의 문자열과 정확히 같아야 정상 연결된다 — DB 시드 작성 시 철자/공백까지 동일한지 확인할 것.
+- **EPIC-055 후속**: `/heritage/grandma|grandpa/[name]`은 이제 전체가 공유하는 `grandmas`/`grandpas` 스토리 게시판에 연결되므로, 실제로 시딩되면 모든 이름별 URL이 "같은 게시판"(개인별로 필터링되지 않은 전체 글 목록)을 보여준다 — 특정 이름의 글만 자동으로 필터링하려면 검색어를 URL에서 자동으로 채워주는 기능이 필요한데, 이는 "새 기능 금지"였던 EPIC-055 범위 밖이라 구현하지 않음(사용자가 직접 검색창에 이름을 입력해야 함). 필요해지면 별도 EPIC에서 검토.
 - **EPIC-054F 후속(P2)**: legacy `BOARD_DEFINITIONS.archive`(그룹, "자료게시판")와 신규 `INDIVIDUAL_BOARD_DEFINITIONS.archive`(hub, "Archive")가 동일한 slug `"archive"`를 쓴다 — `resolveBoardDefinition`이 category(개별 정의)를 board_type(그룹)보다 먼저 확인해 지금은 동작이 깨지지 않지만, 두 서로 다른 개념이 같은 slug를 공유하는 건 혼동 여지가 있다. `/archive` 신규 페이지가 실제로는 legacy "자료게시판"을 보여준다(신규 Archive hub 행이 아직 DB에 없어서). Board Definition System 자체를 고치는 일이라 "새 게시판/DB 변경 금지"였던 EPIC-054F 범위 밖 — slug 재명명 또는 병합 여부를 사용자와 논의할 것.
 - **EPIC-054F 후속**: Community/Heritage/Studio/Membership/Gallery 5개 신규 페이지는 해당 hub의 board 행이 라이브 DB에 아직 시딩되지 않아 전부 EmptyState("게시글이 없습니다.")로 보인다 — EPIC-048~051의 DB INSERT를 Supabase SQL Editor에서 실행하면(NEXT_TASK.md 기존 항목 참고) 실제 콘텐츠로 채워진다.
 - **EPIC-054F 후속**: nested hub(`salon-topics`/`salon-weekday`/`survey`)는 전용 top-level Route를 만들지 않았다 — Community 허브 페이지의 "하위 게시판" 카드를 통해서만 접근 가능. 직접 URL(`/salon-topics` 등)이 필요해지면 별도 페이지 신설을 검토할 것.

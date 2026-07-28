@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 type Certificate = {
   id: string;
@@ -56,7 +56,7 @@ export function DocentCertificatePanel({ memberId }: { memberId: string }) {
   const confirmed = items.filter((i) => i.status === "confirmed");
 
   if (items.length === 0) {
-    return <EmptyState message="아직 구매한 도슨트 콘텐츠가 없어요." />;
+    return <EmptyState title="아직 구매한 도슨트 콘텐츠가 없어요." />;
   }
 
   return (

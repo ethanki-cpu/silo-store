@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { EmptyState } from "../EmptyState";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 type BucketItem = {
   id: string;
@@ -119,7 +119,7 @@ export function BucketListPanel({ memberId }: { memberId: string }) {
       {loadingData ? (
         <p className="text-gray-500">불러오는 중...</p>
       ) : items.length === 0 ? (
-        <EmptyState message="아직 등록한 버킷리스트가 없어요." />
+        <EmptyState title="아직 등록한 버킷리스트가 없어요." />
       ) : (
         <>
           <p className="text-sm text-gray-500 mb-4">

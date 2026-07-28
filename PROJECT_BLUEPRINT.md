@@ -238,6 +238,24 @@ NEXT_TASK.md 업데이트
 | [docs/design-system.md](docs/design-system.md) | 실제 사용 중인 색상/타이포그래피/사이드바/버튼/카드/인풋 등 de facto 디자인 관례 |
 | `docs/database-schema.sql` | DB 스키마 (§3 참고) |
 
+## 11. Project Stages / Project Dashboard (EPIC-054E)
+
+이 프로젝트는 수백 개의 EPIC이 누적될 수 있는 장기 프로젝트라, **EPIC 번호(작업 단위)**와
+**Stage(프로젝트 전체 진행 단계)**를 분리해 관리한다. 절대 혼용하지 않는다 — Stage는
+"프로젝트가 지금 어느 국면인가"이고, EPIC은 "무엇을 했는가"의 기록이다.
+
+- **Project Stages**: [docs/STAGES.md](docs/STAGES.md) — 6단계(Foundation → Content Platform →
+  Community → Business → Experience → Scale) 정의, 각 Stage의 포함 내용과 현재 진행률/남은 항목.
+- **Project Dashboard**: [docs/PROJECT_DASHBOARD.md](docs/PROJECT_DASHBOARD.md) — 매 세션
+  가장 먼저 읽는 현황 요약(현재 Stage/진행률/진행 중인 EPIC/다음 EPIC/최근 완료 10개/
+  최우선 순위/이슈 P0-P3/기술 부채/다음 마일스톤). 상세 근거는 복제하지 않고 STAGES.md/
+  EPIC.md/NEXT_TASK.md로 링크한다.
+- **Current Stage**: Stage 1 — Foundation (docs/STAGES.md 참고, 진행률 실시간 갱신).
+- **Current Milestone**: Stage 1(Foundation) 완료 — 남은 항목은
+  `docs/PROJECT_DASHBOARD.md`의 "Next Milestone" 섹션 참고.
+- **문서 갱신 규칙**: 새 EPIC이 완료되면 `PROJECT_DASHBOARD.md`/`docs/STAGES.md`/
+  `docs/EPIC.md`/`CHANGELOG.md`를 함께 갱신한다(`CLAUDE.md` "세션 시작 시 읽기 순서" 참고).
+
 ## TODO / 확인 필요
 
 추측하지 않고 남겨둔 항목. 코드/DB 조회만으로는 확정할 수 없거나, 이 문서(개요 문서)에 상세를 옮기지 않기로 한 내용.

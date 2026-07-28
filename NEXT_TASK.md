@@ -4,6 +4,8 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-054E 후속(최우선)**: `feature/EPIC-053`(Block Editor 시스템 확장/완성)이 이 브랜치 계보(main→054A→054B→054C→054D→054E)와 완전히 별개인 미병합 브랜치로 남아있다 — `docs/STAGES.md`의 Stage 1 "Block Editor" 항목이 이 결정 하나에 걸려 있음. 그대로 병합할지, 이 계보 기준으로 재작업할지 사용자와 결정 필요.
+- **EPIC-054E 후속**: `docs/PROJECT_DASHBOARD.md`/`docs/STAGES.md`는 EPIC-054D까지의 상태를 기준으로 작성됐다 — 다음 EPIC이 완료될 때마다 두 문서를 함께 갱신하는 습관이 자리 잡을 때까지(특히 "Recent Completed"/"Progress"/"Current EPIC" 필드) 누락 여부를 한동안 주의 깊게 확인할 것.
 - **EPIC-054D 후속 — Architecture Review(P0)**: `navConfig.ts`의 `FALLBACK_NAV_TABS`(EPIC-044 재작성, `/heritage/*/[name]`·`/community/club/[name]` 동적 구조)와 라이브 `site_navigations`(DB 시드, `docs/navigation-blueprint.md` 반영분)가 서로 다른 nav 트리로 공존한다 — 어느 쪽을 "진짜" 구조로 삼아 일원화할지 사용자와 결정 필요. 이는 실질적 nav 재설계라 EPIC-054D(감사 전용) 범위 밖.
 - **EPIC-054D 후속(P1)**: 위 이중 구조의 직접적 결과로 중복 콘텐츠 쌍이 존재 — `/shop/heritage/grandma|grandpa`(정적, EPIC-054A) vs `/heritage/grandma|grandpa/[name]`(동적, EPIC-044), `/space-inquiry/styling`(정적) vs `/shop/projects`(완전 구현, EPIC-016), `/salon/{one-sentence-novel,mind-diary,artist-intro,my-treasure-story,secret-room,gallery/*}`(정적 PageHeader) vs 동일 주제의 실제 게시판(Board Definition System, EPIC-050). 위 P0 결정과 함께 통합/역할 분리 여부를 논의할 것.
 - **EPIC-054D 후속(P1)**: Breadcrumb가 사이트 전체에서 자동 생성되지 않는다 — 19개 정적 페이지(`PageHeader`)만 손으로 breadcrumb를 입력하고, 나머지 51개 페이지는 breadcrumb 자체가 없다. 손으로 입력한 19개 중 다수도 "Membership"/"Gallery" 같은, 실제 nav 트리에는 없는(Board Definition System의 hub 그룹명일 뿐인) 중간 계층을 표시한다 — 클릭 가능한 잘못된 경로는 아니지만(plain text) nav 구조와 불일치. `getActiveNavTabKey`(활성 탭 판정)를 거꾸로 이용해 pathname → nav 트리 경로를 자동 도출하는 공용 breadcrumb 생성기를 만드는 방향을 검토할 것 — 다만 이는 사이트 전체에 새 기능을 추가하는 작업이라 "Audit만 수행" 범위인 EPIC-054D에서는 만들지 않았다.

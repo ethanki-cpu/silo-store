@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-07-28 (EPIC-054E)
+- **EPIC-054E: EPIC 번호와 프로젝트 진행 단계(Stage) 분리 — 프로젝트 운영 체계 구축(문서/프로세스만, 코드 변경 없음)**
+  - **`docs/STAGES.md` 신규**: Stage 1(Foundation) ~ Stage 6(Scale) 6단계 정의. Stage 1(현재 단계)은 지시받은 14개 세부 항목(Navigation/Routing/Authentication/Supabase/Storage/Database/Board System/Page System/Block Editor/SEO/Metadata/Sitemap/Responsive/Accessibility) 각각을 EPIC-054D까지의 실제 코드 상태로 감사해 완료/부분/미착수로 분류 — 10개 완료, 3개 부분 완료, 1개(Block Editor 완전판) 별도 미병합 브랜치(`feature/EPIC-053`)에만 존재함을 명시. Stage 2~6은 "예상 포함 기능"만 기록(착수 전) — 단 Stage 4(Business)는 이 Stage 모델이 생기기 전(EPIC-001~018 무렵)에 이미 예약/결제/Membership/Rental/Styling 대부분이 구현돼 있었다는 점을 정직하게 기록(역행이 아니라 Stage 개념 도입 이전에 비즈니스 기능이 먼저 만들어진 것).
+  - **`docs/PROJECT_DASHBOARD.md` 신규**: 지시받은 형식(Project/Current Stage/Progress/Current EPIC/Next EPIC/Recent Completed/Current Priority/Known Issues(P0-P3)/Technical Debt/Next Milestone) 그대로 작성. Known Issues는 EPIC-054D가 이미 P0~P3로 분류해둔 NEXT_TASK.md 항목을 그대로 재사용(중복 발견 대신 재사용). 상세 근거는 이 문서에 복제하지 않고 STAGES.md/EPIC.md/NEXT_TASK.md로 링크.
+  - **`PROJECT_BLUEPRINT.md` 갱신**: 새 §11(Project Stages / Project Dashboard) 추가 — Current Stage(Stage 1)/Current Milestone(Stage 1 완료까지 남은 5개 항목) 명시, 두 신규 문서로 링크.
+  - **`CLAUDE.md` 갱신**: "세션 시작 시 읽기 순서" 절 신규 — 새 세션 시작 시 `docs/PROJECT_DASHBOARD.md` → `docs/STAGES.md` → `PROJECT_BLUEPRINT.md` 순으로 읽어 프로젝트 상태를 먼저 파악하도록 명시. "Stage와 EPIC은 혼용하지 않는다"는 원칙도 이 절에 명문화. 기존 "Epic 완료 시 문서 갱신" 규칙에 `docs/PROJECT_DASHBOARD.md`/`docs/STAGES.md`를 추가.
+  - **범위 밖(지시 반영)**: 이번 EPIC은 문서/프로세스 구축만 — 기능 추가/UI 변경/DB 변경/게시판 변경 전혀 없음. 코드 파일은 한 줄도 수정하지 않음(`type-check`/`lint`는 회귀 확인용으로만 재실행).
+  - 문서 동기화: `docs/STAGES.md`(신규), `docs/PROJECT_DASHBOARD.md`(신규), `PROJECT_BLUEPRINT.md`, `CLAUDE.md`, `docs/EPIC.md`, `NEXT_TASK.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint` 재실행 — 코드 변경이 없으므로 EPIC-054D 시점과 동일하게 pre-existing 27건만 존재, 신규 0건.
+
 ## 2026-07-28 (EPIC-054D)
 - **EPIC-054D: 사이트 전체 Navigation/Routing/SEO/Breadcrumb/404/URL 구조 전수 감사(Audit) — 새 기능/디자인/게시판/Block 생성 없이 감사+리팩토링만**
   - **브랜치 준비**: 이 감사가 사이트의 "현재 상태"를 정확히 반영하려면 아직 미병합인 `feature/EPIC-054A`(placeholder→실페이지 전환)와 `feature/EPIC-054B`(Page Module + Board 연결)가 모두 반영된 코드가 필요해 사용자 확인 후 두 브랜치를 로컬에서 병합한 `feature/EPIC-054D`를 새로 만들어 감사를 진행함.

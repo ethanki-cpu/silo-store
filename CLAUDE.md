@@ -13,6 +13,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. **Sync First** — 사용자가 작업 시작을 알리면, 다른 작업에 앞서 `git fetch`와 `git status`로 원격 저장소와 로컬의 상태를 먼저 확인하고 그 결과를 사용자에게 보고한다.
 4. **WIP Push** — 사용자가 작업을 중단하거나 퇴근한다고 알리면, 현재 브랜치에 진행 중인 모든 변경 사항을 커밋하고 반드시 `origin`에 push하여 다른 기기에서 이어서 작업할 수 있도록 백업한다.
 
+## 세션 시작 시 읽기 순서 (EPIC-054E)
+
+**Claude Code는 새 세션이 시작되면(사용자가 작업을 지시하기 전) 아래 순서로 문서를 읽어 현재 프로젝트 상태를 먼저 이해한다:**
+
+1. **[`docs/PROJECT_DASHBOARD.md`](docs/PROJECT_DASHBOARD.md)** — 현재 Stage/진행률/진행 중인 EPIC/다음 EPIC/최근 완료 10개/최우선 순위/이슈(P0-P3)/기술 부채/다음 마일스톤 요약.
+2. **[`docs/STAGES.md`](docs/STAGES.md)** — 프로젝트 전체 진행 단계(Stage 1 Foundation ~ Stage 6 Scale) 정의와 각 Stage의 상세 진행률.
+3. **`PROJECT_BLUEPRINT.md`** — 프로젝트 개요/아키텍처(위 두 문서보다 상세하지만 여전히 개요 수준 — 더 깊은 상세는 §10의 도메인별 Blueprint 문서로).
+
+**Stage와 EPIC은 서로 다른 축이며 혼용하지 않는다** — Stage는 "프로젝트가 지금 어느 국면인가"(장기), EPIC은 "무엇을 했는가"(단위 작업 기록)다. 새 EPIC의 제목/커밋 메시지에 Stage 번호를 붙이거나, Stage 번호를 EPIC 번호처럼 순차 증가시키지 않는다.
+
+**EPIC 완료 시 문서 동기화 규칙**: 아래 4개 문서를 함께 갱신한다(순서 무관, 전부 같은 커밋에 포함):
+- `docs/PROJECT_DASHBOARD.md` (Current EPIC/Next EPIC/Recent Completed/Progress 갱신)
+- `docs/STAGES.md` (해당 EPIC이 기여한 Stage의 진행률/남은 항목 갱신)
+- `docs/EPIC.md` (진행중/예정 → 완료로 이동)
+- `CHANGELOG.md` (변경 이력 추가)
+
 ## Commands
 
 ```bash
@@ -56,7 +72,7 @@ This project maintains dedicated design/ops documents in `docs/` — treat each 
 1. **Before implementing a new feature, check the relevant Blueprint(s) first** — don't re-derive navigation placement, tier gating, content connections, or UI conventions from scratch when a Blueprint already documents them.
 2. **Implement without conflicting with existing Blueprints.** If a request seems to contradict one (e.g. a different gating rule, a nav pattern that breaks `getActiveNavTabKey`), flag the conflict to the user before proceeding rather than silently diverging.
 3. **If a Blueprint needs to change to match new work, update it in the same change** — don't let code and Blueprint drift apart the way `docs/database-schema.sql` drifted before its 2026-07-23 resync.
-4. **When an Epic is completed, update `docs/EPIC.md`** (move it from 진행중/예정 to 완료), alongside the usual `CHANGELOG.md`/`NEXT_TASK.md` updates.
+4. **When an Epic is completed, update `docs/EPIC.md`** (move it from 진행중/예정 to 완료), alongside the usual `CHANGELOG.md`/`NEXT_TASK.md` updates — see "세션 시작 시 읽기 순서" above for the full EPIC-completion doc-sync list (also includes `docs/PROJECT_DASHBOARD.md`/`docs/STAGES.md`, EPIC-054E).
 
 ## Git operating rules
 

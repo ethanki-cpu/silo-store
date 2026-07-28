@@ -25,7 +25,7 @@
 - **TypeScript** `^5`
 - **Supabase**: `@supabase/supabase-js` `^2.110.8`
 - **Tailwind CSS** `^4` (`@tailwindcss/postcss`)
-- **Tiptap**(ProseMirror) `^3` — `@tiptap/react`/`@tiptap/starter-kit`/`@tiptap/extension-link`/`@tiptap/extension-placeholder`/`@tiptap/pm` (EPIC-052). `isomorphic-dompurify`(EPIC-052, 게시글 HTML 저장/렌더링 정제). EPIC-053에서 `@tiptap/extension-underline`/`@tiptap/extension-text-align`/`@tiptap/extension-text-style`/`@tiptap/extension-highlight`/`@tiptap/extension-color`/`@tiptap/extension-image`/`@tiptap/extension-task-list`/`@tiptap/extension-task-item` 추가 설치.
+- **Tiptap**(ProseMirror) `^3` — `@tiptap/react`/`@tiptap/starter-kit`/`@tiptap/extension-link`/`@tiptap/extension-placeholder`/`@tiptap/pm` (EPIC-052). `isomorphic-dompurify`(EPIC-052, 게시글 HTML 저장/렌더링 정제). EPIC-053에서 `@tiptap/extension-underline`/`@tiptap/extension-text-align`/`@tiptap/extension-text-style`/`@tiptap/extension-highlight`/`@tiptap/extension-color`/`@tiptap/extension-image`/`@tiptap/extension-task-list`/`@tiptap/extension-task-item` 추가 설치. EPIC-053.1에서 서버 사이드 JSON→HTML 렌더링용 `@tiptap/html` 추가(`@tiptap/extension-image`는 커스텀 `FigureImage` 노드로 대체되어 더 이상 쓰이지 않음 — `src/lib/blockEditorCore.ts` 참고).
 - **@dnd-kit** `core`/`sortable`/`utilities` (EPIC-035, 관리자 카테고리 드래그앤드롭)
 - **ESLint** `^9` + `eslint-config-next`
 - 그 외 별도 상태관리 라이브러리(Redux/Zustand 등), UI 컴포넌트 라이브러리, 테스트 러너는 사용하지 않음 (`package.json`에 존재하지 않음).
@@ -144,8 +144,9 @@ silo-store/
 
 - **`Navbar.tsx`**: 상단에 사일로상점/살롱데상/공간 문의/마이페이지 4개 진입점(화면 중앙 정렬) + 계정 영역(로그인 상태 표시, 마이페이지 링크, 로그아웃) 렌더링. `NAV_TABS`(`navConfig.ts`)를 그대로 순회하며 각 탭의 `type`(`sidebar-left`/`sidebar-right`/`dropdown`/`link`)에 따라 상호작용 방식만 분기하고, 라벨/링크/그룹은 하드코딩하지 않는다(EPIC-018). 사일로상점·살롱데상은 탭 클릭 또는 화면 좌/우 가장자리 아이콘(🔑/🚪) 클릭·hover 시 각각 좌/우 사이드바가 열리는 구조(초록 배경/흰 글씨). 공간 문의는 플로팅 드롭다운, 마이페이지는 단순 링크. `getActiveNavTabKey()`로 현재 경로에 맞는 탭을 하이라이트. 상세는 [docs/navigation-blueprint.md](docs/navigation-blueprint.md) 참고.
 - **`ComingSoon.tsx`**: `title`을 받아 "준비 중입니다" 안내만 보여주는 placeholder 컴포넌트. 4번 섹션의 미구현 살롱 기능들에서 사용.
-- **`BlockEditor`** (`src/components/editor/BlockEditor.tsx`): EPIC-053에서 `RichTextEditor.tsx`를 대체한 Tiptap 기반 Block Editor. 모든 Board Definition 게시판의 글쓰기 폼(`/boards/[id]/write`)에서 공용으로 사용. Toolbar 확장(굵게/기울임/밑줄/취소선/H1-H3/목록/체크리스트/인용/구분선/정렬/링크/이미지), 이미지 Drag&Drop/붙여넣기/여러장 업로드, 자동 저장(localStorage)/임시 저장(서버 API).
-- **`RichTextEditor`** (`src/components/editor/RichTextEditor.tsx`): **DEPRECATED (EPIC-053)** — `BlockEditor`로 대체됨.
+- **`BlockEditor`** (`src/components/editor/BlockEditor.tsx`): EPIC-053에서 `RichTextEditor.tsx`를 대체한 Tiptap 기반 Block Editor. EPIC-053.1부터 정본은 Tiptap ProseMirror JSON(`onChange(json, html)`) — HTML은 서버가 항상 JSON으로부터 재계산하는 파생 캐시일 뿐이다. `src/lib/blockEditorCore.ts`에 서버/클라이언트 공용 스키마(FigureImage/Gallery/Embed/LinkCard 커스텀 Node)를 두고, BlockEditor.tsx는 여기에 React NodeView(캡션/ALT/삭제/순서변경/대표이미지 지정/Lightbox)만 얹는다. Toolbar: 굵게/기울임/밑줄/취소선/H1-H3/목록/체크리스트/인용/구분선/정렬/링크/이미지(여러장)/갤러리/임베드(Youtube·Vimeo·Instagram·Spotify·Google Maps)/링크카드/미리보기. `RichTextEditor.tsx`(EPIC-052, EPIC-053부터 미사용)는 EPIC-053.1에서 삭제.
+- **`PostForm`** (`src/components/boards/PostForm.tsx`): 글쓰기(`/boards/[id]/write`)와 수정(`/boards/[id]/[postId]/edit`, EPIC-053.1 신설) 화면이 공유하는 폼 — BlockEditor/대표 이미지 선택/태그/도슨트 체크박스/구매확정 선택/자동저장을 한 곳에서만 구현.
+- **Storage Garbage Collection** (`src/lib/imageGc.ts` + `image_cleanup_queue` 테이블): 게시글 수정/삭제로 더 이상 참조되지 않는 이미지를 즉시 삭제하지 않고 큐에 적재만 한다. 실제 삭제는 관리자 전용 `POST /api/admin/storage-cleanup`(service-role 키를 쓰지 않는 이 앱 특성상 admin 세션으로만 Storage 삭제 가능)이 처리 — 자동 스케줄러는 아직 없음(NEXT_TASK.md 참고).
 
 그 외 공용 UI 라이브러리(버튼/모달/폼 등 디자인 시스템)는 없음 — 각 페이지가 Tailwind 클래스를 인라인으로 직접 사용.
 

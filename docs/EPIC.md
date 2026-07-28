@@ -55,6 +55,7 @@
 - EPIC-051 : Board Definition System으로 Studio(공간 문의) 영역 게시판 생성(hub 1개 + story 4개, 전부 신규 DB 행) — 새 예약 시스템 없이 BoardDefinition.ctas 필드로 "문의하기"/"예약하기"/"대표 프로젝트 보기" 버튼을 기존 /rental·/space-inquiry/*·/shop/projects(styling_projects) 페이지에 연결, hub 슬라이드에 대표 이미지(photo_url) 표시 추가
 - EPIC-052 : 마이페이지를 Personal Hub로 확장 — Tiptap Block Editor 도입(모든 Board Definition 게시판 글쓰기 폼 공용, posts.body에 HTML 저장 + 서버 sanitize), Timeline Engine 추출·재사용(groupByYearMonth+TimelineView), "나의 컬렉션" 비공개 유지하며 StoryCard로 시각 통일, 살롱/도슨트 수료증/공간/전시회 Placeholder를 실데이터로 교체, 버킷리스트 신규 기능(member_bucket_list) 추가
 - EPIC-053 : Block Editor 시스템 확장 — RichTextEditor → BlockEditor로 전면 재작성(툴바 확장/체크리스트/밑줄/정렬/형광펜/색상), 이미지 Drag&Drop/붙여넣기/여러장 업로드, Supabase Storage 연동(post-images/gallery/attachments), 자동 저장(localStorage)/임시 저장(서버 API), sanitize 확장(img/iframe/video/audio/table)
+- EPIC-053.1 : Block Editor 완성 — 정본을 Tiptap ProseMirror JSON(posts.body_json)으로 전환(HTML은 서버가 항상 재계산하는 파생 캐시), FigureImage/Gallery/Embed(Youtube/Vimeo/Instagram/Spotify/Maps)/LinkCard 커스텀 노드 + Lightbox, 대표 이미지 지정(featured_image_url), 게시글 수정 화면 신설(PATCH + PostForm 공용화) 및 JSON 복원, 실제 게시글과 동일한 Preview, Storage Garbage Collection 큐 + 관리자 Cleanup Job, member_bucket_list/posts 신규 컬럼/Storage Bucket+Policy SQL 작성(docs/sql/epic-053-1.sql, 라이브 DB 미적용)
 
 ## 진행중
 (없음)

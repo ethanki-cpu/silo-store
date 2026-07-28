@@ -39,6 +39,8 @@ export type BoardPost = {
   view_count: number | null;
   comment_count: number;
   photo_url: string | null;
+  /** EPIC-053.1: Block Editor에서 지정한 대표 이미지 — 있으면 photo_url보다 우선해서 썸네일로 쓴다. */
+  featured_image_url?: string | null;
   tags: string[] | null;
   author_id: string;
   author_name: string;

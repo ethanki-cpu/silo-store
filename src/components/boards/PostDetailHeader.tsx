@@ -17,6 +17,7 @@ export function PostDetailHeader({
   viewCount,
   commentCount,
   badges,
+  editHref,
 }: {
   postNumber: number | null;
   createdAt: string;
@@ -29,6 +30,8 @@ export function PostDetailHeader({
   viewCount: number | null;
   commentCount: number;
   badges?: ReactNode;
+  /** 작성자 본인(또는 관리자)에게만 전달 — 있으면 "수정" 링크를 보여준다. */
+  editHref?: string;
 }) {
   const wasEdited = updatedAt && updatedAt !== createdAt;
 
@@ -75,6 +78,11 @@ export function PostDetailHeader({
           >
             {authorName}
           </Link>
+          {editHref && (
+            <Link href={editHref} className="text-xs text-gray-400 hover:underline hover:text-gray-600 mt-2 block">
+              수정
+            </Link>
+          )}
         </div>
       </div>
 

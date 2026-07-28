@@ -43,6 +43,8 @@ const ALLOWED_ATTR = [
   "text-align", "align",
   // EPIC-053: 데이터 속성
   "data-type", "data-checked", "data-placeholder",
+  // EPIC-053.1: Block Editor 커스텀 노드(FigureImage/Gallery/Embed/LinkCard) 렌더링용
+  "data-featured", "data-provider",
 ];
 
 export function sanitizeHtml(html: string): string {

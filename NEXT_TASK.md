@@ -1,10 +1,15 @@
 # NEXT_TASK
 
 ## 진행 중
-- **EPIC-053**: Block Editor 확장 — 기능 구현 완료, type-check/lint 통과. 브라우저에서 이미지 Drag&Drop/붙여넣기/자동 저장/임시 저장 복구 동작 확인 필요.
+- 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
-- **EPIC-052 (중요)**: `member_bucket_list` 테이블을 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). `docs/database-schema.sql`의 "EPIC-052" 주석 아래 DDL 참고. 실행 전까지 `/mypage/bucketlist`에서 항목 추가 시 에러가 남.
+- **EPIC-053.1 (가장 중요, 반드시 먼저)**: `docs/sql/epic-053-1.sql`을 Supabase SQL Editor에서 실행해야 실제로 동작한다 — Management API 토큰이 이번 세션엔 없어 에이전트가 직접 적용하지 못했다(CLAUDE.md 규칙). 포함 내용: `member_bucket_list` 테이블+RLS(select/insert/update/delete, own-row), `posts.body_json`/`featured_image_url`/`featured_image_path` 컬럼, `posts.visibility` CHECK에 `'draft'` 추가, `image_cleanup_queue` 테이블+RLS, `post-images`/`gallery`/`attachments` Storage Bucket 생성+Policy(공개 읽기/로그인 사용자 업로드/관리자 또는 업로드 본인 삭제). 실행 전까지: `/mypage/bucketlist` 추가 시 에러, 새 글의 JSON Block이 저장되지 않고 HTML만 저장(POST 라우트가 42703에 자동 폴백), 대표 이미지가 저장되지 않음, 이미지 업로드가 버킷 없음 에러로 실패.
+- **EPIC-053.1 후속**: 이미지 Garbage Collection은 큐에 적재하는 것까지만 구현했고, 실제 삭제는 관리자가 `POST /api/admin/storage-cleanup`을 호출해야 한다(한 번에 최대 50건) — 자동으로 도는 스케줄러는 아직 없다. 정기적으로 비우려면 이 라우트를 예약 작업(Scheduled Task)으로 admin 세션을 만들어 주기적으로 호출하는 방식을 검토할 것.
+- **EPIC-053.1 후속**: `/api/boards/[id]/drafts`(서버 사이드 임시 저장)는 여전히 어떤 화면에서도 호출하지 않는 죽은 코드다 — localStorage 자동 저장(PostForm.tsx)만 실제로 쓰인다. 필요 없으면 삭제하고, 필요하면 PostForm에 연결할 것.
+- **EPIC-053.1 후속**: `GET /api/boards/[id]/posts`는 게시판의 모든 글을 한 번에 가져와 라우트 핸들러에서 검색/정렬/페이지네이션을 처리한다(EPIC-047부터 있던 기존 설계) — 게시판 하나가 1만 건을 넘어가면 이 방식이 실제 병목이 된다. DB 쪽 페이지네이션(`.range()`)+검색 인덱스로 옮기는 리팩터가 필요.
+- **EPIC-053.1 후속**: Google Maps 임베드는 사용자가 붙여넣은 URL이 실제 `/maps/embed?...` 형태라고 가정한다 — 일반 `maps.google.com` 공유 링크를 붙여넣으면 Google이 iframe 임베드를 막아 빈 화면이 나올 수 있다. 공유 링크 → 임베드 URL 자동 변환은 구현하지 않음.
+- **EPIC-053.1 후속**: Version History(수정 이력)는 이번 범위에 없지만 구조적으로는 쉽다 — `posts.body_json`이 JSONB이므로 `post_revisions(post_id, body_json, author_id, created_at)` 테이블을 만들고 PATCH 라우트에서 업데이트 직전에 스냅샷 한 줄만 insert하면 된다.
 - **EPIC-052 후속**: "받은 배지"의 "전체 랭킹"/"다음 배지 진행률"은 구현하지 않음 — 랭킹은 `member_badges`가 본인 행만 읽는 RLS라 다른 회원과 비교 집계하려면 공개 집계 뷰(예: `docent_content_popularity`처럼 `grant select`된 뷰)가 새로 필요하고, 진행률은 배지 획득 조건을 정의하는 규칙 테이블 자체가 없어(스키마 추측 금지) 계산 근거가 없다. 두 기능이 정말 필요하면 먼저 배지 규칙(조건/등급 체계)을 사용자와 정의해야 한다.
 - **EPIC-052 후속**: "나의 도슨트 수료증"은 `docent_purchases`(결제 확정)를 "수료"로 재해석했을 뿐, 실제 강의 진행률/모듈 개념은 없다 — 진짜 "진행률"이 필요하면 도슨트 콘텐츠에 모듈/챕터 개념을 추가하는 별도 스키마 설계가 선행돼야 함.
 - **EPIC-052 후속**: "나의 공간"의 공간 스타일링 신청 내역은 표시하지 않음(고객 신청을 기록하는 테이블이 없음, `styling_projects`는 관리자 포트폴리오 전용) — Studio 게시판 링크로만 안내. 실제 신청 내역이 필요해지면 고객 신청 테이블 설계가 먼저 필요.

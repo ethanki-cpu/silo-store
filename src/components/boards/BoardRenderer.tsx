@@ -79,7 +79,7 @@ function StoryCards({ boardId, posts }: { boardId: string; posts: BoardPost[] })
         <StoryCard
           key={post.id}
           href={`/boards/${boardId}/${post.id}`}
-          photoUrl={post.photo_url}
+          photoUrl={post.featured_image_url ?? post.photo_url}
           title={post.title ?? ""}
           summary={post.body ? stripHtml(post.body) : null}
           tags={post.tags ?? []}
@@ -106,11 +106,12 @@ function GalleryGrid({ boardId, posts }: { boardId: string; posts: BoardPost[] }
           href={`/boards/${boardId}/${post.id}`}
           className="block mb-4 break-inside-avoid group"
         >
-          {post.photo_url ? (
+          {post.featured_image_url ?? post.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={post.photo_url}
+              src={post.featured_image_url ?? post.photo_url ?? ""}
               alt={post.title ?? ""}
+              loading="lazy"
               className="w-full object-cover"
             />
           ) : (

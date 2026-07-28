@@ -4,7 +4,7 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-07-28 (EPIC-054E, `feature/EPIC-054A`→`054B`→`054C`→`054D`→`054E` 계보 기준).
+> 최종 확인: 2026-07-28 (EPIC-054F, `feature/EPIC-054A`→`054B`→`054C`→`054D`→`054E`→`054F` 계보 기준).
 
 =====================================
 
@@ -22,15 +22,15 @@ Stage 1 — Foundation
 
 ## Progress
 
-Stage 1 (Foundation) 14개 세부 항목 기준: **완료 10 / 부분 완료 3 / 미착수 1(Block Editor 완전판은 별도 브랜치에 존재)**
+Stage 1 (Foundation) 14개 세부 항목 기준: **완료 10 / 부분 완료 3 / 미착수 1(Block Editor 완전판은 별도 브랜치에 존재)** — Routing 항목의 세부 근거로 EPIC-054F가 Route 커버리지를 76개 page.tsx로 확장(기존 70 + 신규 6).
 
-전체 EPIC: **57개 완료**, 진행 중 0개, 예정 0개(대기 중). 상세: [docs/STAGES.md](STAGES.md) §Stage 1, [docs/EPIC.md](EPIC.md).
+전체 EPIC: **58개 완료**, 진행 중 0개, 예정 0개(대기 중). 상세: [docs/STAGES.md](STAGES.md) §Stage 1, [docs/EPIC.md](EPIC.md).
 
 =====================================
 
 ## Current EPIC
 
-없음 (대기 중 — 다음 지시 대기). 직전 완료: EPIC-054E(이 문서를 만든 EPIC 자체).
+없음 (대기 중 — 다음 지시 대기). 직전 완료: EPIC-054F(Community/Heritage/Studio/Membership/Gallery/Archive 6개 카테고리 허브 Page 신설).
 
 =====================================
 
@@ -47,18 +47,18 @@ Stage 1 (Foundation) 14개 세부 항목 기준: **완료 10 / 부분 완료 3 /
 
 최근 완료 10개(최신순):
 
-1. EPIC-054E — Stage/EPIC 분리 운영 체계 구축(이 문서 포함)
-2. EPIC-054D — 사이트 전체 Navigation/SEO/Routing 감사(Audit)
-3. EPIC-054C — 모든 Page를 Board와 연결(BoardModule)
-4. EPIC-054B — Page(화면)/Board(게시판) 분리, Page Module 시스템 신설
-5. EPIC-054A — 모든 메뉴에 실제 Page 연결(Placeholder 19개 제거)
-6. EPIC-052 — 마이페이지 Personal Hub 확장 + Tiptap 기본 에디터 도입
-7. EPIC-051 — Studio(공간 문의) 게시판 생성 + 기존 예약 Flow 연동
-8. EPIC-050 — Membership/Gallery/Archive 게시판 + Timeline Engine
-9. EPIC-049 — Salon des Cent Community 게시판 생성
-10. EPIC-048 — Silo Store 게시판 20개 생성 + hub 레이아웃
+1. EPIC-054F — Community/Heritage/Studio/Membership/Gallery/Archive 6개 카테고리 허브 Page 신설(공용 PageTemplate)
+2. EPIC-054E — Stage/EPIC 분리 운영 체계 구축
+3. EPIC-054D — 사이트 전체 Navigation/SEO/Routing 감사(Audit)
+4. EPIC-054C — 모든 Page를 Board와 연결(BoardModule)
+5. EPIC-054B — Page(화면)/Board(게시판) 분리, Page Module 시스템 신설
+6. EPIC-054A — 모든 메뉴에 실제 Page 연결(Placeholder 19개 제거)
+7. EPIC-052 — 마이페이지 Personal Hub 확장 + Tiptap 기본 에디터 도입
+8. EPIC-051 — Studio(공간 문의) 게시판 생성 + 기존 예약 Flow 연동
+9. EPIC-050 — Membership/Gallery/Archive 게시판 + Timeline Engine
+10. EPIC-049 — Salon des Cent Community 게시판 생성
 
-상세: [docs/EPIC.md](EPIC.md) "완료" 섹션(전체 57건).
+상세: [docs/EPIC.md](EPIC.md) "완료" 섹션(전체 58건).
 
 =====================================
 
@@ -85,6 +85,7 @@ Stage 1 (Foundation) 14개 세부 항목 기준: **완료 10 / 부분 완료 3 /
 - 페이지별 SEO metadata/canonical 없음(root 값만 전 페이지 상속).
 - `Navbar.tsx` 드롭다운은 Escape로 닫을 수 없음(포커스 이동으로만 닫힘, 순수 CSS 구조상 제약).
 - `member_bucket_list`(EPIC-052) 등 여러 EPIC의 DB DDL/시드가 Supabase Management API 토큰 부재로 라이브 미적용 상태(NEXT_TASK.md에 목록).
+- (EPIC-054F 발견) legacy `BOARD_DEFINITIONS.archive`(그룹, "자료게시판")와 신규 `INDIVIDUAL_BOARD_DEFINITIONS.archive`(hub, "Archive")가 동일 slug `"archive"` 사용 — 동작은 깨지지 않으나 혼동 여지.
 
 **P3**
 - `next.config.ts`에 `experimental.reactCompiler` 미설정 — 수동 메모이제이션 없이 렌더링(활성화 여부 검토 필요).

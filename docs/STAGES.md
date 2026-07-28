@@ -28,7 +28,7 @@
 | 항목 | 상태 | 기여 EPIC | 비고 |
 |---|---|---|---|
 | Navigation | 🔶 부분 완료 | EPIC-017/018/019/023/035/037/039/040/041-042/043/044/054A/054D | 동작은 하나 **P0 이슈**: `navConfig.ts`의 `FALLBACK_NAV_TABS`와 라이브 `site_navigations`(DB)가 서로 다른 구조로 공존(EPIC-054D 발견, 미해결) |
-| Routing | ✅ 완료 | EPIC-044, EPIC-047~051 | App Router 동적 라우팅(heritage/community/boards/[id] 등), Board Definition System 기반 무한 확장 가능 |
+| Routing | ✅ 완료 | EPIC-044, EPIC-047~051, EPIC-054F | App Router 동적 라우팅(heritage/community/boards/[id] 등) + Board Definition System 기반 무한 확장 가능. EPIC-054F가 Community/Heritage/Studio/Membership/Gallery/Archive 6개 카테고리 허브의 마지막 404 구멍을 메워 76개 page.tsx 전부 실제 Route 확보(마이페이지 12개 탭·Online Docent는 이전부터 완비) |
 | Authentication | ✅ 완료 | EPIC-001, EPIC-020, EPIC-021 | Supabase Auth 이메일/비밀번호 + Google/Kakao OAuth |
 | Supabase | ✅ 완료 | 전 EPIC 공통 기반 | anon key 단일 클라이언트, RLS 기반 권한 제어(`src/lib/serverAuth.ts`) |
 | Storage | 🔶 부분 완료 | EPIC-033 | 관리자 CMS 이미지 업로드(로고/슬라이드)는 동작. 게시글 이미지 전용 Storage Bucket(post-images/gallery/attachments) + Garbage Collection은 **별도 미병합 브랜치 `feature/EPIC-053`에만 존재**(아래 "미병합 브랜치" 참고) |

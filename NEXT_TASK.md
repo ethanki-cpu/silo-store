@@ -4,6 +4,9 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-054F 후속(P2)**: legacy `BOARD_DEFINITIONS.archive`(그룹, "자료게시판")와 신규 `INDIVIDUAL_BOARD_DEFINITIONS.archive`(hub, "Archive")가 동일한 slug `"archive"`를 쓴다 — `resolveBoardDefinition`이 category(개별 정의)를 board_type(그룹)보다 먼저 확인해 지금은 동작이 깨지지 않지만, 두 서로 다른 개념이 같은 slug를 공유하는 건 혼동 여지가 있다. `/archive` 신규 페이지가 실제로는 legacy "자료게시판"을 보여준다(신규 Archive hub 행이 아직 DB에 없어서). Board Definition System 자체를 고치는 일이라 "새 게시판/DB 변경 금지"였던 EPIC-054F 범위 밖 — slug 재명명 또는 병합 여부를 사용자와 논의할 것.
+- **EPIC-054F 후속**: Community/Heritage/Studio/Membership/Gallery 5개 신규 페이지는 해당 hub의 board 행이 라이브 DB에 아직 시딩되지 않아 전부 EmptyState("게시글이 없습니다.")로 보인다 — EPIC-048~051의 DB INSERT를 Supabase SQL Editor에서 실행하면(NEXT_TASK.md 기존 항목 참고) 실제 콘텐츠로 채워진다.
+- **EPIC-054F 후속**: nested hub(`salon-topics`/`salon-weekday`/`survey`)는 전용 top-level Route를 만들지 않았다 — Community 허브 페이지의 "하위 게시판" 카드를 통해서만 접근 가능. 직접 URL(`/salon-topics` 등)이 필요해지면 별도 페이지 신설을 검토할 것.
 - **EPIC-054E 후속(최우선)**: `feature/EPIC-053`(Block Editor 시스템 확장/완성)이 이 브랜치 계보(main→054A→054B→054C→054D→054E)와 완전히 별개인 미병합 브랜치로 남아있다 — `docs/STAGES.md`의 Stage 1 "Block Editor" 항목이 이 결정 하나에 걸려 있음. 그대로 병합할지, 이 계보 기준으로 재작업할지 사용자와 결정 필요.
 - **EPIC-054E 후속**: `docs/PROJECT_DASHBOARD.md`/`docs/STAGES.md`는 EPIC-054D까지의 상태를 기준으로 작성됐다 — 다음 EPIC이 완료될 때마다 두 문서를 함께 갱신하는 습관이 자리 잡을 때까지(특히 "Recent Completed"/"Progress"/"Current EPIC" 필드) 누락 여부를 한동안 주의 깊게 확인할 것.
 - **EPIC-054D 후속 — Architecture Review(P0)**: `navConfig.ts`의 `FALLBACK_NAV_TABS`(EPIC-044 재작성, `/heritage/*/[name]`·`/community/club/[name]` 동적 구조)와 라이브 `site_navigations`(DB 시드, `docs/navigation-blueprint.md` 반영분)가 서로 다른 nav 트리로 공존한다 — 어느 쪽을 "진짜" 구조로 삼아 일원화할지 사용자와 결정 필요. 이는 실질적 nav 재설계라 EPIC-054D(감사 전용) 범위 밖.

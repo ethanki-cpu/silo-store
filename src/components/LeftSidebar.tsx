@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { NavTab } from "@/lib/navConfig";
 
@@ -10,22 +10,17 @@ import type { NavTab } from "@/lib/navConfig";
 //
 // EPIC-043: 여닫이 아이콘은 클릭으로만 열린다(hover로 열리지 않음 — 아래
 // 버튼에 onMouseEnter가 없는 이유). 패널이 열린 뒤 닫는 방법(바깥 클릭/✕/
-// 패널에서 마우스가 완전히 벗어남)은 그대로 유지. "온라인 도슨트
-// 라이브러리" 그룹만 기본 접힘 + hover로 펼쳐지는 아코디언으로 동작 —
-// 다른 그룹은 항상 펼쳐진 채로 둔다. 순수 CSS `group`/`group-hover`로
-// 구현(JS state 없음): 그룹 헤더와 펼쳐지는 목록이 같은 부모의 형제로,
-// 플로팅 팝업이 아니라 문서 흐름 안에서 그대로 이어지므로 별도의
-// "브릿지" 여백 없이도 hover가 끊기지 않는다.
-// groupLabel은 관리자가 site_navigations에서 자유롭게 수정 가능한 문자열이라
-// 정확히 일치시키면 라벨을 조금만 바꿔도(예: "온라인 도슨트 라이브러리" →
-// "온라인 도슨트 Online Docent") 아코디언이 깨진다 — "도슨트"가 포함된
-// 그룹이면 매칭되도록 완화해 이런 사소한 리네이밍에도 견고하게 했다.
+// 패널에서 마우스가 완전히 벗어남)은 그대로 유지.
 //
-// EPIC-044: "사일로 헤리티지" 그룹은 할머니/할아버지 이름 수십 개가 들어가
-// 항상 펼쳐두면 사이드바가 지나치게 길어지므로, 같은 이유로 hover 아코디언
-// 대상에 포함한다.
-function isAccordionGroup(groupLabel: string): boolean {
-  return groupLabel.includes("도슨트") || groupLabel.includes("헤리티지");
+// EPIC-058: 그룹 헤더가 <p>(클릭 불가)였던 것을, "클릭하면 Hub Page로
+// 이동" + "Chevron 클릭으로 펼치기/접기"의 두 동작으로 분리한다. 이전에는
+// "온라인 도슨트"/"헤리티지" 그룹만 hover로 펼쳐지는 CSS 아코디언이었는데,
+// hover는 라벨 클릭(이동)과 한 DOM에 묶이면 동작이 섞여버려서 명시적 클릭
+// 상태(useState)로 바꾼다 — 펼침 여부가 이동 여부와 완전히 독립적으로
+// 동작해야 하기 때문. 초기 펼침 여부는 기존 기본 동작(도슨트/헤리티지만
+// 기본 접힘, 나머지는 기본 펼침)을 그대로 유지한다.
+function defaultExpanded(groupLabel: string): boolean {
+  return !(groupLabel.includes("도슨트") || groupLabel.includes("헤리티지"));
 }
 
 export function LeftSidebar({
@@ -50,6 +45,21 @@ export function LeftSidebar({
   // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(open);
+  // EPIC-058: 그룹별 펼침 상태 — 라벨 클릭(이동)과 완전히 분리된 Chevron
+  // 전용 토글. 아직 명시적으로 토글한 적 없는 그룹은 defaultExpanded로
+  // 폴백한다(그룹 목록은 DB에서 오므로 미리 전부 초기화하지 않는다).
+  const [expandedOverrides, setExpandedOverrides] = useState<
+    Record<string, boolean>
+  >({});
+  function isExpanded(groupLabel: string): boolean {
+    return expandedOverrides[groupLabel] ?? defaultExpanded(groupLabel);
+  }
+  function toggleExpanded(groupLabel: string) {
+    setExpandedOverrides((prev) => ({
+      ...prev,
+      [groupLabel]: !isExpanded(groupLabel),
+    }));
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -117,27 +127,50 @@ export function LeftSidebar({
         </div>
         <nav className="p-2 overflow-y-auto max-h-[calc(100vh-64px)]">
           {(tab.groups ?? []).map((group) => {
-            const isAccordion = isAccordionGroup(group.groupLabel);
+            const expanded = isExpanded(group.groupLabel);
+            const hasItems = group.items.length > 0;
             return (
-              <div
-                key={group.groupLabel}
-                className={`mb-4 ${isAccordion ? "group" : ""}`}
-              >
-                <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60 cursor-default">
-                  {group.groupLabel}
-                </p>
-                <div className={isAccordion ? "hidden group-hover:block" : ""}>
-                  {group.items.map((item, idx) => (
+              <div key={group.groupLabel} className="mb-4">
+                <div className="flex items-center rounded-md hover:bg-white/10">
+                  {group.href ? (
                     <Link
-                      key={`${item.href}-${idx}`}
-                      href={item.href}
+                      href={group.href}
                       onClick={onClose}
-                      className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
+                      className="flex-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white"
                     >
-                      {item.label}
+                      {group.groupLabel}
                     </Link>
-                  ))}
+                  ) : (
+                    <p className="flex-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60 cursor-default">
+                      {group.groupLabel}
+                    </p>
+                  )}
+                  {hasItems && (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(group.groupLabel)}
+                      aria-expanded={expanded}
+                      aria-label={`${group.groupLabel} 하위 메뉴 ${expanded ? "접기" : "펼치기"}`}
+                      className="px-2 py-1 text-white/60 hover:text-white"
+                    >
+                      {expanded ? "▼" : "▶"}
+                    </button>
+                  )}
                 </div>
+                {hasItems && expanded && (
+                  <div>
+                    {group.items.map((item, idx) => (
+                      <Link
+                        key={`${item.href}-${idx}`}
+                        href={item.href}
+                        onClick={onClose}
+                        className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

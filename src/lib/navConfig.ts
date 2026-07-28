@@ -1,7 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
 
 export type NavItem = { label: string; href: string };
-export type NavGroup = { groupLabel: string; items: NavItem[] };
+// EPIC-058: 그룹 헤더(상위 카테고리) 자체도 Hub Page로 이동하는 링크가 될 수
+// 있도록 href를 추가한다. 없으면(기존처럼) 클릭 불가한 라벨로만 렌더링된다
+// — LeftSidebar.tsx/RightSidebar.tsx가 이 값의 유무로 분기한다.
+export type NavGroup = { groupLabel: string; href?: string; items: NavItem[] };
 
 // 탭의 UI 상호작용 방식. Navbar.tsx는 이 값에 따라 렌더링 방식만 분기하고,
 // 실제 라벨/링크/그룹 구성은 DB(site_navigations, EPIC-023)에서 온다.
@@ -11,7 +14,7 @@ export type NavTab = {
   key: string;
   label: string;
   type: NavTabType;
-  href?: string; // type === "link"
+  href?: string; // type === "link" | "dropdown"(EPIC-058: 드롭다운 트리거 자체도 Hub Page 링크 가능)
   items?: NavItem[]; // type === "dropdown"
   groups?: NavGroup[]; // type === "sidebar-left" | "sidebar-right"
 };
@@ -106,10 +109,12 @@ const FALLBACK_NAV_TABS: NavTab[] = [
       },
       {
         groupLabel: "사일로 헤리티지 · 할머니",
+        href: "/heritage/grandmas",
         items: toDynamicNavItems("/heritage/grandma", HERITAGE_GRANDMA_NAMES),
       },
       {
         groupLabel: "사일로 헤리티지 · 할아버지",
+        href: "/heritage/grandpas",
         items: toDynamicNavItems("/heritage/grandpa", HERITAGE_GRANDPA_NAMES),
       },
     ],
@@ -121,6 +126,7 @@ const FALLBACK_NAV_TABS: NavTab[] = [
     groups: [
       {
         groupLabel: "Community",
+        href: "/community",
         items: [
           { label: "출석체크", href: "/attendance" },
           { label: "자유게시판", href: "/boards" },
@@ -128,10 +134,12 @@ const FALLBACK_NAV_TABS: NavTab[] = [
       },
       {
         groupLabel: "주제별 소통게시판",
+        href: "/community/topics",
         items: toDynamicNavItems("/community/club", SALON_TOPIC_BOARD_NAMES),
       },
       {
         groupLabel: "요일별 클럽",
+        href: "/community/weekday",
         items: toDynamicNavItems("/community/club", SALON_WEEKDAY_CLUB_NAMES),
       },
     ],
@@ -140,6 +148,7 @@ const FALLBACK_NAV_TABS: NavTab[] = [
     key: "space_inquiry",
     label: "스튜디오",
     type: "dropdown",
+    href: "/studio",
     items: [
       { label: "공간 촬영 대관 (1층 사일로상점)", href: "/rental?floor=1f_silostore" },
       { label: "공간 촬영 대관 (2층 살롱데상)", href: "/rental?floor=2f_salon" },
@@ -182,13 +191,23 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
         label: i.title,
         href: i.href ?? "#",
       }));
-      return { key: top.key ?? top.id, label: top.title, type, items };
+      // EPIC-058: 드롭다운 트리거(예: 스튜디오) 자체도 href가 있으면 Hub
+      // Page로 이동하는 링크가 된다 — 없으면(기존처럼) 클릭 불가한 버튼.
+      return {
+        key: top.key ?? top.id,
+        label: top.title,
+        type,
+        href: top.href ?? undefined,
+        items,
+      };
     }
 
     // sidebar-left / sidebar-right: 자식은 그룹, 손자는 항목
     const groupRows = byParent.get(top.id) ?? [];
     const groups: NavGroup[] = groupRows.map((g) => ({
       groupLabel: g.title,
+      // EPIC-058: 그룹 헤더도 href가 있으면 Hub Page 링크가 된다.
+      href: g.href ?? undefined,
       items: (byParent.get(g.id) ?? []).map((i) => ({
         label: i.title,
         href: i.href ?? "#",

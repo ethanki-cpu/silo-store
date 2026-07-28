@@ -377,13 +377,27 @@ export function Navbar() {
 
           return (
             <div key={tab.key} className="relative group/tab">
-              <button
-                type="button"
-                className={className}
-                aria-haspopup={hasChildren ? "true" : undefined}
-              >
-                {tab.label}
-              </button>
+              {/* EPIC-058: href가 있는 드롭다운 트리거(예: 스튜디오 →
+                  /studio)는 클릭하면 Hub Page로 이동한다 — 펼침(hover)은
+                  기존 그대로 별도 동작이라 이동 여부와 섞이지 않는다. href가
+                  없는 탭은 기존처럼 클릭 불가한 버튼. */}
+              {tab.href ? (
+                <Link
+                  href={tab.href}
+                  className={className}
+                  aria-haspopup={hasChildren ? "true" : undefined}
+                >
+                  {tab.label}
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className={className}
+                  aria-haspopup={hasChildren ? "true" : undefined}
+                >
+                  {tab.label}
+                </button>
+              )}
 
               {hasChildren && (
                 // 브릿지: top-full로 버튼 바로 아래에 붙이고, pt-4를 이

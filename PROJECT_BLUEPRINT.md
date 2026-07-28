@@ -88,16 +88,18 @@ silo-store/
 | 설문조사 | `/polls` | 관리자 설문 생성, 회원당 1표, 결과 비율 표시 |
 | 공간 스타일링 포트폴리오 (EPIC-016) | `/shop/projects`(목록, industry 필터), `/shop/projects/[id]`(상세: 컨셉·사진 Grid·영상 Player·사용 물품 Card), `/admin/projects/new`(관리자 등록) | 게시판(boards/posts)이 아닌 전용 테이블(`styling_projects`/`styling_project_media`/`styling_project_items`) 기반 공개 콘텐츠, 비회원도 열람 가능. 사용 물품 카드 클릭 시 `/shop/[itemId]`로 이동 |
 
-### DB 스키마(테이블)는 존재하지만 화면이 "준비 중" placeholder인 기능
+### DB 스키마(테이블)는 존재하지만 실제 기능(데이터 연동)이 없는 화면
 
-`src/components/ComingSoon.tsx`를 그대로 렌더링하는 페이지들:
+**(EPIC-054A)** 과거 `src/components/ComingSoon.tsx`("준비 중입니다")만 렌더링하던 19개 페이지는 전부 공용 `src/components/PageHeader.tsx`(Title/Subtitle/Breadcrumb/Description/Page Container) 기반 정적 페이지로 교체되어 더 이상 존재하지 않는다. 아래 페이지들은 여전히 **실제 데이터/게시판 연동은 없는 정적 안내 페이지**다(EPIC-054A는 페이지·URL·레이아웃 생성까지만 수행 — 게시판 연결/기능 추가는 범위 밖):
 
-- `/salon/monthly-events` (월별 모임)
-- `/salon/secret-room` (비밀의 방)
-- `/salon/drinks` (음료 주문)
-- `/salon/docent-tour` (투어 도슨트 프로그램)
+- `/salon/monthly-events` (월별 모임), `/salon/event-notices` (이벤트 공지)
+- `/salon/one-sentence-novel`, `/salon/mind-diary`, `/salon/my-treasure-story`, `/salon/secret-room`(비밀의 방 도슨트), `/salon/artist-intro`
+- `/salon/gallery/awards|performances|parties|visitors|patrons` (5개)
+- `/shop/heritage/grandma`, `/shop/heritage/grandpa`
+- `/space-inquiry/item-rental`, `/space-inquiry/styling`
+- `/salon/docent-tour`(투어 도슨트 프로그램), `/salon/drinks`(음료 주문), `/space-inquiry/shoot-rental`(nav 미연결 orphan, `/rental`로 대체됨)
 
-> `docs/database-schema.sql`에는 이 기능들에 대응하는 테이블(`salon_events`, `salon_rooms`, `drink_menu`, `docent_tours` 등)이 정의되어 있으나, 실제 화면/Route Handler 구현은 없음(코드 기준 확인됨).
+> `docs/database-schema.sql`에는 이 기능들에 대응하는 테이블(`salon_events`, `salon_rooms`, `drink_menu`, `docent_tours` 등)이 정의되어 있으나, 실제 화면/Route Handler 구현은 없음(코드 기준 확인됨) — EPIC-054A 이후에도 동일.
 
 ### 실시간 채팅(회원채팅)
 
@@ -143,7 +145,7 @@ silo-store/
 `src/components` 기준 실제 존재하는 컴포넌트:
 
 - **`Navbar.tsx`**: 상단에 사일로상점/살롱데상/공간 문의/마이페이지 4개 진입점(화면 중앙 정렬) + 계정 영역(로그인 상태 표시, 마이페이지 링크, 로그아웃) 렌더링. `NAV_TABS`(`navConfig.ts`)를 그대로 순회하며 각 탭의 `type`(`sidebar-left`/`sidebar-right`/`dropdown`/`link`)에 따라 상호작용 방식만 분기하고, 라벨/링크/그룹은 하드코딩하지 않는다(EPIC-018). 사일로상점·살롱데상은 탭 클릭 또는 화면 좌/우 가장자리 아이콘(🔑/🚪) 클릭·hover 시 각각 좌/우 사이드바가 열리는 구조(초록 배경/흰 글씨). 공간 문의는 플로팅 드롭다운, 마이페이지는 단순 링크. `getActiveNavTabKey()`로 현재 경로에 맞는 탭을 하이라이트. 상세는 [docs/navigation-blueprint.md](docs/navigation-blueprint.md) 참고.
-- **`ComingSoon.tsx`**: `title`을 받아 "준비 중입니다" 안내만 보여주는 placeholder 컴포넌트. 4번 섹션의 미구현 살롱 기능들에서 사용.
+- **`PageHeader.tsx`** (EPIC-054A, `ComingSoon.tsx` 대체): `title`/`subtitle`/`breadcrumb`/`description`을 받아 정적 안내 페이지(Title/Subtitle/Breadcrumb/Description/Page Container)를 렌더링하는 공용 컴포넌트. 4번 섹션의 실 데이터 미연동 정적 페이지 19개에서 사용.
 
 그 외 공용 UI 라이브러리(버튼/모달/폼 등 디자인 시스템)는 없음 — 각 페이지가 Tailwind 클래스를 인라인으로 직접 사용.
 

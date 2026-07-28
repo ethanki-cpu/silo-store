@@ -31,7 +31,7 @@
 ## 2. Typography
 
 - 폰트: Geist 로드되지만 `Arial, Helvetica, sans-serif`에 덮여 실제 미적용(§0 참고).
-- 페이지 제목(`<h1>`): `text-2xl font-bold` — 상점/mypage/게시판/클럽/ComingSoon/로그인/회원가입/글쓰기 전반에서 일관됨.
+- 페이지 제목(`<h1>`): `text-2xl font-bold` — 상점/mypage/게시판/클럽/PageHeader(EPIC-054A)/로그인/회원가입/글쓰기 전반에서 일관됨.
 - 섹션 소제목: `text-lg font-semibold`
 - 그룹 라벨: `text-sm font-semibold text-gray-500`
 - 본문/메타: `text-sm text-gray-600` 또는 `text-xs text-gray-400`/`text-gray-500`
@@ -78,7 +78,7 @@
 - 페이지 래퍼: 서버 컴포넌트 목록 페이지는 `min-h-screen p-8`, 클라이언트 페이지는 대부분 `flex-1 p-8`(루트 레이아웃의 `flex flex-col`에 의존)
 - 컨텐츠 최대 너비(페이지 유형별로 다름, 고정 폭 없음):
   - `max-w-sm` — 인증 폼(로그인/회원가입)
-  - `max-w-xl` — ComingSoon
+  - `max-w-2xl` — PageHeader(정적 안내 페이지, EPIC-054A)
   - `max-w-2xl` — 상세/글쓰기(아이템 상세, 게시판 상세/글쓰기)
   - `max-w-3xl` — 대시보드형(mypage, 게시판 목록)
   - 공통: 어느 폭이든 `mx-auto w-full`로 중앙 정렬
@@ -87,9 +87,9 @@
 
 ## 8. 컴포넌트 재사용 현황
 
-- 공용 컴포넌트: `Navbar`, `ComingSoon`, `WishlistButton`, 그리고 EPIC-046의 `src/components/boards/*`(`BoardHeader`/`PostDetailHeader`/`PostTags`/`CommentSection`, §10 참고). 그 외 버튼/카드/인풋/배지/그리드는 대부분 페이지마다 인라인 Tailwind 반복.
+- 공용 컴포넌트: `Navbar`, `PageHeader`(EPIC-054A, 구 `ComingSoon`), `WishlistButton`, 그리고 EPIC-046의 `src/components/boards/*`(`BoardHeader`/`PostDetailHeader`/`PostTags`/`CommentSection`, §10 참고). 그 외 버튼/카드/인풋/배지/그리드는 대부분 페이지마다 인라인 Tailwind 반복.
 - `WishlistButton`은 호출부에서 `absolute top-2 right-2 z-10 rounded-full bg-white/90 w-8 h-8 flex items-center justify-center shadow` 래퍼가 `shop/page.tsx`와 `mypage/page.tsx`에 동일하게 복붙되어 있음 — **공용 컴포넌트로 추출할 후보**로 남겨둔다.
-- `ComingSoon`은 실제로 여러 placeholder 페이지에서 재사용되는, 이 프로젝트에서 몇 안 되는 "제대로 추출된" 컴포넌트 사례.
+- `PageHeader`는 정적 안내 페이지 19곳에서 재사용되는, 이 프로젝트에서 몇 안 되는 "제대로 추출된" 컴포넌트 사례(구 `ComingSoon`을 EPIC-054A에서 대체).
 
 ## 9. 새 화면을 만들 때
 

@@ -20,7 +20,7 @@
 
 ## 2. 갤러리 (`/salon/gallery/*`)
 
-**상태: 화면(`/salon/gallery/*`)은 여전히 전부 `<ComingSoon>`이지만(EPIC-050에서 건드리지 않음), 같은 주제의 실제 콘텐츠는 Board Definition System의 `Gallery` hub로 옮겨가 구현됨(EPIC-050)** — `awards`/`performances`/`parties`/`gallery-visitors`/`patrons` 5개 게시판(`/boards/[id]`, story 레이아웃)이 좋아요/댓글/태그/검색 등 실제 서비스 가능한 형태로 존재한다. `/salon/gallery/*` 정적 페이지를 이 게시판으로 연결(리다이렉트 또는 안내)할지는 아직 결정되지 않음(NEXT_TASK.md 참고).
+**상태: 화면(`/salon/gallery/*`)은 EPIC-054A에서 Title/Subtitle/Breadcrumb/Description만 있는 정적 페이지로 전환됐지만(게시판 연결은 이번 EPIC 범위 밖), 같은 주제의 실제 콘텐츠는 Board Definition System의 `Gallery` hub로 옮겨가 구현됨(EPIC-050)** — `awards`/`performances`/`parties`/`gallery-visitors`/`patrons` 5개 게시판(`/boards/[id]`, story 레이아웃)이 좋아요/댓글/태그/검색 등 실제 서비스 가능한 형태로 존재한다. `/salon/gallery/*` 정적 페이지를 이 게시판으로 연결(리다이렉트 또는 안내)할지는 아직 결정되지 않음(NEXT_TASK.md 참고).
 
 ## 3. 자료실 (Downloads)
 
@@ -50,7 +50,7 @@
 - 라우트:
   - `/shop` — `?era=` 필터(8개 Time Slip 시대), `status='available'` 물품 그리드, 카드마다 `WishlistButton`
   - `/shop/[id]` — 상세, 구매/대여(`/api/orders`), 4단계 잠금 큐레이션 필드(`era_info`/`era_context`/`maker_info`/`previous_owner_story`) — 등급 게이팅은 membership-blueprint.md §4 참고. `previous_owner_story` 해제 시 `item_personas` 캐릭터(이름+사진, 할머니/할아버지) 노출.
-  - `/shop/heritage/grandma`, `/shop/heritage/grandpa` — **미구현**(`ComingSoon`). `item_personas` 데이터(68명: 할머니 51 / 할아버지 17)는 이미 존재하지만 전용 화면 없음.
+  - `/shop/heritage/grandma`, `/shop/heritage/grandpa` — **정적 페이지**(EPIC-054A, `PageHeader`). `item_personas` 데이터(68명: 할머니 51 / 할아버지 17)는 이미 존재하지만 이 화면에서 실제로 조회/표시하지는 않음(게시판·데이터 연결은 범위 밖).
   - `/shop/projects`(EPIC-016) — `?industry=` 필터(photo_studio/perfume_shop/doll_shop/pizza_shop/other), `styling_projects` 직접 조회
   - `/shop/projects/[id]` — 상세: 커버, 컨셉, 미디어 갤러리(`styling_project_media`, 사진/영상), "사용 물품"(`styling_project_items` → `items`, `/shop/[id]`로 역링크)
 - API: `GET /api/items/[id]`(큐레이션 잠금 계산 + `item_personas` 조인) · `GET/POST /api/styling-projects`, `GET/PATCH/DELETE /api/styling-projects/[id]`(관리자 전용 쓰기, `is_admin` 체크 — 등급 무관)
@@ -110,11 +110,11 @@
 | 콘텐츠 타입 | 상태 |
 |---|---|
 | 게시판 | 완전 구현 (등급 게이팅, After Adoption 연결 포함) |
-| 갤러리(5개) | **미구현** (전부 ComingSoon) |
+| 갤러리(5개) | 정적 페이지만 구현(EPIC-054A) — 실제 콘텐츠는 Board Definition `Gallery` hub가 대신 담당 |
 | 자료실 | 완전 구현 |
 | 온라인 도슨트 | 완전 구현 |
 | 상점 — 물품 목록/상세/큐레이션 | 완전 구현 |
-| 상점 — Heritage(할머니/할아버지) | **미구현** (ComingSoon, `item_personas` 데이터는 존재) |
+| 상점 — Heritage(할머니/할아버지) | 정적 페이지만 구현(EPIC-054A, `item_personas` 데이터는 존재하나 미연동) |
 | 상점 — 스타일링 프로젝트(EPIC-016) | 완전 구현 (nav 미연결, §navigation-blueprint 참고) |
 | 마이페이지 | 11개 탭 중 6개(나의 컬렉션/위시리스트/팔로우/받은 배지/내가 쓴 댓글/방문자 기록) 완전 구현, 5개(나의 살롱/도슨트 수료증/공간/전시회/타임라인)는 Placeholder |
 | 마이피드 | 완전 구현 |

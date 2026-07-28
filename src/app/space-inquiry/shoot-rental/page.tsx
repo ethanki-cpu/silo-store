@@ -1,5 +1,16 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function ShootRentalInquiryPage() {
-  return <ComingSoon title="공간 촬영 대관" />;
+  return (
+    <PageHeader
+      title="공간 촬영 대관"
+      subtitle="스튜디오"
+      breadcrumb={[
+        { label: "홈", href: "/" },
+        { label: "스튜디오" },
+        { label: "공간 촬영 대관" },
+      ]}
+      description="공간 촬영 대관 문의 콘텐츠는 현재 준비 중입니다. 실제 예약은 공간 촬영 대관 메뉴(/rental)를 이용해 주세요."
+    />
+  );
 }

@@ -102,8 +102,11 @@ function renderModule(module: PageModuleRow) {
       ) : (
         <EmptyState title="게시판이 연결되지 않았어요." description="/admin/pages에서 이 모듈에 게시판을 연결하세요." />
       );
-    case "slide":
-      return <DbSlideModule boardId={board_id} />;
+    case "slide": {
+      const sort = settings.sort === "popular" ? "popular" : "latest";
+      const title = typeof settings.title === "string" ? settings.title : undefined;
+      return <DbSlideModule boardId={board_id} sort={sort} title={title} />;
+    }
     case "gallery":
       return <DbGalleryModule boardId={board_id} />;
     case "timeline":

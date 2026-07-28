@@ -5,7 +5,7 @@ import { useBoardPosts } from "@/lib/useBoardPosts";
 import { SlideModule } from "@/components/modules/SlideModule";
 import { GalleryModule } from "@/components/modules/GalleryModule";
 import { TimelineView } from "@/components/TimelineView";
-import type { BoardPost } from "@/lib/boardLayout";
+import type { BoardPost, SortOption } from "@/lib/boardLayout";
 
 // EPIC-060: Page Builder의 Slide/Gallery/Timeline 모듈은 (Board 모듈과
 // 달리) 게시판 하나의 최신 글만 미리보기로 보여주는 용도라 자체 검색/정렬
@@ -19,8 +19,18 @@ function EmptyBoardHint({ loading }: { loading: boolean }) {
   return <p className="text-gray-400 text-sm">연결된 게시판이 없거나 글이 없어요.</p>;
 }
 
-export function DbSlideModule({ boardId, title }: { boardId: string | null; title?: string }) {
-  const { board, posts, loading } = useBoardPosts(boardId);
+export function DbSlideModule({
+  boardId,
+  title,
+  sort = "latest",
+}: {
+  boardId: string | null;
+  title?: string;
+  // EPIC-061: 같은 게시판이라도 sort만 다르게 주면 "최신 글"/"인기 글"이
+  // 서로 다른 실제 데이터를 보여주는 두 모듈이 된다(가짜 중복 아님).
+  sort?: SortOption;
+}) {
+  const { board, posts, loading } = useBoardPosts(boardId, 12, sort);
   if (!boardId || (!loading && posts.length === 0)) return <EmptyBoardHint loading={loading} />;
 
   const items = posts.map((p) => ({

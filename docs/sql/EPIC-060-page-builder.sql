@@ -1,3 +1,10 @@
+-- ⚠️ SUPERSEDED — 이 파일은 실행하지 마세요.
+-- EPIC-061(docs/sql/EPIC-061-page-builder-seed.sql)이 이 파일을 완전히
+-- 대체합니다: 테이블/RLS는 동일하게 다시 만들고(IF NOT EXISTS라 이미 이
+-- 파일을 실행했어도 안전), seed는 draft+board_id NULL이었던 것을
+-- published+실제 board_id 연결로 다시 채웁니다. EPIC-061 파일 하나만
+-- 실행하세요.
+--
 -- EPIC-060: Page Builder CMS System
 --
 -- 이 프로젝트는 Supabase migration 파일을 쓰지 않고 Management API를 통해

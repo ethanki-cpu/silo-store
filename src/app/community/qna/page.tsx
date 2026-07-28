@@ -6,14 +6,14 @@ import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 
 // EPIC-062: Page Architecture — Navigation은 Board가 아니라 이 독립 Page로
-// 연결된다. page_builder(slug="community-weekday-anything-can-happen")의 published 모듈만 렌더링한다.
-export default function CommunityWeekdayAnythingCanHappenPage() {
+// 연결된다. page_builder(slug="community-qna")의 published 모듈만 렌더링한다.
+export default function CommunityQnaPage() {
   const [modules, setModules] = useState<PageModuleRow[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    fetchPublishedPageBySlug("community-weekday-anything-can-happen").then((result) => {
+    fetchPublishedPageBySlug("community-qna").then((result) => {
       if (cancelled) return;
       setModules(result?.modules ?? []);
       setLoading(false);
@@ -29,7 +29,7 @@ export default function CommunityWeekdayAnythingCanHappenPage() {
 
   return (
     <>
-      <PageEditButton slug="community-weekday-anything-can-happen" />
+      <PageEditButton slug="community-qna" />
       <main className="flex-1 bg-white px-6 py-12">
         <div className="max-w-3xl mx-auto w-full">
           <PageBuilderRenderer modules={modules ?? []} />

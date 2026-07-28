@@ -1,24 +1,40 @@
-import { PageHeaderContent } from "@/components/PageHeader";
+"use client";
 
-// EPIC-057: 카테고리 실제 Route 생성 — Board/DB 연결 없는 Placeholder Page.
+import { useEffect, useState } from "react";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { PageEditButton } from "@/components/admin/PageEditButton";
+import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+
+// EPIC-062: Page Architecture — Navigation은 Board가 아니라 이 독립 Page로
+// 연결된다. page_builder(slug="community-topics-psychology")의 published 모듈만 렌더링한다.
 export default function CommunityTopicsPsychologyPage() {
+  const [modules, setModules] = useState<PageModuleRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedPageBySlug("community-topics-psychology").then((result) => {
+      if (cancelled) return;
+      setModules(result?.modules ?? []);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) {
+    return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
+  }
+
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
-      <PageHeaderContent
-        title="심리"
-        subtitle="살롱데상 · Community · 주제별 소통"
-        breadcrumb={[
-        { label: "홈", href: "/" },
-        { label: "살롱데상" },
-        { label: "Community", href: "/community" },
-        { label: "주제별 소통", href: "/community/topics" },
-        { label: "심리" },
-        ]}
-        description="심리 주제로 소통하는 게시판입니다."
-      />
-      <div className="mt-8 rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-400">
-        여기에 게시판이 들어갑니다.
-      </div>
-    </main>
+    <>
+      <PageEditButton slug="community-topics-psychology" />
+      <main className="flex-1 bg-white px-6 py-12">
+        <div className="max-w-3xl mx-auto w-full">
+          <PageBuilderRenderer modules={modules ?? []} />
+        </div>
+      </main>
+    </>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 function todayDateString(): string {
   return new Date().toISOString().slice(0, 10);
@@ -87,7 +88,9 @@ export default function AttendancePage() {
   const today = todayDateString();
 
   return (
-    <main className="flex-1 p-8 max-w-md mx-auto w-full">
+    <>
+      <PageEditButton slug="attendance" />
+      <main className="flex-1 p-8 max-w-md mx-auto w-full">
       <h1 className="text-2xl font-bold mb-6">출석체크</h1>
 
       <button
@@ -141,6 +144,7 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

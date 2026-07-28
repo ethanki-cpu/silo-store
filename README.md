@@ -11,9 +11,12 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SITE_URL=
 ```
 
 이 파일은 `.gitignore`에 포함되어 있어 커밋되지 않습니다 — 각자 로컬에 직접 만들어야 합니다.
+
+> **`NEXT_PUBLIC_SITE_URL`** (EPIC-054D 추가): `src/app/layout.tsx`의 `metadataBase`(OpenGraph/canonical URL 계산 기준)와 `src/app/sitemap.ts`/`src/app/robots.ts`가 사용하는 배포 도메인. 비워두면 `http://localhost:3000`으로 대체되어 로컬 개발에는 지장 없음 — **운영 배포 시에는 반드시 실제 도메인(`https://...`)으로 설정**해야 사이트맵/OG 태그가 올바른 URL을 가리킨다.
 
 ### 2. Supabase Dashboard에서 값 확인
 

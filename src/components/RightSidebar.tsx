@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import type { NavTab } from "@/lib/navConfig";
 
@@ -27,15 +28,39 @@ export function RightSidebar({
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
 }) {
+  // EPIC-054D(접근성 감사 §13): Escape로 닫기 + 닫힐 때 트리거 아이콘으로
+  // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(open);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      triggerRef.current?.focus();
+    }
+    wasOpenRef.current = open;
+  }, [open]);
+
   if (!tab) return null;
 
   return (
     <>
       {!open && (
         <button
+          ref={triggerRef}
           type="button"
           onClick={onIconClick}
           aria-label={`${tab.label} 메뉴 열기`}
+          aria-expanded={open}
+          aria-controls="right-sidebar-panel"
           className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-l-md bg-green-800 text-white p-2 shadow-md"
         >
           {iconUrl ? (
@@ -53,6 +78,9 @@ export function RightSidebar({
       )}
 
       <div
+        id="right-sidebar-panel"
+        aria-hidden={!open}
+        inert={!open}
         onMouseLeave={onAmbientLeave}
         className={`fixed inset-y-0 right-0 z-50 w-64 bg-green-800 text-white transform transition-transform duration-200 ${
           open ? "translate-x-0" : "translate-x-full"

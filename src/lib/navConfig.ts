@@ -56,7 +56,10 @@ function toDynamicNavItems(basePath: string, names: string[]): NavItem[] {
   }));
 }
 
-const HERITAGE_GRANDMA_NAMES = [
+// EPIC-054D: sitemap.ts가 /heritage/*, /community/club/* 동적 라우트를
+// 전부 열거할 수 있도록 export — DB 조회 없이 하드코딩된 이름 목록이라
+// 사이트맵도 같은 목록을 그대로 재사용하면 된다(새 배열 중복 정의 없음).
+export const HERITAGE_GRANDMA_NAMES = [
   "Agatha", "Amanda", "Angie", "Anne", "Alyssa", "Becky", "Beth", "Betty",
   "Brenda", "Claire", "Christine", "Cindy", "Deborah", "Donna", "Edna",
   "Elaine", "Elena", "Francis", "Ingrid", "Isabelle", "Janette", "Janice",
@@ -66,18 +69,18 @@ const HERITAGE_GRANDMA_NAMES = [
   "Shannon", "Shella", "Selina", "Sue", "Susan", "Tammy", "Teresa", "Tracy",
 ];
 
-const HERITAGE_GRANDPA_NAMES = [
+export const HERITAGE_GRANDPA_NAMES = [
   "Arthur", "Ben", "Derek", "Eddy", "Frank", "Gerry", "James", "John",
   "Manny", "Philip", "Randy", "Robert", "Steven", "Theo", "Timothy", "Tom",
   "Tuco",
 ];
 
-const SALON_TOPIC_BOARD_NAMES = [
+export const SALON_TOPIC_BOARD_NAMES = [
   "경제", "예술", "세계역사", "과학", "코메디", "문학", "건강", "정치",
   "영화", "심리", "스포츠", "인간 집사들", "따듯한 세상 클럽",
 ];
 
-const SALON_WEEKDAY_CLUB_NAMES = [
+export const SALON_WEEKDAY_CLUB_NAMES = [
   "월요반란", "책 낭송", "행간의 조각가", "놀아보자 영어", "비포 선라이즈 소셜",
   "무슨일이든 일어날수있어", "연극이 끝나고 난 뒤",
 ];

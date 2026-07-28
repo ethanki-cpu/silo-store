@@ -4,6 +4,8 @@
 > **Navigation 구조의 공식 설계 문서(Single Source of Truth)**입니다.
 > Navigation을 변경/추가할 때는 이 문서를 먼저 확인하고, 변경 시 이 문서도 함께 갱신합니다.
 > 최종 확인: 2026-07-26 (EPIC-019 반영, 코드 기준).
+>
+> ⚠️ **(EPIC-054D 감사 발견, P0)** 이 문서가 서술하는 구조는 **라이브 `site_navigations`(DB 시드, EPIC-023)** 기준이며, `src/lib/navConfig.ts`의 `FALLBACK_NAV_TABS`(EPIC-044가 재작성해 `/heritage/grandma|grandpa/[name]`·`/community/club/[name]` 동적 라우트를 가리키도록 바뀐 코드상 폴백)와는 **서로 다른 구조**다. 정상 운영 중에는 DB 조회가 성공하므로 사용자에게는 이 문서의 구조가 보이지만, DB 장애 시에는 코드 폴백(전혀 다른 구조)이 대신 뜬다는 뜻 — 두 구조 중 하나만 보고 "죽은 링크"/"orphan 페이지"를 판단하면 틀린 결론에 이른다. 통합(둘 중 하나로 일원화)은 새 nav 설계 작업이라 EPIC-054D 범위 밖(NEXT_TASK.md 기록), 별도 EPIC 필요.
 
 ## 1. 구조 개요
 

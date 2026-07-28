@@ -213,6 +213,15 @@ NEXT_TASK.md 업데이트
 - DB 스키마 변경은 Supabase 마이그레이션 파일이 아니라 Supabase Management API를 통한 ad-hoc DDL 실행으로 관리됨(`CLAUDE.md` 참고).
 - `silo-store`는 `C:\Users\김재학` 루트에 있던 상위 git 저장소와는 별개로, 자체 `.git`을 가진 독립 저장소로 분리되어 있음.
 
+## 9.5 SEO / Sitemap / robots.txt (EPIC-054D)
+
+**감사 배경**: EPIC-054D 전수 조사 결과, 70개 페이지 중 root `layout.tsx` 외에 metadata를 정의하는 곳이 하나도 없었고(전수 grep 확인), sitemap/robots 파일 자체가 존재하지 않았다.
+
+- **`src/app/layout.tsx`**: root `metadata` — title(`"사일로 스토어"`, 하위 페이지는 `%s | 사일로 스토어` 템플릿 사용 가능)/description/openGraph/twitter(summary)/`metadataBase`(`NEXT_PUBLIC_SITE_URL` env, 미설정 시 `http://localhost:3000`). **개별 page.tsx의 `metadata`/`generateMetadata` override는 아직 하나도 없다** — 70개 페이지 전부 이 root 값을 그대로 상속한다(다음 확장 지점: 페이지별 콘텐츠에 맞는 title/description을 붙이는 작업, NEXT_TASK.md 기록).
+- **`src/app/sitemap.ts`**: `src/app` 디렉토리를 Node `fs`로 직접 스캔해 정적 라우트를 자동 수집(관리자/API/마이페이지/인증 라우트 제외) + `navConfig.ts`의 하드코딩 이름 배열(heritage 할머니/할아버지, community 클럽 이름)로 동적 이름 라우트 생성 + Supabase에서 `boards`/`items`/`docent_contents`/`clubs` id를 조회해 동적 콘텐츠 라우트 추가(테이블 하나가 실패해도 나머지는 그대로 포함되도록 개별 try/catch). **새 `page.tsx`를 추가하면 이 파일을 고치지 않아도 자동으로 sitemap에 포함된다** — 파일시스템 스캔 방식이라 유지보수가 필요 없음.
+- **`src/app/robots.ts`**: `sitemap.ts`와 동일한 제외 기준(admin/api/mypage/me/settings/login/signup)으로 `Disallow`, `Sitemap:` 지시어로 위 sitemap을 가리킴.
+- **Canonical URL**: `metadataBase`만 있고 페이지별 명시적 `alternates.canonical`은 없음(70개 페이지 전체에 metadata를 붙이는 더 큰 작업이 선행돼야 함, P2).
+
 ## 10. 공식 설계 문서 (Single Source of Truth)
 
 프로젝트 운영/설계 문서는 `docs/`에 분야별로 나뉘어 있으며, 각 문서가 해당 분야의 **공식 SSoT**입니다.

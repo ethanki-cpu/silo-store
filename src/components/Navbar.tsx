@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
@@ -180,8 +180,18 @@ export function Navbar() {
     };
   }, []);
 
-  const leftSidebarTab = navTabs.find((t) => t.type === "sidebar-left");
-  const rightSidebarTab = navTabs.find((t) => t.type === "sidebar-right");
+  // EPIC-054D(성능 감사 §12): Navbar는 mounted/navTabs/mainLogo/sidebarIcons
+  // 등 여러 독립 state를 갖고 있어 어느 하나만 바뀌어도 전체가 리렌더된다 —
+  // navTabs가 최대 ~96개 항목을 갖는 배열이라(§15) find/filter/map을 매
+  // 렌더마다 재계산하지 않도록 그 결과만 메모이즈한다(로직/출력은 동일).
+  const leftSidebarTab = useMemo(
+    () => navTabs.find((t) => t.type === "sidebar-left"),
+    [navTabs],
+  );
+  const rightSidebarTab = useMemo(
+    () => navTabs.find((t) => t.type === "sidebar-right"),
+    [navTabs],
+  );
 
   // EPIC-040: 좌/우 전체 높이 사이드바(LeftSidebar/RightSidebar)는 위 상단 탭
   // hover/pin 상태(openTab/pinnedKey)와 완전히 분리된 독립 state로 되돌린다.
@@ -208,6 +218,12 @@ export function Navbar() {
   // EPIC-043: "적용" 켜진 커스텀 폰트들을 등록 순서대로 font-family 폴백
   // 체인으로 연결 — 맨 앞 폰트가 우선이고, 로드 실패 시 다음 활성 폰트로,
   // 전부 실패하면 자유 입력 fontFamily/sans-serif로 자연스럽게 대체된다.
+  // EPIC-054D: 이 두 값은 eslint-config-next에 포함된 React Compiler 대비
+  // lint 규칙과 충돌해(수동 useMemo의 의존성 배열이 컴파일러 추론과
+  // 어긋남) 원래 형태(일반 계산)로 유지한다 — leftSidebarTab/rightSidebarTab처럼
+  // 단순 배열 조회가 아니라 마지막 값이 여러 소스에서 합성되는 파생값이라
+  // 발생하는 문제. `next.config.ts`에 `experimental.reactCompiler`가 아직
+  // 켜져 있지 않아 실제 컴파일러 최적화는 없으므로 동작 차이는 없다.
   const activeCustomFonts = (mainLogo?.customFonts ?? []).filter(
     (f) => f.isActive && f.url,
   );
@@ -361,7 +377,11 @@ export function Navbar() {
 
           return (
             <div key={tab.key} className="relative group/tab">
-              <button type="button" className={className}>
+              <button
+                type="button"
+                className={className}
+                aria-haspopup={hasChildren ? "true" : undefined}
+              >
                 {tab.label}
               </button>
 
@@ -370,18 +390,36 @@ export function Navbar() {
                 // wrapper 자신의 padding으로 둬 hover 시 그 여백까지 hover
                 // 판정 영역에 포함시킨다(마우스가 버튼→메뉴로 내려가는
                 // 동안 hover가 끊기지 않게).
-                <div className="hidden group-hover/tab:block absolute left-0 top-full pt-4 z-40">
+                // EPIC-054D(접근성 감사 §13): group-focus-within도 함께
+                // 걸어 키보드 Tab만으로도 열리게 한다 — 트리거 버튼에
+                // 포커스가 오면 :focus-within이 매칭돼 패널이 보이고, 그
+                // 다음 Tab이 자연스럽게 안쪽 링크로 이어진다(JS state 없이
+                // 순수 CSS로, EPIC-041-042-HOTFIX가 피하려던 JS hover 버그를
+                // 재도입하지 않음).
+                <div className="hidden group-hover/tab:block group-focus-within/tab:block absolute left-0 top-full pt-4 z-40">
                   <div className="w-64 rounded-md border border-gray-200 bg-white shadow-md py-2">
                     {tab.groups && tab.groups.length > 0
                       ? tab.groups.map((group) => (
                           <div key={group.groupLabel} className="relative group/row">
-                            <div className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50">
+                            {/* EPIC-054D(접근성 감사 §13): 순수 텍스트 div였던
+                                그룹 라벨을 포커스 가능한 버튼으로 바꿔 Tab으로도
+                                도달 가능하게 한다 — 그래야 group-focus-within/row가
+                                트리거될 수 있다(숨겨진(hidden) 자손은 애초에 Tab으로
+                                포커스를 받을 수 없어, 트리거 자체가 포커스 가능해야
+                                2차 플라이아웃이 키보드로도 열린다). 클릭 동작은 원래
+                                없었으므로(hover 전용) onClick은 추가하지 않는다. */}
+                            <button
+                              type="button"
+                              aria-haspopup="true"
+                              className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50 text-left"
+                            >
                               <span>{group.groupLabel}</span>
                               <span className="text-gray-400 text-xs">›</span>
-                            </div>
-                            {/* 2차 플라이아웃 — group-hover/row로만 노출, JS 없음.
+                            </button>
+                            {/* 2차 플라이아웃 — group-hover/row 또는
+                                group-focus-within/row로 노출, JS 없음.
                                 pl-2가 그룹 행↔플라이아웃 사이의 브릿지 역할. */}
-                            <div className="hidden group-hover/row:block absolute left-full top-0 pl-2 z-50">
+                            <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
                               <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
                                 {group.items.map((item, idx) => (
                                   <Link

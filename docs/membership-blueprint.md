@@ -36,13 +36,13 @@
 | `club_point_pct` | numeric(4,2), 0 | `/api/reservations` |
 | `club_priority_booking` | bool, false | **미사용** (조회된 라우트 중 참조 없음) |
 | `monthly_salon_meeting_invite` | bool, false | **미사용** |
-| `secret_room_access` | text, `'none'` | **미사용** (`/salon/secret-room`은 placeholder) |
+| `secret_room_access` | text, `'none'` | **미사용** (`/salon/secret-room`은 정적 페이지, EPIC-054A) |
 | `docent_free_only` | bool, false | `/api/docent-purchases` — ⚠️ §5 버그 주의 |
 | `docent_per_item_discount_pct` | numeric(4,2), 0 | `/api/docent-purchases` |
 | `docent_monthly_free_count` | int, 0 | `/api/docent-purchases` |
 | `docent_needs_agreement` | bool, false | `/api/docent-purchases` (정보성 플래그, 구매 차단 안 함) |
-| `drink_free` | bool, false | **미사용** (`/salon/drinks`는 placeholder) |
-| `tour_docent_free` | bool, false | **미사용** (`/salon/docent-tour`는 placeholder) |
+| `drink_free` | bool, false | **미사용** (`/salon/drinks`는 정적 페이지, EPIC-054A) |
+| `tour_docent_free` | bool, false | **미사용** (`/salon/docent-tour`는 정적 페이지, EPIC-054A) |
 | `salon_entry_free` | bool, false | `/api/salon-checkins` |
 | `salon_entry_hourly_fee` | int, 3000 | `/api/salon-checkins` |
 | `board_write_scope` | text, `'limited'`/`'all'` | `canWriteToBoard` (`group` 보드) |

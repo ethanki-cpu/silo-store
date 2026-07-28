@@ -38,8 +38,8 @@ DOM 순서: 사일로상점 → 살롱데상 → 스튜디오 → 마이페이�
 - Renaissance / Baroque / Rococo / NeoClassicism / Regency / Victoria / Art Nouveau / Art Deco / Beat Generation / CounterCulture / Digital
 
 **그룹: 사일로 Heritage**
-- 할머니 → `/shop/heritage/grandma` (placeholder)
-- 할아버지 → `/shop/heritage/grandpa` (placeholder)
+- 할머니 → `/shop/heritage/grandma` (정적 페이지, EPIC-054A)
+- 할아버지 → `/shop/heritage/grandpa` (정적 페이지, EPIC-054A)
 
 > ⚠️ `/shop` 자체는 `?category=`가 아니라 **`?era=`** 쿼리 파라미터를 사용하며, 자체 필터 pill은 8개 Time Slip 시대만 지원(11개 중 beat_generation/counter_culture/digital 제외). `?category=`는 `/docent`와 `getActiveNavTabKey`에서만 쓰인다.
 
@@ -54,20 +54,20 @@ DOM 순서: 사일로상점 → 살롱데상 → 스튜디오 → 마이페이�
 - 자유게시판 → `/boards`
 - 주제별 소통 게시판 → `/boards` (자유게시판과 동일 href)
 - Mon ~ Sun 클럽모임 → `/clubs`
-- 월별 모임 [패트론의 살롱] → `/salon/monthly-events` (placeholder)
+- 월별 모임 [패트론의 살롱] → `/salon/monthly-events` (정적 페이지, EPIC-054A)
 - 설문 [우리들 맴] → `/polls`
 - Q&A → `/boards`
-- 이벤트 공지 → `/salon/event-notices` (placeholder)
+- 이벤트 공지 → `/salon/event-notices` (정적 페이지, EPIC-054A)
 
 **그룹: Membership**
 - 패트론 게시판 → `/boards`
-- 한문장 소설 프로젝트 → `/salon/one-sentence-novel` (placeholder)
-- 마음일기 → `/salon/mind-diary` (placeholder)
-- 나의 보물 이야기 → `/salon/my-treasure-story` (placeholder)
-- 비밀의 방 도슨트 → `/salon/secret-room` (placeholder)
-- 나의 아티스트 소개 → `/salon/artist-intro` (placeholder)
+- 한문장 소설 프로젝트 → `/salon/one-sentence-novel` (정적 페이지, EPIC-054A)
+- 마음일기 → `/salon/mind-diary` (정적 페이지, EPIC-054A)
+- 나의 보물 이야기 → `/salon/my-treasure-story` (정적 페이지, EPIC-054A)
+- 비밀의 방 도슨트 → `/salon/secret-room` (정적 페이지, EPIC-054A)
+- 나의 아티스트 소개 → `/salon/artist-intro` (정적 페이지, EPIC-054A)
 
-**그룹: Gallery** (5개 전부 placeholder)
+**그룹: Gallery** (5개 전부 정적 페이지, EPIC-054A)
 - 시상식 → `/salon/gallery/awards`
 - 공연들 → `/salon/gallery/performances`
 - 파티 → `/salon/gallery/parties`
@@ -78,7 +78,7 @@ DOM 순서: 사일로상점 → 살롱데상 → 스튜디오 → 마이페이�
 - 소개지 → `/downloads`
 - 포스터 → `/downloads` (소개지와 동일 href)
 
-> ⚠️ `/salon/checkin`, `/salon/docent-tour`, `/salon/drinks`는 **어느 사이드바에도 연결되어 있지 않은 orphan 라우트**입니다. 직접 URL로만 접근 가능합니다.
+> ⚠️ `/salon/checkin`, `/salon/docent-tour`, `/salon/drinks`는 **어느 사이드바에도 연결되어 있지 않은 orphan 라우트**입니다. 직접 URL로만 접근 가능합니다. (`/salon/docent-tour`, `/salon/drinks`는 EPIC-054A에서 정적 페이지로 전환됨 — `/salon/checkin`은 이미 실제 기능 페이지였으므로 대상 아님.)
 
 ## 4. 스튜디오 (space_inquiry) — 드롭다운
 
@@ -86,8 +86,8 @@ DOM 순서: 사일로상점 → 살롱데상 → 스튜디오 → 마이페이�
 
 - **공간 촬영 대관 (1층 사일로상점)** → `/rental?floor=1f_silostore` **[구현됨]** — EPIC-018에서 실제 예약 페이지로 교체(과거 `/space-inquiry/shoot-rental` placeholder 대신).
 - **공간 촬영 대관 (2층 살롱데상)** → `/rental?floor=2f_salon` **[구현됨]** — EPIC-018에서 신규 추가된 항목.
-- **물품 대여** → `/space-inquiry/item-rental` **[placeholder]**
-- **공간 스타일링** → `/space-inquiry/styling` **[placeholder]** — ⚠️ EPIC-016(`/shop/projects*`)와 개념이 겹치지만 서로 연결되어 있지 않음(§9 참고).
+- **물품 대여** → `/space-inquiry/item-rental` **[정적 페이지, EPIC-054A]**
+- **공간 스타일링** → `/space-inquiry/styling` **[정적 페이지, EPIC-054A]** — ⚠️ EPIC-016(`/shop/projects*`)와 개념이 겹치지만 서로 연결되어 있지 않음(§9 참고).
 
 > ⚠️ **URL은 EPIC-018에서 전혀 바뀌지 않았다.** `/rental?floor=1f_silostore`·`/rental?floor=2f_salon`·`/rental/[rentalTypeId]` 페이지 자체와 그 구현은 그대로이며, 오직 이 페이지들을 가리키는 **nav 진입점(탭 배치)**만 옛 `rental` 탭에서 `space_inquiry` 드롭다운으로 옮겨졌다.
 
@@ -114,13 +114,13 @@ DOM 순서: 사일로상점 → 살롱데상 → 스튜디오 → 마이페이�
 
 ## 7. 전체 URL 목록 (섹션별, 구현 여부 표기)
 
-범례: **[구현됨]** = 실제 Supabase 연동, **[placeholder]** = `<ComingSoon>` 렌더링만.
+범례: **[구현됨]** = 실제 Supabase 연동, **[정적 페이지]** = Title/Subtitle/Breadcrumb/Description만 있는 `PageHeader` 렌더링(EPIC-054A, 구 `<ComingSoon>`).
 
 ### 사일로상점
 - `/shop` [구현됨] — `?era=` 필터, `WishlistButton` 포함
 - `/shop/[id]` [구현됨]
-- `/shop/heritage/grandma` [placeholder]
-- `/shop/heritage/grandpa` [placeholder]
+- `/shop/heritage/grandma` [정적 페이지]
+- `/shop/heritage/grandpa` [정적 페이지]
 - `/shop/projects` [구현됨] — EPIC-016, `?industry=` 필터. **네비게이션에 연결 안 됨(orphan)**
 - `/shop/projects/[id]` [구현됨]
 - `/docent/collections` [구현됨] — era별 앵커 섹션
@@ -132,23 +132,24 @@ DOM 순서: 사일로상점 → 살롱데상 → 스튜디오 → 마이페이�
 ### 살롱데상
 - `/attendance` [구현됨]
 - `/clubs`, `/clubs/[id]` [구현됨]
-- `/salon/monthly-events` [placeholder]
+- `/salon/monthly-events` [정적 페이지]
 - `/polls` [구현됨]
-- `/salon/event-notices` [placeholder]
-- `/salon/one-sentence-novel` [placeholder]
-- `/salon/mind-diary` [placeholder]
-- `/salon/my-treasure-story` [placeholder]
-- `/salon/secret-room` [placeholder]
-- `/salon/artist-intro` [placeholder]
-- `/salon/gallery/awards|performances|parties|visitors|patrons` [placeholder] (5개 전부)
+- `/salon/event-notices` [정적 페이지]
+- `/salon/one-sentence-novel` [정적 페이지]
+- `/salon/mind-diary` [정적 페이지]
+- `/salon/my-treasure-story` [정적 페이지]
+- `/salon/secret-room` [정적 페이지]
+- `/salon/artist-intro` [정적 페이지]
+- `/salon/gallery/awards|performances|parties|visitors|patrons` [정적 페이지] (5개 전부)
 - `/downloads` [구현됨]
 - `/salon/checkin` [구현됨] — **orphan** (nav 미연결)
-- `/salon/docent-tour` [placeholder] — orphan
-- `/salon/drinks` [placeholder] — orphan
+- `/salon/docent-tour` [정적 페이지] — orphan
+- `/salon/drinks` [정적 페이지] — orphan
 
 ### 스튜디오 (구 "공간 문의", 구 스튜디오 대관 포함)
 - `/rental?floor=1f_silostore|2f_salon`, `/rental/[rentalTypeId]` [구현됨] — `스튜디오` 드롭다운의 "공간 촬영 대관" 2개 항목이 가리킴(EPIC-018, 라벨은 EPIC-019에서 "공간 문의"→"스튜디오"로 변경)
-- `/space-inquiry/item-rental|styling` [placeholder]
+- `/space-inquiry/item-rental|styling` [정적 페이지]
+- `/space-inquiry/shoot-rental` [정적 페이지] — orphan, `/rental`로 대체되어 nav 미연결(EPIC-018 이전 유물)
 
 ### 계정 / 인증 / 관리자
 - `/login`, `/signup` [구현됨]
@@ -206,7 +207,7 @@ export function getActiveNavTabKey(
 
 - 4개 탭에 3가지 다른 UI 패턴(sidebar / dropdown / plain link)이 쓰인다 — 새 탭 추가 시 `NavTabType`(`sidebar-left`/`sidebar-right`/`dropdown`/`link`) 중 하나를 정해야 한다. `sidebar-left`/`sidebar-right` 타입은 각각 하나씩만 존재해야 한다(Navbar가 `find()`로 첫 번째 일치 탭만 사용).
 - 여러 사이드바 항목이 동일한 href로 수렴한다(자유게시판/주제별 소통 게시판/Q&A/패트론 게시판 → 전부 `/boards`; 소개지/포스터 → 전부 `/downloads`). 실제 필터링은 아직 없음.
-- EPIC-016(`/shop/projects*`)은 완전히 구현되었지만 nav에 진입점이 없고, 반대로 `/space-inquiry/styling`은 nav에 연결되어 있지만 placeholder다 — 같은 개념("공간 스타일링")이 두 개의 분리된 표면으로 존재한다. **(EPIC-051)** Board Definition System의 `Studio → 공간 스타일링` 게시판(`/boards/[id]`)이 `ctas`로 두 표면을 모두 링크(대표 프로젝트→`/shop/projects`, 문의/신청→`/space-inquiry/styling`)해 이어주지만, nav 자체의 이 불일치를 근본적으로 해소한 것은 아니다.
+- EPIC-016(`/shop/projects*`)은 완전히 구현되었지만 nav에 진입점이 없고, 반대로 `/space-inquiry/styling`은 nav에 연결되어 있지만 정적 페이지다(EPIC-054A) — 같은 개념("공간 스타일링")이 두 개의 분리된 표면으로 존재한다. **(EPIC-051)** Board Definition System의 `Studio → 공간 스타일링` 게시판(`/boards/[id]`)이 `ctas`로 두 표면을 모두 링크(대표 프로젝트→`/shop/projects`, 문의/신청→`/space-inquiry/styling`)해 이어주지만, nav 자체의 이 불일치를 근본적으로 해소한 것은 아니다.
 - EPIC-017(위시리스트)은 전용 페이지 없이 `/shop`, `/shop/[id]`, `/mypage`에 임베드된 `WishlistButton`으로만 존재한다.
 - **(EPIC-018)** "마이페이지"는 이제 상단 탭(`type: "link"`)과 계정 영역 링크 두 곳에 동시에 존재한다 — 의도적인 중복(계정 영역은 "기존 위치 유지" 요구사항으로 남겨둠).
 - 홈(`/`)은 아직 실제 랜딩 페이지가 아니다.

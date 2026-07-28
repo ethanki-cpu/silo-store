@@ -4,6 +4,8 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-054A 후속**: 이번 EPIC은 "게시판 연결 금지/기능 추가 금지" 범위였으므로, 19개 정적 페이지(`PageHeader` 기반)는 여전히 실제 데이터가 없다 — 특히 `/salon/gallery/*` 5개는 이미 Board Definition System의 `Gallery` hub(EPIC-050, `/boards/[id]`)에 동일 주제의 실제 콘텐츠가 존재하므로, 정적 페이지를 해당 게시판으로 리다이렉트하거나 안내 링크를 붙일지 사용자와 논의 후 진행할 것.
+- **EPIC-054A 후속**: `navConfig.ts`의 `FALLBACK_NAV_TABS`(EPIC-044~053에서 갱신된 Board/Heritage/Community 동적 라우트 구조)는 실제 사용자에게 보이는 라이브 nav(`site_navigations` DB 시드, EPIC-023 기준)와 여전히 다르다 — 이번 EPIC은 라이브 nav 기준으로만 placeholder를 정리했고, 이 nav-wiring 불일치 자체는 건드리지 않았다(기존에 기록된 사안, EPIC-044/047 후속 항목과 동일). `/heritage/grandma/[name]`, `/heritage/grandpa/[name]`, `/community/club/[name]`, EPIC-047~053의 개별 `/boards/[id]` 게시판들은 전부 실제 페이지이지만 여전히 라이브 nav에서 진입점이 없다.
 - **EPIC-052 (중요)**: `member_bucket_list` 테이블을 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). `docs/database-schema.sql`의 "EPIC-052" 주석 아래 DDL 참고. 실행 전까지 `/mypage/bucketlist`에서 항목 추가 시 에러가 남.
 - **EPIC-052 후속**: "받은 배지"의 "전체 랭킹"/"다음 배지 진행률"은 구현하지 않음 — 랭킹은 `member_badges`가 본인 행만 읽는 RLS라 다른 회원과 비교 집계하려면 공개 집계 뷰(예: `docent_content_popularity`처럼 `grant select`된 뷰)가 새로 필요하고, 진행률은 배지 획득 조건을 정의하는 규칙 테이블 자체가 없어(스키마 추측 금지) 계산 근거가 없다. 두 기능이 정말 필요하면 먼저 배지 규칙(조건/등급 체계)을 사용자와 정의해야 한다.
 - **EPIC-052 후속**: "나의 도슨트 수료증"은 `docent_purchases`(결제 확정)를 "수료"로 재해석했을 뿐, 실제 강의 진행률/모듈 개념은 없다 — 진짜 "진행률"이 필요하면 도슨트 콘텐츠에 모듈/챕터 개념을 추가하는 별도 스키마 설계가 선행돼야 함.

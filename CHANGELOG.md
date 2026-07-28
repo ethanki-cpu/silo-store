@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-07-28 (EPIC-054A)
+- **EPIC-054A: 모든 상위/하위 메뉴가 실제 Page를 갖도록 정비 (페이지/URL/레이아웃 생성 + Placeholder 제거까지만)**
+  - **인벤토리**: `docs/navigation-blueprint.md`(라이브 `site_navigations` DB 시드 기준 SSoT)를 근거로 사이트 전체 메뉴/서브메뉴를 조사 — `src/components/ComingSoon.tsx`(`"준비 중입니다"`만 렌더링)를 그대로 쓰는 페이지 19개를 확인(사일로 Heritage 할머니/할아버지 2개, 살롱 Community 2개/Membership 5개/Gallery 5개, 스튜디오 물품 대여/공간 스타일링 2개, nav 미연결 orphan 3개 — 투어 도슨트 프로그램/음료 주문/구 공간 촬영 대관). `navConfig.ts`의 `FALLBACK_NAV_TABS`(EPIC-044~053에서 갱신됐으나 라이브 DB에는 아직 시드되지 않은 신규 구조)는 실제 사용자에게 보이는 nav가 아니라고 판단해 대상에서 제외(NEXT_TASK.md에 별도 기록된 기존 nav-wiring gap과 동일 사안, 이번 EPIC 범위 아님).
+  - **공용 `PageHeader` 컴포넌트 신규**(`src/components/PageHeader.tsx`, `ComingSoon.tsx` 대체): `title`/`subtitle`/`breadcrumb`/`description` props만 받아 Title(h1)/Subtitle/Breadcrumb(홈 › 상위 탭 › 그룹 › 항목)/Description/Page Container(`max-w-2xl mx-auto`)를 렌더링 — 게시판 연결이나 데이터 조회는 하지 않는 순수 정적 컴포넌트. 지시문에 따라 게시판 연결/기능 추가/Block Editor 수정/Board Module 생성은 하지 않음.
+  - **19개 페이지 전환**: 위 placeholder 19개 전부 `<ComingSoon title="...">` → `<PageHeader title=... subtitle=... breadcrumb=[...] description=... />`로 교체. 각 페이지의 breadcrumb은 실제 nav 계층(예: `/salon/gallery/awards` → 홈 › 살롱데상 › Gallery › 시상식)을 그대로 반영. URL/라우팅은 전혀 변경하지 않음(기존 파일 내용만 교체).
+  - **`ComingSoon.tsx` 삭제**: 전환 후 참조하는 곳이 없어 완전히 제거(더 이상 쓰이지 않는 컴포넌트를 남겨두지 않음).
+  - **404 없음 확인**: `docs/database-schema.sql`의 실제 `site_navigations` 시드 INSERT 문(라이브 반영 확인됨, EPIC-023)에 있는 모든 href를 이번 19개 전환 결과 + 기존 실제 페이지와 대조해 하나도 빠짐없이 실제 `page.tsx`가 존재함을 확인.
+  - **범위 밖으로 남겨둔 것(의도적)**: 새로 만든 정적 페이지들은 여전히 실제 데이터/게시판과 연결되어 있지 않다(지시문상 금지) — 예: `/salon/gallery/*`는 이미 Board Definition System(`Gallery` hub, EPIC-050)에 실제 콘텐츠가 있지만 이 정적 페이지들과 연결하지 않음. `navConfig.ts`의 새 Board/Community/Membership/Studio 동적 라우트가 라이브 nav에 아직 연결되지 않은 기존 nav-wiring gap도 그대로 남김.
+  - 문서 동기화: `docs/navigation-blueprint.md`, `docs/content-blueprint.md`, `docs/membership-blueprint.md`, `docs/design-system.md`, `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint` 통과(신규 파일 관련 에러 0건 — 기존 lint 에러 27건은 전부 이번 변경과 무관한 pre-existing `react-hooks/set-state-in-effect` 이슈, NEXT_TASK.md에 이미 기록됨). Board Definition System, Block Editor, DB 스키마는 전혀 건드리지 않음.
+
 ## 2026-07-28 (EPIC-052)
 - **EPIC-052: 마이페이지를 Personal Hub로 확장 + Tiptap Block Editor 도입**
   - **사전 확인(AskUserQuestion)**: 이번 지시문은 두 가지 큰 갈림길이 있어 진행 전 사용자에게 직접 확인함 — (1) "나의 컬렉션"을 Board Definition의 공개 story 게시판으로 만들지, 아니면 지금처럼 비공개(member_collections)로 두고 시각적으로만 story 카드 스타일을 적용할지 → **비공개 유지 + 시각적 재사용**으로 결정. (2) Tiptap/Lexical Block Editor 도입을 이번 EPIC에 포함할지 → **지금 바로 Tiptap 통합 시작**으로 결정. 아래 항목은 전부 이 두 결정을 전제로 한다.

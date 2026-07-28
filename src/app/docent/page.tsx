@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type Category = "silostore" | "salon";
 
@@ -161,10 +162,17 @@ function DocentListContent() {
   );
 }
 
+// EPIC-060: /docent는 boards가 아니라 docent_contents 전용 테이블을 쓰는
+// 독립 기능(카테고리 전환, 인물별 보기)이라 Page Builder 모듈(Hero+Board)로
+// 대체하지 않는다 — page_builder에는 메타데이터 행만 등록해(EPIC-060 SQL
+// seed) /admin/pages 목록에 보이게 하고, "페이지 수정" 버튼만 추가한다.
 export default function DocentListPage() {
   return (
-    <Suspense fallback={<main className="flex-1 p-8">불러오는 중...</main>}>
-      <DocentListContent />
-    </Suspense>
+    <>
+      <PageEditButton slug="docent" />
+      <Suspense fallback={<main className="flex-1 p-8">불러오는 중...</main>}>
+        <DocentListContent />
+      </Suspense>
+    </>
   );
 }

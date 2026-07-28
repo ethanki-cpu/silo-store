@@ -1,0 +1,158 @@
+import { supabase } from "@/lib/supabaseClient";
+
+// EPIC-060: Page Builder CMS — Page(page_builder) → Module(page_modules,
+// board_id로 기존 Board System을 "끼워 쓰는" 모듈 포함) → Board → Post
+// 구조의 타입/조회 계층. 테이블 정의는 docs/sql/EPIC-060-page-builder.sql
+// 참고(관리자가 Supabase에서 직접 실행해야 실제로 생긴다) — 테이블이 아직
+// 없어도 아래 조회 함수들은 에러를 그대로 삼키고 null/[]을 반환해, 이
+// 기능을 쓰는 화면이 깨지지 않고 기존 하드코딩 렌더링으로 자연스럽게
+// 대체(fallback)되도록 한다.
+
+export type PageModuleType =
+  | "hero"
+  | "board"
+  | "slide"
+  | "gallery"
+  | "calendar"
+  | "application"
+  | "timeline"
+  | "search"
+  | "sort"
+  | "filter"
+  | "html"
+  | "spacer"
+  | "divider"
+  | "text";
+
+export const PAGE_MODULE_TYPES: PageModuleType[] = [
+  "hero",
+  "board",
+  "slide",
+  "gallery",
+  "calendar",
+  "application",
+  "timeline",
+  "search",
+  "sort",
+  "filter",
+  "html",
+  "spacer",
+  "divider",
+  "text",
+];
+
+export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
+  hero: "Hero",
+  board: "Board",
+  slide: "Slide",
+  gallery: "Gallery",
+  calendar: "Calendar",
+  application: "Application",
+  timeline: "Timeline",
+  search: "Search",
+  sort: "Sort",
+  filter: "Filter",
+  html: "HTML",
+  spacer: "Spacer",
+  divider: "Divider",
+  text: "Text",
+};
+
+// board_id를 실제로 쓰는 모듈 종류 — 관리자 UI가 이 목록으로 "게시판 선택"
+// 드롭다운을 보여줄지 결정한다.
+export const BOARD_LINKED_MODULE_TYPES: PageModuleType[] = [
+  "board",
+  "slide",
+  "gallery",
+  "timeline",
+];
+
+export type PageBuilderRow = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  status: "draft" | "published";
+  layout: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PageModuleRow = {
+  id: string;
+  page_id: string;
+  module_type: PageModuleType;
+  board_id: string | null;
+  settings: Record<string, unknown>;
+  sort_order: number;
+};
+
+// 공개 페이지(Community/Gallery/... page.tsx)가 쓰는 조회 — status가
+// 'published'인 행만 RLS가 통과시킨다(로그인 여부 무관, anon도 조회 가능).
+// 테이블이 아직 없으면(EPIC-060 SQL 미실행) error가 나므로 null을 돌려주고,
+// 호출부가 기존 하드코딩 PageTemplate 렌더링으로 fallback한다.
+export async function fetchPublishedPageBySlug(
+  slug: string,
+): Promise<{ page: PageBuilderRow; modules: PageModuleRow[] } | null> {
+  const { data: page, error: pageError } = await supabase
+    .from("page_builder")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "published")
+    .maybeSingle();
+
+  if (pageError || !page) return null;
+
+  const { data: modules, error: modulesError } = await supabase
+    .from("page_modules")
+    .select("*")
+    .eq("page_id", page.id)
+    .order("sort_order", { ascending: true });
+
+  if (modulesError) return null;
+
+  return { page: page as PageBuilderRow, modules: (modules ?? []) as PageModuleRow[] };
+}
+
+// 관리자 화면(/admin/pages)이 쓰는 조회 — draft 포함 전체. is_admin이
+// 아니면 RLS가 draft 행을 숨기므로(정책 참고), 관리자가 아닌데 이 함수를
+// 호출해도 draft는 보이지 않는다.
+export async function fetchAllPagesForAdmin(): Promise<PageBuilderRow[] | null> {
+  const { data, error } = await supabase
+    .from("page_builder")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) return null;
+  return (data ?? []) as PageBuilderRow[];
+}
+
+export async function fetchPageForAdmin(
+  id: string,
+): Promise<{ page: PageBuilderRow; modules: PageModuleRow[] } | null> {
+  const { data: page, error: pageError } = await supabase
+    .from("page_builder")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (pageError || !page) return null;
+
+  const { data: modules, error: modulesError } = await supabase
+    .from("page_modules")
+    .select("*")
+    .eq("page_id", id)
+    .order("sort_order", { ascending: true });
+
+  if (modulesError) return null;
+
+  return { page: page as PageBuilderRow, modules: (modules ?? []) as PageModuleRow[] };
+}
+
+// "테이블이 아직 없다"를 구분하는 용도 — Postgres가 정의되지 않은 테이블
+// 조회 시 돌려주는 에러 코드(42P01)를 확인해, /admin/pages가 "테이블 없음"
+// 상태를 일반 조회 실패와 구분된 안내 문구로 보여줄 수 있게 한다.
+export async function isPageBuilderTableMissing(): Promise<boolean> {
+  const { error } = await supabase.from("page_builder").select("id").limit(1);
+  return error?.code === "42P01" || error?.code === "PGRST205";
+}

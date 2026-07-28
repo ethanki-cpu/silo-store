@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-07-28 (EPIC-054C)
+- **EPIC-054C: 모든 Page를 Board와 연결 — Board Module을 실제 게시판 데이터에 연결하고, 한 Page에 여러 Board를 배치**
+  - **`src/components/modules/BoardModule.tsx` 신규**: `boardId` 하나만 받아 정의 조회(`resolveBoardDefinition`)+`posts` 조회+Search/Sort/Pagination 상태 관리(250ms 디바운스 포함)+hub 피드 조회까지 전부 스스로 처리하는 자기완결형 모듈. 기존 `src/app/boards/[id]/page.tsx`에만 있던 로직을 그대로 옮긴 것(동작 변경 없음, 리팩터). `definition.boardType`이 뭐든(story/gallery/community/hub/timeline) `BoardRenderer`가 알아서 맞는 레이아웃을 그리므로, Story/Gallery/List/Slide Board 4종 모두 이 컴포넌트 하나로 커버 — `pageModules.ts`의 `BoardModuleProps`도 `{definition, posts, ...}`(EPIC-054B 초안)에서 `{boardId, includeChildBoards?}`로 단순화했다.
+  - **핵심 설계 이유**: boardId만 있으면 어디서든 재사용 가능한 자기완결형 컴포넌트라서, 여러 개를 한 Page에 나란히 배치해도 서로의 검색어/정렬/페이지 상태가 섞이지 않는다 — "Page 하나 = Board 하나" 구조를 구조적으로 강제하지 않게 되는 지점. 추후 Block Editor가 "게시판 임베드" 블록을 추가할 때도 이 컴포넌트에 boardId 하나만 넘기면 그대로 연동 가능(지시문의 "자동 연동 가능한 구조 유지" 반영).
+  - **`src/app/boards/[id]/page.tsx` 축소**: 170줄짜리 조회/상태 로직을 전부 `BoardModule`로 옮기고, 페이지 자체는 `<BoardModule boardId={id} />` 하나만 렌더링하는 얇은 레이아웃 래퍼로 축소.
+  - **`src/app/boards/page.tsx`(디렉토리) 재구성 — 한 Page에 여러 Board를 실제로 배치**: 기존에는 모든 게시판을 뭉뚱그린 단일 "마스터 피드"(`HUB_DEFINITION` + 전체 feed)를 `BoardRenderer`로 한 번만 그렸는데, 이를 제거하고 parent가 없는 최상위 hub(Silo Store/Online Docent/Heritage/Community/Membership/Gallery/Archive/Studio) 하나마다 `slide_board` 모듈을 만들어 `PageModuleRenderer`로 순서대로 렌더링하도록 재구성 — 한 Page 안에 Board 여러 개(최대 8개)가 각자 독립적으로 동작하는 구조를 실제로 증명한다. 아래 "게시판 허브" 바로가기 카드 그리드와 레거시 8개 그룹 링크 목록(자유게시판/패트론 라운지 등)은 게시판 콘텐츠가 아니라 순수 내비게이션이라 Board Module로 바꾸지 않고 그대로 유지.
+  - **`src/components/modules/EmptyState.tsx` 신규**: "콘텐츠가 0건"이라는 상태를 위한 공용 컴포넌트(점선 테두리 카드) — `BoardRenderer`의 게시글 0건 분기(기존엔 `<p>아직 게시글이 없어요.</p>` 텍스트만)와 `PageModuleRenderer`의 모듈 0개 분기가 이 컴포넌트 하나를 공유한다. 지시문에 따라 Placeholder Module이 아니라 Empty State UI로 구분.
+  - **Search/Sort/Pagination 지원 확인**: `src/lib/boardLayout.ts`의 모든 `story()`/`community()`/`timeline()` 빌더와 8개 legacy `BOARD_DEFINITIONS`(community/story/gallery 계열)는 이미 `searchable`/`sortable`/`pageable`이 전부 `true`(hub 계열만 의도적으로 `false` — 콘텐츠 목록이 아니라 피드 집계 뷰이므로 대상 아님) — 새로 바꿀 필요 없이 `BoardModule`이 이 플래그를 그대로 존중해 Search/Sort/Pagination UI를 표시한다.
+  - **브라우저 검증**: 로컬 dev 서버(`npm run dev`)로 `/boards`(모듈 0개일 때 EmptyState 노출 확인, 라이브 DB에 hub 게시판 미시딩 상태라 정상) → 레거시 그룹의 실제 게시판(`자유게시판`) 진입 → 검색/정렬 UI 렌더링 확인 → 검색어 입력 시 결과가 실시간으로 걸러지고 결과 0건일 때 EmptyState가 뜨는 것까지 직접 확인.
+  - 문서 동기화: `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`, `NEXT_TASK.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint` 통과(신규/수정 파일 관련 에러 0건 — 기존 27건은 전부 무관한 pre-existing 이슈).
+
 ## 2026-07-28 (EPIC-054B)
 - **EPIC-054B: Page(화면)와 Board(게시판) 분리 — Page Module 구조 신설 (콘텐츠/Board 생성 없이 타입/렌더러 스캐폴드만)**
   - **조사**: 지시문의 16개 모듈(Hero/Story Board/Gallery Board/List Board/Slide Board/Timeline/Comment/Search/Pagination/Notice/CTA/Form/Calendar/Survey/Ranking/Profile Card) 각각에 대해 재사용 가능한 기존 컴포넌트가 있는지 전수 조사 — 9개는 기존 컴포넌트로 바로 대응 가능(Hero→`HeroSlideshow`, Story/Gallery/List/Slide Board→`BoardRenderer`, Timeline→`TimelineView`, Comment→`CommentSection`, Pagination→`Pagination`), 2개는 컴포넌트가 아니라 `BoardHeader.tsx` 안의 인라인 JSX로만 존재(Search/CTA), 6개는 재사용할 대상 자체가 없음(Notice/Form/Calendar/Survey/Ranking/Profile Card — Ranking은 NEXT_TASK.md EPIC-052 후속에 "구현 안 됨"으로 이미 기록돼 있던 항목과 동일 사안).

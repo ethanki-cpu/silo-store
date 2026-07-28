@@ -1,10 +1,4 @@
 import type { ReactNode, FormEvent } from "react";
-import type {
-  BoardDefinition,
-  BoardPost,
-  HubFeed,
-  HubChildBoard,
-} from "@/lib/boardLayout";
 import type { TimelineEntry } from "@/lib/timelineEngine";
 import type { Comment as BoardComment } from "@/components/boards/CommentSection";
 
@@ -13,11 +7,13 @@ import type { Comment as BoardComment } from "@/components/boards/CommentSection
 // 순서이므로 모듈 추가(push)/삭제(filter)/순서 변경(재정렬)은 전부 표준
 // 배열 연산으로 표현되고, 별도 트리/그래프 구조가 필요 없다.
 //
-// 이 파일은 타입/구조만 정의한다. 실제 데이터 조회·게시판·콘텐츠 생성은
-// 이번 EPIC 범위 밖 — 각 모듈의 props는 호출하는 Page(Server/Client
-// Component)가 채워 넣는다. Board 계열 모듈(story/gallery/list/slide
-// board)은 기존 BoardDefinition/BoardRenderer를 그대로 재사용하고 새
-// 레이아웃 로직을 만들지 않는다.
+// EPIC-054C: Board 계열 모듈(story/gallery/list/slide board)은 이제
+// src/components/modules/BoardModule.tsx로 실제 Board와 연결된다 —
+// boardId만 넘기면 데이터 조회+Search/Sort/Pagination까지 자기완결형으로
+// 처리하므로, 여러 Board를 한 Page 안에 나란히 배치해도 상태가 섞이지
+// 않는다. 콘텐츠가 없는 Board/Page는 Placeholder Module이 아니라
+// src/components/modules/EmptyState.tsx를 사용한다(BoardRenderer/
+// PageModuleRenderer가 공유).
 
 export type PageModuleKind =
   | "hero"
@@ -63,10 +59,6 @@ export const PAGE_MODULE_KINDS = Object.keys(
 ) as PageModuleKind[];
 
 // ---- 모듈별 props 타입 ----
-// Board 계열 모듈은 기존 BoardDefinition/BoardPost/HubFeed 타입을 그대로
-// 재사용한다(새 타입 중복 정의 없음). definition.boardType은 관례상 모듈
-// 종류와 일치해야 한다(story_board → "story" 등) — BoardRenderer 자체는
-// definition.boardType만 보고 레이아웃을 고른다.
 
 export type HeroModuleProps = {
   slides: { imageUrl: string; title: string; description: string }[];
@@ -75,17 +67,24 @@ export type HeroModuleProps = {
   wallpaperUrls?: string[];
 };
 
+// EPIC-054C: Story/Gallery/List/Slide Board 4종 모두 이 props 하나로
+// 통일한다 — 게시판 자체를 자기완결형으로 감싼 src/components/modules/
+// BoardModule.tsx가 boardId만으로 정의(BoardDefinition) 조회부터 posts
+// 조회, Search/Sort/Pagination 상태 관리까지 전부 스스로 처리하기 때문에,
+// Page를 조립하는 쪽은 "이 자리에 어떤 게시판(boardId)을 놓을지"만
+// 결정하면 된다. 실제 레이아웃(story/gallery/community/hub)은 여전히
+// BoardDefinition.boardType이 결정하므로 kind는 조립 시점의 의도를 나타내는
+// 라벨일 뿐, 렌더링 로직 자체를 분기하지 않는다(중복 코드 없음). 이 구조
+// 덕분에 한 Page 안에 여러 BoardModule을 나란히 배치해도 서로의 검색어/
+// 정렬/페이지 상태가 섞이지 않는다(Page 하나 = Board 하나 구조를 강제하지
+// 않음) — 또한 boardId 하나만 넘기면 되므로 추후 Block Editor의 "게시판
+// 임베드" 블록과도 그대로 연동 가능하다.
 export type BoardModuleProps = {
-  definition: BoardDefinition;
   boardId: string;
-  posts: BoardPost[];
-  isQna?: boolean;
-};
-
-export type SlideBoardModuleProps = {
-  definition: BoardDefinition; // boardType이 "hub"인 정의
-  hubFeed: HubFeed;
-  hubChildBoards?: HubChildBoard[];
+  // hub 게시판일 때 하위 게시판 카드 그리드까지 보여줄지 여부(기본 true).
+  // 여러 hub를 한 Page에 나란히 배치할 때(예: /boards 디렉토리) 각 hub
+  // 아래 별도 게시판 목록 섹션이 있으면 false로 꺼서 중복을 피한다.
+  includeChildBoards?: boolean;
 };
 
 export type TimelineModuleProps<T extends TimelineEntry = TimelineEntry> = {
@@ -177,7 +176,7 @@ export type PageModuleConfig =
   | { id: string; kind: "story_board"; props: BoardModuleProps }
   | { id: string; kind: "gallery_board"; props: BoardModuleProps }
   | { id: string; kind: "list_board"; props: BoardModuleProps }
-  | { id: string; kind: "slide_board"; props: SlideBoardModuleProps }
+  | { id: string; kind: "slide_board"; props: BoardModuleProps }
   | { id: string; kind: "timeline"; props: TimelineModuleProps }
   | { id: string; kind: "comment"; props: CommentModuleProps }
   | { id: string; kind: "search"; props: SearchModuleProps }

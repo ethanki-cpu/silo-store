@@ -2,7 +2,7 @@
 
 import type { PageModuleConfig } from "@/lib/pageModules";
 import { HeroSlideshow } from "@/components/HeroSlideshow";
-import { BoardRenderer } from "@/components/boards/BoardRenderer";
+import { BoardModule } from "@/components/modules/BoardModule";
 import { CommentSection } from "@/components/boards/CommentSection";
 import { Pagination } from "@/components/boards/Pagination";
 import { TimelineView } from "@/components/TimelineView";
@@ -14,14 +14,22 @@ import { CalendarGrid } from "@/components/modules/CalendarGrid";
 import { SurveyCard } from "@/components/modules/SurveyCard";
 import { RankingList } from "@/components/modules/RankingList";
 import { ProfileCard } from "@/components/modules/ProfileCard";
+import { EmptyState } from "@/components/modules/EmptyState";
 
-// EPIC-054B: Page = PageModuleConfig[]를 순서대로 렌더링하는 조합기.
-// 각 case는 기존 컴포넌트(Board Definition System, Hero, Timeline, Comment,
+// EPIC-054B/054C: Page = PageModuleConfig[]를 순서대로 렌더링하는 조합기.
+// 각 case는 기존 컴포넌트(Board Module, Hero, Timeline, Comment,
 // Pagination 등)에 props를 그대로 넘길 뿐, 데이터 조회나 board/content
 // 생성은 전혀 하지 않는다 — 실제 데이터는 이 컴포넌트를 사용하는 Page가
-// 채운다. 모듈 추가/삭제/순서 변경은 modules 배열을 조작하는 것만으로
-// 충분하다(이 컴포넌트는 그 배열을 그대로 순회할 뿐 순서를 해석하지 않음).
+// 채운다(단, Board 계열 4종은 BoardModule 자체가 boardId로 스스로 조회한다
+// — EPIC-054C 참고). 모듈 추가/삭제/순서 변경은 modules 배열을 조작하는
+// 것만으로 충분하다(이 컴포넌트는 그 배열을 그대로 순회할 뿐 순서를
+// 해석하지 않음). 배열이 비어 있으면(Board/모듈이 없는 Page) Placeholder가
+// 아니라 EmptyState를 보여준다.
 export function PageModuleRenderer({ modules }: { modules: PageModuleConfig[] }) {
+  if (modules.length === 0) {
+    return <EmptyState title="이 페이지에는 아직 배치된 모듈이 없어요." />;
+  }
+
   return (
     <>
       {modules.map((module) => {
@@ -32,26 +40,12 @@ export function PageModuleRenderer({ modules }: { modules: PageModuleConfig[] })
           case "story_board":
           case "gallery_board":
           case "list_board":
-            return (
-              <BoardRenderer
-                key={module.id}
-                definition={module.props.definition}
-                boardId={module.props.boardId}
-                posts={module.props.posts}
-                isQna={module.props.isQna ?? false}
-              />
-            );
-
           case "slide_board":
             return (
-              <BoardRenderer
+              <BoardModule
                 key={module.id}
-                definition={module.props.definition}
-                boardId={module.id}
-                posts={[]}
-                isQna={false}
-                hubFeed={module.props.hubFeed}
-                hubChildBoards={module.props.hubChildBoards}
+                boardId={module.props.boardId}
+                includeChildBoards={module.props.includeChildBoards}
               />
             );
 

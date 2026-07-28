@@ -147,21 +147,26 @@ silo-store/
 
 그 외 공용 UI 라이브러리(버튼/모달/폼 등 디자인 시스템)는 없음 — 각 페이지가 Tailwind 클래스를 인라인으로 직접 사용.
 
-## 7.5 Page Module 시스템 (EPIC-054B)
+## 7.5 Page Module 시스템 (EPIC-054B/054C)
 
-**목적**: "Page(화면)"와 "Board(게시판)"를 개념적으로 분리한다. `Board`는 여전히 `src/lib/boardLayout.ts`의 `BoardDefinition`/`BOARD_DEFINITIONS`가 담당하고, `Page`는 그 위에서 여러 "Page Module"을 순서대로 조합한 것으로 재정의한다. 이 EPIC은 **타입 시스템 + 렌더러 스캐폴드만** 만들고, 콘텐츠나 실제 Board 행은 전혀 생성하지 않는다 — 아직 어떤 실제 페이지도 이 시스템을 사용하도록 연결되지 않았다.
+**목적**: "Page(화면)"와 "Board(게시판)"를 개념적으로 분리한다. `Board`는 여전히 `src/lib/boardLayout.ts`의 `BoardDefinition`/`BOARD_DEFINITIONS`가 담당하고, `Page`는 그 위에서 여러 "Page Module"을 순서대로 조합한 것으로 재정의한다. EPIC-054B가 타입 시스템 + 렌더러 스캐폴드만 만들었고(어떤 실제 페이지도 연결 안 됨), **EPIC-054C에서 Board 계열 모듈을 실제 Board와 연결**해 `/boards/[id]`(개별 게시판)와 `/boards`(디렉토리, 여러 Board를 한 Page에 배치)가 이 시스템으로 동작한다.
 
-- **`src/lib/pageModules.ts`**: `PageModuleKind`(16종: `hero`/`story_board`/`gallery_board`/`list_board`/`slide_board`/`timeline`/`comment`/`search`/`pagination`/`notice`/`cta`/`form`/`calendar`/`survey`/`ranking`/`profile_card`) + 모듈별 props 타입 + 판별 유니온 `PageModuleConfig`(`{id, kind, props}`) + `PageDefinition`(`{key, title, modules: PageModuleConfig[]}`). `modules`가 평면 배열이므로 모듈 추가/삭제/순서 변경은 표준 배열 연산(push/filter/재정렬)만으로 표현된다 — 별도 트리 구조 불필요.
-- **`src/components/modules/PageModuleRenderer.tsx`**: `modules: PageModuleConfig[]`를 받아 배열 순서대로 렌더링하는 조합기. `kind`별로 기존 컴포넌트에 props를 그대로 전달할 뿐 데이터 조회는 하지 않는다:
+- **`src/lib/pageModules.ts`**: `PageModuleKind`(16종: `hero`/`story_board`/`gallery_board`/`list_board`/`slide_board`/`timeline`/`comment`/`search`/`pagination`/`notice`/`cta`/`form`/`calendar`/`survey`/`ranking`/`profile_card`) + 모듈별 props 타입 + 판별 유니온 `PageModuleConfig`(`{id, kind, props}`) + `PageDefinition`(`{key, title, modules: PageModuleConfig[]}`). `modules`가 평면 배열이므로 모듈 추가/삭제/순서 변경은 표준 배열 연산(push/filter/재정렬)만으로 표현된다 — 별도 트리 구조 불필요. **(EPIC-054C)** `story_board`/`gallery_board`/`list_board`/`slide_board` 4종의 props는 `BoardModuleProps = { boardId: string; includeChildBoards?: boolean }` 하나로 통일 — `BoardModule`이 boardId만으로 나머지를 전부 자체 조회하기 때문에, Page를 조립하는 쪽은 "이 자리에 어떤 게시판을 놓을지"만 결정하면 된다.
+- **`src/components/modules/BoardModule.tsx` (EPIC-054C 신규)**: 게시판 하나(`boardId`)를 Page 어디에든 꽂을 수 있는 자기완결형 모듈 — 정의 조회, `posts` 조회, Search/Sort/Pagination 상태 관리(디바운스 포함)를 전부 스스로 처리한다. 기존 `src/app/boards/[id]/page.tsx`에만 있던 로직을 그대로 옮긴 것(동작 변경 없음). `definition.boardType`이 무엇이든(story/gallery/community/hub/timeline) `BoardRenderer`가 알아서 맞는 레이아웃을 그리므로, story/gallery/list/slide board 4종 모두 이 컴포넌트 하나로 커버된다. **핵심 설계**: boardId만 있으면 어디서든 재사용 가능해, 여러 개를 한 Page에 나란히 배치해도 상태가 섞이지 않고("Page 하나 = Board 하나" 구조를 강제하지 않음), 추후 Block Editor의 "게시판 임베드" 블록이 boardId 하나만 넘기면 그대로 연동될 수 있다.
+- **`src/components/modules/PageModuleRenderer.tsx`**: `modules: PageModuleConfig[]`를 받아 배열 순서대로 렌더링하는 조합기. `kind`별로 기존 컴포넌트에 props를 그대로 전달한다:
   - `hero` → 기존 `HeroSlideshow` 그대로 재사용
-  - `story_board`/`gallery_board`/`list_board`/`slide_board` → 기존 `BoardRenderer`(Board Definition System, EPIC-047)를 그대로 재사용 — `definition.boardType`(story/gallery/community/hub)이 실제 레이아웃을 결정하고, `slide_board`는 `boardType:"hub"`인 정의 + `hubFeed`/`hubChildBoards`로 위임한다. 새 레이아웃 로직 없음.
+  - `story_board`/`gallery_board`/`list_board`/`slide_board` → **(EPIC-054C)** `BoardModule`에 `boardId`만 전달 — 실제 Board와 연결됨
   - `timeline` → 기존 `TimelineView`/`groupByYearMonth`(Timeline Engine, EPIC-050/052) 그대로 재사용
   - `comment` → 기존 `CommentSection` 그대로 재사용
   - `pagination` → 기존 `Pagination` 그대로 재사용
   - `search`/`cta` → `BoardHeader.tsx`에 인라인으로 있던 검색 입력창/CTA 버튼 마크업을 `src/components/modules/SearchInput.tsx`/`CtaButtons.tsx`로 추출해 `BoardHeader`와 Page Module이 동일 컴포넌트를 공유하도록 리팩터(중복 컴포넌트 생성 금지 원칙 반영, 렌더링 결과는 기존과 동일)
-  - `notice`/`form`/`calendar`/`survey`/`ranking`/`profile_card` → 이 6개는 재사용할 기존 컴포넌트가 없어(조사 결과 확인, `docs/EPIC.md` 참고) `src/components/modules/`에 최소 프레젠테이션 셸을 신규 작성 — `docs/design-system.md`의 기존 색상/타이포/카드/폼 클래스만 재사용하고, 데이터 조회·저장 로직은 전혀 포함하지 않는다(예: `SurveyCard`에 `onVote` 콜백은 있지만 투표 집계는 caller 책임).
-- **재사용을 위해 `export` 처리한 기존 코드**(동작 변경 없음): `src/lib/boardLayout.ts`의 `story()`/`community()`/`hub()`/`timeline()` 빌더 함수(향후 Page Module 조립 시 임시 `BoardDefinition`을 만들 때 재사용), `src/components/boards/CommentSection.tsx`의 `Comment` 타입.
-- **범위 밖(의도적)**: 이 시스템을 사용하는 실제 Page 인스턴스는 하나도 만들지 않았다 — `PageDefinition`을 채운 콘텐츠도, 어떤 실제 `page.tsx`도 `PageModuleRenderer`를 아직 import하지 않는다. 모듈을 추가/삭제/순서 변경하는 관리자 UI도 이번 EPIC 범위 밖(타입에 `PAGE_MODULE_LABELS`만 준비해둠).
+  - `notice`/`form`/`calendar`/`survey`/`ranking`/`profile_card` → 재사용할 기존 컴포넌트가 없어 최소 프레젠테이션 셸로 신규 작성(데이터 조회·저장 로직 없음)
+  - **(EPIC-054C)** `modules` 배열이 비어 있으면(Board/모듈이 없는 Page) `src/components/modules/EmptyState.tsx`를 렌더링 — Placeholder Module이 아니라 "콘텐츠가 0건"이라는 상태를 그대로 보여준다. `BoardRenderer`의 "게시글 0건" 분기도 동일한 `EmptyState`를 공유(중복 없음).
+- **(EPIC-054C) 실제 연결 지점**:
+  - `src/app/boards/[id]/page.tsx` — `<BoardModule boardId={id} />` 하나만 렌더링(개별 게시판 페이지, Board 1개).
+  - `src/app/boards/page.tsx` — parent가 없는 최상위 hub(Silo Store/Online Docent/Heritage/Community/Membership/Gallery/Archive/Studio)마다 `slide_board` 모듈을 하나씩 만들어 `PageModuleRenderer`로 **한 Page에 여러 Board를 나란히 배치**(Page 하나 = Board 하나 구조가 아님을 실제로 증명하는 자리). 그 아래 "게시판 허브" 바로가기 카드/레거시 그룹 링크 목록은 순수 내비게이션이라 Board Module로 바꾸지 않고 그대로 유지.
+- **재사용을 위해 `export` 처리한 기존 코드**(동작 변경 없음): `src/lib/boardLayout.ts`의 `story()`/`community()`/`hub()`/`timeline()` 빌더 함수, `src/components/boards/CommentSection.tsx`의 `Comment` 타입.
+- **범위 밖(의도적)**: `notice`/`hero`/`form`/`calendar`/`survey`/`ranking`/`profile_card` 등 Board가 아닌 모듈은 여전히 실제 Page에 연결되지 않았다(이번 EPIC은 "모든 Page를 Board와 연결"이 목표). 모듈을 추가/삭제/순서 변경하는 관리자 UI도 범위 밖.
 
 ## 8. 프로젝트 규칙
 

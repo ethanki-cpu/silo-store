@@ -5,6 +5,7 @@ import type { BoardDefinition, BoardPost, HubFeed, HubChildBoard } from "@/lib/b
 import { StoryCard } from "./StoryCard";
 import { stripHtml } from "@/lib/sanitize";
 import { TimelineView } from "@/components/TimelineView";
+import { EmptyState } from "@/components/modules/EmptyState";
 
 function PostBadges({ post, isQna }: { post: BoardPost; isQna: boolean }) {
   if (!post.is_best && !post.is_docent_post && !isQna) return null;
@@ -292,7 +293,9 @@ export function BoardRenderer({
   }
 
   if (posts.length === 0) {
-    return <p className="text-gray-400">아직 게시글이 없어요.</p>;
+    // EPIC-054C: Board가 없는/게시글이 0건인 Board는 Placeholder Module이
+    // 아니라 공용 EmptyState로 보여준다.
+    return <EmptyState title="아직 게시글이 없어요." />;
   }
 
   switch (definition.boardType) {

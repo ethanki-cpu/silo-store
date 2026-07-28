@@ -6,11 +6,10 @@ import { useAuth } from "@/lib/AuthProvider";
 import {
   BOARD_DEFINITIONS,
   BOARD_GROUP_ORDER,
-  HUB_DEFINITION,
   resolveBoardDefinition,
-  type HubFeed,
 } from "@/lib/boardLayout";
-import { BoardRenderer } from "@/components/boards/BoardRenderer";
+import { PageModuleRenderer } from "@/components/modules/PageModuleRenderer";
+import type { PageModuleConfig } from "@/lib/pageModules";
 
 type Board = {
   id: string;
@@ -28,12 +27,9 @@ type Board = {
   lockMessage: string | null;
 };
 
-const EMPTY_FEED: HubFeed = { latest: [], popular: [], recommended: [] };
-
 export default function BoardsPage() {
   const { session, loading: authLoading } = useAuth();
   const [boards, setBoards] = useState<Board[]>([]);
-  const [feed, setFeed] = useState<HubFeed>(EMPTY_FEED);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
@@ -45,16 +41,10 @@ export default function BoardsPage() {
         ? { Authorization: `Bearer ${session.access_token}` }
         : {};
 
-      const [boardsRes, feedRes] = await Promise.all([
-        fetch("/api/boards", { headers }),
-        fetch("/api/boards/feed", { headers }),
-      ]);
+      const res = await fetch("/api/boards", { headers });
+      const data = await res.json();
 
-      const boardsData = await boardsRes.json();
-      const feedData = await feedRes.json();
-
-      setBoards(Array.isArray(boardsData) ? boardsData : []);
-      setFeed(feedData);
+      setBoards(Array.isArray(data) ? data : []);
       setFetching(false);
     }
 
@@ -65,6 +55,25 @@ export default function BoardsPage() {
     return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
   }
 
+  // EPIC-049: Community 허브 아래 salon-topics/salon-weekday/survey처럼
+  // hub가 다른 hub의 자식인 중첩 구조가 있어서, 최상위 디렉토리는 parent가
+  // 없는 최상위 hub만 보여준다(중첩 hub는 그 부모 hub의 "하위 게시판
+  // 카드"에서 접근).
+  const hubBoards = boards.filter((b) => {
+    const def = resolveBoardDefinition(b);
+    return def.boardType === "hub" && def.parent === null;
+  });
+
+  // EPIC-054C: 최상위 hub 하나마다 Slide Board 모듈 하나씩 배치 — 한 Page
+  // 안에 여러 Board를 나란히 배치할 수 있는 구조(pageModules.ts)를 실제로
+  // 증명하는 자리. hubChildBoards는 바로 아래 "게시판 허브" 카드 그리드와
+  // 중복되지 않도록 끈다(기존 마스터 피드도 동일하게 생략했었음).
+  const modules: PageModuleConfig[] = hubBoards.map((b) => ({
+    id: b.id,
+    kind: "slide_board",
+    props: { boardId: b.id, includeChildBoards: false },
+  }));
+
   return (
     <main className="flex-1 bg-white px-6 py-12">
       <div className="max-w-3xl mx-auto w-full">
@@ -73,50 +82,30 @@ export default function BoardsPage() {
         </h1>
         <div className="border-t border-gray-200 mb-8" />
 
-        {/* Board Definition System(EPIC-047/048): 최상위 디렉토리도 다른
-            hub(Silo Store 등)와 동일하게 BoardRenderer로 피드 슬라이드를
-            그린다 — hubChildBoards는 넘기지 않아 아래 그룹별 디렉토리와
-            중복되지 않게 한다(BoardRenderer.tsx의 HubView 참고). */}
-        <BoardRenderer
-          definition={HUB_DEFINITION}
-          boardId="hub"
-          posts={[]}
-          isQna={false}
-          hubFeed={feed}
-        />
+        <div className="space-y-12">
+          <PageModuleRenderer modules={modules} />
+        </div>
 
-        {(() => {
-          // EPIC-049: Community 허브 아래 salon-topics/salon-weekday/survey
-          // 처럼 hub가 다른 hub의 자식인 중첩 구조가 생겨서, 최상위 디렉토리
-          // 바로가기는 parent가 없는 최상위 hub만 보여준다(중첩 hub는 그
-          // 부모 hub의 "하위 게시판 카드"에서 접근).
-          const hubBoards = boards.filter((b) => {
-            const def = resolveBoardDefinition(b);
-            return def.boardType === "hub" && def.parent === null;
-          });
-          if (hubBoards.length === 0) return null;
-
-          return (
-            <section className="mb-10">
-              <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-                게시판 허브
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {hubBoards.map((b) => (
-                  <Link
-                    key={b.id}
-                    href={`/boards/${b.id}`}
-                    className="block rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow group"
-                  >
-                    <p className="font-serif font-medium text-gray-900 group-hover:underline">
-                      {b.name}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          );
-        })()}
+        {hubBoards.length > 0 && (
+          <section className="mb-10">
+            <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
+              게시판 허브
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {hubBoards.map((b) => (
+                <Link
+                  key={b.id}
+                  href={`/boards/${b.id}`}
+                  className="block rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow group"
+                >
+                  <p className="font-serif font-medium text-gray-900 group-hover:underline">
+                    {b.name}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="border-t border-gray-200 mb-8" />
 

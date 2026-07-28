@@ -362,7 +362,10 @@ export const HUB_DEFINITION: BoardDefinition = {
 // 공통 필드를 채우고, slug만 다르게 준다 — 게시판마다 객체를 통째로
 // 반복해서 하드코딩하지 않기 위함).
 
-function story(input: {
+// EPIC-054B: Page Module 시스템(src/lib/pageModules.ts)이 임시 BoardDefinition을
+// 만들어 BoardRenderer를 재사용할 수 있도록 export — BOARD_DEFINITIONS 레지스트리
+// 자체(실제 게시판 목록)는 이 EPIC에서 건드리지 않는다.
+export function story(input: {
   slug: string;
   title_ko: string;
   title_en: string;
@@ -402,7 +405,7 @@ function story(input: {
 // EPIC-050: accessLevel(선택)을 추가 — "patron"을 주면 membership도 함께
 // 3으로 맞춰(표시용) serverAuth.ts의 실제 게이팅과 안내 문구가 어긋나지
 // 않게 한다.
-function community(input: {
+export function community(input: {
   slug: string;
   title_ko: string;
   title_en: string;
@@ -435,7 +438,7 @@ function community(input: {
   };
 }
 
-function hub(input: {
+export function hub(input: {
   slug: string;
   title_ko: string;
   title_en: string;
@@ -471,7 +474,7 @@ function hub(input: {
 
 // EPIC-050: timeline() — 연/월/일 순으로 묶어 보여주는 게시판(Timeline
 // Engine, BoardRenderer.tsx의 TimelineView 참고).
-function timeline(input: {
+export function timeline(input: {
   slug: string;
   title_ko: string;
   title_en: string;

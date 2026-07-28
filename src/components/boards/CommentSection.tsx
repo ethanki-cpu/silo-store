@@ -3,7 +3,9 @@
 import Link from "next/link";
 import type { FormEvent } from "react";
 
-type Comment = {
+// EPIC-054B: Page Module 시스템(src/lib/pageModules.ts)이 CommentModuleProps에서
+// 이 타입을 그대로 재사용할 수 있도록 export.
+export type Comment = {
   id: string;
   body: string;
   author_id: string;

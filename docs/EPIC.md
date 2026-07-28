@@ -54,6 +54,7 @@
 - EPIC-050 : Board Definition System으로 Salon des Cent Membership/Gallery/Archive 영역 게시판 생성(hub 3개 + 하위 14개, 전부 신규 DB 행) — 5번째 boardType "timeline" 추가(BoardRenderer 내 재사용 가능한 Timeline Engine), BoardDefinition에 accessLevel 필드 추가하고 "패트론 게시판"에 실제 serverAuth.ts 인가 로직 연결
 - EPIC-051 : Board Definition System으로 Studio(공간 문의) 영역 게시판 생성(hub 1개 + story 4개, 전부 신규 DB 행) — 새 예약 시스템 없이 BoardDefinition.ctas 필드로 "문의하기"/"예약하기"/"대표 프로젝트 보기" 버튼을 기존 /rental·/space-inquiry/*·/shop/projects(styling_projects) 페이지에 연결, hub 슬라이드에 대표 이미지(photo_url) 표시 추가
 - EPIC-052 : 마이페이지를 Personal Hub로 확장 — Tiptap Block Editor 도입(모든 Board Definition 게시판 글쓰기 폼 공용, posts.body에 HTML 저장 + 서버 sanitize), Timeline Engine 추출·재사용(groupByYearMonth+TimelineView), "나의 컬렉션" 비공개 유지하며 StoryCard로 시각 통일, 살롱/도슨트 수료증/공간/전시회 Placeholder를 실데이터로 교체, 버킷리스트 신규 기능(member_bucket_list) 추가
+- EPIC-054B : Page(화면)와 Board(게시판) 개념 분리 — `src/lib/pageModules.ts`(16종 `PageModuleKind`: Hero/Story Board/Gallery Board/List Board/Slide Board/Timeline/Comment/Search/Pagination/Notice/CTA/Form/Calendar/Survey/Ranking/Profile Card + 판별 유니온 `PageModuleConfig`/`PageDefinition`) + `src/components/modules/PageModuleRenderer.tsx`(모듈 배열을 순서대로 렌더링하는 조합기) 신설. Board 계열(Story/Gallery/List/Slide Board)·Timeline·Comment·Pagination은 기존 Board Definition System/Timeline Engine 컴포넌트를 그대로 재사용, Search/CTA는 `BoardHeader.tsx`에서 `SearchInput`/`CtaButtons`로 추출해 공유(중복 제거), 재사용할 기존 컴포넌트가 없던 Notice/Form/Calendar/Survey/Ranking/Profile Card 6개만 최소 프레젠테이션 셸 신규 작성. 콘텐츠/실제 Board 행/이 시스템을 사용하는 Page 인스턴스는 전혀 만들지 않음(구조만 준비, 향후 EPIC이 실제 데이터로 채움).
 
 ## 진행중
 (없음)

@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-07-28 (EPIC-054B)
+- **EPIC-054B: Page(화면)와 Board(게시판) 분리 — Page Module 구조 신설 (콘텐츠/Board 생성 없이 타입/렌더러 스캐폴드만)**
+  - **조사**: 지시문의 16개 모듈(Hero/Story Board/Gallery Board/List Board/Slide Board/Timeline/Comment/Search/Pagination/Notice/CTA/Form/Calendar/Survey/Ranking/Profile Card) 각각에 대해 재사용 가능한 기존 컴포넌트가 있는지 전수 조사 — 9개는 기존 컴포넌트로 바로 대응 가능(Hero→`HeroSlideshow`, Story/Gallery/List/Slide Board→`BoardRenderer`, Timeline→`TimelineView`, Comment→`CommentSection`, Pagination→`Pagination`), 2개는 컴포넌트가 아니라 `BoardHeader.tsx` 안의 인라인 JSX로만 존재(Search/CTA), 6개는 재사용할 대상 자체가 없음(Notice/Form/Calendar/Survey/Ranking/Profile Card — Ranking은 NEXT_TASK.md EPIC-052 후속에 "구현 안 됨"으로 이미 기록돼 있던 항목과 동일 사안).
+  - **`src/lib/pageModules.ts` 신규**: `PageModuleKind`(16종) + 모듈별 props 타입(Board 계열은 기존 `BoardDefinition`/`BoardPost`/`HubFeed`/`HubChildBoard`/`TimelineEntry`/`Comment` 타입을 그대로 import해 재사용, 새 타입 중복 정의 없음) + 판별 유니온 `PageModuleConfig`(`{id, kind, props}`) + `PageDefinition`(`{key, title, modules: PageModuleConfig[]}`). `modules`가 평면 배열이라 "자유롭게 추가/삭제/순서 변경" 요구사항이 표준 배열 연산(push/filter/재정렬)만으로 이미 충족됨 — 별도 트리/우선순위 필드 불필요.
+  - **`src/components/modules/PageModuleRenderer.tsx` 신규**: `modules` 배열을 순서대로 순회하며 `kind`별로 기존 컴포넌트에 props를 그대로 전달하는 조합기. Board 계열 4종은 `BoardRenderer`(Board Definition System, EPIC-047)로, Timeline/Comment/Pagination도 각각 기존 컴포넌트로 위임 — 새 레이아웃 로직 없음.
+  - **`SearchInput`/`CtaButtons` 추출**(`src/components/modules/`): `BoardHeader.tsx`가 인라인으로 그리던 검색 입력창/CTA 버튼 마크업을 그대로 뽑아낸 컴포넌트로, `BoardHeader.tsx`도 이 두 컴포넌트를 import해서 쓰도록 리팩터(렌더링 결과·클래스 동일, 중복 컴포넌트 생성 금지 원칙 반영).
+  - **6개 신규 최소 셸**(`NoticeBanner`/`FormShell`/`CalendarGrid`/`SurveyCard`/`RankingList`/`ProfileCard`, 전부 `src/components/modules/`): 재사용할 기존 컴포넌트가 없는 경우에만 새로 작성 — `docs/design-system.md`의 기존 색상/카드/폼 클래스만 재사용하고, 데이터 조회·저장·검증 로직은 포함하지 않는 순수 프레젠테이션 컴포넌트(예: `SurveyCard`의 `onVote`는 콜백 시그니처만 제공, 투표 집계는 하지 않음).
+  - **기존 코드에 `export` 추가(동작 변경 없음)**: `boardLayout.ts`의 `story()`/`community()`/`hub()`/`timeline()` 빌더 4개, `CommentSection.tsx`의 `Comment` 타입 — Page Module이 임시 `BoardDefinition`/댓글 타입을 재사용할 수 있게 하기 위함.
+  - **범위 밖(의도적)**: 이 시스템을 사용하는 실제 Page 인스턴스, 콘텐츠, 새 Board 행은 전혀 만들지 않았다 — 어떤 `page.tsx`도 아직 `PageModuleRenderer`를 import하지 않는다. 모듈 추가/삭제/순서를 편집하는 관리자 UI도 범위 밖(`PAGE_MODULE_LABELS`만 향후를 위해 준비).
+  - 문서 동기화: `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`, `NEXT_TASK.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint` 통과(신규/수정 파일 관련 에러 0건 — 기존 27건은 전부 무관한 pre-existing `react-hooks/set-state-in-effect` 이슈).
+
 ## 2026-07-28 (EPIC-052)
 - **EPIC-052: 마이페이지를 Personal Hub로 확장 + Tiptap Block Editor 도입**
   - **사전 확인(AskUserQuestion)**: 이번 지시문은 두 가지 큰 갈림길이 있어 진행 전 사용자에게 직접 확인함 — (1) "나의 컬렉션"을 Board Definition의 공개 story 게시판으로 만들지, 아니면 지금처럼 비공개(member_collections)로 두고 시각적으로만 story 카드 스타일을 적용할지 → **비공개 유지 + 시각적 재사용**으로 결정. (2) Tiptap/Lexical Block Editor 도입을 이번 EPIC에 포함할지 → **지금 바로 Tiptap 통합 시작**으로 결정. 아래 항목은 전부 이 두 결정을 전제로 한다.

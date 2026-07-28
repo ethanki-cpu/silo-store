@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { SORT_OPTIONS, type BoardDefinition, type SortOption } from "@/lib/boardLayout";
+import { SearchInput } from "@/components/modules/SearchInput";
+import { CtaButtons } from "@/components/modules/CtaButtons";
 
 // EPIC-046/047: Editorial Magazine 게시판 공통 헤더 — 게시판명(마스트헤드),
 // 검색/정렬 툴바, 우측 글쓰기 버튼, 얇은 Divider. 모든 게시판(boards/[id])이
@@ -38,16 +40,9 @@ export function BoardHeader({
         <div className="shrink-0 flex items-center gap-2">
           {/* EPIC-051: "문의하기"/"예약하기" 같은 액션 버튼 — 새 예약
               시스템 없이 BoardDefinition.ctas에 지정된 기존 실제 페이지로
-              그대로 연결한다. */}
-          {ctas.map((cta) => (
-            <Link
-              key={cta.href + cta.label}
-              href={cta.href}
-              className="rounded-md border border-gray-300 text-gray-700 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
-            >
-              {cta.label}
-            </Link>
-          ))}
+              그대로 연결한다. 마크업은 CtaButtons(EPIC-054B)로 추출해
+              Page Module "CTA"와 공유한다. */}
+          <CtaButtons ctas={ctas} />
           {showWrite && (
             <Link
               href={writeHref!}
@@ -62,12 +57,10 @@ export function BoardHeader({
       {(showSearch || showSort) && (
         <div className="flex flex-col sm:flex-row gap-2 mt-6">
           {showSearch && (
-            <input
-              type="text"
+            <SearchInput
               value={q ?? ""}
-              onChange={(e) => onQueryChange!(e.target.value)}
+              onChange={onQueryChange!}
               placeholder="제목, 내용, 작성자, 태그로 검색"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           )}
           {showSort && (

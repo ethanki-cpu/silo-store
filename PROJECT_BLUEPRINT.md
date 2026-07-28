@@ -147,6 +147,22 @@ silo-store/
 
 그 외 공용 UI 라이브러리(버튼/모달/폼 등 디자인 시스템)는 없음 — 각 페이지가 Tailwind 클래스를 인라인으로 직접 사용.
 
+## 7.5 Page Module 시스템 (EPIC-054B)
+
+**목적**: "Page(화면)"와 "Board(게시판)"를 개념적으로 분리한다. `Board`는 여전히 `src/lib/boardLayout.ts`의 `BoardDefinition`/`BOARD_DEFINITIONS`가 담당하고, `Page`는 그 위에서 여러 "Page Module"을 순서대로 조합한 것으로 재정의한다. 이 EPIC은 **타입 시스템 + 렌더러 스캐폴드만** 만들고, 콘텐츠나 실제 Board 행은 전혀 생성하지 않는다 — 아직 어떤 실제 페이지도 이 시스템을 사용하도록 연결되지 않았다.
+
+- **`src/lib/pageModules.ts`**: `PageModuleKind`(16종: `hero`/`story_board`/`gallery_board`/`list_board`/`slide_board`/`timeline`/`comment`/`search`/`pagination`/`notice`/`cta`/`form`/`calendar`/`survey`/`ranking`/`profile_card`) + 모듈별 props 타입 + 판별 유니온 `PageModuleConfig`(`{id, kind, props}`) + `PageDefinition`(`{key, title, modules: PageModuleConfig[]}`). `modules`가 평면 배열이므로 모듈 추가/삭제/순서 변경은 표준 배열 연산(push/filter/재정렬)만으로 표현된다 — 별도 트리 구조 불필요.
+- **`src/components/modules/PageModuleRenderer.tsx`**: `modules: PageModuleConfig[]`를 받아 배열 순서대로 렌더링하는 조합기. `kind`별로 기존 컴포넌트에 props를 그대로 전달할 뿐 데이터 조회는 하지 않는다:
+  - `hero` → 기존 `HeroSlideshow` 그대로 재사용
+  - `story_board`/`gallery_board`/`list_board`/`slide_board` → 기존 `BoardRenderer`(Board Definition System, EPIC-047)를 그대로 재사용 — `definition.boardType`(story/gallery/community/hub)이 실제 레이아웃을 결정하고, `slide_board`는 `boardType:"hub"`인 정의 + `hubFeed`/`hubChildBoards`로 위임한다. 새 레이아웃 로직 없음.
+  - `timeline` → 기존 `TimelineView`/`groupByYearMonth`(Timeline Engine, EPIC-050/052) 그대로 재사용
+  - `comment` → 기존 `CommentSection` 그대로 재사용
+  - `pagination` → 기존 `Pagination` 그대로 재사용
+  - `search`/`cta` → `BoardHeader.tsx`에 인라인으로 있던 검색 입력창/CTA 버튼 마크업을 `src/components/modules/SearchInput.tsx`/`CtaButtons.tsx`로 추출해 `BoardHeader`와 Page Module이 동일 컴포넌트를 공유하도록 리팩터(중복 컴포넌트 생성 금지 원칙 반영, 렌더링 결과는 기존과 동일)
+  - `notice`/`form`/`calendar`/`survey`/`ranking`/`profile_card` → 이 6개는 재사용할 기존 컴포넌트가 없어(조사 결과 확인, `docs/EPIC.md` 참고) `src/components/modules/`에 최소 프레젠테이션 셸을 신규 작성 — `docs/design-system.md`의 기존 색상/타이포/카드/폼 클래스만 재사용하고, 데이터 조회·저장 로직은 전혀 포함하지 않는다(예: `SurveyCard`에 `onVote` 콜백은 있지만 투표 집계는 caller 책임).
+- **재사용을 위해 `export` 처리한 기존 코드**(동작 변경 없음): `src/lib/boardLayout.ts`의 `story()`/`community()`/`hub()`/`timeline()` 빌더 함수(향후 Page Module 조립 시 임시 `BoardDefinition`을 만들 때 재사용), `src/components/boards/CommentSection.tsx`의 `Comment` 타입.
+- **범위 밖(의도적)**: 이 시스템을 사용하는 실제 Page 인스턴스는 하나도 만들지 않았다 — `PageDefinition`을 채운 콘텐츠도, 어떤 실제 `page.tsx`도 `PageModuleRenderer`를 아직 import하지 않는다. 모듈을 추가/삭제/순서 변경하는 관리자 UI도 이번 EPIC 범위 밖(타입에 `PAGE_MODULE_LABELS`만 준비해둠).
+
 ## 8. 프로젝트 규칙
 
 코드에서 실제로 확인되는 규칙:

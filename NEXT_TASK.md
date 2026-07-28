@@ -4,6 +4,10 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-054B 후속(중요)**: `src/lib/pageModules.ts` + `src/components/modules/PageModuleRenderer.tsx`는 아직 어떤 실제 `page.tsx`에도 연결되지 않았다 — "구조만 만든다"는 지시대로 타입/렌더러만 존재. 실제로 어떤 화면(예: 신규 랜딩 페이지)을 이 시스템으로 조립할지, `PageDefinition`을 어디서 관리할지(코드 하드코딩 vs DB 테이블)는 사용자와 논의 후 별도 EPIC으로 진행할 것.
+- **EPIC-054B 후속**: 모듈을 추가/삭제/순서 변경하는 관리자 UI(드래그앤드롭 등)는 만들지 않았다 — `PAGE_MODULE_LABELS`(사람이 읽는 라벨)만 준비해뒀다. 실제 편집 UI가 필요해지면 `src/components/admin/CategoryTreeManager.tsx`(dnd-kit 드래그앤드롭, EPIC-035)의 기존 패턴을 참고할 것.
+- **EPIC-054B 후속**: Notice/Form/Calendar/Survey/Ranking/Profile Card 6개 모듈은 데이터 조회 없는 순수 셸이다 — 실제로 페이지에 쓰려면 caller가 실데이터를 props로 채워야 한다(예: Calendar에 출석 데이터, Survey에 실제 poll 집계, Ranking에 실제 순위 쿼리). Ranking은 특히 EPIC-052 후속 항목(아래)과 동일하게 "집계 가능한 공개 뷰가 없다"는 근본 제약이 그대로 남아있다.
+- **EPIC-054B 후속**: `slide_board` 모듈은 `BoardRenderer`의 `HubView`(정확히는 `boardType==="hub"`)에 위임하는데, `HubView`가 내부적으로 그리는 3개 `FeedSlide`(최신글/인기글/추천글)는 여전히 export되지 않은 `BoardRenderer.tsx` 내부 함수다 — 향후 "Slide Board" 모듈에 개별 슬라이드 단위 커스터마이징(제목 변경 등)이 필요해지면 `FeedSlide`를 export하거나 `HubView`에 옵션을 추가하는 리팩터가 필요.
 - **EPIC-052 (중요)**: `member_bucket_list` 테이블을 Supabase SQL Editor에서 실제로 실행해야 함(에이전트는 Management API 토큰 없이는 직접 적용하지 않음 — CLAUDE.md 규칙). `docs/database-schema.sql`의 "EPIC-052" 주석 아래 DDL 참고. 실행 전까지 `/mypage/bucketlist`에서 항목 추가 시 에러가 남.
 - **EPIC-052 후속**: "받은 배지"의 "전체 랭킹"/"다음 배지 진행률"은 구현하지 않음 — 랭킹은 `member_badges`가 본인 행만 읽는 RLS라 다른 회원과 비교 집계하려면 공개 집계 뷰(예: `docent_content_popularity`처럼 `grant select`된 뷰)가 새로 필요하고, 진행률은 배지 획득 조건을 정의하는 규칙 테이블 자체가 없어(스키마 추측 금지) 계산 근거가 없다. 두 기능이 정말 필요하면 먼저 배지 규칙(조건/등급 체계)을 사용자와 정의해야 한다.
 - **EPIC-052 후속**: "나의 도슨트 수료증"은 `docent_purchases`(결제 확정)를 "수료"로 재해석했을 뿐, 실제 강의 진행률/모듈 개념은 없다 — 진짜 "진행률"이 필요하면 도슨트 콘텐츠에 모듈/챕터 개념을 추가하는 별도 스키마 설계가 선행돼야 함.

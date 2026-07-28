@@ -5,8 +5,11 @@ import { useAuth } from "@/lib/AuthProvider";
 import { BoardHeader } from "@/components/boards/BoardHeader";
 import { BoardRenderer } from "@/components/boards/BoardRenderer";
 import { Pagination } from "@/components/boards/Pagination";
+import { HeroModule } from "@/components/modules/HeroModule";
 import {
   resolveBoardDefinition,
+  INDIVIDUAL_BOARD_DEFINITIONS,
+  type BoardDefinition,
   type BoardPost,
   type SortOption,
   type HubFeed,
@@ -38,9 +41,16 @@ const EMPTY_FEED: HubFeed = { latest: [], popular: [], recommended: [] };
 export function BoardModule({
   boardId,
   includeChildBoards = true,
+  showHero = true,
 }: {
   boardId: string;
   includeChildBoards?: boolean;
+  // EPIC-056: Hero Module(제목/설명/Breadcrumb)을 이 Board Module 안에서
+  // 자동으로 함께 보여줄지 여부 — 이 Board Module 자체가 페이지의 유일한
+  // 콘텐츠일 때(예: /boards/[id])는 true(기본값), 이미 페이지 쪽에서 Hero를
+  // 그린 경우(예: PageTemplate이 쓰는 6개 카테고리 허브 페이지)는 false로
+  // 꺼서 Hero가 중복 렌더링되지 않게 한다.
+  showHero?: boolean;
 }) {
   const { session, loading: authLoading } = useAuth();
   const [board, setBoard] = useState<Board | null>(null);
@@ -150,8 +160,30 @@ export function BoardModule({
   );
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
+  // EPIC-056: Hero Module — 부모 hub가 있으면(예: "Heritage" 아래 "Grandmas")
+  // 그 이름을 중간 breadcrumb로 보여준다. 부모의 실제 board id는 이 훅이
+  // 알지 못해 링크 없이 텍스트로만 표시한다(EPIC-054A의 기존 breadcrumb
+  // 관례와 동일).
+  const parentDefinition = definition.parent
+    ? (INDIVIDUAL_BOARD_DEFINITIONS as Record<string, BoardDefinition>)[
+        definition.parent
+      ]
+    : null;
+
   return (
     <div>
+      {showHero && (
+        <HeroModule
+          title={board?.name ?? ""}
+          breadcrumb={[
+            { label: "홈", href: "/" },
+            ...(parentDefinition ? [{ label: parentDefinition.title_ko }] : []),
+            { label: board?.name ?? "" },
+          ]}
+          description={definition.description}
+        />
+      )}
+
       <BoardHeader
         boardName={board?.name ?? ""}
         writeHref={`/boards/${boardId}/write`}

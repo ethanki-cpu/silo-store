@@ -40,7 +40,9 @@ export function PageTemplate({
         />
         <div className="mt-10">
           {boardId ? (
-            <BoardModule boardId={boardId} />
+            // EPIC-056: 이 페이지가 위에서 이미 Hero Module(PageHeaderContent)을
+            // 그렸으므로, BoardModule 내부 Hero는 꺼서 중복 렌더링을 막는다.
+            <BoardModule boardId={boardId} showHero={false} />
           ) : (
             <EmptyState
               title="게시글이 없습니다."

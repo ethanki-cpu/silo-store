@@ -1,10 +1,20 @@
 "use client";
 
 import { useHubBoardId } from "@/lib/useHubBoardId";
-import { PageTemplate } from "@/components/PageTemplate";
+import { HeroModule } from "@/components/modules/HeroModule";
+import { ApplicationModule } from "@/components/modules/ApplicationModule";
+import { CalendarGrid } from "@/components/modules/CalendarGrid";
+import { BoardModule } from "@/components/modules/BoardModule";
+import { EmptyState } from "@/components/modules/EmptyState";
 
-// EPIC-054F: /studio는 어떤 Route도 없어 404였다 — Board Definition
-// System의 "studio" hub(src/lib/boardLayout.ts)에 연결되는 실제 Page를 신설.
+// EPIC-056: Studio 페이지는 지시된 조합(Hero + Application Module +
+// Calendar Module + Gallery/Story Thumbnail)을 그대로 조립한다 — 다른
+// 카테고리 허브 페이지처럼 PageTemplate(Hero+Board Container만)을 쓰지
+// 않고, 이 페이지만의 모듈 순서를 직접 나열한다(그래도 각 모듈 자체는
+// 전부 기존 것을 재사용, 새 컴포넌트 없음). Calendar Module은 현재 달을
+// 보여주는 것까지만 — 실제 예약 일정 연동은 새 기능이라 이번 EPIC 범위 밖.
+const now = new Date();
+
 export default function StudioPage() {
   const { boardId, loading } = useHubBoardId("studio");
 
@@ -13,16 +23,43 @@ export default function StudioPage() {
   }
 
   return (
-    <PageTemplate
-      title="Studio"
-      subtitle="스튜디오"
-      breadcrumb={[
-        { label: "홈", href: "/" },
-        { label: "스튜디오" },
-        { label: "Studio" },
-      ]}
-      description="Studio 메인 허브 — 공간 대관(1F/2F), 물품 대여, 공간 스타일링 4개 서비스의 최신 포트폴리오/대표 이미지/추천 콘텐츠를 모아봅니다."
-      boardId={boardId}
-    />
+    <main className="flex-1 bg-white px-6 py-12">
+      <div className="max-w-3xl mx-auto w-full space-y-10">
+        <HeroModule
+          title="Studio"
+          subtitle="스튜디오"
+          breadcrumb={[
+            { label: "홈", href: "/" },
+            { label: "스튜디오" },
+            { label: "Studio" },
+          ]}
+          description="Studio 메인 허브 — 공간 대관(1F/2F), 물품 대여, 공간 스타일링 4개 서비스의 최신 포트폴리오/대표 이미지/추천 콘텐츠를 모아봅니다."
+        />
+
+        <ApplicationModule
+          actions={[
+            { label: "공간 촬영 대관 신청", href: "/rental" },
+            { label: "물품 대여 신청", href: "/space-inquiry/item-rental" },
+            { label: "공간 스타일링 문의", href: "/space-inquiry/styling" },
+          ]}
+        />
+
+        <div>
+          <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
+            이번 달 대관 캘린더
+          </h2>
+          <CalendarGrid year={now.getFullYear()} month={now.getMonth() + 1} />
+        </div>
+
+        {boardId ? (
+          <BoardModule boardId={boardId} showHero={false} />
+        ) : (
+          <EmptyState
+            title="게시글이 없습니다."
+            description="아직 이 카테고리에 연결된 게시판이 없어요."
+          />
+        )}
+      </div>
+    </main>
   );
 }

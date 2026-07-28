@@ -4,6 +4,9 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-056 후속**: `/shop`(사일로상점)·`/docent`(온라인 도슨트)·마이페이지 전체는 이번 EPIC에서 Board Module 조합으로 재구성하지 않았다 — 전부 `posts`/`boards` 테이블이 아닌 별도 데이터 도메인(items/docent_contents/개인 데이터)의 성숙한 기존 화면이라, 강제로 재구성하려면 새로운 어댑터/기능이 필요해 범위 밖이었다. 지시문 예시의 "사일로 보물들"/"보물 목록"/"온라인 도슨트"/"My Page" 조합을 실제로 구현하려면, 이 페이지들을 Board Module 체계로 옮길지 여부를 사용자와 먼저 결정해야 한다(데이터 모델이 근본적으로 다름).
+- **EPIC-056 후속**: `/studio`의 Calendar Module은 이번 달력만 보여주고 실제 예약/대관 일정(예: `rental_bookings` 테이블의 예약된 날짜)과는 연동되지 않았다 — 실 데이터 연동은 새 기능이라 범위 밖. 필요해지면 `markedDates` prop에 실제 예약된 날짜를 채우는 조회를 추가할 것.
+- **EPIC-056 후속**: `HeroModule`이 자동 생성하는 breadcrumb의 중간 항목(부모 hub 이름)은 링크가 없는 plain text다 — 부모 hub의 실제 board id를 모르기 때문(현재 `resolveBoardDefinition`은 slug만 알고 id는 모름). 클릭 가능한 링크로 만들려면 `/api/boards`를 한 번 더 조회해 부모 id를 찾는 로직이 필요.
 - **EPIC-055 후속**: `/community/club/[name]`은 `useBoardIdByName`으로 board 행의 `name` 컬럼과 URL의 이름을 정확히 문자열 일치시켜 찾는다 — 라이브 DB에 클럽/주제 게시판 20개(EPIC-049)가 시딩되면(`SALON_TOPIC_BOARD_NAMES`/`SALON_WEEKDAY_CLUB_NAMES`, `src/lib/navConfig.ts`) 각 board의 `name` 컬럼 값이 이 배열의 문자열과 정확히 같아야 정상 연결된다 — DB 시드 작성 시 철자/공백까지 동일한지 확인할 것.
 - **EPIC-055 후속**: `/heritage/grandma|grandpa/[name]`은 이제 전체가 공유하는 `grandmas`/`grandpas` 스토리 게시판에 연결되므로, 실제로 시딩되면 모든 이름별 URL이 "같은 게시판"(개인별로 필터링되지 않은 전체 글 목록)을 보여준다 — 특정 이름의 글만 자동으로 필터링하려면 검색어를 URL에서 자동으로 채워주는 기능이 필요한데, 이는 "새 기능 금지"였던 EPIC-055 범위 밖이라 구현하지 않음(사용자가 직접 검색창에 이름을 입력해야 함). 필요해지면 별도 EPIC에서 검토.
 - **EPIC-054F 후속(P2)**: legacy `BOARD_DEFINITIONS.archive`(그룹, "자료게시판")와 신규 `INDIVIDUAL_BOARD_DEFINITIONS.archive`(hub, "Archive")가 동일한 slug `"archive"`를 쓴다 — `resolveBoardDefinition`이 category(개별 정의)를 board_type(그룹)보다 먼저 확인해 지금은 동작이 깨지지 않지만, 두 서로 다른 개념이 같은 slug를 공유하는 건 혼동 여지가 있다. `/archive` 신규 페이지가 실제로는 legacy "자료게시판"을 보여준다(신규 Archive hub 행이 아직 DB에 없어서). Board Definition System 자체를 고치는 일이라 "새 게시판/DB 변경 금지"였던 EPIC-054F 범위 밖 — slug 재명명 또는 병합 여부를 사용자와 논의할 것.

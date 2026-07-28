@@ -9,6 +9,7 @@ import {
   resolveBoardDefinition,
 } from "@/lib/boardLayout";
 import { PageModuleRenderer } from "@/components/modules/PageModuleRenderer";
+import { HeroModule } from "@/components/modules/HeroModule";
 import type { PageModuleConfig } from "@/lib/pageModules";
 
 type Board = {
@@ -77,10 +78,12 @@ export default function BoardsPage() {
   return (
     <main className="flex-1 bg-white px-6 py-12">
       <div className="max-w-3xl mx-auto w-full">
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 mb-4">
-          게시판
-        </h1>
-        <div className="border-t border-gray-200 mb-8" />
+        <HeroModule
+          title="게시판"
+          breadcrumb={[{ label: "홈", href: "/" }, { label: "게시판" }]}
+          description="사일로 스토어의 모든 게시판을 한눈에 모아봅니다."
+        />
+        <div className="border-t border-gray-200 mb-8 mt-6" />
 
         <div className="space-y-12">
           <PageModuleRenderer modules={modules} />

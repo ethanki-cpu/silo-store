@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-07-28 (EPIC-056)
+- **EPIC-056: 모든 페이지를 Board Module 조합으로 구성 — 14개 Board Module 정립 + 브라우저에서 실제로 보이는 화면 변경**
+  - **모듈 정립(14종)**: 기존에 `BoardRenderer.tsx`/`BoardHeader.tsx` 안에 갇혀 있던 사설(private) 컴포넌트들을 `src/components/modules/`에 독립적으로 재사용 가능한 이름 있는 모듈로 뽑아냈다(마크업/동작 변경 없음, 순수 추출) — `CommunityListModule`(⑥), `StoryThumbnailModule`(⑤, 기존 공용 `StoryCard` 재사용), `GalleryModule`(⑦), `SlideModule`(⑧), `SortSelect`(④), `BoardHeaderModule`(②, 제목+글쓰기 버튼만 — Search/Sort 분리). `HeroModule`(①)은 `PageHeaderContent`(EPIC-054A)의 이름 있는 alias, `ApplicationModule`(⑫)은 `CtaButtons`(EPIC-054B)의 이름 있는 alias — 전부 재사용, 중복 없음. 신규 마크업이 필요했던 건 `FilterModule`(⑩) 하나뿐이며, 그마저도 `docs/design-system.md` §4의 기존 pill 필터 관례를 그대로 따랐다(새 디자인 없음). Search(③)/Pagination(⑬)/Empty State(⑭)/Timeline(⑨)/Calendar(⑪)는 이미 독립 모듈로 존재하던 `SearchInput`/`Pagination`/`EmptyState`/`TimelineView`/`CalendarGrid`를 그대로 재사용.
+  - **`BoardHeader.tsx`/`BoardRenderer.tsx` 리팩터**: 각각 위 모듈들을 조합하는 얇은 레이아웃 래퍼로 재구성 — 렌더링 결과(HTML/클래스)는 리팩터 전과 동일함을 브라우저로 확인.
+  - **브라우저에서 실제로 보이는 변경 ①**: `src/components/modules/BoardModule.tsx`에 Hero Module을 내장(`showHero` prop, 기본 `true`) — 이제 `/boards/[id]`(자유게시판/클럽/각 시대 게시판 등 약 72개 게시판 전부)가 이전에는 없던 **Breadcrumb + 제목 + 설명**을 화면 최상단에 보여준다(예: `/boards/b0f009f3-...` → "홈 › Community › 자유게시판" + "자유게시판" + "누구나 자유롭게 글을 쓰는 자유게시판"). Breadcrumb 중간 항목은 `resolveBoardDefinition(board).parent`를 통해 부모 hub 이름을 자동으로 붙인다.
+  - **브라우저에서 실제로 보이는 변경 ②**: `PageTemplate`이 이미 자체 Hero를 그리는 6개 카테고리 허브 페이지(Community/Heritage/Studio/Membership/Gallery/Archive)는 `BoardModule`에 `showHero={false}`를 넘겨 Hero 중복 렌더링을 방지 — 브라우저로 Hero가 정확히 1번만 보임을 확인.
+  - **브라우저에서 실제로 보이는 변경 ③**: `/boards`(게시판 디렉토리) 상단의 일반 `<h1>`을 `HeroModule`로 교체해 Breadcrumb("홈 › 게시판")과 설명 문구가 새로 보이게 됨.
+  - **브라우저에서 실제로 보이는 변경 ④(가장 큰 구성 변화)**: `/studio` 페이지를 `PageTemplate`(범용) 대신 지시받은 조합(Hero + Application Module + Calendar Module + Board Container)으로 직접 재조립 — `ApplicationModule`이 "공간 촬영 대관 신청"/"물품 대여 신청"/"공간 스타일링 문의" 3개 버튼(기존 `/rental`·`/space-inquiry/*` 실제 페이지로 연결)을, `CalendarGrid`가 이번 달 달력을 새로 보여준다(실 예약 데이터 연동은 새 기능이라 범위 밖, 달력 자체만 표시).
+  - **검증**: 로컬 dev 서버로 `/boards/b0f009f3-...`(Hero+Breadcrumb 신규 노출), `/studio`(Application+Calendar 신규 노출, 스크린샷 확인), `/community`(Hero 중복 없음 확인), `/boards`(Breadcrumb 신규 노출), `/gallery` 전부 콘솔 에러 없이 확인.
+  - **아직 모듈이 적용되지 않은 페이지**: `/shop`(사일로상점 아이템 카탈로그), `/docent`(온라인 도슨트), 마이페이지 전체 — 전부 게시판(`posts`/`boards`)이 아닌 별도 데이터 도메인(items/docent_contents/개인 데이터)의 성숙한 기존 화면이라, 이번 EPIC에서 강제로 Board Module 조합으로 재구성하지 않았다(새 기능 없이는 데이터 모델이 맞지 않음) — 별도 EPIC에서 사용자와 방향을 논의할 것.
+  - 문서 동기화: `docs/STAGES.md`, `docs/PROJECT_DASHBOARD.md`, `docs/EPIC.md`, `NEXT_TASK.md`.
+  - 검증: `npx tsc --noEmit`/`npm run lint` 통과(신규/수정 파일 관련 에러 0건).
+
 ## 2026-07-28 (EPIC-055)
 - **EPIC-055: Universal Board System 완성 — 모든 페이지를 실제 게시판(Board)에 연결(새 페이지/기능/DB/Board 컴포넌트 없이 연결과 중복 제거만)**
   - **발견: `src/components/shared/UniversalBoard.tsx`(EPIC-044) — 실데이터 없는 뼈대 stub이 3개 페이지 그룹에서 여전히 쓰이고 있었다.** `/heritage/grandma/[name]`·`/heritage/grandpa/[name]`·`/community/club/[name]`(최대 69개 이름별 URL: 할머니 50 + 할아버지 17 + 클럽/주제 20)이 전부 `posts=[]` 고정값의 독자적인 검색/정렬 로직(Universal Board System과 완전히 무관, `BoardRenderer`/`BoardModule`을 전혀 쓰지 않는 별개 구현)만 렌더링하고 있어 실제 게시판과 연결돼 있지 않았다.

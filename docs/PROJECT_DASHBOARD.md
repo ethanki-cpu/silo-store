@@ -4,7 +4,7 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-07-28 (EPIC-055, `feature/EPIC-054A`→`054B`→`054C`→`054D`→`054E`→`054F`→`055` 계보 기준).
+> 최종 확인: 2026-07-28 (EPIC-056, `feature/EPIC-054A`→`054B`→`054C`→`054D`→`054E`→`054F`→`055`→`056` 계보 기준).
 
 =====================================
 
@@ -22,15 +22,15 @@ Stage 1 — Foundation
 
 ## Progress
 
-Stage 1 (Foundation) 14개 세부 항목 기준: **완료 10 / 부분 완료 3 / 미착수 1(Block Editor 완전판은 별도 브랜치에 존재)** — Routing은 EPIC-054F가 76개 page.tsx로 확장, Board System은 EPIC-055가 마지막 미연결 구간(UniversalBoard stub 3개 그룹)까지 실제 게시판에 연결해 완료로 유지.
+Stage 1 (Foundation) 14개 세부 항목 기준: **완료 10 / 부분 완료 3 / 미착수 1(Block Editor 완전판은 별도 브랜치에 존재)** — Routing은 EPIC-054F가 76개 page.tsx로 확장, Board System은 EPIC-055가 마지막 미연결 구간(UniversalBoard stub 3개 그룹)까지 실제 게시판에 연결, EPIC-056이 14개 Board Module을 정립하고 `/boards/[id]`(약 72개 게시판) 전체에 Hero/Breadcrumb를 추가해 완료로 유지.
 
-전체 EPIC: **59개 완료**, 진행 중 0개, 예정 0개(대기 중). 상세: [docs/STAGES.md](STAGES.md) §Stage 1, [docs/EPIC.md](EPIC.md).
+전체 EPIC: **60개 완료**, 진행 중 0개, 예정 0개(대기 중). 상세: [docs/STAGES.md](STAGES.md) §Stage 1, [docs/EPIC.md](EPIC.md).
 
 =====================================
 
 ## Current EPIC
 
-없음 (대기 중 — 다음 지시 대기). 직전 완료: EPIC-055(Universal Board System 완성 — UniversalBoard stub 3개 페이지 그룹을 실제 게시판에 연결, EmptyState 중복 제거).
+없음 (대기 중 — 다음 지시 대기). 직전 완료: EPIC-056(14개 Board Module 정립 + `/boards/[id]` 전체에 Hero/Breadcrumb 추가, `/studio` 페이지 재조립 — 브라우저 확인 완료).
 
 =====================================
 
@@ -47,18 +47,18 @@ Stage 1 (Foundation) 14개 세부 항목 기준: **완료 10 / 부분 완료 3 /
 
 최근 완료 10개(최신순):
 
-1. EPIC-055 — Universal Board System 완성(UniversalBoard stub 제거, 실제 게시판 연결, EmptyState 중복 통합)
-2. EPIC-054F — Community/Heritage/Studio/Membership/Gallery/Archive 6개 카테고리 허브 Page 신설(공용 PageTemplate)
-3. EPIC-054E — Stage/EPIC 분리 운영 체계 구축
-4. EPIC-054D — 사이트 전체 Navigation/SEO/Routing 감사(Audit)
-5. EPIC-054C — 모든 Page를 Board와 연결(BoardModule)
-6. EPIC-054B — Page(화면)/Board(게시판) 분리, Page Module 시스템 신설
-7. EPIC-054A — 모든 메뉴에 실제 Page 연결(Placeholder 19개 제거)
-8. EPIC-052 — 마이페이지 Personal Hub 확장 + Tiptap 기본 에디터 도입
-9. EPIC-051 — Studio(공간 문의) 게시판 생성 + 기존 예약 Flow 연동
-10. EPIC-050 — Membership/Gallery/Archive 게시판 + Timeline Engine
+1. EPIC-056 — 14개 Board Module 정립 + `/boards/[id]`·`/studio` 등에 실제 화면 변화 적용
+2. EPIC-055 — Universal Board System 완성(UniversalBoard stub 제거, 실제 게시판 연결, EmptyState 중복 통합)
+3. EPIC-054F — Community/Heritage/Studio/Membership/Gallery/Archive 6개 카테고리 허브 Page 신설(공용 PageTemplate)
+4. EPIC-054E — Stage/EPIC 분리 운영 체계 구축
+5. EPIC-054D — 사이트 전체 Navigation/SEO/Routing 감사(Audit)
+6. EPIC-054C — 모든 Page를 Board와 연결(BoardModule)
+7. EPIC-054B — Page(화면)/Board(게시판) 분리, Page Module 시스템 신설
+8. EPIC-054A — 모든 메뉴에 실제 Page 연결(Placeholder 19개 제거)
+9. EPIC-052 — 마이페이지 Personal Hub 확장 + Tiptap 기본 에디터 도입
+10. EPIC-051 — Studio(공간 문의) 게시판 생성 + 기존 예약 Flow 연동
 
-상세: [docs/EPIC.md](EPIC.md) "완료" 섹션(전체 59건).
+상세: [docs/EPIC.md](EPIC.md) "완료" 섹션(전체 60건).
 
 =====================================
 
@@ -77,7 +77,7 @@ Stage 1 (Foundation) 14개 세부 항목 기준: **완료 10 / 부분 완료 3 /
 
 **P1**
 - 위 이중 구조로 인한 중복 콘텐츠 쌍: `/shop/heritage/*`(정적) vs `/heritage/*/[name]`(동적), `/space-inquiry/styling`(정적) vs `/shop/projects`(완전 구현), `/salon/*` 정적 페이지 다수 vs 동일 주제의 실제 게시판(Board Definition System).
-- Breadcrumb 자동 생성 시스템 부재(19개 페이지만 수동 breadcrumb, 51개는 아예 없음).
+- Breadcrumb 자동 생성 시스템 부재 — EPIC-056이 `/boards/[id]`(약 72개 게시판, `resolveBoardDefinition`으로 부모 hub 자동 추론)까지는 해결했지만, `/shop`/`/docent`/마이페이지 등 게시판이 아닌 나머지 페이지는 여전히 수동이거나 아예 없음.
 - `Navbar.tsx` 반응형 브레이크포인트 부재(모바일 대응 UX 없음).
 - Page Module 시스템의 `hero`/`notice`/`form`/`calendar`/`survey`/`ranking`/`profile_card` 7종이 아직 실제 Page에 연결되지 않음(Board 계열 4종만 연결됨, EPIC-054C).
 

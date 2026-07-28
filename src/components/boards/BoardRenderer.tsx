@@ -2,131 +2,12 @@
 
 import Link from "next/link";
 import type { BoardDefinition, BoardPost, HubFeed, HubChildBoard } from "@/lib/boardLayout";
-import { StoryCard } from "./StoryCard";
-import { stripHtml } from "@/lib/sanitize";
 import { TimelineView } from "@/components/TimelineView";
 import { EmptyState } from "@/components/modules/EmptyState";
-
-function PostBadges({ post, isQna }: { post: BoardPost; isQna: boolean }) {
-  if (!post.is_best && !post.is_docent_post && !isQna) return null;
-
-  return (
-    <div className="flex items-center gap-2 mb-1.5">
-      {post.is_best && (
-        <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-          개념글
-        </span>
-      )}
-      {post.is_docent_post && (
-        <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-          도슨트
-        </span>
-      )}
-      {isQna && (
-        <span
-          className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-            post.is_answered
-              ? "bg-green-100 text-green-700"
-              : "bg-gray-100 text-gray-500"
-          }`}
-        >
-          {post.is_answered ? "답변완료" : "답변대기"}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// community: 목록형, 썸네일 없음 — 제목/작성자/좋아요/조회수/댓글수/작성일.
-function CommunityList({
-  boardId,
-  posts,
-  isQna,
-}: {
-  boardId: string;
-  posts: BoardPost[];
-  isQna: boolean;
-}) {
-  return (
-    <div className="divide-y divide-gray-100">
-      {posts.map((post) => (
-        <Link
-          key={post.id}
-          href={`/boards/${boardId}/${post.id}`}
-          className="block py-5 group"
-        >
-          <PostBadges post={post} isQna={isQna} />
-          <h2 className="font-serif text-lg font-medium text-gray-900 group-hover:underline">
-            {post.title}
-          </h2>
-          <p className="text-xs uppercase tracking-wide text-gray-400 mt-1.5">
-            {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
-            {post.view_count ?? 0} · 댓글 {post.comment_count} ·{" "}
-            {new Date(post.created_at).toLocaleString()}
-          </p>
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-// story: 카드형, 썸네일 포함 — 대표 이미지/제목/요약/태그/좋아요/조회수/
-// 작성일(+작성자). 카드 마크업 자체는 공용 StoryCard(EPIC-052, 마이페이지
-// "나의 컬렉션"과 공유)에 위임한다.
-function StoryCards({ boardId, posts }: { boardId: string; posts: BoardPost[] }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-      {posts.map((post) => (
-        <StoryCard
-          key={post.id}
-          href={`/boards/${boardId}/${post.id}`}
-          photoUrl={post.photo_url}
-          title={post.title ?? ""}
-          summary={post.body ? stripHtml(post.body) : null}
-          tags={post.tags ?? []}
-          meta={
-            <>
-              {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
-              {post.view_count ?? 0} ·{" "}
-              {new Date(post.created_at).toLocaleDateString()}
-            </>
-          }
-        />
-      ))}
-    </div>
-  );
-}
-
-// gallery: 이미지 중심 grid, 썸네일 우선 — 텍스트는 최소한만.
-function GalleryGrid({ boardId, posts }: { boardId: string; posts: BoardPost[] }) {
-  return (
-    <div className="columns-2 sm:columns-3 gap-4 [column-fill:_balance]">
-      {posts.map((post) => (
-        <Link
-          key={post.id}
-          href={`/boards/${boardId}/${post.id}`}
-          className="block mb-4 break-inside-avoid group"
-        >
-          {post.photo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={post.photo_url}
-              alt={post.title ?? ""}
-              className="w-full object-cover"
-            />
-          ) : (
-            <div className="w-full aspect-square bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-300 text-xs">
-              이미지 없음
-            </div>
-          )}
-          <p className="text-sm font-medium text-gray-900 mt-2 group-hover:underline">
-            {post.title}
-          </p>
-        </Link>
-      ))}
-    </div>
-  );
-}
+import { CommunityListModule } from "@/components/modules/CommunityListModule";
+import { StoryThumbnailModule } from "@/components/modules/StoryThumbnailModule";
+import { GalleryModule } from "@/components/modules/GalleryModule";
+import { SlideModule } from "@/components/modules/SlideModule";
 
 // Timeline Engine(EPIC-050): 연→월 순으로 묶어 보여주는 그룹핑 로직 —
 // 독립 컴포넌트가 아니라 이 파일 안의 재사용 가능한 함수로 유지해, 향후
@@ -157,56 +38,8 @@ function BoardTimelineView({ boardId, posts }: { boardId: string; posts: BoardPo
   );
 }
 
-// hub: 하위 게시판의 최신글/인기글/추천글 슬라이드 + 하위 게시판 카드.
-function FeedSlide({
-  title,
-  items,
-}: {
-  title: string;
-  items: HubFeed["latest"];
-}) {
-  return (
-    <section className="mb-10">
-      <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-        {title}
-      </h2>
-      {items.length === 0 ? (
-        <p className="text-sm text-gray-400">아직 글이 없어요.</p>
-      ) : (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {items.map((item) => (
-            <Link
-              key={item.id}
-              href={`/boards/${item.board_id}/${item.id}`}
-              className="shrink-0 w-56 rounded-lg border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
-            >
-              {item.photo_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.photo_url}
-                  alt={item.title ?? ""}
-                  className="w-full aspect-[4/3] object-cover"
-                />
-              )}
-              <div className="p-4">
-                <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">
-                  {item.board_name}
-                </p>
-                <p className="font-serif font-medium text-gray-900 line-clamp-2">
-                  {item.title}
-                </p>
-                <p className="text-xs text-gray-400 mt-2">
-                  {item.author_name} · 좋아요 {item.like_count}
-                </p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
+// hub: 하위 게시판의 최신글/인기글/추천글 슬라이드(Slide Module, EPIC-056)
+// + 하위 게시판 카드.
 function HubView({
   hubFeed,
   hubChildBoards,
@@ -216,9 +49,9 @@ function HubView({
 }) {
   return (
     <div>
-      <FeedSlide title="최신글" items={hubFeed.latest} />
-      <FeedSlide title="인기글" items={hubFeed.popular} />
-      <FeedSlide title="추천글" items={hubFeed.recommended} />
+      <SlideModule title="최신글" items={hubFeed.latest} />
+      <SlideModule title="인기글" items={hubFeed.popular} />
+      <SlideModule title="추천글" items={hubFeed.recommended} />
 
       {/* hubChildBoards가 아예 주어지지 않으면(예: 최상위 /boards 디렉토리처럼
           그룹별 목록을 이 컴포넌트 밖에서 직접 그리는 페이지) 이 섹션 자체를
@@ -264,10 +97,15 @@ function HubView({
 // Board Definition System(EPIC-047~050): 게시판별로 화면을 새로 만들지
 // 않고, BoardDefinition.boardType 하나로 community/story/gallery/hub/
 // timeline 다섯 레이아웃 중 하나를 선택해 렌더링한다 — definition을 통째로
-// 받는 이유는,
-// 태그/썸네일 같은 세부 토글도 여기서 그대로 참조할 수 있게 하기 위함.
-// hub는 자기 자신의 글 목록(posts)이 아니라 하위 게시판들의 종합 피드
-// (hubFeed)+카드(hubChildBoards)를 받아 그린다.
+// 받는 이유는, 태그/썸네일 같은 세부 토글도 여기서 그대로 참조할 수 있게
+// 하기 위함. hub는 자기 자신의 글 목록(posts)이 아니라 하위 게시판들의
+// 종합 피드(hubFeed)+카드(hubChildBoards)를 받아 그린다.
+//
+// EPIC-056: 각 레이아웃은 이제 독립적으로 재사용 가능한 Board Module
+// (CommunityListModule/StoryThumbnailModule/GalleryModule/SlideModule,
+// 전부 src/components/modules/)로 위임한다 — 이 컴포넌트는 boardType에
+// 따라 알맞은 모듈을 고르는 조합기일 뿐, 레이아웃 마크업을 직접 갖지
+// 않는다.
 export function BoardRenderer({
   definition,
   boardId,
@@ -294,19 +132,19 @@ export function BoardRenderer({
 
   if (posts.length === 0) {
     // EPIC-054C: Board가 없는/게시글이 0건인 Board는 Placeholder Module이
-    // 아니라 공용 EmptyState로 보여준다.
+    // 아니라 공용 EmptyState(Empty State Module, EPIC-056)로 보여준다.
     return <EmptyState title="아직 게시글이 없어요." />;
   }
 
   switch (definition.boardType) {
     case "story":
-      return <StoryCards boardId={boardId} posts={posts} />;
+      return <StoryThumbnailModule boardId={boardId} posts={posts} />;
     case "gallery":
-      return <GalleryGrid boardId={boardId} posts={posts} />;
+      return <GalleryModule boardId={boardId} posts={posts} />;
     case "timeline":
       return <BoardTimelineView boardId={boardId} posts={posts} />;
     case "community":
     default:
-      return <CommunityList boardId={boardId} posts={posts} isQna={isQna} />;
+      return <CommunityListModule boardId={boardId} posts={posts} isQna={isQna} />;
   }
 }

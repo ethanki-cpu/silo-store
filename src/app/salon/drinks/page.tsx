@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function DrinksPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-drinks" />
+      <PageHeader
       title="음료 주문"
       subtitle="살롱데상"
       breadcrumb={[
@@ -12,5 +15,6 @@ export default function DrinksPage() {
       ]}
       description="음료 주문 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

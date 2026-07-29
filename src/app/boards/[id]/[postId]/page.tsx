@@ -9,6 +9,7 @@ import { PostActions } from "@/components/boards/PostActions";
 import { PostBody } from "@/components/boards/PostBody";
 import { CommentSection } from "@/components/boards/CommentSection";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type PostDetail = {
   id: string;
@@ -202,7 +203,9 @@ export default function PostDetailPage() {
   ].filter((t): t is string => Boolean(t));
 
   return (
-    <main className="flex-1 bg-white px-6 py-12">
+    <>
+      <PageEditButton slug="boards-id-postid" />
+      <main className="flex-1 bg-white px-6 py-12">
       <div className="max-w-4xl mx-auto w-full">
         <PostDetailHeader
           postNumber={post.post_number}
@@ -247,6 +250,7 @@ export default function PostDetailPage() {
           )}
         </div>
       </div>
-    </main>
+      </main>
+    </>
   );
 }

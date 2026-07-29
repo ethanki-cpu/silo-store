@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type Post = {
   id: string;
@@ -72,7 +73,9 @@ export default function MemberPersonalPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-xl mx-auto w-full">
+    <>
+      <PageEditButton slug="u-memberid" />
+      <main className="flex-1 p-8 max-w-xl mx-auto w-full">
       <h1 className="text-2xl font-bold mb-6">{profile?.name}의 페이지</h1>
 
       {posts.length === 0 ? (
@@ -103,6 +106,7 @@ export default function MemberPersonalPage() {
           ))}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

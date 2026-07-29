@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type RentalType = {
   id: string;
@@ -118,7 +119,9 @@ export default function RentalBookingPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-xl mx-auto w-full">
+    <>
+      <PageEditButton slug="rental-rentaltypeid" />
+      <main className="flex-1 p-8 max-w-xl mx-auto w-full">
       <p className="text-xs font-medium text-blue-600">
         {FLOOR_LABEL[rentalType.floor] ?? rentalType.floor}
       </p>
@@ -200,6 +203,7 @@ export default function RentalBookingPage() {
           )}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

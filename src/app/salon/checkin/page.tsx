@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type CheckinResult = {
   checkin_at: string;
@@ -44,7 +45,9 @@ export default function SalonCheckinPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-md mx-auto w-full flex flex-col items-center text-center">
+    <>
+      <PageEditButton slug="salon-checkin" />
+      <main className="flex-1 p-8 max-w-md mx-auto w-full flex flex-col items-center text-center">
       <h1 className="text-2xl font-bold mb-2">살롱데상 입장</h1>
       <p className="text-gray-600 mb-6">
         2층 살롱데상에 입장하시려면 아래 버튼을 눌러주세요.
@@ -96,6 +99,7 @@ export default function SalonCheckinPage() {
           )}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

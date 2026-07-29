@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { WishlistButton } from "@/components/WishlistButton";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type Persona = {
   id: string;
@@ -140,7 +141,9 @@ export default function ItemDetailPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="shop-id" />
+      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
       {item.photo_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -266,6 +269,7 @@ export default function ItemDetailPage() {
           );
         })}
       </div>
-    </main>
+      </main>
+    </>
   );
 }

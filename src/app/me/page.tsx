@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type Post = {
   id: string;
@@ -51,7 +52,9 @@ export default function MyPersonalPage() {
   if (authLoading || !session) return null;
 
   return (
-    <main className="flex-1 p-8 max-w-xl mx-auto w-full">
+    <>
+      <PageEditButton slug="me" />
+      <main className="flex-1 p-8 max-w-xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{member?.name}의 페이지</h1>
         <Link
@@ -89,6 +92,7 @@ export default function MyPersonalPage() {
           ))}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

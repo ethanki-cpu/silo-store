@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type ContentDetail = {
   id: string;
@@ -107,7 +108,9 @@ export default function DocentDetailPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="docent-id" />
+      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
       {content.cover_image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -190,6 +193,7 @@ export default function DocentDetailPage() {
           )}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type Club = {
   id: string;
@@ -144,7 +145,9 @@ export default function ClubDetailPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="clubs-id" />
+      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
       <p className="text-xs font-medium text-blue-600">
         {WEEKDAY_LABEL[club.weekday] ?? club.weekday}
       </p>
@@ -227,6 +230,7 @@ export default function ClubDetailPage() {
           })}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

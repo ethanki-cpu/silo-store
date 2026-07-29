@@ -1,9 +1,12 @@
 import { PageHeaderContent } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 // EPIC-057: 카테고리 실제 Route 생성 — Board/DB 연결 없는 Placeholder Page.
 export default function GalleryVisitorsPage() {
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="gallery-visitors" />
+      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
       <PageHeaderContent
         title="운명의 방문자들"
         subtitle="살롱데상 · Gallery"
@@ -19,5 +22,6 @@ export default function GalleryVisitorsPage() {
         여기에 게시판이 들어갑니다.
       </div>
     </main>
+    </>
   );
 }

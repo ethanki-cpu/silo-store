@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function ArtistIntroPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-artist-intro" />
+      <PageHeader
       title="나의 아티스트 소개"
       subtitle="Membership"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function ArtistIntroPage() {
       ]}
       description="나의 아티스트 소개 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function MindDiaryPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-mind-diary" />
+      <PageHeader
       title="마음일기"
       subtitle="Membership"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function MindDiaryPage() {
       ]}
       description="마음일기 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

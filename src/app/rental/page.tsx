@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,9 @@ export default async function RentalPage({
     .order("shoot_type");
 
   return (
-    <main className="min-h-screen p-8 max-w-3xl mx-auto w-full">
+    <>
+      <PageEditButton slug="rental" />
+      <main className="min-h-screen p-8 max-w-3xl mx-auto w-full">
       <h1 className="text-2xl font-bold mb-6">
         공간 대관 · {FLOOR_LABEL[floor]}
       </h1>
@@ -66,6 +69,7 @@ export default async function RentalPage({
           ))}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

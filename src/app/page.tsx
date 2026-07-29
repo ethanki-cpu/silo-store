@@ -6,6 +6,7 @@ import {
   type HomeCurationSliderItem,
 } from "@/components/HomeCurationSlider";
 import type { CategoryDomain } from "@/app/admin/navigation/shared";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
 // site_settings.hero_slideshow를 조회해 최상단 히어로 배너를 렌더링한다.
@@ -134,7 +135,9 @@ export default async function Home() {
   );
 
   return (
-    <div className="flex-1">
+    <>
+      <PageEditButton slug="home" />
+      <div className="flex-1">
       {slides.length > 0 ? (
         <HeroSlideshow
           slides={slides}
@@ -164,6 +167,7 @@ export default async function Home() {
           items={items}
         />
       ))}
-    </div>
+      </div>
+    </>
   );
 }

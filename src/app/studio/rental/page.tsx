@@ -1,9 +1,12 @@
 import { PageHeaderContent } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 // EPIC-057: 카테고리 실제 Route 생성 — Board/DB 연결 없는 Placeholder Page.
 export default function StudioRentalPage() {
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="studio-rental" />
+      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
       <PageHeaderContent
         title="공간대관"
         subtitle="스튜디오"
@@ -19,5 +22,6 @@ export default function StudioRentalPage() {
         여기에 게시판이 들어갑니다.
       </div>
     </main>
+    </>
   );
 }

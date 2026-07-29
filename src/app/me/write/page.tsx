@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function WritePersonalPostPage() {
   const { session } = useAuth();
@@ -44,7 +45,9 @@ export default function WritePersonalPostPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-xl mx-auto w-full">
+    <>
+      <PageEditButton slug="me-write" />
+      <main className="flex-1 p-8 max-w-xl mx-auto w-full">
       <h1 className="text-2xl font-bold mb-6">글쓰기</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -95,6 +98,7 @@ export default function WritePersonalPostPage() {
           {loading ? "등록 중..." : "등록"}
         </button>
       </form>
-    </main>
+      </main>
+    </>
   );
 }

@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function DocentTourPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-docent-tour" />
+      <PageHeader
       title="투어 도슨트 프로그램"
       subtitle="살롱데상"
       breadcrumb={[
@@ -12,5 +15,6 @@ export default function DocentTourPage() {
       ]}
       description="투어 도슨트 프로그램 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

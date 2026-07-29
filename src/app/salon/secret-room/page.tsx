@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function SecretRoomPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-secret-room" />
+      <PageHeader
       title="비밀의 방 도슨트"
       subtitle="Membership"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function SecretRoomPage() {
       ]}
       description="비밀의 방 도슨트 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

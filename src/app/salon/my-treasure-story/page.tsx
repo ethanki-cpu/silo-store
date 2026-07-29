@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function MyTreasureStoryPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-my-treasure-story" />
+      <PageHeader
       title="나의 보물 이야기"
       subtitle="Membership"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function MyTreasureStoryPage() {
       ]}
       description="나의 보물 이야기 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

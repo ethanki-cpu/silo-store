@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,9 @@ export default async function StylingProjectDetailPage({
       : (INDUSTRY_LABELS[project.industry] ?? project.industry);
 
   return (
-    <main className="flex-1 p-8 max-w-3xl mx-auto w-full">
+    <>
+      <PageEditButton slug="shop-projects-id" />
+      <main className="flex-1 p-8 max-w-3xl mx-auto w-full">
       {project.cover_image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -155,6 +158,7 @@ export default async function StylingProjectDetailPage({
           </div>
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

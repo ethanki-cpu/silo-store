@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type Category = "silostore" | "salon";
 
@@ -65,7 +66,9 @@ export default function DocentLibraryPage() {
   );
 
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="docent-library" />
+      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
       <h1 className="text-2xl font-bold mb-6">내 서재</h1>
 
       <div className="flex gap-2 mb-6 border-b border-gray-200">
@@ -121,6 +124,7 @@ export default function DocentLibraryPage() {
           ))}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

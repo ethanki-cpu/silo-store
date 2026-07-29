@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function GalleryAwardsPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-gallery-awards" />
+      <PageHeader
       title="시상식"
       subtitle="Gallery"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function GalleryAwardsPage() {
       ]}
       description="시상식 갤러리 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

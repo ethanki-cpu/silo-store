@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useBoardIdByName } from "@/lib/useHubBoardId";
 import { PageTemplate } from "@/components/PageTemplate";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 // EPIC-055: 기존 UniversalBoard(EPIC-044, 실데이터 없는 뼈대 stub)를
 // 걷어내고 Universal Board System(BoardModule, PageTemplate)에 실제로
@@ -19,17 +20,20 @@ export default function ClubCommunityPage() {
   }
 
   return (
-    <PageTemplate
-      title={displayName}
-      subtitle="살롱데상 · Community"
-      breadcrumb={[
-        { label: "홈", href: "/" },
-        { label: "살롱데상" },
-        { label: "Community", href: "/community" },
-        { label: displayName },
-      ]}
-      description={`${displayName} 게시판입니다.`}
-      boardId={boardId}
-    />
+    <>
+      <PageEditButton slug="community-club-name" />
+      <PageTemplate
+        title={displayName}
+        subtitle="살롱데상 · Community"
+        breadcrumb={[
+          { label: "홈", href: "/" },
+          { label: "살롱데상" },
+          { label: "Community", href: "/community" },
+          { label: displayName },
+        ]}
+        description={`${displayName} 게시판입니다.`}
+        boardId={boardId}
+      />
+    </>
   );
 }

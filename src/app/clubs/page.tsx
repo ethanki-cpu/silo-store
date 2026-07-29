@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,9 @@ export default async function ClubsPage() {
     .select("id, weekday, name, description, base_price");
 
   return (
-    <main className="min-h-screen p-8">
+    <>
+      <PageEditButton slug="clubs" />
+      <main className="min-h-screen p-8">
       <h1 className="text-2xl font-bold mb-6">클럽 목록</h1>
 
       {error ? (
@@ -69,6 +72,7 @@ export default async function ClubsPage() {
             ))}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

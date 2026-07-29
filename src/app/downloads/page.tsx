@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/AuthProvider";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type DownloadItem = {
   id: string;
@@ -65,7 +66,9 @@ export default function DownloadsPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="downloads" />
+      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
       <h1 className="text-2xl font-bold mb-6">자료실</h1>
 
       {member?.is_admin && (
@@ -146,6 +149,7 @@ export default function DownloadsPage() {
           ))}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

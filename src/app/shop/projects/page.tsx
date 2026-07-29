@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,9 @@ export default async function StylingProjectsPage({
   const { data, error } = await query;
 
   return (
-    <main className="min-h-screen p-8">
+    <>
+      <PageEditButton slug="shop-projects" />
+      <main className="min-h-screen p-8">
       <h1 className="text-2xl font-bold mb-6">공간 스타일링 포트폴리오</h1>
 
       <div className="flex flex-wrap gap-2 mb-6">
@@ -101,6 +104,7 @@ export default async function StylingProjectsPage({
           ))}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -46,7 +47,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex-1 flex items-center justify-center p-8">
+    <>
+      <PageEditButton slug="login" />
+      <main className="flex-1 flex items-center justify-center p-8">
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
         <h1 className="text-2xl font-bold">로그인</h1>
 
@@ -111,6 +114,7 @@ export default function LoginPage() {
           </a>
         </p>
       </form>
-    </main>
+      </main>
+    </>
   );
 }

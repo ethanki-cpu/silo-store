@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function GalleryPatronsPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-gallery-patrons" />
+      <PageHeader
       title="패트론들"
       subtitle="Gallery"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function GalleryPatronsPage() {
       ]}
       description="패트론들 갤러리 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

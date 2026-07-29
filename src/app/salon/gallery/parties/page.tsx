@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function GalleryPartiesPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-gallery-parties" />
+      <PageHeader
       title="파티"
       subtitle="Gallery"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function GalleryPartiesPage() {
       ]}
       description="파티 갤러리 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

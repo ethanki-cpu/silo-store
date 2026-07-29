@@ -8,6 +8,7 @@ import {
   type CollectionSubKey,
 } from "@/components/mypage/mypageConfig";
 import { useMyPageMember } from "@/components/mypage/MyPageContext";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function CollectionCategoryPage() {
   const { category } = useParams<{ category: string }>();
@@ -16,16 +17,19 @@ export default function CollectionCategoryPage() {
   const subtab = COLLECTION_SUBTABS.find((s) => s.key === category);
 
   return (
-    <div>
-      <CollectionsSubNav />
-      {subtab ? (
-        <CollectionCategoryPanel
-          memberId={memberId}
-          category={category as CollectionSubKey}
-        />
-      ) : (
-        <p className="text-gray-500">알 수 없는 컬렉션 카테고리예요.</p>
-      )}
-    </div>
+    <>
+      <PageEditButton slug="mypage-collections-category" />
+      <div>
+        <CollectionsSubNav />
+        {subtab ? (
+          <CollectionCategoryPanel
+            memberId={memberId}
+            category={category as CollectionSubKey}
+          />
+        ) : (
+          <p className="text-gray-500">알 수 없는 컬렉션 카테고리예요.</p>
+        )}
+      </div>
+    </>
   );
 }

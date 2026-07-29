@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type ConfirmedOrder = {
   id: string;
@@ -131,7 +132,9 @@ export default function WritePostPage() {
   }
 
   return (
-    <main className="flex-1 bg-white p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="boards-id-write" />
+      <main className="flex-1 bg-white p-8 max-w-2xl mx-auto w-full">
       <h1 className="font-serif text-2xl font-bold mb-6">글쓰기</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -216,6 +219,7 @@ export default function WritePostPage() {
           {loading ? "등록 중..." : "등록"}
         </button>
       </form>
-    </main>
+      </main>
+    </>
   );
 }

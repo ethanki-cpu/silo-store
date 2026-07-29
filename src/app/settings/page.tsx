@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function SettingsPage() {
   const { session, loading } = useAuth();
@@ -37,7 +38,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
+    <>
+      <PageEditButton slug="settings" />
+      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">설정</h1>
         <Link href="/mypage" className="text-sm text-gray-500 hover:underline">
@@ -59,6 +62,7 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -44,7 +45,9 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="flex-1 flex items-center justify-center p-8">
+    <>
+      <PageEditButton slug="signup" />
+      <main className="flex-1 flex items-center justify-center p-8">
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
         <h1 className="text-2xl font-bold">회원가입</h1>
 
@@ -99,6 +102,7 @@ export default function SignupPage() {
           </a>
         </p>
       </form>
-    </main>
+      </main>
+    </>
   );
 }

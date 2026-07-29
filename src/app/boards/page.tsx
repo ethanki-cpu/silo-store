@@ -10,6 +10,7 @@ import {
 } from "@/lib/boardLayout";
 import { PageModuleRenderer } from "@/components/modules/PageModuleRenderer";
 import { HeroModule } from "@/components/modules/HeroModule";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 import type { PageModuleConfig } from "@/lib/pageModules";
 
 type Board = {
@@ -76,7 +77,9 @@ export default function BoardsPage() {
   }));
 
   return (
-    <main className="flex-1 bg-white px-6 py-12">
+    <>
+      <PageEditButton slug="boards" />
+      <main className="flex-1 bg-white px-6 py-12">
       <div className="max-w-3xl mx-auto w-full">
         <HeroModule
           title="게시판"
@@ -152,6 +155,7 @@ export default function BoardsPage() {
           );
         })}
       </div>
-    </main>
+      </main>
+    </>
   );
 }

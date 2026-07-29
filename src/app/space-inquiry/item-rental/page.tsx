@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function ItemRentalInquiryPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="space-inquiry-item-rental" />
+      <PageHeader
       title="물품 대여"
       subtitle="스튜디오"
       breadcrumb={[
@@ -12,5 +15,6 @@ export default function ItemRentalInquiryPage() {
       ]}
       description="물품 대여 문의 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

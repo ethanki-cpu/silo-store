@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-07-29 (EPIC-064A)
+- **EPIC-064A: 모든 Route에 관리자 전용 "페이지 수정" 버튼 부착 — Page Builder/Widget/DB 수정 없이 기존 `PageEditButton` 컴포넌트만 재사용**
+  - `src/app` 하위 135개 `page.tsx`를 전수 조사 — 51개는 이미 EPIC-060~062에서 버튼이 붙어 있었고, 나머지 84개 중 75개(placeholder 페이지 35개는 스크립트로, 나머지 49개는 개별 검토)에 새로 부착. `/admin/**` 9개는 관리자 CMS 도구 자체(가드는 이미 `admin/layout.tsx`가 처리, `/admin/pages/[id]`는 Page Builder 편집기 그 자체)라 의도적으로 제외 — 결과적으로 126/135 Route에 적용.
+  - Static Route(`/treasures`, `/shop` 등)와 Dynamic Route(`/boards/[id]`, `/docent/[id]`, `/heritage/grandma/[name]`, `/u/[memberId]`, `/mypage/collections/[category]` 등) 모두 포함.
+  - 버튼 위치는 `PageEditButton` 자체가 `fixed top-20 right-4`이므로 어느 페이지에 넣어도 화면상 동일한 위치에 뜬다 — 페이지별 레이아웃 조정 없이 일관성이 자동으로 보장됨.
+  - slug 네이밍: URL 경로를 대시로 이은 문자열로 통일(예: `/shop/projects/[id]` → `shop-projects-id`). 로딩/에러 중간 상태의 early return에는 버튼을 붙이지 않고, 실제 콘텐츠가 렌더링되는 지점에만 부착(리다이렉트 전용 페이지 `/mypage/collections`는 예외적으로 `return null` 자체를 버튼으로 교체).
+  - 클릭 시 동작은 기존 `PageEditButton`(`/admin/pages/[pageId]`로 이동, `page_builder`에 해당 slug 행이 있을 때만 관리자에게 노출) 그대로 — 새 기능 추가 없음.
+  - **검증**: `npx tsc --noEmit`/`npm run build`(135개 라우트 전부 컴파일)/`npm run lint`(신규 lint 에러 0건 — 발견된 30건은 전부 이번 변경과 무관한 기존 `react-hooks/set-state-in-effect` 패턴) 통과. 브라우저로 static/dynamic/placeholder/board/폼/redirect 26개 페이지를 직접 열어 콘솔 에러 없이 로딩 확인, 관리자가 아닌 세션에서 버튼이 어디에도 노출되지 않음을 확인.
+  - 문서 동기화: `docs/EPIC.md`, `NEXT_TASK.md`.
+
 ## 2026-07-29 (EPIC-063)
 - **EPIC-063: Navigation System Completion (Page-first Architecture) — Board가 아니라 Navigation/Hub Page/Sidebar UX만 수정**
   - **사전 감사 결과**: 라이브 `site_navigations`(DB)와 EPIC-062까지의 Hub Page(`/treasures`·`/docent`·`/heritage`·`/community`(+`/topics`·`/weekday`)·`/membership`·`/gallery`·`/archive`, 각 페이지의 관리자 전용 `PageEditButton`)는 이미 지시 사항대로 전부 갖춰져 있었다 — 신규 Route/버튼 생성 없이 실제로 남아 있던 프론트엔드 버그 3건 + DB 1건만 수정.

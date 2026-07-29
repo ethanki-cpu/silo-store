@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function HeritageGrandmaPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="shop-heritage-grandma" />
+      <PageHeader
       title="할머니"
       subtitle="사일로 Heritage"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function HeritageGrandmaPage() {
       ]}
       description="할머니의 이야기를 담은 사일로 Heritage 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

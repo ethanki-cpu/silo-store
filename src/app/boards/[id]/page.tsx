@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { BoardModule } from "@/components/modules/BoardModule";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 // EPIC-054C: 이 페이지의 조회/Search/Sort/Pagination 로직은 전부
 // BoardModule(src/components/modules/BoardModule.tsx)로 옮겨졌다 — 이제
@@ -11,10 +12,13 @@ export default function BoardPostsPage() {
   const { id } = useParams<{ id: string }>();
 
   return (
-    <main className="flex-1 bg-white px-6 py-12">
-      <div className="max-w-3xl mx-auto w-full">
-        <BoardModule boardId={String(id)} />
-      </div>
-    </main>
+    <>
+      <PageEditButton slug="boards-id" />
+      <main className="flex-1 bg-white px-6 py-12">
+        <div className="max-w-3xl mx-auto w-full">
+          <BoardModule boardId={String(id)} />
+        </div>
+      </main>
+    </>
   );
 }

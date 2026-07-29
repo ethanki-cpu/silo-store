@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function StylingInquiryPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="space-inquiry-styling" />
+      <PageHeader
       title="공간 스타일링"
       subtitle="스튜디오"
       breadcrumb={[
@@ -12,5 +15,6 @@ export default function StylingInquiryPage() {
       ]}
       description="공간 스타일링 문의 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

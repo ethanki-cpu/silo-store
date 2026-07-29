@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export default function OneSentenceNovelPage() {
   return (
-    <PageHeader
+    <>
+      <PageEditButton slug="salon-one-sentence-novel" />
+      <PageHeader
       title="한문장 소설 프로젝트"
       subtitle="Membership"
       breadcrumb={[
@@ -13,5 +16,6 @@ export default function OneSentenceNovelPage() {
       ]}
       description="한문장 소설 프로젝트 콘텐츠는 현재 준비 중입니다."
     />
+    </>
   );
 }

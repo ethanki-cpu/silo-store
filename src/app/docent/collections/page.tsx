@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { PageEditButton } from "@/components/admin/PageEditButton";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +115,9 @@ export default async function DocentCollectionsPage() {
   }
 
   return (
-    <main className="flex-1 p-8 max-w-3xl mx-auto w-full">
+    <>
+      <PageEditButton slug="docent-collections" />
+      <main className="flex-1 p-8 max-w-3xl mx-auto w-full">
       <h1 className="text-2xl font-bold mb-6">온라인 도슨트 라이브러리</h1>
 
       <section className="mb-8">
@@ -159,6 +162,7 @@ export default async function DocentCollectionsPage() {
           );
         })}
       </div>
-    </main>
+      </main>
+    </>
   );
 }

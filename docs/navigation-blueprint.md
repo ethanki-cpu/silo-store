@@ -5,6 +5,27 @@
 > Navigation을 변경/추가할 때는 이 문서를 먼저 확인하고, 변경 시 이 문서도 함께 갱신합니다.
 > 최종 확인: 2026-07-26 (EPIC-019 반영, 코드 기준).
 >
+> ⚠️ **문서 전반이 EPIC-023(site_navigations DB 기반 전환) 이전 하드코딩 스냅샷 기준으로 남아 있어
+> 실제 라이브 구조(그룹/항목 구성, `/shop`·`/boards` 위주였던 hrefs)와 상당 부분 어긋난다** —
+> `docs/database-schema.sql`이 드리프트했던 것과 같은 문제(§ CLAUDE.md 참고). 아래 §2/§3의 그룹
+> 목록은 실제 `site_navigations` 라이브 데이터가 아니라 EPIC-019 시절 하드코딩을 그대로 옮긴 것이니
+> 참고용으로만 볼 것 — 실제 그룹/항목은 Supabase `site_navigations` 테이블 또는
+> `navConfig.ts`의 `FALLBACK_NAV_TABS`(EPIC-058 갱신분, 각 그룹에 `href` 포함)를 확인할 것.
+> 전체 재작성은 별도 EPIC 필요(§9 관련 기록 참고).
+>
+> **EPIC-063(2026-07-29) 갱신**: 좌/우 전체 높이 Sidebar(§2/§3)의 여닫이 동작이 바뀌었다 —
+> 여닫이 아이콘 **hover 시에도 열림**(click도 계속 지원)으로 바뀌었고, **패널에서 마우스가
+> 벗어나도 더 이상 닫히지 않는다**(EPIC-043의 hover-out-close 제거). 이제 패널을 닫는 방법은
+> **바깥(backdrop) 클릭 · ✕ 버튼 · Escape** 세 가지뿐이다. 또한 모든 그룹이 예외 없이 **기본
+> 접힘**으로 시작하도록 통일했다(이전에는 LeftSidebar의 "사일로 보물들" 등 일부 그룹만
+> 기본 펼침이었음, EPIC-058 도입). 상단 Navbar의 작은 hover 플라이아웃(§8, Top Navigation)은
+> 이 변경과 무관하게 기존 hover-open/hover-out-close 그대로 유지되며, 그룹 헤더가 `href`를 가지면
+> (사일로 보물들→`/treasures`, 온라인 도슨트→`/docent`, 사일로 유산→`/heritage`, 커뮤니티→`/community`,
+> 멤버십→`/membership`, 갤러리→`/gallery`, 아카이브→`/archive` 등, 라이브 DB 기준 EPIC-063 감사에서
+> 전부 정상 확인됨) 클릭 시 해당 Hub Page로 이동하는 Link가 되도록 고쳤다(이전에는 top-nav
+> 플라이아웃에서만 그룹 헤더가 항상 클릭 불가한 버튼이었음 — LeftSidebar/RightSidebar 본 패널은
+> EPIC-058부터 이미 Link였음).
+>
 > ⚠️ **(EPIC-054D 감사 발견, P0)** 이 문서가 서술하는 구조는 **라이브 `site_navigations`(DB 시드, EPIC-023)** 기준이며, `src/lib/navConfig.ts`의 `FALLBACK_NAV_TABS`(EPIC-044가 재작성해 `/heritage/grandma|grandpa/[name]`·`/community/club/[name]` 동적 라우트를 가리키도록 바뀐 코드상 폴백)와는 **서로 다른 구조**다. 정상 운영 중에는 DB 조회가 성공하므로 사용자에게는 이 문서의 구조가 보이지만, DB 장애 시에는 코드 폴백(전혀 다른 구조)이 대신 뜬다는 뜻 — 두 구조 중 하나만 보고 "죽은 링크"/"orphan 페이지"를 판단하면 틀린 결론에 이른다. 통합(둘 중 하나로 일원화)은 새 nav 설계 작업이라 EPIC-054D 범위 밖(NEXT_TASK.md 기록), 별도 EPIC 필요.
 
 ## 1. 구조 개요

@@ -6,7 +6,7 @@ import type { NavTab } from "@/lib/navConfig";
 
 // EPIC-039: LeftSidebar.tsx와 대칭 구조 — 자세한 배경은 그쪽 주석 참고.
 //
-// EPIC-043: 여닫이 아이콘은 클릭으로만 열린다. RightSidebar는 LeftSidebar와
+// EPIC-043: 여닫이 아이콘은 클릭으로만 열렸다. RightSidebar는 LeftSidebar와
 // 달리 그룹 전부(커뮤니티/멤버십/갤러리/아카이브 등)가 기본 접힘으로 시작한다.
 //
 // EPIC-058: 그룹 헤더가 <p>(클릭 불가)였던 것을 "클릭하면 Hub Page로 이동" +
@@ -14,12 +14,15 @@ import type { NavTab } from "@/lib/navConfig";
 // 아코디언이었는데, hover는 라벨 클릭(이동)과 한 DOM에 묶이면 동작이
 // 섞여버려서 명시적 클릭 상태(useState)로 바꾼다 — LeftSidebar.tsx와 동일한
 // 패턴. 초기 펼침 여부(전부 기본 접힘)는 기존 동작 그대로 유지한다.
+//
+// EPIC-063: LeftSidebar.tsx와 동일하게 아이콘 hover로도 열리도록 변경하고,
+// "마우스가 패널을 벗어나면 닫힘"(hover-out close)을 제거한다 — 자세한
+// 배경은 LeftSidebar.tsx 주석 참고.
 export function RightSidebar({
   tab,
   open,
   onIconClick,
   onClose,
-  onAmbientLeave,
   iconUrl,
   iconSizePx = 32,
 }: {
@@ -27,7 +30,6 @@ export function RightSidebar({
   open: boolean;
   onIconClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
-  onAmbientLeave: () => void;
   iconUrl?: string;
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
@@ -76,6 +78,7 @@ export function RightSidebar({
           ref={triggerRef}
           type="button"
           onClick={onIconClick}
+          onMouseEnter={onIconClick}
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="right-sidebar-panel"
@@ -99,7 +102,6 @@ export function RightSidebar({
         id="right-sidebar-panel"
         aria-hidden={!open}
         inert={!open}
-        onMouseLeave={onAmbientLeave}
         className={`fixed inset-y-0 right-0 z-50 w-64 bg-green-800 text-white transform transition-transform duration-200 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}

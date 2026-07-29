@@ -4,6 +4,9 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-063 (필수, 관리자 실행 필요)**: `docs/sql/EPIC-063-nav-audit-fix.sql`을 Supabase SQL Editor에서 실행해야 함 — site_navigations 전체 감사 중 유일하게 발견된 깨진 행("입양신청서 라이브러리", href=null)을 `/shop`으로 임시 연결(전용 페이지가 없어 형제 항목과 동일한 목적지로 지정한 판단 — 실제 의도된 목적지가 다르면 이 UPDATE의 href 값만 바꿔 재실행할 것).
+- **EPIC-063 후속(P2, 문서 부채)**: `docs/EPIC.md`의 "완료" 목록이 EPIC-056에서 멈춰 있고 EPIC-057~062(Route 51개 신설, Page Builder CMS 신설, Fallback 제거, Page Architecture 전환)의 상세 요약이 누락돼 있었음 — EPIC-063 작업 중 발견, 커밋 로그 기준 한 줄 placeholder만 추가해뒀다. 각 EPIC의 상세 요약을 커밋 diff 기준으로 소급 작성하는 별도 작업 필요.
+- **EPIC-063 후속(참고)**: `/community/topics`·`/community/weekday`·`/treasures` 등 여러 Hub Page가 `page_builder`에 published 모듈이 없어(또는 하위 세부 slug만 채워져 있어) "이 페이지에는 아직 배치된 모듈이 없어요" EmptyState로 보인다 — 이번 EPIC은 Navigation/Page 라우팅·UX만 다루고 콘텐츠 시딩은 범위 밖("Board를 수정하지 않는다" 지시). 콘텐츠 채우기는 `/admin/pages`에서 관리자가 직접 모듈을 배치하면 된다.
 - **EPIC-056 후속**: `/shop`(사일로상점)·`/docent`(온라인 도슨트)·마이페이지 전체는 이번 EPIC에서 Board Module 조합으로 재구성하지 않았다 — 전부 `posts`/`boards` 테이블이 아닌 별도 데이터 도메인(items/docent_contents/개인 데이터)의 성숙한 기존 화면이라, 강제로 재구성하려면 새로운 어댑터/기능이 필요해 범위 밖이었다. 지시문 예시의 "사일로 보물들"/"보물 목록"/"온라인 도슨트"/"My Page" 조합을 실제로 구현하려면, 이 페이지들을 Board Module 체계로 옮길지 여부를 사용자와 먼저 결정해야 한다(데이터 모델이 근본적으로 다름).
 - **EPIC-056 후속**: `/studio`의 Calendar Module은 이번 달력만 보여주고 실제 예약/대관 일정(예: `rental_bookings` 테이블의 예약된 날짜)과는 연동되지 않았다 — 실 데이터 연동은 새 기능이라 범위 밖. 필요해지면 `markedDates` prop에 실제 예약된 날짜를 채우는 조회를 추가할 것.
 - **EPIC-056 후속**: `HeroModule`이 자동 생성하는 breadcrumb의 중간 항목(부모 hub 이름)은 링크가 없는 plain text다 — 부모 hub의 실제 board id를 모르기 때문(현재 `resolveBoardDefinition`은 slug만 알고 id는 모름). 클릭 가능한 링크로 만들려면 `/api/boards`를 한 번 더 조회해 부모 id를 찾는 로직이 필요.

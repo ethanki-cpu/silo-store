@@ -420,16 +420,34 @@ export function Navbar() {
                                 도달 가능하게 한다 — 그래야 group-focus-within/row가
                                 트리거될 수 있다(숨겨진(hidden) 자손은 애초에 Tab으로
                                 포커스를 받을 수 없어, 트리거 자체가 포커스 가능해야
-                                2차 플라이아웃이 키보드로도 열린다). 클릭 동작은 원래
-                                없었으므로(hover 전용) onClick은 추가하지 않는다. */}
-                            <button
-                              type="button"
-                              aria-haspopup="true"
-                              className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50 text-left"
-                            >
-                              <span>{group.groupLabel}</span>
-                              <span className="text-gray-400 text-xs">›</span>
-                            </button>
+                                2차 플라이아웃이 키보드로도 열린다).
+                                EPIC-063: group.href가 있으면(사일로 보물들→/treasures,
+                                온라인 도슨트→/docent, 사일로 유산→/heritage,
+                                커뮤니티→/community, 멤버십→/membership,
+                                갤러리→/gallery, 아카이브→/archive 등) 클릭 시 해당
+                                Hub Page로 이동하는 Link로 렌더링 — LeftSidebar.tsx/
+                                RightSidebar.tsx와 동일한 분기(href 없으면 클릭 불가
+                                버튼 그대로 유지). 펼침(hover)은 이동과 무관하게
+                                기존 그대로 group-hover/row로 동작한다. */}
+                            {group.href ? (
+                              <Link
+                                href={group.href}
+                                aria-haspopup="true"
+                                className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                              >
+                                <span>{group.groupLabel}</span>
+                                <span className="text-gray-400 text-xs">›</span>
+                              </Link>
+                            ) : (
+                              <button
+                                type="button"
+                                aria-haspopup="true"
+                                className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50 text-left"
+                              >
+                                <span>{group.groupLabel}</span>
+                                <span className="text-gray-400 text-xs">›</span>
+                              </button>
+                            )}
                             {/* 2차 플라이아웃 — group-hover/row 또는
                                 group-focus-within/row로 노출, JS 없음.
                                 pl-2가 그룹 행↔플라이아웃 사이의 브릿지 역할. */}
@@ -479,7 +497,6 @@ export function Navbar() {
         open={leftOpen}
         onIconClick={() => setLeftOpen(true)}
         onClose={() => setLeftOpen(false)}
-        onAmbientLeave={() => setLeftOpen(false)}
         iconUrl={sidebarIcons?.leftIconUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
       />
@@ -488,7 +505,6 @@ export function Navbar() {
         open={rightOpen}
         onIconClick={() => setRightOpen(true)}
         onClose={() => setRightOpen(false)}
-        onAmbientLeave={() => setRightOpen(false)}
         iconUrl={sidebarIcons?.rightIconUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
       />

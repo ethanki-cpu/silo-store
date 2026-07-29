@@ -8,27 +8,33 @@ import type { NavTab } from "@/lib/navConfig";
 // 드롭다운으로 통합했지만, 실사용 결과 화면 전체 높이의 슬라이드인 패널이
 // 다시 필요하다는 피드백을 받아 복구한다.
 //
-// EPIC-043: 여닫이 아이콘은 클릭으로만 열린다(hover로 열리지 않음 — 아래
-// 버튼에 onMouseEnter가 없는 이유). 패널이 열린 뒤 닫는 방법(바깥 클릭/✕/
-// 패널에서 마우스가 완전히 벗어남)은 그대로 유지.
+// EPIC-043: 여닫이 아이콘은 클릭으로만 열렸다(hover로 열리지 않음).
+//
+// EPIC-063: 아이콘 hover로도 열리도록 변경(onMouseEnter 추가, onClick도
+// 유지 — 터치 기기 대비) + "마우스가 패널을 벗어나면 닫힘"(hover-out
+// close)을 완전히 제거한다. 이제 패널을 닫는 방법은 오직 바깥(backdrop)
+// 클릭 · ✕ 버튼 · Escape 세 가지뿐이다 — Navbar.tsx의
+// `{(leftOpen || rightOpen) && <div onClick={closeSidebars} .../>}`
+// backdrop이 이미 "패널 바깥 아무 곳이나 클릭하면 닫힌다"를 구조적으로
+// 구현하고 있으므로(패널은 그 위에 더 높은 z-index로 떠 있어 배경 클릭만
+// backdrop에 도달) 별도의 document 클릭 리스너가 필요 없다.
 //
 // EPIC-058: 그룹 헤더가 <p>(클릭 불가)였던 것을, "클릭하면 Hub Page로
-// 이동" + "Chevron 클릭으로 펼치기/접기"의 두 동작으로 분리한다. 이전에는
-// "온라인 도슨트"/"헤리티지" 그룹만 hover로 펼쳐지는 CSS 아코디언이었는데,
-// hover는 라벨 클릭(이동)과 한 DOM에 묶이면 동작이 섞여버려서 명시적 클릭
+// 이동" + "Chevron 클릭으로 펼치기/접기"의 두 동작으로 분리한다. hover는
+// 라벨 클릭(이동)과 한 DOM에 묶이면 동작이 섞여버려서 명시적 클릭
 // 상태(useState)로 바꾼다 — 펼침 여부가 이동 여부와 완전히 독립적으로
-// 동작해야 하기 때문. 초기 펼침 여부는 기존 기본 동작(도슨트/헤리티지만
-// 기본 접힘, 나머지는 기본 펼침)을 그대로 유지한다.
-function defaultExpanded(groupLabel: string): boolean {
-  return !(groupLabel.includes("도슨트") || groupLabel.includes("헤리티지"));
-}
+// 동작해야 하기 때문.
+//
+// EPIC-063: 초기 펼침 여부를 그룹 라벨별로 다르게 뒀던 것(도슨트/헤리티지만
+// 기본 접힘, 나머지는 기본 펼침)을 제거 — 모든 그룹이 예외 없이 기본
+// 접힘으로 시작해야 한다는 요구사항이라 RightSidebar.tsx와 동일하게
+// 단순화한다.
 
 export function LeftSidebar({
   tab,
   open,
   onIconClick,
   onClose,
-  onAmbientLeave,
   iconUrl,
   iconSizePx = 32,
 }: {
@@ -36,7 +42,6 @@ export function LeftSidebar({
   open: boolean;
   onIconClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
-  onAmbientLeave: () => void;
   iconUrl?: string;
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
@@ -52,7 +57,7 @@ export function LeftSidebar({
     Record<string, boolean>
   >({});
   function isExpanded(groupLabel: string): boolean {
-    return expandedOverrides[groupLabel] ?? defaultExpanded(groupLabel);
+    return expandedOverrides[groupLabel] ?? false;
   }
   function toggleExpanded(groupLabel: string) {
     setExpandedOverrides((prev) => ({
@@ -86,6 +91,7 @@ export function LeftSidebar({
           ref={triggerRef}
           type="button"
           onClick={onIconClick}
+          onMouseEnter={onIconClick}
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="left-sidebar-panel"
@@ -109,7 +115,6 @@ export function LeftSidebar({
         id="left-sidebar-panel"
         aria-hidden={!open}
         inert={!open}
-        onMouseLeave={onAmbientLeave}
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-green-800 text-white transform transition-transform duration-200 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}

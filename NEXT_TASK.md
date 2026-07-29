@@ -4,6 +4,7 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-069 SQL 실행 필요**: `docs/sql/EPIC-069-hub-widget-upgrade.sql`을 Supabase SQL Editor에서 실행해야 Hub 6개(docent/community-topics/heritage/gallery/archive/membership)의 Slide 위젯 고도화와 orphan 페이지 2개(salon-gallery-awards/shop-reviews) 보강이 실제로 반영됨 — 아직 미실행. 실행 후 각 Hub 페이지와 두 orphan 페이지를 브라우저에서 열어 Slide 위젯에 실제 게시글 미리보기가 뜨는지 확인할 것.
 - **EPIC-068(완료, 2026-07-29 적용됨)**: "카테고리 만들면 자동으로 페이지+위젯 템플릿 생성" 요청 — `src/app/[...slug]/page.tsx`(catch-all) + `src/lib/pageTemplates.ts`(`ensurePageForSlug`)로 메커니즘 구현, `CategoryTreeManager.tsx`의 href 저장 시점에 연결. 실제 카테고리 생성으로 브라우저에서 직접 검증(새 URL이 catch-all로 렌더링, 5위젯 템플릿 자동 생성, PageEditButton도 뜸). 상세는 CHANGELOG.md 참고.
 - **EPIC-068 백필 SQL 실행 완료(2026-07-30)**: `docs/sql/EPIC-068-category-page-templates.sql`을 사용자가 Supabase SQL Editor에서 실행 완료 — 신규 게시판 30개 + 71개 페이지의 위젯 템플릿이 라이브 DB에 반영됨(anon-key REST 조회로 확인). 이제 하위 카테고리에 실제 콘텐츠가 생겼으니, 그 위에 있는 Hub 페이지(예: `/docent`, `/community/topics`)들의 단순 구성을 더 풍부한 Hero+Slide 조합으로 고도화하는 후속 작업이 가능해짐(아래 항목 참고).
 - **EPIC-068 진행 중 발견(P0 dual-nav의 구체 사례, 문서화만 하고 nav는 건드리지 않음)**: 아래 항목들은 라이브 `site_navigations`의 실제 href가 이번에 만든 페이지와 다른 경로를 가리키고 있었다 — 이미 문서화된 P0("FALLBACK_NAV_TABS vs 라이브 site_navigations 이중 구조")와 같은 계열의 문제가 여러 곳에서 추가로 확인된 것:

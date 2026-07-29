@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-07-30 (EPIC-069)
+- **EPIC-069: Hub 페이지 Hero + 다중 Slide 위젯 고도화 + Orphan 페이지 2개 보강** — "그 Hub들 업데이트해줘, orphan 페이지 2개 고쳐줘" 요청. EPIC-068 백필 SQL 실행 이후 하위 카테고리에 실제 게시판/글이 생겼는데, `/docent`·`/community/topics`·`/heritage`·`/gallery`·`/archive`·`/membership` 6개 Hub는 여전히 하위 카테고리를 "application"(단순 버튼) 위젯으로만 나열해 실제 콘텐츠 미리보기가 Hub 화면에 전혀 보이지 않는 상태였다.
+  - **`docs/sql/EPIC-069-hub-widget-upgrade.sql` 작성**(실행은 사용자가 Supabase SQL Editor에서 직접): 각 Hub의 application 버튼을 해당 게시판에 연결된 `slide`(Latest Posts Slider) 위젯으로 교체 — `/docent` 11개 시대, `/heritage` 2개(Grandmas/Grandpas), `/gallery` 5개(시상식/공연/파티/방문자/패트론), `/archive` 3개(소개지/포스터/타임라인, 기존 자료게시판 `board` 위젯은 유지), `/membership` 4개(나의 보물이야기/한문장 소설/마음일기/비밀의 방, 기존 패트론 라운지/아티스트 홍보 `board` 위젯 2개는 유지). `/community/topics`는 hero 자체가 없고 13개 클럽 중 3개만 단일 board/gallery/slide/video로 뒤섞여 있던 상태라 전면 교체 — hero + 13개 클럽 전부의 slide로 재구성.
+  - **Orphan 페이지 2개 보강**: `salon-gallery-awards`(gallery 위젯 1개, board_id 미연결), `shop-reviews`(gallery 위젯 1개, After Adoption 보드에 이미 연결)는 EPIC-068 백필 가드("모듈 0개일 때만 삽입")에 걸려 hero/quote/board가 채워지지 못한 상태였다 — 기존 gallery 위젯은 그대로 두고 hero+quote+board를 앞에 추가(salon-gallery-awards는 gallery의 board_id도 시상식 보드로 함께 연결).
+  - **DB 조회로 board_id 확인**: anon-key REST API로 각 카테고리별 실제 board id를 확인 후 스크립트에 `(select id from boards where category = '...')` 서브쿼리로 반영(하드코딩 UUID 없음, EPIC-068 컨벤션과 동일) — `EPIC-068-category-page-templates.sql`에 이미 같은 목적으로 작성돼 있었으나 "모듈 0개" 가드에 막혀 한 번도 실행되지 못했던 hub 템플릿 블록(`docent`/`community-topics`/`heritage`/`gallery`/`archive`/`membership`)을 발견 — 동일한 board 매핑을 재사용해 일관성 확보, 다만 기존에 이미 살아있는 hero 문구·`board`(전체 목록) 위젯은 그대로 보존(완전 교체 대신 기존 콘텐츠 보존 + 부족한 부분만 보강하는 방향).
+  - **멱등성**: 모든 UPDATE는 `module_type='application' AND settings->'actions'->0->>'href'=...`로 매칭해, 이미 slide로 바뀐 뒤 재실행해도 매칭 행이 없어 안전. INSERT 구간(`community-topics`/orphan 2개)은 "hero가 아직 없을 때만" DO 블록 가드.
+  - **검증**: 라이브 DB 미실행 상태이므로 브라우저 검증은 사용자가 SQL 실행 후 진행. SQL 구조 자체는 `do $$...end $$;` 블록 3개 페어링/UPDATE 25건(11+2+5+3+4) 개수를 grep으로 재확인.
+
 ## 2026-07-30 (EPIC-053 병합)
 - **EPIC-053 병합: Block Editor 시스템을 `develop` 계보에 통합** — 오랫동안 `main`에서 분기된 채 별도로 남아있던 `feature/EPIC-053`(EPIC-053/053.1, Block Editor 시스템 확장+완성)을 정식으로 `develop`에 병합. 사용자가 EPIC-068 백필 SQL 실행을 알린 뒤 "지금까지의 파일이 정리돼 있는지, 병합할 게 있는지" 점검을 요청해 발견 — `docs/STAGES.md` Stage 1의 "Block Editor" 항목이 이 결정 하나에 걸려 있던 상태였다.
   - **충돌 11개 파일 수동 해소**: `merge/epic-053-into-develop` 통합 브랜치(`git merge --no-commit --no-ff feature/EPIC-053`)에서 하나씩 검토.

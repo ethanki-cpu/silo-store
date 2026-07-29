@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2026-07-29 (EPIC-067-HOTFIX 추가)
+- **`/treasures`(사일로 보물들) Video 위젯 미재생 버그 수정** — 사용자가 URL을 입력했는데도 영상이 로드되지 않는다고 실제로 보고. `/treasures` 페이지를 직접 열어 재현한 결과, 운영자가 입력한 값이 유튜브 워치 URL(`youtube.com/watch?v=FJN2kKc1g5Y&t=69s`)이었고, `VideoWidget.tsx`는 항상 `<video src={url}>`로만 렌더링해 `MEDIA_ELEMENT_ERROR: Format error`로 조용히 실패하고 있었다(`<video>` 태그는 직접 미디어 파일 URL만 재생 가능, 유튜브/비메오 페이지 URL은 재생 불가) — Inspector의 "영상 URL" 필드가 이 제약을 안내하지 않아 운영자 입장에서는 당연히 될 거라 생각할 만한 입력이었다.
+  - **수정**: `src/components/modules/VideoWidget.tsx`에 `toEmbedUrl()` 추가 — 유튜브(`youtube.com/watch`, `youtu.be`, `/shorts/`, `/embed/`)와 비메오(`vimeo.com`, `player.vimeo.com`) URL을 감지해 각각의 `<iframe>` embed URL로 변환해 재생하고(유튜브는 `t=`/`start=` 타임스탬프 쿼리도 embed의 `?start=`로 보존), 그 외(직접 업로드한 mp4 등)는 기존 `<video>` 태그 그대로 재생.
+  - **검증**: `/treasures`를 새로고침해 실제 유튜브 URL이 `https://www.youtube.com/embed/FJN2kKc1g5Y?start=69` iframe으로 정상 렌더링되고 콘솔 에러가 없어짐을 확인. `npx tsc --noEmit`/`npm run lint`(기존 baseline과 동일, 신규 0건) 통과.
+
 ## 2026-07-29 (EPIC-067-HOTFIX)
 - **EPIC-067-HOTFIX: Fix Non-Rendering Widgets (Gallery, Slider, Timeline, Video)** — "Board 위젯을 제외한 Gallery/Latest Posts Slider/Timeline/Video 위젯이 미리보기와 실제 화면에 전혀 렌더링되지 않는다"는 보고를 조사.
   - **조사 방법**: 관리자 로그인 세션이 열려 있어(`/admin/pages/[id]`) 4개 위젯을 실제로 추가·저장해 Live Preview와 저장 후 새로고침한 공개 페이지(`/shop`) 양쪽에서 직접 확인.

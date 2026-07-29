@@ -4,6 +4,7 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-064A 후속(필수, 관리자 실행 필요)**: `docs/sql/EPIC-064A-page-builder-backfill.sql`을 Supabase SQL Editor에서 실행해야 함 — 관리자로 로그인해도 9개 Hub Page(treasures/docent/heritage/community/membership/gallery/archive/studio/mypage) 외의 117개 하위 Route는 `page_builder`에 매칭되는 행이 없어 "페이지 수정" 버튼이 안 뜨는 문제가 사용자 확인으로 발견됐다(EPIC-064A는 지시대로 컴포넌트만 심고 DB는 건드리지 않았기 때문). 이 SQL은 그 117개 slug를 전부 `status='draft'`로 추가해 버튼만 뜨게 한다(공개 화면 영향 없음, ON CONFLICT DO NOTHING이라 재실행 안전) — 대부분의 페이지는 `page_builder`를 직접 읽지 않는 기존 하드코딩 렌더링이라, 버튼을 눌러 `/admin/pages`에서 모듈을 구성해도 실제 화면엔 반영되지 않는다(`PageBuilderRenderer`를 쓰는 페이지만 해당) — 이 SQL은 "버튼이 보이게"까지만 해결한다.
 - **EPIC-064A 후속(선택)**: `/admin/**` 9개 페이지(navigation, navigation/settings, pages, pages/[id], payments, posts, posts/salon, posts/shop, projects/new)에는 의도적으로 `PageEditButton`을 붙이지 않았다 — 이미 `admin/layout.tsx`가 관리자 가드를 하고 있고 CMS 도구 자체(예: `/admin/pages/[id]`는 Page Builder 편집기 그 자체)라 버튼의 목적과 안 맞는다고 판단했다. 만약 사용자가 이 판단에 동의하지 않으면(예: "모든 Route"를 문자 그대로 admin 포함으로 원한다면) 별도로 알려주면 추가할 것.
 - **EPIC-063 (필수, 관리자 실행 필요)**: `docs/sql/EPIC-063-nav-audit-fix.sql`을 Supabase SQL Editor에서 실행해야 함 — site_navigations 전체 감사 중 유일하게 발견된 깨진 행("입양신청서 라이브러리", href=null)을 `/shop`으로 임시 연결(전용 페이지가 없어 형제 항목과 동일한 목적지로 지정한 판단 — 실제 의도된 목적지가 다르면 이 UPDATE의 href 값만 바꿔 재실행할 것).
 - **EPIC-063 후속(P2, 문서 부채)**: `docs/EPIC.md`의 "완료" 목록이 EPIC-056에서 멈춰 있고 EPIC-057~062(Route 51개 신설, Page Builder CMS 신설, Fallback 제거, Page Architecture 전환)의 상세 요약이 누락돼 있었음 — EPIC-063 작업 중 발견, 커밋 로그 기준 한 줄 placeholder만 추가해뒀다. 각 EPIC의 상세 요약을 커밋 diff 기준으로 소급 작성하는 별도 작업 필요.

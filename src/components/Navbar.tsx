@@ -384,6 +384,7 @@ export function Navbar() {
               {tab.href ? (
                 <Link
                   href={tab.href}
+                  onClick={(e) => e.currentTarget.blur()}
                   className={className}
                   aria-haspopup={hasChildren ? "true" : undefined}
                 >
@@ -428,10 +429,19 @@ export function Navbar() {
                                 Hub Page로 이동하는 Link로 렌더링 — LeftSidebar.tsx/
                                 RightSidebar.tsx와 동일한 분기(href 없으면 클릭 불가
                                 버튼 그대로 유지). 펼침(hover)은 이동과 무관하게
-                                기존 그대로 group-hover/row로 동작한다. */}
+                                기존 그대로 group-hover/row로 동작한다.
+                                EPIC-069 후속 핫픽스: 클릭하면 브라우저가 이 Link에
+                                포커스를 주는데, Next.js 클라이언트 사이드 라우팅은
+                                포커스를 초기화하지 않아 이동 후에도 이 Link가 계속
+                                포커스를 쥐고 있었다 — group-focus-within/row(그리고
+                                조상인 group-focus-within/tab)가 계속 참으로 남아
+                                마우스가 벗어나도 이 그룹(과 상위 탭 메가메뉴)이
+                                펼쳐진 채로 "고정"되는 버그의 실제 원인이었다.
+                                onClick에서 즉시 blur()해 해결. */}
                             {group.href ? (
                               <Link
                                 href={group.href}
+                                onClick={(e) => e.currentTarget.blur()}
                                 aria-haspopup="true"
                                 className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                               >
@@ -457,6 +467,7 @@ export function Navbar() {
                                   <Link
                                     key={`${item.href}-${idx}`}
                                     href={item.href}
+                                    onClick={(e) => e.currentTarget.blur()}
                                     className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                   >
                                     {item.label}
@@ -470,6 +481,7 @@ export function Navbar() {
                           <Link
                             key={item.href}
                             href={item.href}
+                            onClick={(e) => e.currentTarget.blur()}
                             className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
                             {item.label}

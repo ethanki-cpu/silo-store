@@ -7,6 +7,8 @@ import {
 } from "@/components/HomeCurationSlider";
 import type { CategoryDomain } from "@/app/admin/navigation/shared";
 import { PageEditButton } from "@/components/admin/PageEditButton";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { fetchPublishedPageBySlug } from "@/lib/pageBuilder";
 
 // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
 // site_settings.hero_slideshow를 조회해 최상단 히어로 배너를 렌더링한다.
@@ -134,6 +136,12 @@ export default async function Home() {
     })),
   );
 
+  // EPIC-067: page_builder(slug="home")의 published 모듈을 히어로/큐레이션
+  // 아래에 이어서 렌더링 — PageEditButton은 있었지만 PageBuilderRenderer가
+  // 없어 관리자가 위젯을 구성해도 화면에 반영되지 않던 결함(EPIC-066 발견)을
+  // 수정. 기존 히어로/큐레이션 콘텐츠는 그대로 유지하고 그 아래에 배치한다.
+  const homePage = await fetchPublishedPageBySlug("home");
+
   return (
     <>
       <PageEditButton slug="home" />
@@ -167,6 +175,10 @@ export default async function Home() {
           items={items}
         />
       ))}
+
+      <div className="max-w-3xl mx-auto w-full px-6 py-12">
+        <PageBuilderRenderer modules={homePage?.modules ?? []} />
+      </div>
       </div>
     </>
   );

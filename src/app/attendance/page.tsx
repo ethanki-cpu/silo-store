@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { PageEditButton } from "@/components/admin/PageEditButton";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 
 function todayDateString(): string {
   return new Date().toISOString().slice(0, 10);
@@ -19,6 +21,19 @@ export default function AttendancePage() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  // EPIC-067: page_builder(slug="attendance") 위젯을 출석 달력 아래에 이어서
+  // 렌더링(EPIC-066이 발견한 PageEditButton-only 결함 수정, Phase 1).
+  const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedPageBySlug("attendance").then((result) => {
+      if (!cancelled) setPageModules(result?.modules ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!loading && !session) {
@@ -144,6 +159,10 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
+
+      <div className="mt-12 pt-8 border-t border-gray-200">
+        <PageBuilderRenderer modules={pageModules} />
+      </div>
       </main>
     </>
   );

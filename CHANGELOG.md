@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-07-29 (EPIC-067-HOTFIX)
+- **EPIC-067-HOTFIX: Fix Non-Rendering Widgets (Gallery, Slider, Timeline, Video)** — "Board 위젯을 제외한 Gallery/Latest Posts Slider/Timeline/Video 위젯이 미리보기와 실제 화면에 전혀 렌더링되지 않는다"는 보고를 조사.
+  - **조사 방법**: 관리자 로그인 세션이 열려 있어(`/admin/pages/[id]`) 4개 위젯을 실제로 추가·저장해 Live Preview와 저장 후 새로고침한 공개 페이지(`/shop`) 양쪽에서 직접 확인.
+  - **재현 결과 — Gallery/Timeline/Latest Posts Slider(`slide`)는 정상 동작**: `PageBuilderRenderer`의 `module_type` 매핑(`src/components/PageBuilderRenderer.tsx`), `DbGalleryModule`/`DbSlideModule`/`DbTimelineModule`(`src/components/modules/DbFeedModules.tsx`)의 `board_id` → `useBoardPosts` 데이터 주입, `GalleryModule`/`SlideModule`/`TimelineView` 렌더링 모두 코드 검토와 실제 클릭 테스트에서 결함을 재현하지 못했다 — 게시판을 선택하면 Live Preview와 새로고침한 공개 페이지 양쪽에서 실제 글(이미지/제목/작성자/좋아요/조회/댓글)이 정상 출력됨을 확인(콘솔 에러 없음). 세 위젯 모두 `BOARD_LINKED_MODULE_TYPES`에 포함돼 있어 위젯 추가 시 게시판 선택 화면이 자동으로 열리므로, 게시판을 아직 선택하지 않은 상태에서는 "연결된 게시판이 없거나 글이 없어요."라는 안내 문구가 정상적으로 보인다(이 상태를 "렌더링 안 됨"으로 오인했을 가능성).
+  - **실제로 발견·수정한 결함 — Video 위젯**: `VideoWidget.tsx`가 `url`이 비어 있을 때 `return null`로 **아무 안내도 없이 완전히 사라졌다** — Video는 `BOARD_LINKED_MODULE_TYPES`에 없어 위젯 추가 시 설정 화면이 자동으로 열리지 않으므로(다른 3개 위젯과 달리), 운영자가 위젯을 추가한 직후 url을 입력하지 않으면 화면에 아무 흔적도 남지 않아 "위젯이 고장났다"고 오인하기 가장 쉬운 상태였다. `src/components/modules/VideoWidget.tsx`를 수정해 다른 데이터 의존 위젯(Board/Gallery/Timeline의 안내 문구)과 동일하게 "영상 URL이 아직 설정되지 않았어요." placeholder를 렌더링하도록 안전하게(safe render) 변경. url을 입력하면 Live Preview에서 즉시(저장 전에도) `<video>` 태그가 정상 렌더링됨을 확인.
+  - **검증**: `npx tsc --noEmit`/`npm run lint`(기존 baseline 29 errors/2 warnings와 동일, 신규 0건, `VideoWidget.tsx` 무관 확인) 통과. 테스트에 사용한 4개 위젯은 확인 후 전부 삭제해 `/shop` 페이지를 원상복구.
+  - 문서 동기화: `NEXT_TASK.md`.
+
+## 2026-07-29 (EPIC-067)
+- **EPIC-067: Page Builder Integration for Remaining Pages (Phase 1)** — EPIC-066이 발견한 결함(79개 페이지가 `PageEditButton`만 달려 있고 `PageBuilderRenderer`를 호출하지 않아 관리자가 위젯을 구성해도 화면에 반영되지 않음) 중 사용자 노출도가 높은 핵심 도메인 12개 페이지를 우선 전환.
+  - **전환 완료 12개**: `/`(홈, slug=`home`), `/shop`(slug=`shop`), `/shop/[id]`(slug=`shop-id`), `/docent/[id]`(slug=`docent-id`), `/boards/[id]`(slug=`boards-id`), `/clubs`(slug=`clubs`), `/clubs/[id]`(slug=`clubs-id`), `/rental`(slug=`rental`), `/rental/[rentalTypeId]`(slug=`rental-rentaltypeid`), `/downloads`(slug=`downloads`), `/attendance`(slug=`attendance`), `/u/[memberId]`(slug=`u-memberid`).
+  - **패턴**: 기존 형제 페이지(`/salon/event-notices`, `/docent/art-deco` 등)와 달리 이 12개는 전부 실제 핵심 콘텐츠(물품 상세/구매, 도슨트 본문/구매, 게시판 글 목록, 클럽 신청, 대관 예약, 자료 목록, 출석 달력, 회원 프로필 글)가 있는 페이지라 콘텐츠를 위젯으로 대체하지 않고, 기존 콘텐츠는 그대로 유지한 채 `fetchPublishedPageBySlug(slug)` + `<PageBuilderRenderer modules={...} />`를 그 아래에 이어 붙이는 방식을 채택(서버 컴포넌트 4개는 `await` 직접 호출, 클라이언트 컴포넌트 8개는 별도 `useEffect`로 병렬 fetch). `page_builder`에 아직 위젯이 없으면 사이트 전역 관례대로 "이 페이지에는 아직 배치된 모듈이 없어요" EmptyState가 그 자리에 보인다(관리자가 위젯을 추가하면 즉시 대체됨).
+  - **검증**: `npx tsc --noEmit`/`npm run build`(전체 페이지 정상 컴파일)/`npm run lint`(기존 baseline 29 errors/2 warnings와 동일, 신규 0건, 12개 수정 파일 모두 무관함을 grep으로 확인) 통과. 로그인 세션이 열려 있어 `/`, `/shop`, `/shop/[id]`, `/boards/[id]`, `/clubs` 5개를 브라우저로 직접 열어 기존 콘텐츠(물품 그리드/상세 큐레이션/게시판 글 목록·페이지네이션/클럽 목록)가 그대로 렌더링되고 그 아래에 새 위젯 영역(현재는 미구성 상태의 EmptyState)이 콘솔 에러 없이 나타남을 확인.
+  - **범위 밖(Phase 2 이후)**: 나머지 66개 페이지(`mypage/*` 11개, `salon/*`/`gallery/*`/`membership/*` 등 정적 PageHeader류, `boards/page.tsx` 디렉토리·`boards/[id]/write`·`boards/[id]/[postId]`, `login`/`signup`/`settings`/`me` 등)는 이번 Phase에서 다루지 않음 — 아래 NEXT_TASK.md 참고.
+  - 문서 동기화: `docs/EPIC.md`, `docs/PROJECT_DASHBOARD.md`, `docs/STAGES.md`, `NEXT_TASK.md`.
+
 ## 2026-07-29 (EPIC-066)
 - **EPIC-066: Board Widget을 실데이터 렌더링으로 완성 — Renderer Registry + Pagination/Search/Sort/Filter/Empty/Skeleton**
   - **사전 감사(사용자 확인)**: "Board Type 10종" 중 실제 존재하는 건 5종(story/community/gallery/hub/timeline)뿐 — Survey/Calendar/Application은 위젯 타입이지 게시판 타입이 아니고, Collection/Forum은 존재한 적 없음. 실제 5종 기준으로 진행하기로 확정. "빈 화면"의 대부분은 렌더링 버그가 아니라 실제 게시글 0건(EmptyState 정상)임도 함께 확인.

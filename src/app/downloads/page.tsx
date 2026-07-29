@@ -3,6 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import { PageEditButton } from "@/components/admin/PageEditButton";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 
 type DownloadItem = {
   id: string;
@@ -22,6 +24,19 @@ export default function DownloadsPage() {
   const [fileUrl, setFileUrl] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // EPIC-067: page_builder(slug="downloads") 위젯을 자료 목록 아래에 이어서
+  // 렌더링(EPIC-066이 발견한 PageEditButton-only 결함 수정, Phase 1).
+  const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedPageBySlug("downloads").then((result) => {
+      if (!cancelled) setPageModules(result?.modules ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function load() {
     setFetching(true);
@@ -149,6 +164,10 @@ export default function DownloadsPage() {
           ))}
         </div>
       )}
+
+      <div className="mt-12 pt-8 border-t border-gray-200">
+        <PageBuilderRenderer modules={pageModules} />
+      </div>
       </main>
     </>
   );

@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { PageEditButton } from "@/components/admin/PageEditButton";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 
 type RentalType = {
   id: string;
@@ -53,6 +55,19 @@ export default function RentalBookingPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BookingResult | null>(null);
+
+  // EPIC-067: page_builder(slug="rental-rentaltypeid") 위젯을 예약 폼 아래에
+  // 이어서 렌더링(EPIC-066이 발견한 PageEditButton-only 결함 수정, Phase 1).
+  const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedPageBySlug("rental-rentaltypeid").then((pageResult) => {
+      if (!cancelled) setPageModules(pageResult?.modules ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -203,6 +218,10 @@ export default function RentalBookingPage() {
           )}
         </div>
       )}
+
+      <div className="mt-12 pt-8 border-t border-gray-200">
+        <PageBuilderRenderer modules={pageModules} />
+      </div>
       </main>
     </>
   );

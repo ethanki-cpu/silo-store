@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { PageEditButton } from "@/components/admin/PageEditButton";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 
 type ContentDetail = {
   id: string;
@@ -37,6 +39,19 @@ export default function DocentDetailPage() {
   const [purchaseResult, setPurchaseResult] = useState<PurchaseResult | null>(
     null,
   );
+
+  // EPIC-067: page_builder(slug="docent-id") 위젯을 본문/구매 영역 아래에
+  // 이어서 렌더링(EPIC-066이 발견한 PageEditButton-only 결함 수정, Phase 1).
+  const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedPageBySlug("docent-id").then((result) => {
+      if (!cancelled) setPageModules(result?.modules ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function load() {
     setFetching(true);
@@ -193,6 +208,10 @@ export default function DocentDetailPage() {
           )}
         </div>
       )}
+
+      <div className="mt-12 pt-8 border-t border-gray-200">
+        <PageBuilderRenderer modules={pageModules} />
+      </div>
       </main>
     </>
   );

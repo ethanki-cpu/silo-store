@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { WishlistButton } from "@/components/WishlistButton";
 import { PageEditButton } from "@/components/admin/PageEditButton";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 
 type Persona = {
   id: string;
@@ -70,6 +72,19 @@ export default function ItemDetailPage() {
   >(null);
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  // EPIC-067: page_builder(slug="shop-id") 위젯을 큐레이션 정보 아래에
+  // 이어서 렌더링(EPIC-066이 발견한 PageEditButton-only 결함 수정, Phase 1).
+  const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedPageBySlug("shop-id").then((result) => {
+      if (!cancelled) setPageModules(result?.modules ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -268,6 +283,10 @@ export default function ItemDetailPage() {
             </div>
           );
         })}
+      </div>
+
+      <div className="mt-12 pt-8 border-t border-gray-200">
+        <PageBuilderRenderer modules={pageModules} />
       </div>
       </main>
     </>

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { PageEditButton } from "@/components/admin/PageEditButton";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { fetchPublishedPageBySlug } from "@/lib/pageBuilder";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,9 @@ export default async function RentalPage({
     )
     .eq("floor", floor)
     .order("shoot_type");
+
+  // EPIC-067: page_builder(slug="rental") 위젯을 대관 종류 목록 아래에 이어서 렌더링.
+  const rentalPage = await fetchPublishedPageBySlug("rental");
 
   return (
     <>
@@ -69,6 +74,10 @@ export default async function RentalPage({
           ))}
         </div>
       )}
+
+      <div className="mt-12 pt-12 border-t border-gray-200">
+        <PageBuilderRenderer modules={rentalPage?.modules ?? []} />
+      </div>
       </main>
     </>
   );

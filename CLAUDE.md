@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **Feature Branch Workflow** — 새로운 EPIC이나 작업을 시작할 때는 반드시 `main`을 최신 상태로 pull 받은 후, `feature/EPIC-<번호>` 또는 `feature/<작업명>` 형식의 새 브랜치를 생성해 이동한 뒤 작업한다.
 3. **Sync First** — 사용자가 작업 시작을 알리면, 다른 작업에 앞서 `git fetch`와 `git status`로 원격 저장소와 로컬의 상태를 먼저 확인하고 그 결과를 사용자에게 보고한다.
 4. **WIP Push** — 사용자가 작업을 중단하거나 퇴근한다고 알리면, 현재 브랜치에 진행 중인 모든 변경 사항을 커밋하고 반드시 `origin`에 push하여 다른 기기에서 이어서 작업할 수 있도록 백업한다.
+5. **`develop` = `dev.silostore.net` 배포 브랜치(2026-07-29, 사용자 지시)** — `develop` 브랜치가 `https://dev.silostore.net/`에 배포되는 브랜치다(Vercel 등 정확한 배포 설정은 레포 밖이라 agent가 직접 확인할 수 없음 — 브랜치 이름과 도메인 이름의 대응으로 추정, 사용자가 확인). **사용자가 "커밋하고 push해줘"라고 할 때마다, 별도로 매번 다시 확인받지 않고**: (1) 현재 작업 브랜치(`feature/EPIC-<번호>`)에 커밋 후 push, (2) `develop`이 그 커밋의 조상(fast-forward 가능)이면 `develop`도 그 커밋으로 fast-forward해서 push까지 한다 — `dev.silostore.net`이 항상 최신 작업을 반영하도록. `develop`이 fast-forward 불가능한 상태(다른 곳에서 별도로 진행된 커밋이 있어 분기됨)면 병합하지 말고 사용자에게 알린다. `main`은 이 규칙과 별개로, 병합은 사용자가 명시적으로 요청할 때만 한다(예: "EPIC 54~63 전부 병합해줘").
 
 ## 세션 시작 시 읽기 순서 (EPIC-054E)
 

@@ -186,6 +186,37 @@
   - 문서 동기화: `docs/navigation-blueprint.md`, `docs/content-blueprint.md`, `docs/membership-blueprint.md`, `docs/design-system.md`, `PROJECT_BLUEPRINT.md`, `docs/EPIC.md`.
   - 검증: `npx tsc --noEmit`/`npm run lint` 통과(신규 파일 관련 에러 0건 — 기존 lint 에러 27건은 전부 이번 변경과 무관한 pre-existing `react-hooks/set-state-in-effect` 이슈, NEXT_TASK.md에 이미 기록됨). Board Definition System, Block Editor, DB 스키마는 전혀 건드리지 않음.
 
+## 2026-07-28 (EPIC-053.1)
+- **EPIC-053.1: Block Editor 완성 — 운영 가능 수준으로 마무리**
+  - **사전 확인**: `member_bucket_list`가 라이브 DB에 없고(EPIC-052부터 문서에만 존재) RLS도 없는 상태를 재확인 — 이번 세션도 Management API 토큰이 없어 직접 적용은 못 하고, own-row 패턴(member_collections와 동일) SELECT/INSERT/UPDATE/DELETE 정책 SQL을 `docs/sql/epic-053-1.sql`에 작성.
+  - **정본을 HTML에서 Tiptap JSON으로 전환**: `src/lib/blockEditorCore.ts` 신규 — 서버(Route Handler)와 클라이언트(BlockEditor)가 동일하게 import하는 Tiptap 확장 스키마. `posts.body_json`(jsonb, 신규 컬럼)이 정본이고, `posts.body`(HTML)는 `renderPostHtml()`이 매 저장마다 JSON으로부터 다시 계산해 채우는 파생 캐시 — 클라이언트가 무엇을 보내든 실제 렌더 HTML은 서버가 재계산 후 DOMPurify로 새니타이즈한다(Stored XSS 이중 방어 + "정본은 JSON" 원칙을 서버가 강제). EPIC-053이 만든 `src/lib/blocks.tsx`(커스텀 Block[] 타입 시스템)는 끝내 에디터와 연결되지 않은 죽은 코드였음을 확인하고 삭제 — Tiptap의 ProseMirror JSON 자체가 이미 "타입+속성을 가진 블록 트리"이므로 병행 트리를 새로 발명하지 않는 쪽이 Tiptap 권장 패턴에 맞고 유지보수하기 쉽다(아래 운영 리뷰 참고).
+  - **커스텀 Block 노드**: `FigureImage`(이미지 1장 — 캡션/ALT/삭제/순서변경(드래그+버튼)/대표이미지 지정), `Gallery`(여러 장 그리드 — 추가/삭제/순서변경/열 수 조절), `Embed`(Youtube/Vimeo/Instagram/Spotify/Google Maps — URL 입력 시 실제 iframe Preview), `LinkCard`(외부 링크 카드) — 전부 React NodeView(`src/components/editor/BlockEditor.tsx`)로 편집 가능. 기본 `@tiptap/extension-image`는 `FigureImage`로 완전히 대체(이미지 표현이 두 갈래로 나뉘지 않게).
+  - **Lightbox**: `src/components/editor/Lightbox.tsx` 신규 — 슬라이드(이전/다음, 키보드 방향키), 클릭 확대, ESC/배경 클릭 닫기. 에디터 미리보기와 실제 게시글 상세(`PostBody.tsx`, dangerouslySetInnerHTML 위에 이벤트 위임으로 클릭 감지) 양쪽에서 재사용.
+  - **대표 이미지**: `posts.featured_image_url`/`featured_image_path`(신규 컬럼) — 본문 이미지에서 ★로 지정하거나 별도 업로드. 미지정 시 본문 첫 이미지로 폴백. `BoardRenderer`/`StoryCard`/`PostDetailHeader`가 `photo_url`보다 이 값을 우선 사용해 썸네일에 반영.
+  - **Preview**: BlockEditor 툴바의 "미리보기" 토글 — 별도 렌더러를 새로 만들지 않고 `editor.getHTML()`(실제 게시글과 동일한 sanitize 경로) 결과를 그대로 보여준다.
+  - **게시글 수정 화면 신설**: `posts.updated_at`은 있었지만 실제 수정 UI/API가 없었음(스키마 주석에 명시) — `src/app/boards/[id]/[postId]/edit/page.tsx` + `PATCH /api/boards/[id]/posts/[postId]` 신규. 본인(또는 관리자)만 수정 가능, `body_json`을 그대로 에디터에 복원. 글쓰기/수정 화면이 새 `PostForm`(`src/components/boards/PostForm.tsx`) 하나를 공유(새 Editor 생성 금지 원칙 — 중복 코드 없음). 게시글 상세(`PostDetailHeader`)에 작성자 전용 "수정" 링크 추가.
+  - **Storage Garbage Collection**: 즉시 삭제 대신 `image_cleanup_queue`(신규 테이블) 큐잉 — 게시글 수정 시 이전 본문에서 빠진 이미지(`src/lib/imageGc.ts`), 아직 다루지 않은 삭제 플로우는 설계만(관련 테이블/정책은 준비됨). 실제 삭제는 관리자 전용 `POST /api/admin/storage-cleanup`(이 앱은 service-role 키를 쓰지 않아 admin 세션으로만 Storage 삭제 가능 — 한 번에 최대 50건, 스케줄러는 미구현).
+  - **Storage Bucket + Policy SQL**: `docs/sql/epic-053-1.sql`에 `post-images`/`gallery`/`attachments` 버킷 생성 + 정책(공개 읽기/로그인 사용자 업로드/관리자 또는 업로드 본인 삭제) 작성 — 아직 어떤 버킷도 라이브 프로젝트에 없어 실행 전에는 이미지 업로드 자체가 실패한다.
+  - **정리**: 미사용 `RichTextEditor.tsx`(EPIC-052, EPIC-053부터 아무도 import하지 않음), `src/lib/blocks.tsx`(위 참고) 삭제. `sanitize.ts`에 새 노드 렌더링용 속성(`data-featured`/`data-provider`) 허용 추가.
+  - **운영 리뷰에서 발견한 기존 버그(수정)**: `POST /api/boards/[id]/drafts`(EPIC-053, 어떤 화면도 호출하지 않는 죽은 코드)가 `posts.visibility='draft'`로 insert를 시도하는데 기존 CHECK 제약(`public`/`private`/`friends`만 허용)이 항상 이를 막고 있었다 — 제약을 넓히는 SQL을 포함(라우트 자체는 여전히 미사용, NEXT_TASK.md 참고).
+  - 검증: `npx tsc --noEmit`/`npm run lint`(신규 파일 0건, 기존 저장소 전반의 pre-existing `react-hooks/set-state-in-effect` 25건은 그대로 — CLAUDE.md P2 정책상 이번 범위 밖) 통과, `npm run build` 성공. 실제 dev 서버 + Browser에서 글쓰기 화면 로드, 툴바 전체 렌더링, 본문 타이핑, 미리보기 토글(sanitize된 HTML로 정상 전환), 임베드 메뉴(5개 프로바이더 노출), localStorage 자동 저장("마지막 저장"/"자동 저장됨" 타임스탬프 갱신)까지 직접 확인. 이미지 업로드/갤러리/Lightbox/게시글 수정은 Storage Bucket과 신규 컬럼이 라이브 DB에 아직 없어(위 SQL 미실행) 실제 업로드까지는 확인하지 못함 — SQL 실행 후 재확인 필요.
+
+## 2026-07-28 (EPIC-053)
+- **EPIC-053: 공통 Block Editor 시스템 구축**
+  - **Block Editor 확장(RichTextEditor → BlockEditor)**: `src/components/editor/BlockEditor.tsx`로 전면 재작성. EPIC-052의 기본 Tiptap에서 다음 확장:
+    - **Toolbar 확장**: 굵게/기울임/밑줄/취소선, H1/H2/H3 제목, 글머리/번호/체크리스트, 인용/구분선, 좌/중앙/우 정렬, 링크, 이미지 업로드 버튼
+    - **이미지 업로드**: Drag & Drop, 붙여넣기(Ctrl+V), 여러 장 업로드, Supabase Storage 자동 업로드
+    - **자동 저장**: 30초 간격 auto-save + localStorage 임시 저장(브라우저 닫기 복구)
+    - **체크리스트**: `@tiptap/extension-task-list`/`@tiptap/extension-task-item` 설치 및 연동
+    - **텍스트 스타일**: 밑줄(`@tiptap/extension-underline`), 정렬(`@tiptap/extension-text-align`), 형광펜(`@tiptap/extension-highlight`), 색상(`@tiptap/extension-color`)
+  - **Storage 유틸리티**: `src/lib/storage.ts` 신규 — `post-images`/`gallery`/`attachments` 버킷용 업로드/삭제 유틸리티 (URL + Storage Path 반환)
+  - **Block 타입 정의**: `src/lib/blocks.tsx` 신규 — Block 구조(JSON) + HTML 변환 + React 렌더러 (향후 확장 대비)
+  - **임시 저장 API**: `POST /api/boards/[id]/drafts` — 서버 사이드 임시 저장 지원
+  - **Sanitize 확장**: `src/lib/sanitize.ts` 확장 — img/figure/figcaption/video/audio/iframe/object/mark/div/span/table 허용 (YouTube/Vimeo/Maps/Spotify 임베드対応)
+  - **글쓰기 페이지 연동**: `src/app/boards/[id]/write/page.tsx` — BlockEditor로 교체, 자동 저장 콜백 연결, 임시 저장 복구 로직 추가
+  - **패키지 설치**: `@tiptap/extension-underline`, `@tiptap/extension-text-align`, `@tiptap/extension-text-style`, `@tiptap/extension-highlight`, `@tiptap/extension-color`, `@tiptap/extension-image`, `@tiptap/extension-task-list`, `@tiptap/extension-task-item`
+  - 검증: `npx tsc --noEmit` 통과. `npm run lint` EPIC-053 관련 파일 전부 통과.
+
 ## 2026-07-28 (EPIC-052)
 - **EPIC-052: 마이페이지를 Personal Hub로 확장 + Tiptap Block Editor 도입**
   - **사전 확인(AskUserQuestion)**: 이번 지시문은 두 가지 큰 갈림길이 있어 진행 전 사용자에게 직접 확인함 — (1) "나의 컬렉션"을 Board Definition의 공개 story 게시판으로 만들지, 아니면 지금처럼 비공개(member_collections)로 두고 시각적으로만 story 카드 스타일을 적용할지 → **비공개 유지 + 시각적 재사용**으로 결정. (2) Tiptap/Lexical Block Editor 도입을 이번 EPIC에 포함할지 → **지금 바로 Tiptap 통합 시작**으로 결정. 아래 항목은 전부 이 두 결정을 전제로 한다.

@@ -14,7 +14,7 @@ import {
   BOARD_RICH_FIELDS,
   BOARD_LEGACY_FIELDS,
 } from "@/lib/boardLayout";
-import { sanitizeHtml } from "@/lib/sanitize";
+import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
 
 export async function GET(
   request: NextRequest,
@@ -86,7 +86,7 @@ export async function GET(
   // 실패시키므로, 먼저 새 컬럼 포함으로 시도하고 실패하면 레거시 컬럼만으로
   // 재시도해 마이그레이션 전에도 게시판 읽기가 완전히 멈추지 않게 한다.
   const richFields =
-    "id, title, body, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
+    "id, title, body, is_docent_post, like_count, is_best, photo_url, featured_image_url, tags, view_count, updated_at, author_id, created_at";
   const legacyFields =
     "id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
@@ -125,6 +125,7 @@ export async function GET(
         like_count: number;
         is_best: boolean;
         photo_url: string | null;
+        featured_image_url: string | null;
         tags: string[] | null;
         view_count: number | null;
         updated_at: string;
@@ -143,6 +144,7 @@ export async function GET(
         created_at: string;
       }[]).map((p) => ({
         ...p,
+        featured_image_url: null as string | null,
         tags: [] as string[] | null,
         view_count: 0 as number | null,
         updated_at: p.created_at,
@@ -294,9 +296,11 @@ export async function POST(
 
   const body = await request.json();
   const title = body?.title as string | undefined;
-  const postBody = body?.body as string | undefined;
+  const bodyJson = body?.bodyJson as JSONContent | undefined;
   const isDocentPost = Boolean(body?.isDocentPost);
   const orderId = body?.orderId as string | undefined;
+  const featuredImageUrl = (body?.featuredImageUrl as string | null | undefined) ?? null;
+  const featuredImagePath = (body?.featuredImagePath as string | null | undefined) ?? null;
   const tags =
     definition.tags && Array.isArray(body?.tags)
       ? (body.tags as unknown[])
@@ -304,17 +308,28 @@ export async function POST(
           .map((t) => t.trim())
       : [];
 
-  if (!title || !postBody) {
+  if (!title || !bodyJson) {
     return NextResponse.json(
       { error: "제목과 내용을 모두 입력해주세요." },
       { status: 400 },
     );
   }
 
-  // EPIC-052: 클라이언트 에디터(Tiptap)를 거치지 않고 API를 직접 호출해도
-  // 안전하도록, 저장 직전에 서버에서 한 번 더 정제한다(Stored XSS 방지 —
-  // 클라이언트 쪽 정제만 믿지 않음).
-  const sanitizedBody = sanitizeHtml(postBody);
+  // EPIC-053.1: 클라이언트가 보낸 JSON(Block 정본)을 신뢰하지 않고,
+  // 실제로 저장/렌더링할 HTML은 서버가 JSON으로부터 항상 다시 계산한다
+  // (Tiptap 스키마로 렌더링 + DOMPurify 새니타이즈 — Stored XSS 방지
+  // 이중 방어이자, "정본은 JSON, HTML은 파생 캐시" 원칙을 서버에서
+  // 강제하는 지점).
+  let sanitizedBody: string;
+  try {
+    sanitizedBody = renderPostHtml(bodyJson);
+  } catch {
+    return NextResponse.json({ error: "본문 형식이 올바르지 않아요." }, { status: 400 });
+  }
+
+  if (sanitizedBody.replace(/<[^>]*>/g, "").trim().length === 0) {
+    return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
+  }
 
   const tier = await getTier(requester.member.membership_rank);
   const permission = canWriteToBoard(board, tier, isDocentPost);
@@ -356,6 +371,9 @@ export async function POST(
       author_id: requester.member.id,
       title,
       body: sanitizedBody,
+      body_json: bodyJson,
+      featured_image_url: featuredImageUrl,
+      featured_image_path: featuredImagePath,
       is_docent_post: isDocentPost,
       visibility: "public",
       order_id: validatedOrderId,
@@ -364,8 +382,28 @@ export async function POST(
     .select()
     .single();
 
-  // tags 컬럼이 라이브 DB에 아직 없으면(42703) 태그 없이 재시도 — 글쓰기
-  // 자체가 마이그레이션 전까지 완전히 막히지 않게 한다.
+  // body_json/featured_image_*/tags 컬럼이 라이브 DB에 아직 없으면(42703)
+  // 단계적으로 재시도한다 — 마이그레이션(docs/sql/epic-053-1.sql) 전에도
+  // 글쓰기 자체가 완전히 막히지 않게 한다. body_json이 없으면 JSON
+  // 정본이 저장되지 않으므로(레거시 HTML-only 저장), 이 경우는 UI에
+  // 별도 안내 없이도 다음 조회 시 legacyHtml 경로로 정상 표시된다.
+  if (insertError) {
+    ({ data: post, error: insertError } = await requester.scopedClient
+      .from("posts")
+      .insert({
+        board_id: id,
+        author_id: requester.member.id,
+        title,
+        body: sanitizedBody,
+        is_docent_post: isDocentPost,
+        visibility: "public",
+        order_id: validatedOrderId,
+        tags,
+      })
+      .select()
+      .single());
+  }
+
   if (insertError) {
     ({ data: post, error: insertError } = await requester.scopedClient
       .from("posts")

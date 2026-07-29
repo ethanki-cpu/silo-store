@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
+import type { JSONContent } from "@/lib/blockEditorCore";
 import { PostDetailHeader } from "@/components/boards/PostDetailHeader";
 import { PostTags } from "@/components/boards/PostTags";
 import { PostActions } from "@/components/boards/PostActions";
@@ -19,6 +20,8 @@ type PostDetail = {
   like_count: number;
   is_best: boolean;
   photo_url: string | null;
+  body_json: JSONContent | null;
+  featured_image_url: string | null;
   tags: string[] | null;
   view_count: number | null;
   author_id: string;
@@ -45,7 +48,7 @@ type Comment = {
 
 export default function PostDetailPage() {
   const { id, postId } = useParams<{ id: string; postId: string }>();
-  const { session, loading: authLoading } = useAuth();
+  const { session, member, loading: authLoading } = useAuth();
 
   const [board, setBoard] = useState<Board | null>(null);
   const [post, setPost] = useState<PostDetail | null>(null);
@@ -214,13 +217,14 @@ export default function PostDetailPage() {
           title={post.title}
           authorId={post.author_id}
           authorName={post.author_name}
-          photoUrl={post.photo_url}
+          photoUrl={post.featured_image_url ?? post.photo_url}
           likeCount={post.like_count}
           viewCount={post.view_count}
           commentCount={comments.length}
           showLikes={definition.likes}
           showComments={definition.comments}
           showViewCount={definition.showViewCount}
+          editHref={member?.id === post.author_id ? `/boards/${id}/${postId}/edit` : undefined}
         />
 
         <div className="max-w-2xl mx-auto w-full">

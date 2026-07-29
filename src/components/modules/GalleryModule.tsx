@@ -27,16 +27,18 @@ export function GalleryModule({
 }) {
   return (
     <div className="columns-2 sm:columns-3 gap-4 [column-fill:_balance]">
-      {posts.map((post) => (
+      {posts.map((post) => {
+        const imageUrl = post.featured_image_url ?? post.photo_url;
+        return (
         <Link
           key={post.id}
           href={`/boards/${boardId}/${post.id}`}
           className="block mb-4 break-inside-avoid group"
         >
-          {post.photo_url ? (
+          {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={post.photo_url}
+              src={imageUrl}
               alt={post.title ?? ""}
               className="w-full object-cover"
             />
@@ -53,7 +55,8 @@ export function GalleryModule({
           </p>
           <PostTags tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]} />
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }

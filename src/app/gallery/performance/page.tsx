@@ -1,27 +1,39 @@
-import { PageHeaderContent } from "@/components/PageHeader";
-import { PageEditButton } from "@/components/admin/PageEditButton";
+"use client";
 
-// EPIC-057: 카테고리 실제 Route 생성 — Board/DB 연결 없는 Placeholder Page.
+import { useEffect, useState } from "react";
+import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import { PageEditButton } from "@/components/admin/PageEditButton";
+import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+
+// EPIC-068: page_builder(slug="gallery-performance")의 published 모듈만 렌더링한다.
 export default function GalleryPerformancePage() {
+  const [modules, setModules] = useState<PageModuleRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedPageBySlug("gallery-performance").then((result) => {
+      if (cancelled) return;
+      setModules(result?.modules ?? []);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) {
+    return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
+  }
+
   return (
     <>
       <PageEditButton slug="gallery-performance" />
-      <main className="flex-1 p-8 max-w-2xl mx-auto w-full">
-      <PageHeaderContent
-        title="공연"
-        subtitle="살롱데상 · Gallery"
-        breadcrumb={[
-        { label: "홈", href: "/" },
-        { label: "살롱데상" },
-        { label: "Gallery", href: "/gallery" },
-        { label: "공연" },
-        ]}
-        description="공연 갤러리 게시판입니다."
-      />
-      <div className="mt-8 rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-400">
-        여기에 게시판이 들어갑니다.
-      </div>
-    </main>
+      <main className="flex-1 bg-white px-6 py-12">
+        <div className="max-w-3xl mx-auto w-full">
+          <PageBuilderRenderer modules={modules ?? []} />
+        </div>
+      </main>
     </>
   );
 }

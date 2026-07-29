@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { supabase } from "@/lib/supabaseClient";
+import { ensurePageForSlug, hrefToSlug } from "@/lib/pageTemplates";
 
 // EPIC-035: 티스토리 스타일 드래그앤드롭 카테고리(site_navigations) 관리
 // 컴포넌트. 상단 탭/좌측 사이드바/우측 사이드바 3개 관리 화면(각각
@@ -248,6 +249,18 @@ export function CategoryTreeManager({
       return false;
     }
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+    // EPIC-068: href가 (새로) 채워지는 순간이 "이 카테고리가 실제 링크를
+    // 갖게 된" 시점이다 — 그때 page_builder 행 + 기본 위젯 템플릿을 자동
+    // 생성한다(이미 있으면 손대지 않음, ensurePageForSlug 참고). 페이지
+    // 생성 실패는 카테고리 저장 자체를 막지 않도록 조용히 무시한다.
+    if (patch.href) {
+      const current = rows.find((r) => r.id === id);
+      const nextTitle = patch.title ?? current?.title ?? "";
+      const nextDescription = patch.description ?? current?.description ?? null;
+      ensurePageForSlug(hrefToSlug(patch.href), nextTitle, nextDescription).catch(() => {});
+    }
+
     return true;
   }
 

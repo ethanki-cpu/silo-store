@@ -4,7 +4,7 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-07-29 (EPIC-067, `develop`/`feature/EPIC-067` 계보 기준).
+> 최종 확인: 2026-07-29 (EPIC-068, `develop`/`feature/EPIC-068` 계보 기준).
 >
 > ⚠️ 이 문서는 EPIC-056(2026-07-28) 이후 장기간 갱신되지 않았다가 이번에 EPIC-067
 > 완료 시점 기준으로 다시 동기화됐다 — EPIC-057~066의 상세 요약은 이 문서가 아니라
@@ -27,35 +27,39 @@ Stage 1 — Foundation
 
 ## Progress
 
-전체 EPIC: **67개 완료**(EPIC-057~062는 요약 소급 작성 대기 중), 진행 중 0개, 예정 0개(대기 중).
+전체 EPIC: **68개 완료**(EPIC-057~062는 요약 소급 작성 대기 중), 진행 중 0개, 예정 0개(대기 중).
 EPIC-060~062로 Page Builder CMS(Page→Module→Board→Post, Navigation이 Board가 아닌
 독립 Page로 직결)가 신설되고, EPIC-064A~066으로 Visual Widget Builder + Board
 Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 `PageEditButton`만
 있고 `PageBuilderRenderer`를 호출하지 않아 위젯이 화면에 반영되지 않는" 구조적 결함을
-발견했고, EPIC-067(Phase 1)이 핵심 도메인 12개를 우선 전환 완료 — 66개가 Phase 2로 남음.
-상세: [docs/STAGES.md](STAGES.md) §Stage 1, [docs/EPIC.md](EPIC.md).
+발견했고, EPIC-067(Phase 1)이 핵심 도메인 12개를 우선 전환 완료. EPIC-068은 이 문제의
+근본 원인(catch-all 라우트 부재로 카테고리 생성만으로는 페이지가 생기지 않던 아키텍처
+공백)을 해결하는 자동 생성 메커니즘(`[...slug]` catch-all + `ensurePageForSlug`)을
+신설하고, 그 위에 24개 정적 placeholder 페이지 전환 + 71개 페이지 위젯 백필(SQL 실행
+대기) + 신규 게시판 30개를 추가 — 남은 정적 placeholder는 8개(`salon/docent-tour`,
+`salon/drinks`, `space-inquiry/*3`, `studio/*3`), 마이페이지 12개 탭(병존형 필요)은
+아직 미착수. 상세: [docs/STAGES.md](STAGES.md) §Stage 1, [docs/EPIC.md](EPIC.md).
 
 =====================================
 
 ## Current EPIC
 
-없음 (대기 중 — 다음 지시 대기). 직전 완료: EPIC-067(Page Builder Integration Phase
-1 — `/`, `/shop`, `/shop/[id]`, `/docent/[id]`, `/boards/[id]`, `/clubs`,
-`/clubs/[id]`, `/rental`, `/rental/[rentalTypeId]`, `/downloads`, `/attendance`,
-`/u/[memberId]` 12개 페이지에 기존 콘텐츠를 유지한 채 `PageBuilderRenderer`를
-병존형으로 추가).
+없음 (대기 중 — 다음 지시 대기). 직전 완료: EPIC-068(카테고리 생성 시 자동 페이지+위젯
+템플릿 생성 메커니즘 신설 + 사이트 전반 위젯 백필/신규 게시판 30개).
 
 =====================================
 
 ## Next EPIC
 
 미정 — 사용자 지시 대기. 유력 후보(우선순위순, 아래 "Current Priority" 참고):
-1. EPIC-067 Phase 2 — 나머지 66개 페이지의 Page Builder 연동(우선순위/통합 방식은
-   NEXT_TASK.md "EPIC-067 후속(남은 66개)" 참고).
-2. `/admin/boards` 클릭 테스트(EPIC-066, 관리자 로그인 필요해 에이전트가 미검증).
-3. `feature/EPIC-053`(Block Editor) 브랜치 병합 여부 결정 — 여전히 미해결.
-4. Navigation 관련 P0/P1(아래 Known Issues 참고).
-5. 페이지별 SEO metadata 적용.
+1. **EPIC-068 백필 SQL 미실행** — `docs/sql/EPIC-068-category-page-templates.sql`을
+   Supabase SQL Editor에서 실행해야 신규 게시판/위젯이 실제로 반영됨.
+2. EPIC-067 Phase 2 잔여 — 정적 placeholder 8개(`salon/docent-tour`, `salon/drinks`,
+   `space-inquiry/*3`, `studio/*3`) + 마이페이지 12개 탭(병존형).
+3. Dual-nav 구조 정리 — EPIC-068에서 추가로 확인된 구체 사례들(NEXT_TASK.md 참고).
+4. `/admin/boards` 클릭 테스트(EPIC-066, 관리자 로그인 필요해 에이전트가 미검증).
+5. `feature/EPIC-053`(Block Editor) 브랜치 병합 여부 결정 — 여전히 미해결.
+6. 페이지별 SEO metadata 적용.
 
 =====================================
 
@@ -63,26 +67,29 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 
 최근 완료 10개(최신순, 상세는 [docs/EPIC.md](EPIC.md)):
 
-1. EPIC-067 — Page Builder Integration Phase 1(핵심 도메인 12개 페이지, 병존형 패턴)
-2. EPIC-066 — Board Widget 실데이터 렌더링 완성 + Board Management System(관리자 CRUD)
-3. EPIC-065 — JSON 기반 Page Builder → No-Code Visual Widget Builder(위젯 23종)
-4. EPIC-064A — 모든 Route에 관리자 전용 "페이지 수정" 버튼 부착(126개 slug)
-5. EPIC-063 — Navigation System Completion(Page-first Architecture)
-6. EPIC-062 — Page Architecture — Navigation → Page → Module → Board
-7. EPIC-061 — Fallback 제거 — 8개 Hub 전부 Page Builder만 사용
-8. EPIC-060 — Page Builder CMS 시스템 신설(Page→Module→Board→Post)
-9. EPIC-058 — 상위 카테고리 그룹 헤더 클릭+펼침 분리
-10. EPIC-057 — 모든 카테고리 하위 Route 51개 신설(Placeholder Page만)
+1. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필
+2. EPIC-067 — Page Builder Integration Phase 1(핵심 도메인 12개 페이지, 병존형 패턴)
+3. EPIC-066 — Board Widget 실데이터 렌더링 완성 + Board Management System(관리자 CRUD)
+4. EPIC-065 — JSON 기반 Page Builder → No-Code Visual Widget Builder(위젯 23종)
+5. EPIC-064A — 모든 Route에 관리자 전용 "페이지 수정" 버튼 부착(126개 slug)
+6. EPIC-063 — Navigation System Completion(Page-first Architecture)
+7. EPIC-062 — Page Architecture — Navigation → Page → Module → Board
+8. EPIC-061 — Fallback 제거 — 8개 Hub 전부 Page Builder만 사용
+9. EPIC-060 — Page Builder CMS 시스템 신설(Page→Module→Board→Post)
+10. EPIC-058 — 상위 카테고리 그룹 헤더 클릭+펼침 분리
 
 =====================================
 
 ## Current Priority
 
-**최우선**: EPIC-067 Phase 2 범위/우선순위 확정 — 남은 66개 페이지 중 어떤 걸 콘텐츠
-대체형, 어떤 걸 병존형으로 전환할지(NEXT_TASK.md에 분류 초안 있음).
+**최우선**: `docs/sql/EPIC-068-category-page-templates.sql` 실행 — 지금은 코드
+메커니즘만 반영돼 있고, 신규 게시판 30개/71개 페이지 위젯 백필은 이 SQL을 사용자가
+Supabase SQL Editor에서 실행해야 실제로 눈에 보인다.
 
-**차순위**: `feature/EPIC-053`(Block Editor) 미병합 브랜치 처리 결정 — 여러 EPIC째
-계속 이월되고 있는 항목.
+**차순위**: dual-nav 구조 정리 — EPIC-068이 membership/gallery/heritage/archive/
+community-topics 등 여러 곳에서 "만든 페이지 경로 ≠ 실제 nav href" 구체 사례를 다수
+발견(NEXT_TASK.md 참고). `feature/EPIC-053`(Block Editor) 미병합 브랜치 처리 결정도
+여러 EPIC째 계속 이월되고 있는 항목.
 
 =====================================
 
@@ -95,8 +102,13 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
   일원화하는 근본 결정은 아직 내려지지 않았다.
 
 **P1**
-- EPIC-067 Phase 2: 66개 페이지가 여전히 `PageEditButton`만 있고 `PageBuilderRenderer`
-  미연동 — 목록/분류는 NEXT_TASK.md 참고.
+- EPIC-067 Phase 2 잔여: 정적 placeholder 8개(`salon/docent-tour`, `salon/drinks`,
+  `space-inquiry/*3`, `studio/*3`) + 마이페이지 12개 탭(병존형 필요) — 목록은 NEXT_TASK.md 참고.
+- EPIC-068 백필 SQL(`docs/sql/EPIC-068-category-page-templates.sql`) 미실행 — 실행 전까지
+  신규 게시판 30개/71개 페이지 위젯은 코드만 준비돼 있고 실제 데이터는 비어있음.
+- Dual-nav 구조 구체 사례 다수 발견(EPIC-068) — membership/gallery 각 5개, heritage
+  grandma/grandpa, archive 소개지/포스터, community-topics/weekday 각 항목까지 "만든
+  페이지 경로 ≠ 실제 nav href" 패턴 확인, 상세는 NEXT_TASK.md 참고.
 - `/admin/boards`(EPIC-066) 클릭 테스트 미완료(관리자 로그인 필요, 에이전트 정책상 미수행).
 - `boards/page.tsx`(디렉토리)는 `PageModuleRenderer`(compile-time 모듈, EPIC-054C)로
   이미 여러 Board를 배치 중이라 DB 기반 `PageBuilderRenderer`와 함께 쓰려면 별도 설계
@@ -139,7 +151,7 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 3. 페이지별 SEO metadata
 4. Responsive 레이아웃
 5. Accessibility 전체 감사 마무리
-6. EPIC-067 Phase 2(남은 66개 페이지 Page Builder 연동)
+6. EPIC-067 Phase 2 잔여(정적 8개 + 마이페이지 12개 탭) + EPIC-068 백필 SQL 실행
 
 이 항목들이 마무리되면 Stage 2(Content Platform) 착수를 사용자와 논의한다.
 

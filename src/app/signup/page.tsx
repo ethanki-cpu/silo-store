@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { PageEditButton } from "@/components/admin/PageEditButton";
@@ -97,9 +98,9 @@ export default function SignupPage() {
 
         <p className="text-sm text-gray-600">
           이미 계정이 있으신가요?{" "}
-          <a href="/login" className="underline">
+          <Link href="/login" className="underline">
             로그인
-          </a>
+          </Link>
         </p>
       </form>
       </main>

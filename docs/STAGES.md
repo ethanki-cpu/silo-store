@@ -37,7 +37,7 @@
 | Storage | 🔶 부분 완료 | EPIC-033 | 관리자 CMS 이미지 업로드(로고/슬라이드)는 동작. 게시글 이미지 전용 Storage Bucket(post-images/gallery/attachments) + Garbage Collection은 **별도 미병합 브랜치 `feature/EPIC-053`에만 존재**(아래 "미병합 브랜치" 참고) |
 | Database | ✅ 완료 | 전 EPIC 공통 기반 | `docs/database-schema.sql`(SSoT), 단 라이브 DB와 주기적 드리프트 발생(문서 자체에 경고 있음) |
 | Board System | ✅ 완료 | EPIC-047~051, EPIC-054C, EPIC-055, EPIC-056 | Board Definition System(`BOARD_DEFINITIONS`/`INDIVIDUAL_BOARD_DEFINITIONS` + `resolveBoardDefinition()` + `BoardRenderer`) — config 파일 하나만 수정해 새 게시판 추가 가능(재확인됨). EPIC-055가 마지막 미연결 구간(이름별 동적 라우트 3개 그룹, EPIC-044의 `UniversalBoard` stub)까지 실제 게시판에 연결하고 그 stub 컴포넌트를 삭제. EPIC-056이 그 위에 14개 Board Module(Hero/Board Header/Search/Sort/Story Thumbnail/Community List/Gallery/Slide/Timeline/Filter/Calendar/Application/Pagination/Empty State)을 `src/components/modules/`에 독립 재사용 가능한 형태로 정립하고, `BoardModule`에 Hero를 내장해 약 72개 게시판 페이지 전체에 Breadcrumb+제목+설명이 실제로 보이도록 함(브라우저 확인 완료) |
-| Page System | ✅ 완료 | EPIC-054B/054C, EPIC-060/061/062, EPIC-065/067 | Page Module 시스템(`pageModules.ts` + `PageModuleRenderer`, compile-time) — Page ≠ Board 1:1, 여러 Board를 한 Page에 배치 가능(`/boards` 디렉토리로 실증). EPIC-060~062가 별도의 DB 기반 Page Builder CMS(`page_builder`/`page_modules` 테이블 + `PageBuilderRenderer`)를 신설해 Navigation이 Board가 아닌 독립 Page로 직결되도록 전환, EPIC-065가 이를 No-Code Visual Widget Builder(위젯 23종)로 완성. EPIC-067은 "PageEditButton은 있으나 PageBuilderRenderer 미호출"이던 79개 페이지 중 12개를 병존형 패턴(기존 콘텐츠 유지 + 위젯 영역 추가)으로 전환(Phase 1), 66개는 Phase 2로 남음 |
+| Page System | ✅ 완료 | EPIC-054B/054C, EPIC-060/061/062, EPIC-065/067/068 | Page Module 시스템(`pageModules.ts` + `PageModuleRenderer`, compile-time) — Page ≠ Board 1:1, 여러 Board를 한 Page에 배치 가능(`/boards` 디렉토리로 실증). EPIC-060~062가 별도의 DB 기반 Page Builder CMS(`page_builder`/`page_modules` 테이블 + `PageBuilderRenderer`)를 신설해 Navigation이 Board가 아닌 독립 Page로 직결되도록 전환, EPIC-065가 이를 No-Code Visual Widget Builder(위젯 23종)로 완성. EPIC-067은 "PageEditButton은 있으나 PageBuilderRenderer 미호출"이던 79개 페이지 중 12개를 병존형 패턴(기존 콘텐츠 유지 + 위젯 영역 추가)으로 전환(Phase 1). EPIC-068은 근본 원인(catch-all 라우트 부재)을 해결하는 `src/app/[...slug]/page.tsx` + `ensurePageForSlug()`를 신설해 카테고리 생성 시 페이지+5위젯 기본 템플릿이 자동 생성되도록 하고, 그 위에 24개 정적 placeholder를 순수 위젯 페이지로 전환 + 71개 페이지 위젯 백필(SQL 실행 대기) — 정적 placeholder 8개 + 마이페이지 12개 탭(병존형)만 남음 |
 | Block Editor | ⬜ 미착수(이 브랜치 기준) | — | 이 Stage 문서가 반영하는 코드 계보(EPIC-054A~D)에는 EPIC-052의 기본 `RichTextEditor`(Tiptap HTML)만 있다. 완전한 Block 기반 에디터(FigureImage/Gallery/Embed/LinkCard, JSON 정본화)는 **별도 미병합 브랜치 `feature/EPIC-053`에 존재** — 아래 참고 |
 | SEO | 🔶 부분 완료 | EPIC-054D | root metadata(title/description/OG/Twitter) 적용, 페이지별 metadata는 미적용(70개 페이지 전부 root 값 상속) |
 | Metadata | 🔶 부분 완료 | EPIC-054D | 위 SEO와 동일 사안 — `metadataBase`만 있고 페이지별 `generateMetadata`/canonical 없음 |
@@ -52,7 +52,8 @@
 3. **페이지별 SEO metadata** — 70개 페이지 각각에 의미 있는 title/description/canonical 부여.
 4. **Responsive 레이아웃** — Navbar/Sidebar의 모바일 대응 UX 설계.
 5. **Accessibility 전체 감사 마무리** — 드롭다운 Escape 지원, 스크린리더 실사용 검증.
-6. **EPIC-067 Phase 2** — Page Builder 미연동 66개 페이지 전환(우선순위/통합 방식은 NEXT_TASK.md 참고).
+6. **EPIC-067 Phase 2 잔여** — 정적 placeholder 8개(`salon/docent-tour`, `salon/drinks`, `space-inquiry/*3`, `studio/*3`) + 마이페이지 12개 탭(병존형, 우선순위는 NEXT_TASK.md 참고).
+7. **EPIC-068 백필 SQL 실행** — `docs/sql/EPIC-068-category-page-templates.sql`을 Supabase SQL Editor에서 실행해야 신규 게시판 30개/71개 페이지 위젯이 실제로 반영됨.
 
 ### ⚠️ 미병합 브랜치 참고
 

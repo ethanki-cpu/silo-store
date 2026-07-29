@@ -4,6 +4,9 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-065 후속(중요, 실제 사용자 검증 필요)**: 관리자 로그인 자격 증명이 세션에 없어 새 Visual Widget Builder(`/admin/pages/[id]`)를 브라우저로 직접 클릭해보지 못했다 — 위젯 추가(팔레트)/Inspector 필드/드래그 순서 변경/복제/숨기기/Live Preview/개발자 모드 전부 코드 검토 + Management API로 라이브 페이지에 데이터를 직접 심어보는 방식으로만 검증했다. 관리자로 로그인해서 실제 화면 흐름(특히 드래그앤드롭 UX, 목록형 필드 편집 UX)을 한 번 훑어봐 주시고, 어색한 부분 있으면 알려주세요.
+- **EPIC-065 후속(알려진 제한)**: Board Widget의 "썸네일" 토글은 story 레이아웃(`StoryThumbnailModule`)에만 적용된다 — gallery/hub 레이아웃은 이미지가 레이아웃 자체의 핵심이라 토글 대상에서 제외했다. 이 두 레이아웃까지 썸네일을 끌 수 있어야 하면 별도 작업 필요.
+- **EPIC-065 후속(알려진 제한)**: Survey 위젯은 여전히 순수 표시용 데모다(EPIC-054B 때부터의 제한 계승) — 실제 투표 저장/집계 기능은 없다. 실제 투표가 필요하면 `/polls`처럼 별도 백엔드가 필요하다.
 - **EPIC-064A 후속(완료, 2026-07-29 적용됨)**: `docs/sql/EPIC-064A-page-builder-backfill.sql`을 사용자가 제공한 Supabase Management API 토큰으로 직접 실행 완료 — `page_builder`가 9개 → 126개 행으로 늘어나 이제 `PageEditButton`이 걸린 모든 Route에서 관리자에게 버튼이 뜬다. 적용 중 추가로 발견: `treasures`(사일로 보물들)는 애초에 `page_builder` 행 자체가 없었다(당초 이미 있다고 잘못 판단해 backfill SQL에서 빠뜨렸음) — 별도 INSERT로 즉시 수정, 최종 126/126 slug 확인됨. 대부분의 페이지는 여전히 `page_builder`를 직접 읽지 않는 하드코딩 렌더링이라, 버튼을 눌러 `/admin/pages`에서 모듈을 구성해도 실제 화면엔 반영되지 않는다(`PageBuilderRenderer`를 쓰는 페이지만 해당).
 - **EPIC-064A 후속(선택)**: `/admin/**` 9개 페이지(navigation, navigation/settings, pages, pages/[id], payments, posts, posts/salon, posts/shop, projects/new)에는 의도적으로 `PageEditButton`을 붙이지 않았다 — 이미 `admin/layout.tsx`가 관리자 가드를 하고 있고 CMS 도구 자체(예: `/admin/pages/[id]`는 Page Builder 편집기 그 자체)라 버튼의 목적과 안 맞는다고 판단했다. 만약 사용자가 이 판단에 동의하지 않으면(예: "모든 Route"를 문자 그대로 admin 포함으로 원한다면) 별도로 알려주면 추가할 것.
 - **EPIC-063 (완료, 2026-07-29 적용됨)**: `docs/sql/EPIC-063-nav-audit-fix.sql` 실행 완료 — "입양신청서 라이브러리" href가 `/shop`으로 연결됨(실제 의도된 목적지가 다르면 site_navigations 해당 행의 href만 바꾸면 됨).

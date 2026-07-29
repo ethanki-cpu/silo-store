@@ -195,7 +195,17 @@ export async function GET(
   });
 
   const totalCount = enriched.length;
-  const pageSize = definition.pageable ? definition.pageSize : totalCount || 1;
+  // EPIC-065: Widget Builder의 Board Widget "페이지당 개수" 설정 — 쿼리
+  // 파라미터로 넘어오면 definition.pageSize 대신 사용한다(1~100로 clamp,
+  // 파라미터가 없거나 pageable이 아니면 기존 동작 그대로).
+  const pageSizeParam = Number(searchParams.get("pageSize"));
+  const overridePageSize =
+    Number.isFinite(pageSizeParam) && pageSizeParam > 0
+      ? Math.min(100, Math.floor(pageSizeParam))
+      : null;
+  const pageSize = definition.pageable
+    ? (overridePageSize ?? definition.pageSize)
+    : totalCount || 1;
   const start = (page - 1) * pageSize;
   const pageItems = definition.pageable ? enriched.slice(start, start + pageSize) : enriched;
 

@@ -10,9 +10,14 @@ import { stripHtml } from "@/lib/sanitize";
 export function StoryThumbnailModule({
   boardId,
   posts,
+  showThumbnail = true,
 }: {
   boardId: string;
   posts: BoardPost[];
+  // EPIC-065: Widget Builder의 Board Widget "썸네일" 토글 — false면
+  // photoUrl을 넘기지 않아 StoryCard가 이미지 없이 렌더링된다(카드 레이아웃
+  // 자체는 그대로 유지, 새 레이아웃 없음).
+  showThumbnail?: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -20,7 +25,7 @@ export function StoryThumbnailModule({
         <StoryCard
           key={post.id}
           href={`/boards/${boardId}/${post.id}`}
-          photoUrl={post.photo_url}
+          photoUrl={showThumbnail ? post.photo_url : null}
           title={post.title ?? ""}
           summary={post.body ? stripHtml(post.body) : null}
           tags={post.tags ?? []}

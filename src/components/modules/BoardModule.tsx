@@ -42,6 +42,12 @@ export function BoardModule({
   boardId,
   includeChildBoards = true,
   showHero = true,
+  searchEnabled,
+  sortEnabled,
+  paginationEnabled,
+  pageSizeOverride,
+  showThumbnail = true,
+  showWriteButton = true,
 }: {
   boardId: string;
   includeChildBoards?: boolean;
@@ -51,12 +57,23 @@ export function BoardModule({
   // 그린 경우(예: PageTemplate이 쓰는 6개 카테고리 허브 페이지)는 false로
   // 꺼서 Hero가 중복 렌더링되지 않게 한다.
   showHero?: boolean;
+  // EPIC-065: Widget Builder의 Board Widget 설정 6종 — 전부 undefined(기본값
+  // 없음)면 기존 그대로 BoardDefinition.searchable/sortable/pageable이
+  // 결정한다(하위 호환, 이 파일을 직접 호출하던 기존 페이지들은 전혀 영향
+  // 없음). Page Builder만 이 값들을 명시적으로 넘겨 definition의 기본
+  // 동작을 페이지별로 덮어쓴다.
+  searchEnabled?: boolean;
+  sortEnabled?: boolean;
+  paginationEnabled?: boolean;
+  pageSizeOverride?: number;
+  showThumbnail?: boolean;
+  showWriteButton?: boolean;
 }) {
   const { session, loading: authLoading } = useAuth();
   const [board, setBoard] = useState<Board | null>(null);
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(pageSizeOverride ?? 10);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortOption>("latest");
   const [q, setQ] = useState("");
@@ -77,6 +94,7 @@ export function BoardModule({
         sort,
         q,
       });
+      if (pageSizeOverride) params.set("pageSize", String(pageSizeOverride));
 
       const res = await fetch(`/api/boards/${boardId}/posts?${params.toString()}`, {
         headers: session
@@ -100,7 +118,7 @@ export function BoardModule({
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [boardId, session, authLoading, page, sort, q]);
+  }, [boardId, session, authLoading, page, sort, q, pageSizeOverride]);
 
   function handleQueryChange(value: string) {
     setQ(value);
@@ -186,12 +204,12 @@ export function BoardModule({
 
       <BoardHeader
         boardName={board?.name ?? ""}
-        writeHref={`/boards/${boardId}/write`}
+        writeHref={showWriteButton ? `/boards/${boardId}/write` : undefined}
         definition={definition}
         q={q}
-        onQueryChange={handleQueryChange}
+        onQueryChange={searchEnabled === false ? undefined : handleQueryChange}
         sort={sort}
-        onSortChange={handleSortChange}
+        onSortChange={sortEnabled === false ? undefined : handleSortChange}
       />
 
       <BoardRenderer
@@ -201,9 +219,10 @@ export function BoardModule({
         isQna={board?.board_type === "qna"}
         hubFeed={hubFeed}
         hubChildBoards={includeChildBoards ? hubChildBoards : undefined}
+        showThumbnail={showThumbnail}
       />
 
-      {definition.pageable && (
+      {definition.pageable && paginationEnabled !== false && (
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       )}
     </div>

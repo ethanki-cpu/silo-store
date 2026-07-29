@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-07-29 (EPIC-065)
+- **EPIC-065: 기존 JSON 기반 Page Builder → No-Code Visual Widget Builder 전환**
+  - **DB(Management API 토큰으로 직접 실행)**: `page_modules.module_type` CHECK 제약 제거, `is_hidden boolean default false` 컬럼 추가. `docs/sql/EPIC-065-widget-builder-schema.sql`에 기록(재실행 안전).
+  - **위젯 23종**: `src/lib/widgetSchema.ts` 신설(타입/라벨/아이콘/6개 카테고리 그룹/필드 스키마/기본값). Hero/Breadcrumb/Board/Latest Posts Slider/Gallery/Timeline/Calendar/Reservation/Survey/Button/CTA/Quote/Image/Video/Audio/FAQ/Search/Filter/Statistics/Badge/Divider/Spacer/HTML. 신규 leaf 컴포넌트 9개만 작성(`BreadcrumbWidget`/`ButtonWidget`/`QuoteWidget`/`ImageWidget`/`VideoWidget`/`AudioWidget`/`FaqWidget`/`StatisticsWidget`/`BadgeWidget`), 나머지는 기존 컴포넌트 재사용(`SurveyCard`/`CtaButtons` 등 EPIC-054B 자산 포함).
+  - **Inspector(JSON 없음)**: `WidgetInspectorForm`(체크박스/드롭다운/텍스트/숫자/목록 5종) 하나가 23종 전부를 설정 — 목록형 필드(FAQ/Statistics/CTA/Reservation 등)는 행 추가·삭제·위아래 이동 UI.
+  - **Board Widget 6개 토글 실동작화**: `BoardModule`에 `searchEnabled`/`sortEnabled`/`paginationEnabled`/`pageSizeOverride`/`showThumbnail`/`showWriteButton` optional prop 추가(전부 기본 undefined → 기존 호출부 무영향). `/api/boards/[id]/posts`에 `pageSize` 쿼리 파라미터 추가. 썸네일 토글은 `StoryThumbnailModule`(story 레이아웃)에만 적용(gallery/hub는 이미지가 레이아웃 자체라 대상 아님, 알려진 제한).
+  - **Live Preview**: 편집 중 위젯 하나만 draft로 관리, `PageBuilderRenderer`가 해당 자리를 draft로 치환해 렌더링 — 저장 전에도 새로고침 없이 즉시 반영.
+  - **Drag & Drop / Duplicate / Hide**: 기존 `dnd-kit` 패턴 재사용, 복제는 원본 바로 다음에 삽입(뒤 항목 sort_order 밀기), 숨기기는 `is_hidden` 즉시 토글(공개 페이지는 건너뜀, 관리자 미리보기는 흐리게 계속 표시).
+  - **개발자 모드**: 세션 로컬 체크박스를 켜야만 위젯별 원시 JSON 보기/수정이 나타남(기본 숨김) — `src/app/admin/pages/[id]/page.tsx` 전면 재작성.
+  - **검증**: `npx tsc --noEmit`/`npm run build`/`npm run lint`(신규 에러 0건) 통과. 관리자 로그인 자격 증명이 없어 Visual Builder UI를 직접 클릭 테스트하지는 못했음 — Management API로 새 위젯 5종+숨김 위젯+Board 토글 6종을 라이브 `/gallery` 페이지에 임시로 심어 렌더링/필터링을 실제 확인한 뒤 전부 원상복구(테스트 데이터 잔존 없음 확인).
+  - 문서 동기화: `docs/EPIC.md`, `NEXT_TASK.md`.
+
 ## 2026-07-29 (EPIC-064A)
 - **EPIC-064A: 모든 Route에 관리자 전용 "페이지 수정" 버튼 부착 — Page Builder/Widget/DB 수정 없이 기존 `PageEditButton` 컴포넌트만 재사용**
   - `src/app` 하위 135개 `page.tsx`를 전수 조사 — 51개는 이미 EPIC-060~062에서 버튼이 붙어 있었고, 나머지 84개 중 75개(placeholder 페이지 35개는 스크립트로, 나머지 49개는 개별 검토)에 새로 부착. `/admin/**` 9개는 관리자 CMS 도구 자체(가드는 이미 `admin/layout.tsx`가 처리, `/admin/pages/[id]`는 Page Builder 편집기 그 자체)라 의도적으로 제외 — 결과적으로 126/135 Route에 적용.

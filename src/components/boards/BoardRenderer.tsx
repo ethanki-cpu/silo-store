@@ -113,6 +113,7 @@ export function BoardRenderer({
   isQna,
   hubFeed,
   hubChildBoards,
+  showThumbnail = true,
 }: {
   definition: BoardDefinition;
   boardId: string;
@@ -120,6 +121,10 @@ export function BoardRenderer({
   isQna: boolean;
   hubFeed?: HubFeed;
   hubChildBoards?: HubChildBoard[];
+  // EPIC-065: Widget Builder의 Board Widget "썸네일" 토글 — story 레이아웃
+  // (StoryThumbnailModule)에만 적용된다. 다른 레이아웃(gallery/hub 슬라이드)은
+  // 이미지가 레이아웃의 핵심이라 토글 대상이 아니다.
+  showThumbnail?: boolean;
 }) {
   if (definition.boardType === "hub") {
     return (
@@ -138,7 +143,7 @@ export function BoardRenderer({
 
   switch (definition.boardType) {
     case "story":
-      return <StoryThumbnailModule boardId={boardId} posts={posts} />;
+      return <StoryThumbnailModule boardId={boardId} posts={posts} showThumbnail={showThumbnail} />;
     case "gallery":
       return <GalleryModule boardId={boardId} posts={posts} />;
     case "timeline":

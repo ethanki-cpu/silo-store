@@ -1,4 +1,14 @@
 import { supabase } from "@/lib/supabaseClient";
+import {
+  PAGE_MODULE_TYPES,
+  PAGE_MODULE_LABELS,
+  PAGE_MODULE_ICONS,
+  WIDGET_GROUPS,
+  BOARD_LINKED_MODULE_TYPES,
+  WIDGET_FIELDS,
+  WIDGET_DEFAULT_SETTINGS,
+  type PageModuleType,
+} from "@/lib/widgetSchema";
 
 // EPIC-060: Page Builder CMS — Page(page_builder) → Module(page_modules,
 // board_id로 기존 Board System을 "끼워 쓰는" 모듈 포함) → Board → Post
@@ -7,65 +17,21 @@ import { supabase } from "@/lib/supabaseClient";
 // 없어도 아래 조회 함수들은 에러를 그대로 삼키고 null/[]을 반환해, 이
 // 기능을 쓰는 화면이 깨지지 않고 기존 하드코딩 렌더링으로 자연스럽게
 // 대체(fallback)되도록 한다.
-
-export type PageModuleType =
-  | "hero"
-  | "board"
-  | "slide"
-  | "gallery"
-  | "calendar"
-  | "application"
-  | "timeline"
-  | "search"
-  | "sort"
-  | "filter"
-  | "html"
-  | "spacer"
-  | "divider"
-  | "text";
-
-export const PAGE_MODULE_TYPES: PageModuleType[] = [
-  "hero",
-  "board",
-  "slide",
-  "gallery",
-  "calendar",
-  "application",
-  "timeline",
-  "search",
-  "sort",
-  "filter",
-  "html",
-  "spacer",
-  "divider",
-  "text",
-];
-
-export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
-  hero: "Hero",
-  board: "Board",
-  slide: "Slide",
-  gallery: "Gallery",
-  calendar: "Calendar",
-  application: "Application",
-  timeline: "Timeline",
-  search: "Search",
-  sort: "Sort",
-  filter: "Filter",
-  html: "HTML",
-  spacer: "Spacer",
-  divider: "Divider",
-  text: "Text",
+//
+// EPIC-065: 위젯 타입/라벨/아이콘/필드 스키마는 src/lib/widgetSchema.ts로
+// 옮기고 여기서는 재노출(re-export)만 한다 — 기존
+// `import { PageModuleType, PAGE_MODULE_TYPES, ... } from "@/lib/pageBuilder"`
+// 호출부를 전부 고치지 않기 위함(하위 호환).
+export {
+  PAGE_MODULE_TYPES,
+  PAGE_MODULE_LABELS,
+  PAGE_MODULE_ICONS,
+  WIDGET_GROUPS,
+  BOARD_LINKED_MODULE_TYPES,
+  WIDGET_FIELDS,
+  WIDGET_DEFAULT_SETTINGS,
 };
-
-// board_id를 실제로 쓰는 모듈 종류 — 관리자 UI가 이 목록으로 "게시판 선택"
-// 드롭다운을 보여줄지 결정한다.
-export const BOARD_LINKED_MODULE_TYPES: PageModuleType[] = [
-  "board",
-  "slide",
-  "gallery",
-  "timeline",
-];
+export type { PageModuleType };
 
 export type PageBuilderRow = {
   id: string;
@@ -85,6 +51,9 @@ export type PageModuleRow = {
   board_id: string | null;
   settings: Record<string, unknown>;
   sort_order: number;
+  // EPIC-065: Widget Builder의 "숨기기" — true면 공개 페이지(PageBuilderRenderer)
+  // 에서는 안 보이고 관리자 화면에서만 흐리게 계속 보인다.
+  is_hidden: boolean;
 };
 
 // 공개 페이지(Community/Gallery/... page.tsx)가 쓰는 조회 — status가

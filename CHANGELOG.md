@@ -17,6 +17,18 @@
   - **검증**: `npx tsc --noEmit`/`npm run build`/`npm run lint`(기존 30개 baseline 동일, 신규 0건) 통과. **관리자 세션이 실제로 열려 있어** Visual Widget Builder를 직접 클릭해 확인 — Board Widget Inspector의 6개 토글(검색/정렬/페이지 넘김/페이지당 개수/썸네일/글쓰기 버튼) 전부 렌더링, Live Preview가 실제 게시글 데이터(작성자/좋아요/댓글/조회수)로 즉시 반영됨을 확인, BoardEmptyState 문구가 지시문 예시와 정확히 일치하는 것도 실제 화면에서 확인.
   - 문서 동기화: `docs/EPIC.md`, `NEXT_TASK.md`.
 
+- **EPIC-066 추가: Board Management System 완성 — 관리자 게시판 CRUD/복제/공개-비공개/Board Type/Category/카드 타입/검색·좋아요·댓글·조회수 토글/페이지네이션/정렬/검색·필터/미리보기/삭제 확인**
+  - **DB(`docs/database-schema.sql`에 EPIC-066 ALTER TABLE 블록 기록, 라이브 미적용 — Supabase SQL Editor 실행 필요)**: `boards`에 `is_public`/`group_key`/`render_type`/`default_card_type`/`use_search`/`use_like`/`use_comment`/`use_view_count`/`default_page_size`/`default_sort`/`description`/`widget_settings` 추가 + admin 쓰기 RLS 정책(`boards_admin_write`). 기존 `category`(slug)/`board_type`(권한 축)은 그대로 유지, 새 컬럼은 전부 오버라이드 방식이라 값이 없는 기존 게시판은 회귀 없이 그대로 렌더링됨.
+  - **오버레이 아키텍처**: `resolveBoardDefinition()`(`src/lib/boardLayout.ts`)이 기존 하드코딩 `BoardDefinition` 위에 새 admin 컬럼을 `applyAdminOverrides()`로 얹는 방식 채택 — 하드코딩 시스템을 걷어내지 않고, admin UI로 만진 게시판만 즉시 반영. `boards` select는 posts.tags/view_count와 동일한 rich/legacy 폴백 패턴(`BOARD_RICH_FIELDS`/`BOARD_LEGACY_FIELDS`)이라 마이그레이션 전에도 게시판 읽기가 멈추지 않음.
+  - **Board Type 10종**: Story/Community/Gallery/Timeline은 기존 레이아웃 재사용, Forum→Community/Collection→Gallery는 별칭 처리, Slide는 기존 `SlideModule`을 게시판 자기 글로 재사용하는 신규 실렌더러. Survey/Calendar/Application은 이 코드베이스에 데이터 모델이 전혀 없어(Page Builder의 survey/calendar 위젯도 무관한 정적 데모) 안내 배너 + 기존 글 목록으로 스텁 처리(사용자 확인 후 확정) — 실제 투표/날짜별 보기/신청 흐름은 후속 EPIC.
+  - **좋아요/댓글/조회수 토글 실동작화**: `formatPostMeta()`(`src/lib/postMeta.ts`) 공용 헬퍼로 Story/Community/Gallery 목록 카드 + 게시글 상세 헤더(`PostDetailHeader`) 전부에서 토글이 실제로 메타 라인을 감춘다(이전에는 이 3개 토글이 정의에는 있어도 화면에 전혀 반영되지 않았음).
+  - **공개/비공개**: `canReadBoard()`에 `is_public`+admin 우회 게이팅 추가, `/api/boards`·`/api/boards/[id]/posts`가 비공개 게시판을 등급과 무관하게 막는다(관리자 제외).
+  - **Admin API**: `/api/admin/boards`(GET 목록/POST 생성), `/api/admin/boards/[id]`(GET/PATCH/DELETE — FK 위반 시 "게시글이 있어 삭제할 수 없어요" 안내), `/api/admin/boards/[id]/duplicate`(POST — slug만 자동 유니크 생성, 나머지 전 필드 복사) — `payments` 라우트와 동일한 `getRequestMember`+`is_admin`+`scopedClient` 패턴.
+  - **Admin UI**: `/admin/boards`(검색+Category/Board Type 필터 목록), `/admin/boards/new`·`/admin/boards/[id]`(공용 `BoardForm` — Board Type 변경 시 샘플 글 2건으로 즉시 미리보기), 새 `ConfirmModal`(요구사항이 명시한 "정말 삭제하시겠습니까?" 확인 모달, 기존 다른 페이지의 `window.confirm()`은 범위 밖이라 유지).
+  - **Page Builder**: 위젯의 게시판 드롭다운(요구사항 ⑫가 요구한 "board_id 직접 입력 UI 제거"는 이미 이전 EPIC에서 select 드롭다운으로 구현되어 있었음, 이번엔 확인만) + `is_public===false` 게시판 제외 필터만 추가.
+  - **검증**: `npx tsc --noEmit`/`npm run lint`(기존 29개 baseline과 동일, 신규 0건) 통과. 로그인 불필요한 부분(공개 게시판 목록/상세의 `is_public` 게이팅, Page Builder 드롭다운 필터)은 dev 서버로 직접 확인. Admin 로그인이 필요한 게시판 생성/수정/복제/삭제/미리보기/검색 UI는 자격 증명을 직접 입력하지 않는 정책상 사용자 확인 필요(`NEXT_TASK.md` 기록).
+  - 문서 동기화: `docs/database-schema.sql`, `NEXT_TASK.md`.
+
 ## 2026-07-29 (EPIC-065)
 - **EPIC-065: 기존 JSON 기반 Page Builder → No-Code Visual Widget Builder 전환**
   - **DB(Management API 토큰으로 직접 실행)**: `page_modules.module_type` CHECK 제약 제거, `is_hidden boolean default false` 컬럼 추가. `docs/sql/EPIC-065-widget-builder-schema.sql`에 기록(재실행 안전).

@@ -7,7 +7,13 @@ import {
   canWriteToBoard,
   RANK_LABELS,
 } from "@/lib/serverAuth";
-import { resolveBoardDefinition, isSortOption, type SortOption } from "@/lib/boardLayout";
+import {
+  resolveBoardDefinition,
+  isSortOption,
+  type SortOption,
+  BOARD_RICH_FIELDS,
+  BOARD_LEGACY_FIELDS,
+} from "@/lib/boardLayout";
 import { sanitizeHtml } from "@/lib/sanitize";
 
 export async function GET(
@@ -16,11 +22,19 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const { data: board, error: boardError } = await supabase
+  let { data: board, error: boardError } = await supabase
     .from("boards")
-    .select("id, name, category, board_type")
+    .select(BOARD_RICH_FIELDS)
     .eq("id", id)
     .single();
+
+  if (boardError) {
+    ({ data: board, error: boardError } = await supabase
+      .from("boards")
+      .select(BOARD_LEGACY_FIELDS)
+      .eq("id", id)
+      .single());
+  }
 
   if (boardError || !board) {
     return NextResponse.json(
@@ -31,13 +45,15 @@ export async function GET(
 
   // Board Definition System(EPIC-047): 검색/정렬/페이지네이션 동작 자체가
   // 게시판 설정에 따라 달라진다 — 하드코딩된 상수 대신 이 게시판이 어떤
-  // BoardDefinition에 속하는지부터 정한다.
+  // BoardDefinition에 속하는지부터 정한다. EPIC-066: board에 admin 오버라이드
+  // 컬럼(is_public/render_type/...)이 실려 있으면 resolveBoardDefinition이
+  // 하드코딩 값 위에 얹어 즉시 반영한다.
   const definition = resolveBoardDefinition(board);
 
   const requester = await getRequestMember(request);
   const tier = requester ? await getTier(requester.member.membership_rank) : null;
 
-  if (!canReadBoard(board, tier)) {
+  if (!canReadBoard(board, tier, requester?.member.is_admin)) {
     return NextResponse.json(
       {
         error: `이 게시판은 ${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능해요.`,

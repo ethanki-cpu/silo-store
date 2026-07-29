@@ -378,13 +378,66 @@ create view docent_content_popularity as
 create table boards (
   id                  uuid primary key default gen_random_uuid(),
   name                text not null,
-  category            text,
+  category            text,  -- 계속 slug 역할(resolveBoardDefinition이 이 값으로 매칭) — EPIC-066에서도 의미 안 바뀜
   board_type          text not null check (board_type in (
                         'topic','group','patron','artist_promo',
                         'adoption_story','archive','qna'
+                      )),  -- 권한 판정용(serverAuth.ts) — EPIC-066의 "Board Type"(렌더러 선택)과는 별개 축, 아래 render_type 참고
+  min_rank_to_write   int references membership_tiers(rank) default 0,
+  -- EPIC-066: 관리자 게시판 관리 화면에서 편집 가능한 설정 — 라이브 DB에는
+  -- 아직 미적용, 아래 ALTER TABLE을 Supabase SQL Editor에서 직접 실행 필요.
+  -- 전부 nullable/기본값 있음 → 기존 boardLayout.ts 하드코딩 값 위에 오버라이드로만
+  -- 얹히므로(src/lib/boardLayout.ts의 applyAdminOverrides), 값이 없는 기존
+  -- 게시판은 지금과 동일하게 렌더링된다(회귀 없음).
+  is_public           boolean not null default true,
+  group_key           text check (group_key in (
+                        'community','gallery','membership','archive','studio',
+                        'heritage','docent','mypage','silo_store'
                       )),
-  min_rank_to_write   int references membership_tiers(rank) default 0
+  render_type         text check (render_type in (
+                        'story','community','gallery','timeline','survey',
+                        'slide','calendar','application','collection','forum'
+                      )),
+  default_card_type   text check (default_card_type in ('list','thumbnail','gallery','carousel')),
+  use_search          boolean not null default true,
+  use_like            boolean not null default true,
+  use_comment         boolean not null default true,
+  use_view_count      boolean not null default true,
+  default_page_size   int not null default 24 check (default_page_size in (12,24,48,100)),
+  default_sort        text not null default 'latest' check (default_sort in (
+                        'latest','views','popular','comments','oldest'
+                      )),  -- SortOption(src/lib/boardLayout.ts)과 동일한 값 — "좋아요순"은 기존 코드 관례상 popular
+  description         text,
+  widget_settings     jsonb not null default '{}'::jsonb
 );
+
+-- EPIC-066 ALTER TABLE — 라이브 DB(boards 이미 존재)에 위 신규 컬럼을 추가할 때
+-- Supabase SQL Editor에서 그대로 실행:
+--
+-- alter table boards
+--   add column if not exists is_public boolean not null default true,
+--   add column if not exists group_key text check (group_key in (
+--     'community','gallery','membership','archive','studio','heritage','docent','mypage','silo_store'
+--   )),
+--   add column if not exists render_type text check (render_type in (
+--     'story','community','gallery','timeline','survey','slide','calendar','application','collection','forum'
+--   )),
+--   add column if not exists default_card_type text check (default_card_type in ('list','thumbnail','gallery','carousel')),
+--   add column if not exists use_search boolean not null default true,
+--   add column if not exists use_like boolean not null default true,
+--   add column if not exists use_comment boolean not null default true,
+--   add column if not exists use_view_count boolean not null default true,
+--   add column if not exists default_page_size int not null default 24 check (default_page_size in (12,24,48,100)),
+--   add column if not exists default_sort text not null default 'latest' check (default_sort in ('latest','views','popular','comments','oldest')),
+--   add column if not exists description text,
+--   add column if not exists widget_settings jsonb not null default '{}'::jsonb;
+--
+-- -- boards는 지금까지 select만 공개 정책이 있고 insert/update/delete 정책이
+-- -- 없었음(관리자 CRUD 자체가 없었으므로) — EPIC-066 admin API가 쓰는
+-- -- scopedClient(호출자 본인 토큰)가 통과하려면 admin bypass 정책이 필요:
+-- create policy "boards_admin_write" on boards for all
+--   using (exists (select 1 from members where auth_user_id = auth.uid() and is_admin = true))
+--   with check (exists (select 1 from members where auth_user_id = auth.uid() and is_admin = true));
 
 -- 실제 라이브 DB의 boards 26행 전체 (2026-07-23 기준, 그대로 재확인됨)
 insert into boards (name, category, board_type) values

@@ -49,7 +49,23 @@ export type BoardPost = {
 
 // EPIC-050: "timeline"은 연/월/일 순으로 묶어 보여주는 5번째 레이아웃 —
 // 사일로상점+살롱데상 전체 이벤트를 시간순으로 훑어보는 Archive 전용 게시판.
-export type BoardLayoutType = "community" | "story" | "gallery" | "hub" | "timeline";
+// EPIC-066: 관리자 게시판 관리의 "Board Type" 10종 중 forum/collection은
+// 기존 community/gallery 레이아웃을 그대로 재사용(별칭)하므로 새 키가
+// 필요 없고, survey/calendar/application/slide 4종만 실제로 새 레이아웃
+// 키로 추가한다 — survey/calendar/application은 이 코드베이스에 데이터
+// 모델이 아직 없어(Page Builder의 survey/calendar 위젯도 boards와 무관한
+// 정적 데모) 스텁 렌더러다(안내 배지 + 기존 글 목록), slide는 HubRenderer가
+// 쓰는 기존 SlideModule을 게시판 자기 자신의 글로 재사용하는 실렌더러다.
+export type BoardLayoutType =
+  | "community"
+  | "story"
+  | "gallery"
+  | "hub"
+  | "timeline"
+  | "slide"
+  | "survey"
+  | "calendar"
+  | "application";
 
 export type BoardDefinition = {
   id: string;
@@ -75,6 +91,10 @@ export type BoardDefinition = {
   bookmarks: boolean;
   tags: boolean;
   allowPosting: boolean;
+  // EPIC-066: 관리자 게시판 관리의 "View Count 사용 여부" 토글 — optional로
+  // 둬서(대부분의 기존 정의는 명시하지 않음) undefined는 "보임"(true)과
+  // 동일하게 취급한다(사용하는 쪽에서 `!== false`로 판정).
+  showViewCount?: boolean;
   defaultSort: SortOption;
   pageSize: number;
   description: string;
@@ -1115,26 +1135,93 @@ export function getChildBoardSlugs(parentSlug: string): IndividualBoardSlug[] {
   );
 }
 
+// EPIC-066: 관리자 게시판 관리에서 편집 가능한 boards의 신규 컬럼 —
+// resolveBoardDefinition의 입력 타입에 전부 optional로 추가한다. 호출부가
+// 이 필드들을 select하지 않았거나(기존 API 라우트 다수, 마이그레이션 전)
+// 라이브 DB에 컬럼 자체가 아직 없으면 전부 undefined로 들어오고, 아래
+// applyAdminOverrides가 undefined는 "오버라이드 없음"으로 취급해 기존
+// 하드코딩 값을 그대로 쓴다 — 하위 호환 100%, 신규 admin UI로 만지작인
+// 게시판만 실제로 값이 채워져 즉시 반영된다.
+export type BoardRow = {
+  id?: string;
+  name?: string;
+  board_type: string;
+  category: string | null;
+  min_rank_to_write?: number | null;
+  is_public?: boolean | null;
+  group_key?: string | null;
+  render_type?: string | null;
+  default_card_type?: string | null;
+  use_search?: boolean | null;
+  use_like?: boolean | null;
+  use_comment?: boolean | null;
+  use_view_count?: boolean | null;
+  default_page_size?: number | null;
+  default_sort?: string | null;
+  description?: string | null;
+  widget_settings?: Record<string, unknown> | null;
+};
+
+// EPIC-066: boards.select()에 쓸 두 필드 목록 — 신규 admin 컬럼 포함(rich)
+// vs 기존 4컬럼만(legacy). posts.tags/view_count와 동일한 rich/legacy 폴백
+// 패턴(호출부에서 rich로 먼저 시도하고 42703 에러면 legacy로 재시도, 자세한
+// 배경은 src/app/api/boards/[id]/posts/route.ts 참고) — 라이브 DB에 EPIC-066
+// 마이그레이션이 아직 안 됐어도 게시판 읽기 자체는 멈추지 않는다.
+export const BOARD_RICH_FIELDS =
+  "id, name, category, board_type, min_rank_to_write, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings";
+export const BOARD_LEGACY_FIELDS = "id, name, category, board_type, min_rank_to_write";
+
+// render_type(admin 편집용 10종) → BoardLayoutType(실제 렌더러 키) 매핑.
+// forum/collection은 새 레이아웃을 만들지 않고 기존 community/gallery를
+// 그대로 재사용(별칭)한다 — "Board Type" 드롭다운에는 10개가 다 뜨고
+// 즉시 전환도 되지만, 화면은 가장 가까운 기존 레이아웃을 보여준다.
+const RENDER_TYPE_TO_LAYOUT: Record<string, BoardLayoutType> = {
+  story: "story",
+  community: "community",
+  gallery: "gallery",
+  timeline: "timeline",
+  slide: "slide",
+  survey: "survey",
+  calendar: "calendar",
+  application: "application",
+  forum: "community",
+  collection: "gallery",
+};
+
+function applyAdminOverrides(base: BoardDefinition, board: BoardRow): BoardDefinition {
+  const overriddenLayout = board.render_type
+    ? RENDER_TYPE_TO_LAYOUT[board.render_type]
+    : undefined;
+
+  return {
+    ...base,
+    boardType: overriddenLayout ?? base.boardType,
+    visibility: board.is_public === false ? "private" : base.visibility,
+    searchable: board.use_search ?? base.searchable,
+    likes: board.use_like ?? base.likes,
+    comments: board.use_comment ?? base.comments,
+    showViewCount: board.use_view_count ?? base.showViewCount,
+    pageSize: board.default_page_size ?? base.pageSize,
+    defaultSort: isSortOption(board.default_sort ?? "") ? (board.default_sort as SortOption) : base.defaultSort,
+    description: board.description ?? base.description,
+  };
+}
+
 // boards.category(=개별 게시판 slug) → boards.board_type + category(그룹
 // 분기)로부터 BoardDefinition을 찾는다. 개별 slug가 먼저 매치되고, 없으면
 // 기존 8개 그룹 로직으로 폴백 — 알 수 없는 board_type이 들어오면(마이그
-// 레이션 누락 등) 가장 보수적인 기본값인 "topic" 정의로 대체한다.
-export function resolveBoardDefinition(board: {
-  board_type: string;
-  category: string | null;
-}): BoardDefinition {
+// 레이션 누락 등) 가장 보수적인 기본값인 "topic" 정의로 대체한다. 마지막에
+// applyAdminOverrides를 거쳐 EPIC-066 admin 컬럼 값이 있으면 덮어쓴다.
+export function resolveBoardDefinition(board: BoardRow): BoardDefinition {
+  let base: BoardDefinition;
+
   if (board.category && board.category in INDIVIDUAL_BOARD_DEFINITIONS) {
-    return INDIVIDUAL_BOARD_DEFINITIONS[board.category as IndividualBoardSlug];
+    base = INDIVIDUAL_BOARD_DEFINITIONS[board.category as IndividualBoardSlug];
+  } else if (board.board_type === "topic") {
+    base = board.category === "general" ? BOARD_DEFINITIONS.general : BOARD_DEFINITIONS.topic;
+  } else {
+    base = BOARD_DEFINITIONS[board.board_type as BoardGroupKey] ?? BOARD_DEFINITIONS.topic;
   }
 
-  if (board.board_type === "topic") {
-    return board.category === "general"
-      ? BOARD_DEFINITIONS.general
-      : BOARD_DEFINITIONS.topic;
-  }
-
-  return (
-    BOARD_DEFINITIONS[board.board_type as BoardGroupKey] ??
-    BOARD_DEFINITIONS.topic
-  );
+  return applyAdminOverrides(base, board);
 }

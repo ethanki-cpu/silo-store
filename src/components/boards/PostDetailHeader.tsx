@@ -17,6 +17,9 @@ export function PostDetailHeader({
   viewCount,
   commentCount,
   badges,
+  showLikes = true,
+  showComments = true,
+  showViewCount = true,
 }: {
   postNumber: number | null;
   createdAt: string;
@@ -29,7 +32,16 @@ export function PostDetailHeader({
   viewCount: number | null;
   commentCount: number;
   badges?: ReactNode;
+  // EPIC-066: 게시판 관리의 좋아요/댓글/조회수 사용 여부 토글.
+  showLikes?: boolean;
+  showComments?: boolean;
+  showViewCount?: boolean;
 }) {
+  const statParts = [
+    ...(showLikes ? [`좋아요 ${likeCount}`] : []),
+    ...(showViewCount ? [`조회 ${viewCount ?? 0}`] : []),
+    ...(showComments ? [`댓글 ${commentCount}`] : []),
+  ];
   const wasEdited = updatedAt && updatedAt !== createdAt;
 
   return (
@@ -60,9 +72,11 @@ export function PostDetailHeader({
           <h1 className="font-serif text-2xl sm:text-3xl font-bold leading-snug text-gray-900">
             {title}
           </h1>
-          <p className="text-xs uppercase tracking-wide text-gray-400 mt-3">
-            좋아요 {likeCount} · 조회 {viewCount ?? 0} · 댓글 {commentCount}
-          </p>
+          {statParts.length > 0 && (
+            <p className="text-xs uppercase tracking-wide text-gray-400 mt-3">
+              {statParts.join(" · ")}
+            </p>
+          )}
         </div>
 
         <div className="order-3 md:text-right">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { getRequestMember, getTier, canReadBoard, RANK_LABELS } from "@/lib/serverAuth";
-import { resolveBoardDefinition } from "@/lib/boardLayout";
+import { resolveBoardDefinition, BOARD_RICH_FIELDS, BOARD_LEGACY_FIELDS } from "@/lib/boardLayout";
 
 const richFields =
   "id, board_id, title, body, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
@@ -14,11 +14,19 @@ export async function GET(
 ) {
   const { id, postId } = await params;
 
-  const { data: board, error: boardError } = await supabase
+  let { data: board, error: boardError } = await supabase
     .from("boards")
-    .select("id, name, category, board_type")
+    .select(BOARD_RICH_FIELDS)
     .eq("id", id)
     .single();
+
+  if (boardError) {
+    ({ data: board, error: boardError } = await supabase
+      .from("boards")
+      .select(BOARD_LEGACY_FIELDS)
+      .eq("id", id)
+      .single());
+  }
 
   if (boardError || !board) {
     return NextResponse.json(
@@ -34,7 +42,7 @@ export async function GET(
     ? await getTier(requester.member.membership_rank)
     : null;
 
-  if (!canReadBoard(board, tier)) {
+  if (!canReadBoard(board, tier, requester?.member.is_admin)) {
     return NextResponse.json(
       {
         error: `이 게시판은 ${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능해요.`,

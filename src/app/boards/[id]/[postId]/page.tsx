@@ -218,6 +218,9 @@ export default function PostDetailPage() {
           likeCount={post.like_count}
           viewCount={post.view_count}
           commentCount={comments.length}
+          showLikes={definition.likes}
+          showComments={definition.comments}
+          showViewCount={definition.showViewCount}
         />
 
         <div className="max-w-2xl mx-auto w-full">

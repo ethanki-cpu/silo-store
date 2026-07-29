@@ -104,7 +104,14 @@ export default function AdminPageEditorPage() {
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
-          setBoards(data.map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
+          // EPIC-066: Page Builder 위젯의 게시판 드롭다운은 공개된 게시판만
+          // 골라야 한다(요구사항 ②) — is_public===false만 명시적으로
+          // 제외하고, 필드 자체가 없으면(마이그레이션 전) 기존처럼 전부 보여준다.
+          setBoards(
+            data
+              .filter((b: { is_public?: boolean }) => b.is_public !== false)
+              .map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })),
+          );
         }
       });
   }, [session]);

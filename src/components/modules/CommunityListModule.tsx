@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { BoardPost } from "@/lib/boardLayout";
 import { PostTags } from "@/components/boards/PostTags";
+import { formatPostMeta } from "@/lib/postMeta";
 
 // EPIC-056: Board Module 목록 ⑥ Community List Module — 제목/작성자/좋아요/
 // 조회수/날짜만 보여주는 목록형 레이아웃. src/components/boards/
@@ -46,11 +47,18 @@ export function CommunityListModule({
   // 상세 페이지(boards/[id]/[postId])가 이미 하던 대로(board?.category를
   // 태그처럼 붙여 보여줌) 목록에서도 동일하게 태그 칩 하나로 표시한다.
   boardCategory,
+  showLikes,
+  showComments,
+  showViewCount,
 }: {
   boardId: string;
   posts: BoardPost[];
   isQna: boolean;
   boardCategory?: string | null;
+  // EPIC-066: 게시판 관리의 좋아요/댓글/조회수 사용 여부 토글.
+  showLikes?: boolean;
+  showComments?: boolean;
+  showViewCount?: boolean;
 }) {
   return (
     <div className="divide-y divide-gray-100">
@@ -74,8 +82,7 @@ export function CommunityListModule({
               {post.title}
             </h2>
             <p className="text-xs uppercase tracking-wide text-gray-400 mt-1.5">
-              {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
-              {post.view_count ?? 0} · 댓글 {post.comment_count} ·{" "}
+              {formatPostMeta(post, { showLikes, showComments, showViewCount })} ·{" "}
               {new Date(post.created_at).toLocaleString()}
             </p>
             <PostTags tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]} />

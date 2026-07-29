@@ -70,9 +70,16 @@ export async function getTier(rank: number): Promise<TierFlags | null> {
 }
 
 export function canReadBoard(
-  board: { board_type: string; category?: string | null },
+  board: { board_type: string; category?: string | null; is_public?: boolean | null },
   tier: TierFlags | null,
+  isAdmin?: boolean,
 ): boolean {
+  // EPIC-066: 게시판 관리의 "공개/비공개" 토글 — 비공개면 관리자를 제외한
+  // 모두에게 등급과 무관하게 막는다(patron 게이팅보다 우선).
+  if (board.is_public === false && !isAdmin) {
+    return false;
+  }
+
   if (board.board_type === "patron") {
     return !!tier?.board_has_patron_board;
   }

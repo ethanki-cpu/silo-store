@@ -1,6 +1,7 @@
 import type { BoardPost } from "@/lib/boardLayout";
 import { StoryCard } from "@/components/boards/StoryCard";
 import { stripHtml } from "@/lib/sanitize";
+import { formatPostMeta } from "@/lib/postMeta";
 
 // EPIC-056: Board Module 목록 ⑤ Story Thumbnail Module — 카드형/썸네일/
 // 제목/요약/작성자/날짜. src/components/boards/BoardRenderer.tsx 안에
@@ -12,6 +13,9 @@ export function StoryThumbnailModule({
   posts,
   showThumbnail = true,
   boardCategory,
+  showLikes,
+  showComments,
+  showViewCount,
 }: {
   boardId: string;
   posts: BoardPost[];
@@ -23,6 +27,10 @@ export function StoryThumbnailModule({
   // 칩으로 함께 보여준다 — 게시글 상세 페이지의 기존 displayTags 관례와
   // 동일.
   boardCategory?: string | null;
+  // EPIC-066: 게시판 관리의 좋아요/댓글/조회수 사용 여부 토글.
+  showLikes?: boolean;
+  showComments?: boolean;
+  showViewCount?: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -36,8 +44,7 @@ export function StoryThumbnailModule({
           tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]}
           meta={
             <>
-              {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
-              {post.view_count ?? 0} · 댓글 {post.comment_count} ·{" "}
+              {formatPostMeta(post, { showLikes, showComments, showViewCount })} ·{" "}
               {new Date(post.created_at).toLocaleDateString()}
             </>
           }

@@ -9,6 +9,7 @@ const ADMIN_NAV = [
   { href: "/admin/payments", label: "결제 관리" },
   { href: "/admin/navigation", label: "메뉴/카테고리 관리" },
   { href: "/admin/pages", label: "페이지 관리" },
+  { href: "/admin/boards", label: "게시판 관리" },
   { href: "/admin/posts", label: "전체 글 관리" },
   { href: "/admin/projects/new", label: "스튜디오 포트폴리오 등록" },
 ];

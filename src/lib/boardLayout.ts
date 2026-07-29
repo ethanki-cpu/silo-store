@@ -98,6 +98,12 @@ export type HubFeedItem = {
   // 썸네일을 보여주기 위해 추가 — 없으면(기존 도메인) 카드가 텍스트만
   // 보여주던 대로 그대로 동작(하위 호환).
   photo_url: string | null;
+  // EPIC-066: Slide Module도 다른 레이아웃들과 동일하게 댓글/조회/태그를
+  // 보여줘야 한다는 요구 — 전부 optional로 둬서(기존 호출부는 undefined로
+  // 자연히 생략) 하위 호환을 깨지 않는다.
+  comment_count?: number;
+  view_count?: number | null;
+  tags?: string[];
 };
 
 export type HubFeed = {

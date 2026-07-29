@@ -1,0 +1,9 @@
+import { CommunityListModule } from "@/components/modules/CommunityListModule";
+import type { BoardRendererProps } from "./types";
+
+// EPIC-066: Renderer Registry의 "community" 항목.
+export function CommunityRenderer({ boardId, posts, isQna, boardCategory }: BoardRendererProps) {
+  return (
+    <CommunityListModule boardId={boardId} posts={posts} isQna={isQna} boardCategory={boardCategory} />
+  );
+}

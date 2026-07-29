@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { HubFeed } from "@/lib/boardLayout";
+import { PostTags } from "@/components/boards/PostTags";
 
 // EPIC-056: Board Module 목록 ⑧ Slide Module — 최신글/인기글 슬라이드.
 // src/components/boards/BoardRenderer.tsx 안에 갇혀 있던 사설(private)
@@ -45,7 +46,10 @@ export function SlideModule({
                 </p>
                 <p className="text-xs text-gray-400 mt-2">
                   {item.author_name} · 좋아요 {item.like_count}
+                  {item.comment_count !== undefined && <> · 댓글 {item.comment_count}</>}
+                  {item.view_count !== undefined && <> · 조회 {item.view_count ?? 0}</>}
                 </p>
+                {item.tags && item.tags.length > 0 && <PostTags tags={item.tags} />}
               </div>
             </Link>
           ))}

@@ -1,15 +1,21 @@
 import Link from "next/link";
 import type { BoardPost } from "@/lib/boardLayout";
+import { PostTags } from "@/components/boards/PostTags";
 
 // EPIC-056: Board Module 목록 ⑦ Gallery Module — 이미지 카드 + Masonry/Grid
 // (CSS columns 기반). src/components/boards/BoardRenderer.tsx 안에 갇혀
 // 있던 사설(private) 컴포넌트를 그대로 뽑아낸 것(마크업/동작 변경 없음).
+// EPIC-066: Board Widget 출력 요구 항목(좋아요/댓글/작성자/조회수/태그/
+// 카테고리)을 이미지 아래 캡션 한 줄 + 태그 칩으로 추가 — 이미지 중심
+// 레이아웃 자체는 그대로 유지한다.
 export function GalleryModule({
   boardId,
   posts,
+  boardCategory,
 }: {
   boardId: string;
   posts: BoardPost[];
+  boardCategory?: string | null;
 }) {
   return (
     <div className="columns-2 sm:columns-3 gap-4 [column-fill:_balance]">
@@ -34,6 +40,11 @@ export function GalleryModule({
           <p className="text-sm font-medium text-gray-900 mt-2 group-hover:underline">
             {post.title}
           </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
+            {post.view_count ?? 0} · 댓글 {post.comment_count}
+          </p>
+          <PostTags tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]} />
         </Link>
       ))}
     </div>

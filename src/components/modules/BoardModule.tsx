@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAuth } from "@/lib/AuthProvider";
+import { useBoardData } from "@/lib/useBoardData";
 import { BoardHeader } from "@/components/boards/BoardHeader";
 import { BoardRenderer } from "@/components/boards/BoardRenderer";
+import { BoardSkeleton } from "@/components/boards/BoardSkeleton";
 import { Pagination } from "@/components/boards/Pagination";
+import { FilterModule } from "@/components/modules/FilterModule";
 import { HeroModule } from "@/components/modules/HeroModule";
 import {
   resolveBoardDefinition,
   INDIVIDUAL_BOARD_DEFINITIONS,
   type BoardDefinition,
-  type BoardPost,
-  type SortOption,
   type HubFeed,
-  type HubChildBoard,
 } from "@/lib/boardLayout";
 
 type Board = {
@@ -23,21 +23,18 @@ type Board = {
   board_type: string;
 };
 
-const EMPTY_FEED: HubFeed = { latest: [], popular: [], recommended: [] };
-
 // EPIC-054C: "Board Module" — 게시판 하나(boardId)를 Page 어디에든 꽂을 수
-// 있는 자기완결형(self-contained) 모듈. 원래 src/app/boards/[id]/page.tsx
-// 하나에만 있던 조회/Search/Sort/Pagination 로직을 그대로 옮겨온 것으로,
-// 동작은 완전히 동일하다(리팩터, 새 로직 없음). boardId만 받고 스스로
-// fetch/상태 관리를 하기 때문에:
-//   - 한 Page 안에 여러 BoardModule을 나란히 배치해도 서로의 검색어/정렬/
-//     페이지 상태가 섞이지 않는다(Page 하나 = Board 하나 구조를 강제하지
-//     않기 위한 핵심 설계).
-//   - 추후 Block Editor가 "게시판 임베드" 블록을 추가할 때도 이 컴포넌트에
-//     boardId 하나만 넘기면 그대로 재사용된다.
-// definition.boardType이 "hub"면 BoardRenderer가 알아서 HubView(Slide
-// Board 레이아웃)로 그리므로, story/gallery/list/slide board 4종 모두 이
-// 컴포넌트 하나로 커버된다 — 새 레이아웃 로직을 따로 만들지 않는다.
+// 있는 자기완결형(self-contained) 모듈. boardId만 받고 스스로 fetch/상태
+// 관리를 하기 때문에 한 Page 안에 여러 BoardModule을 나란히 배치해도
+// 서로의 검색어/정렬/페이지 상태가 섞이지 않는다.
+// definition.boardType이 "hub"면 BoardRenderer가 Renderer Registry에서
+// HubRenderer를 찾아 그리므로, story/community/gallery/timeline/hub 5종
+// 모두 이 컴포넌트 하나로 커버된다.
+//
+// EPIC-066: 조회 로직(검색/정렬/필터/페이지네이션 fetch)은
+// src/lib/useBoardData.ts(BoardService/BoardQuery)로 뽑아냈다 — 이
+// 컴포넌트는 그 훅의 state를 화면(Header/Renderer/Pagination)에 옮기는
+// 프레젠테이션 레이어만 담당한다.
 export function BoardModule({
   boardId,
   includeChildBoards = true,
@@ -69,66 +66,32 @@ export function BoardModule({
   showThumbnail?: boolean;
   showWriteButton?: boolean;
 }) {
-  const { session, loading: authLoading } = useAuth();
-  const [board, setBoard] = useState<Board | null>(null);
-  const [posts, setPosts] = useState<BoardPost[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [pageSize, setPageSize] = useState(pageSizeOverride ?? 10);
-  const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<SortOption>("latest");
-  const [q, setQ] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [fetching, setFetching] = useState(true);
-  const [hubFeed, setHubFeed] = useState<HubFeed>(EMPTY_FEED);
-  const [hubChildBoards, setHubChildBoards] = useState<HubChildBoard[]>([]);
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    const timeout = setTimeout(async () => {
-      setFetching(true);
-      setError(null);
-
-      const params = new URLSearchParams({
-        page: String(page),
-        sort,
-        q,
-      });
-      if (pageSizeOverride) params.set("pageSize", String(pageSizeOverride));
-
-      const res = await fetch(`/api/boards/${boardId}/posts?${params.toString()}`, {
-        headers: session
-          ? { Authorization: `Bearer ${session.access_token}` }
-          : {},
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? "게시글을 불러오지 못했어요.");
-        setFetching(false);
-        return;
-      }
-
-      setBoard(data.board);
-      setPosts(data.posts);
-      setTotalCount(data.totalCount);
-      setPageSize(data.pageSize);
-      setFetching(false);
-    }, 250);
-
-    return () => clearTimeout(timeout);
-  }, [boardId, session, authLoading, page, sort, q, pageSizeOverride]);
-
-  function handleQueryChange(value: string) {
-    setQ(value);
-    setPage(1);
-  }
-
-  function handleSortChange(value: SortOption) {
-    setSort(value);
-    setPage(1);
-  }
+  const { session } = useAuth();
+  const {
+    board,
+    posts,
+    totalCount,
+    pageSize,
+    page,
+    setPage,
+    sort,
+    q,
+    tag,
+    year,
+    availableTags,
+    availableYears,
+    error,
+    fetching,
+    hubFeed,
+    setHubFeed,
+    hubChildBoards,
+    setHubChildBoards,
+    handleQueryChange,
+    handleSortChange,
+    handleTagChange,
+    handleYearChange,
+    handlePageSizeChange,
+  } = useBoardData(boardId, { initialPageSize: pageSizeOverride });
 
   const hubDefinition = board ? resolveBoardDefinition(board) : null;
   const isHub = hubDefinition?.boardType === "hub";
@@ -146,7 +109,7 @@ export function BoardModule({
         includeChildBoards ? fetch("/api/boards", { headers }) : Promise.resolve(null),
       ]);
 
-      const feedData = await feedRes.json();
+      const feedData: HubFeed = await feedRes.json();
       setHubFeed(feedData);
 
       if (includeChildBoards && boardsRes) {
@@ -161,10 +124,10 @@ export function BoardModule({
     }
 
     loadHub();
-  }, [isHub, hubDefinition, session, includeChildBoards]);
+  }, [isHub, hubDefinition, session, includeChildBoards, setHubFeed, setHubChildBoards]);
 
   if (fetching && posts.length === 0 && !error) {
-    return <p className="text-gray-400">불러오는 중...</p>;
+    return <BoardSkeleton />;
   }
 
   if (error) {
@@ -187,6 +150,28 @@ export function BoardModule({
         definition.parent
       ]
     : null;
+
+  const filterOptions = [
+    ...availableTags.map((t) => ({ value: `tag:${t}`, label: `#${t}` })),
+    ...availableYears.map((y) => ({ value: `year:${y}`, label: `${y}년` })),
+  ];
+  const activeFilterValue = tag ? `tag:${tag}` : year ? `year:${year}` : null;
+
+  function handleFilterChange(value: string | null) {
+    if (!value) {
+      handleTagChange(null);
+      handleYearChange(null);
+      return;
+    }
+    const [kind, raw] = value.split(":");
+    if (kind === "tag") {
+      handleTagChange(raw);
+      handleYearChange(null);
+    } else {
+      handleYearChange(raw);
+      handleTagChange(null);
+    }
+  }
 
   return (
     <div>
@@ -212,6 +197,14 @@ export function BoardModule({
         onSortChange={sortEnabled === false ? undefined : handleSortChange}
       />
 
+      {/* EPIC-066: Tag/Year Filter — 둘 다 옵션이 없으면(태그도 안 쓰고
+          연도가 하나뿐인 게시판 등) 아무것도 렌더링하지 않는다. */}
+      {filterOptions.length > 0 && (
+        <div className="mb-6">
+          <FilterModule options={filterOptions} value={activeFilterValue} onChange={handleFilterChange} />
+        </div>
+      )}
+
       <BoardRenderer
         definition={definition}
         boardId={String(boardId)}
@@ -220,10 +213,17 @@ export function BoardModule({
         hubFeed={hubFeed}
         hubChildBoards={includeChildBoards ? hubChildBoards : undefined}
         showThumbnail={showThumbnail}
+        boardCategory={board?.category}
       />
 
       {definition.pageable && paginationEnabled !== false && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={handlePageSizeChange}
+        />
       )}
     </div>
   );

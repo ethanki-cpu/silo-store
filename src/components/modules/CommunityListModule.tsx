@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { BoardPost } from "@/lib/boardLayout";
+import { PostTags } from "@/components/boards/PostTags";
 
 // EPIC-056: Board Module 목록 ⑥ Community List Module — 제목/작성자/좋아요/
 // 조회수/날짜만 보여주는 목록형 레이아웃. src/components/boards/
@@ -40,10 +41,16 @@ export function CommunityListModule({
   boardId,
   posts,
   isQna,
+  // EPIC-066: Board Widget이 "카테고리"까지 실제로 출력해야 한다는 요구 —
+  // 카테고리는 게시글이 아니라 게시판 단위 속성이라 posts에는 없다.
+  // 상세 페이지(boards/[id]/[postId])가 이미 하던 대로(board?.category를
+  // 태그처럼 붙여 보여줌) 목록에서도 동일하게 태그 칩 하나로 표시한다.
+  boardCategory,
 }: {
   boardId: string;
   posts: BoardPost[];
   isQna: boolean;
+  boardCategory?: string | null;
 }) {
   return (
     <div className="divide-y divide-gray-100">
@@ -51,17 +58,28 @@ export function CommunityListModule({
         <Link
           key={post.id}
           href={`/boards/${boardId}/${post.id}`}
-          className="block py-5 group"
+          className="flex gap-4 py-5 group"
         >
-          <PostBadges post={post} isQna={isQna} />
-          <h2 className="font-serif text-lg font-medium text-gray-900 group-hover:underline">
-            {post.title}
-          </h2>
-          <p className="text-xs uppercase tracking-wide text-gray-400 mt-1.5">
-            {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
-            {post.view_count ?? 0} · 댓글 {post.comment_count} ·{" "}
-            {new Date(post.created_at).toLocaleString()}
-          </p>
+          {post.photo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={post.photo_url}
+              alt=""
+              className="w-16 h-16 shrink-0 rounded-md object-cover"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <PostBadges post={post} isQna={isQna} />
+            <h2 className="font-serif text-lg font-medium text-gray-900 group-hover:underline">
+              {post.title}
+            </h2>
+            <p className="text-xs uppercase tracking-wide text-gray-400 mt-1.5">
+              {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
+              {post.view_count ?? 0} · 댓글 {post.comment_count} ·{" "}
+              {new Date(post.created_at).toLocaleString()}
+            </p>
+            <PostTags tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]} />
+          </div>
         </Link>
       ))}
     </div>

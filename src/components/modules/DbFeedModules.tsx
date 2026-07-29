@@ -42,6 +42,9 @@ export function DbSlideModule({
     author_name: p.author_name,
     created_at: p.created_at,
     photo_url: p.photo_url,
+    comment_count: p.comment_count,
+    view_count: p.view_count,
+    tags: p.tags ?? [],
   }));
 
   return <SlideModule title={title ?? board?.name ?? "최신 글"} items={items} />;

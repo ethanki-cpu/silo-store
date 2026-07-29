@@ -11,6 +11,7 @@ export function StoryThumbnailModule({
   boardId,
   posts,
   showThumbnail = true,
+  boardCategory,
 }: {
   boardId: string;
   posts: BoardPost[];
@@ -18,6 +19,10 @@ export function StoryThumbnailModule({
   // photoUrl을 넘기지 않아 StoryCard가 이미지 없이 렌더링된다(카드 레이아웃
   // 자체는 그대로 유지, 새 레이아웃 없음).
   showThumbnail?: boolean;
+  // EPIC-066: 게시판 카테고리(게시글 단위가 아닌 게시판 속성)를 태그
+  // 칩으로 함께 보여준다 — 게시글 상세 페이지의 기존 displayTags 관례와
+  // 동일.
+  boardCategory?: string | null;
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -28,11 +33,11 @@ export function StoryThumbnailModule({
           photoUrl={showThumbnail ? post.photo_url : null}
           title={post.title ?? ""}
           summary={post.body ? stripHtml(post.body) : null}
-          tags={post.tags ?? []}
+          tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]}
           meta={
             <>
               {post.author_name} · 좋아요 {post.like_count} · 조회{" "}
-              {post.view_count ?? 0} ·{" "}
+              {post.view_count ?? 0} · 댓글 {post.comment_count} ·{" "}
               {new Date(post.created_at).toLocaleDateString()}
             </>
           }

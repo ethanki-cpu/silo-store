@@ -40,13 +40,46 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ latest: [], popular: [], recommended: [] });
   }
 
-  const { data: posts } = await supabase
+  // EPIC-066: view_count/tags가 라이브 DB에 아직 없을 수 있어(다른
+  // 라우트들과 동일한 이유) 새 컬럼 포함으로 먼저 시도하고 실패하면
+  // 레거시 컬럼만으로 재시도한다 — 피드 자체가 마이그레이션 전까지
+  // 완전히 멈추지 않게 한다.
+  let usedRichFields = true;
+  let posts:
+    | {
+        id: string;
+        board_id: string | null;
+        title: string | null;
+        like_count: number;
+        is_best: boolean;
+        photo_url: string | null;
+        author_id: string;
+        created_at: string;
+        view_count?: number | null;
+        tags?: string[] | null;
+      }[]
+    | null;
+
+  ({ data: posts } = await supabase
     .from("posts")
-    .select("id, board_id, title, like_count, is_best, photo_url, author_id, created_at")
+    .select(
+      "id, board_id, title, like_count, is_best, photo_url, author_id, created_at, view_count, tags",
+    )
     .in("board_id", readableBoardIds)
     .eq("visibility", "public")
     .order("created_at", { ascending: false })
-    .limit(200);
+    .limit(200));
+
+  if (!posts) {
+    usedRichFields = false;
+    ({ data: posts } = await supabase
+      .from("posts")
+      .select("id, board_id, title, like_count, is_best, photo_url, author_id, created_at")
+      .in("board_id", readableBoardIds)
+      .eq("visibility", "public")
+      .order("created_at", { ascending: false })
+      .limit(200));
+  }
 
   const allPosts = posts ?? [];
 
@@ -56,6 +89,18 @@ export async function GET(request: NextRequest) {
     .select("id, name")
     .in("id", authorIds.length > 0 ? authorIds : ["00000000-0000-0000-0000-000000000000"]);
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.name]));
+
+  // EPIC-066: 게시글별 댓글 수 — /api/boards/[id]/posts와 동일하게 한 번의
+  // 배치 조회(IN절)로 N+1을 피한다.
+  const postIds = allPosts.map((p) => p.id);
+  const { data: allComments } = await supabase
+    .from("comments")
+    .select("post_id")
+    .in("post_id", postIds.length > 0 ? postIds : ["00000000-0000-0000-0000-000000000000"]);
+  const commentCountByPostId = new Map<string, number>();
+  for (const c of allComments ?? []) {
+    commentCountByPostId.set(c.post_id, (commentCountByPostId.get(c.post_id) ?? 0) + 1);
+  }
 
   function toFeedItem(p: (typeof allPosts)[number]) {
     return {
@@ -67,6 +112,9 @@ export async function GET(request: NextRequest) {
       photo_url: p.photo_url,
       author_name: nameById.get(p.author_id) ?? "알 수 없음",
       created_at: p.created_at,
+      comment_count: commentCountByPostId.get(p.id) ?? 0,
+      view_count: usedRichFields ? (p.view_count ?? 0) : 0,
+      tags: usedRichFields ? (p.tags ?? []) : [],
     };
   }
 

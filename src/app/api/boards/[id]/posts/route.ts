@@ -53,6 +53,11 @@ export async function GET(
   const sort: SortOption = definition.sortable && isSortOption(sortParam)
     ? sortParam
     : definition.defaultSort;
+  // EPIC-066: Board Widget의 Tag/Year 필터 — Category/Board Type 필터는
+  // 게시판 단위 속성이라 이 게시글 목록 API가 아니라 /boards 디렉토리
+  // 수준(어떤 게시판을 보여줄지)에서 걸러야 할 값이라 여기서 다루지 않는다.
+  const tagFilter = searchParams.get("tag")?.trim() || null;
+  const yearFilter = searchParams.get("year")?.trim() || null;
 
   const client = requester ? requester.scopedClient : supabase;
 
@@ -163,6 +168,14 @@ export async function GET(
       : {}),
   }));
 
+  // EPIC-066: Filter UI가 보여줄 선택지 — 검색/태그/연도 필터를 적용하기
+  // 전(enriched 원본) 기준으로 뽑아야, 필터를 하나 걸었다고 다른 필터의
+  // 선택지가 줄어들어 보이지 않는다.
+  const availableTags = [...new Set(enriched.flatMap((post) => post.tags ?? []))].sort();
+  const availableYears = [
+    ...new Set(enriched.map((post) => new Date(post.created_at).getFullYear().toString())),
+  ].sort((a, b) => Number(b) - Number(a));
+
   if (q) {
     enriched = enriched.filter((post) => {
       const haystacks = [
@@ -173,6 +186,16 @@ export async function GET(
       ];
       return haystacks.some((h) => h.toLowerCase().includes(q));
     });
+  }
+
+  if (tagFilter) {
+    enriched = enriched.filter((post) => (post.tags ?? []).includes(tagFilter));
+  }
+
+  if (yearFilter) {
+    enriched = enriched.filter(
+      (post) => new Date(post.created_at).getFullYear().toString() === yearFilter,
+    );
   }
 
   // sort는 definition.sortable이 false면 이미 defaultSort로 고정돼 있으므로,
@@ -215,6 +238,8 @@ export async function GET(
     totalCount,
     page,
     pageSize,
+    availableTags,
+    availableYears,
   });
 }
 

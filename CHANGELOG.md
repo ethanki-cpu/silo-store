@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-07-29 (EPIC-066)
+- **EPIC-066: Board Widget을 실데이터 렌더링으로 완성 — Renderer Registry + Pagination/Search/Sort/Filter/Empty/Skeleton**
+  - **사전 감사(사용자 확인)**: "Board Type 10종" 중 실제 존재하는 건 5종(story/community/gallery/hub/timeline)뿐 — Survey/Calendar/Application은 위젯 타입이지 게시판 타입이 아니고, Collection/Forum은 존재한 적 없음. 실제 5종 기준으로 진행하기로 확정. "빈 화면"의 대부분은 렌더링 버그가 아니라 실제 게시글 0건(EmptyState 정상)임도 함께 확인.
+  - **Renderer Registry**: `src/components/boards/renderers/`(Story/Community/Gallery/Timeline/Hub Renderer + `BoardRendererRegistry: Record<BoardLayoutType, Component>`)로 `BoardRenderer.tsx`의 switch/case 제거 — 새 레이아웃은 파일 하나 + registry 한 줄로 확장.
+  - **필드 보강**: 좋아요/댓글/작성자/조회수/태그/카테고리/썸네일을 5개 레이아웃 전부에서 실제로 출력(카테고리는 게시판 속성이라 태그 칩으로 병합), `/api/boards/feed`에도 comment_count/view_count/tags 배치 조회 추가.
+  - **Pagination**: 페이지당 개수(12/24/48/100) 선택 드롭다운 추가(하위 호환 optional prop).
+  - **Search/Sort**: 이미 완비돼 있었음을 코드로 확인, 변경 없음.
+  - **Filter**: Tag/Year를 `/api/boards/[id]/posts`에 실제 파라미터로 추가 + `FilterModule` 연결. Category/Board Type 필터는 시간 제약으로 미구현(NEXT_TASK.md 기록).
+  - **Empty/Skeleton**: `BoardEmptyState`("아직 게시글이 없습니다."/"첫 글을 작성해보세요.") + `BoardSkeleton`(펄스 애니메이션)으로 교체.
+  - **캐시**: 별도 캐싱 없이 항상 새로 fetch하는 기존 구조 유지 — "즉시 반영"이 구조적으로 보장됨(React Query/SWR 미도입, 기존 구조 유지 원칙 준수).
+  - **Page Builder 연동 결함 발견 및 수정**: 79개 페이지가 `PageEditButton`만 달려 있고 `PageBuilderRenderer`를 전혀 호출하지 않아 위젯을 구성해도 화면에 반영될 수 없는 구조였음을 발견(EPIC-064A가 컴포넌트만 기계적으로 부착한 결과) — 이번 EPIC 필수 테스트 대상 중 여기 해당하는 `/salon/event-notices`(정적 "준비 중" 텍스트)만 형제 페이지와 동일한 패턴으로 수정, 나머지 78개는 별도 규모의 작업이라 NEXT_TASK.md에 목록 기록.
+  - **리팩토링**: `useBoardData`(BoardService)로 조회 로직 분리, `BoardModule.tsx`는 프레젠테이션 전용으로 축소(전 파일 500줄 이내 확인).
+  - **성능**: API 라우트 2곳 모두 작성자/댓글 수 배치(IN절) 조회로 N+1 없음 재확인.
+  - **DB(Management API 토큰으로 직접 실행)**: `treasures` 페이지의 미연결 Gallery 위젯을 실제 관련 게시판("After Adoption 분양 후 이야기")에 연결, `gallery` 페이지의 죽은 빈 Gallery 위젯(5개 버튼과 중복) 삭제.
+  - **검증**: `npx tsc --noEmit`/`npm run build`/`npm run lint`(기존 30개 baseline 동일, 신규 0건) 통과. **관리자 세션이 실제로 열려 있어** Visual Widget Builder를 직접 클릭해 확인 — Board Widget Inspector의 6개 토글(검색/정렬/페이지 넘김/페이지당 개수/썸네일/글쓰기 버튼) 전부 렌더링, Live Preview가 실제 게시글 데이터(작성자/좋아요/댓글/조회수)로 즉시 반영됨을 확인, BoardEmptyState 문구가 지시문 예시와 정확히 일치하는 것도 실제 화면에서 확인.
+  - 문서 동기화: `docs/EPIC.md`, `NEXT_TASK.md`.
+
 ## 2026-07-29 (EPIC-065)
 - **EPIC-065: 기존 JSON 기반 Page Builder → No-Code Visual Widget Builder 전환**
   - **DB(Management API 토큰으로 직접 실행)**: `page_modules.module_type` CHECK 제약 제거, `is_hidden boolean default false` 컬럼 추가. `docs/sql/EPIC-065-widget-builder-schema.sql`에 기록(재실행 안전).

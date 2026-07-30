@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-07-30 (EPIC-071)
+- **EPIC-071: 관리자 회원 관리 페이지(`/admin/members`) 신설** — "ethanki@silostore.net을 관리자로, 회원 정보를 보이고 수정하는 페이지를 만들어달라"는 요청.
+  - **DB**: `docs/sql/EPIC-071-member-admin.sql` 작성 — (1) `ethanki@silostore.net` 관리자(`is_admin`) 승격, (2) `members` 테이블에 admin-bypass RLS(select/update) 정책 추가(기존 `orders`/`reservations`/`page_builder` 등과 동일한 패턴 — own-row 정책은 유지한 채 관리자용 정책만 추가, subquery가 자기 자신(`members`)을 참조하지만 호출자 본인 행은 기존 own-row 정책으로 즉시 해소돼 무한 재귀로 이어지지 않음). **사용자가 Supabase SQL Editor에서 직접 실행 완료(2026-07-30).**
+  - **API**: `GET /api/admin/members`(검색어 `q` 지원, 관리자 전용), `PATCH /api/admin/members/[id]`(이름/등급/관리자 여부 수정, 관리자 전용) 신설 — 둘 다 `requester.scopedClient`로 호출해 위 RLS 정책이 실제로 걸리도록 함. 본인의 마지막 관리자 권한을 스스로 해제하는 요청은 400으로 차단(관리자가 0명이 되는 사고 방지).
+  - **UI**: `/admin/members` — 이름/이메일/등급(드롭다운)/관리자 여부(체크박스)/가입일 표+검색, 행별로 값 바꾸고 "저장" 버튼(변경 없으면 비활성화). 관리자 상단 탭에 "회원 관리" 추가. 본인 관리자 해제 시 `window.confirm()` 재확인(기존 admin 페이지 대다수와 동일한 패턴).
+  - **검증**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 통과, `curl`로 미인증 요청이 403 반환하는 것 확인. 실제 화면 클릭 테스트는 관리자 로그인 세션이 필요해(에이전트가 자격 증명 직접 입력 금지 정책) 사용자가 SQL 실행 후 직접 확인.
+  - **재발 방지(Git 워크플로우 갱신, `CLAUDE.md` 반영)**: 사용자 지시로 (1) `develop` push 시 `main`도 항상 자동 fast-forward+push(이전엔 명시적 요청 시에만), (2) 모든 commit에 `CHANGELOG.md`/`NEXT_TASK.md` 갱신을 동봉하는 걸 기본으로 함.
+
 ## 2026-07-30 (EPIC-070)
 - **EPIC-070: 자유게시판 등 게시판 위젯이 dev.silostore.net에서만 전혀 안 뜨는 문제 — 원인 4단계를 순차로 확인/수정.** "커뮤니티 자유게시판 위젯이 설정대로 안 뜬다"는 보고로 시작 — 로컬(dev/`next start` 둘 다)에서는 동일 코드+동일 라이브 DB로 완벽히 재현돼 처음엔 렌더러 매핑 버그로 의심했으나, 실제로는 배포 환경에만 있는 문제였다.
   1. **jsdom(`isomorphic-dompurify`)이 Vercel 서버리스에서 라우트 모듈 로드 자체를 실패시킴**: `/api/boards/[id]/posts`, `.../[postId]`가 import하는 `isomorphic-dompurify`가 모듈 로드 즉시 `new JSDOM(...)`을 실행하는데, 그 하위 의존성 `html-encoding-sniffer@6 → @exodus/bytes`(순수 ESM)가 Vercel의 CJS `require()`와 충돌해 `ERR_REQUIRE_ESM`으로 전체 모듈 로드가 죽었다(Vercel Runtime Logs로 원문 확인, 사용자가 제공한 Deployment Protection Bypass Secret으로 `curl`로도 직접 재현). 파라미터와 무관하게(존재하지 않는 board id에도) 100% 500 — 로컬 `next start`는 서버리스 파일 트레이싱을 거치지 않아 재현이 안 됐다. `src/lib/sanitize.ts`를 DOM 불필요한 `sanitize-html`로 교체해 jsdom 의존 자체를 제거(허용 태그/속성 목록은 동일 유지, 로컬에서 XSS 차단·style/class 보존·iframe 임베드 전부 재검증).

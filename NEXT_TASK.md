@@ -4,6 +4,7 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-071(완료, 2026-07-30 적용됨)**: "ethanki@silostore.net을 관리자로, 회원 정보를 보이고 수정하는 페이지를 만들어달라"는 요청 — `docs/sql/EPIC-071-member-admin.sql`(관리자 승격 + `members` admin-bypass RLS) 사용자가 Supabase SQL Editor에서 실행 완료. `/admin/members` 페이지 + `GET`/`PATCH /api/admin/members[/id]` 신설. **사용자가 로그인 후 `/admin/members`에서 실제로 회원 목록이 뜨고 등급/관리자 여부 수정·저장이 되는지 직접 확인 필요**(에이전트는 로그인 세션을 못 만들어 클릭 테스트 불가). 상세는 CHANGELOG.md EPIC-071 참고.
 - **EPIC-070(완료, 2026-07-30 적용됨)**: dev.silostore.net에서만 자유게시판 등 게시판 위젯이 안 뜨던 문제 — jsdom(`isomorphic-dompurify`) 제거(`sanitize-html`로 교체), 게시글 API 순차 쿼리 병렬화 + 동일 게시판 중복 fetch 제거, Vercel Function Region을 Supabase와 같은 Seoul(icn1)로 통일, Vercel의 별도 `npm run lint` 배포 게이트 실패 해소(신규 strict 규칙 warning 하향 + 실제 `any` 타입 5건 수정)까지 4단계 원인을 순차로 해결. 응답시간 1.9초 → 0.16~0.25초. 상세는 CHANGELOG.md EPIC-070 참고.
 - **EPIC-070 후속(선택, 저위험)**: `react-hooks/set-state-in-effect` 경고 24곳(effect 진입 시 로딩 상태를 동기 setState 후 비동기 fetch 시작하는 흔한 패턴) — 지금은 warning으로만 낮춰뒀고 배포는 막지 않음. 실제로 고치려면 각 파일마다 "loading 초기값을 render-time에 계산" 또는 "fetch 콜백 안에서만 setState"로 재구조화가 필요해 파일 수(24개)에 비례한 신중한 작업 — 필요해지면 진행.
 - **EPIC-069 SQL 실행 필요**: `docs/sql/EPIC-069-hub-widget-upgrade.sql`을 Supabase SQL Editor에서 실행해야 Hub 6개(docent/community-topics/heritage/gallery/archive/membership)의 Slide 위젯 고도화와 orphan 페이지 2개(salon-gallery-awards/shop-reviews) 보강이 실제로 반영됨 — 아직 미실행. 실행 후 각 Hub 페이지와 두 orphan 페이지를 브라우저에서 열어 Slide 위젯에 실제 게시글 미리보기가 뜨는지 확인할 것.

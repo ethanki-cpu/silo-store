@@ -83,6 +83,7 @@ These apply to every session in this repo, in addition to the general Git Safety
 
 - **Start of work**: always sync in this order — `git status` first, then `git pull` (only if the working tree is clean; report to the user instead of pulling if there are local changes).
 - **Committing**: only run `git add` / `git commit` after the user has explicitly approved the change — never on your own initiative.
+- **Every commit updates `CHANGELOG.md` and `NEXT_TASK.md`(2026-07-30, 사용자 지시)** — not just at EPIC completion (rule 4 above still applies for the fuller `docs/EPIC.md`/`docs/PROJECT_DASHBOARD.md`/`docs/STAGES.md` sync). Include both in the same commit: `CHANGELOG.md`에 오늘 날짜로 무엇을·왜 바꿨는지 한 항목 추가, `NEXT_TASK.md`는 완료 항목 반영 + 다음 할 일 갱신. 아주 사소한 수정(오타, 주석)까지는 아니더라도 사용자가 요청해서 만든 실질적 변경은 전부 대상.
 - **Pushing**: once a commit is made, push it to `origin` right away by default (see "AI Working Rules" #7, Multi-Device Sync) — don't wait for a separate approval or for end-of-session, unless the user says otherwise for that change. Also fast-forward `develop` and `main` per rules #5–6 whenever they're ancestors of the new commit.
 - **Git identity is already configured** (`user.name`/`user.email` set locally in this repo) — don't ask the user for it again or re-prompt for identity setup.
 - **After every commit, report the commit hash and the push result** (e.g. `<old>..<new> main -> main`) back to the user.

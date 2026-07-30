@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthProvider";
 
 const ADMIN_NAV = [
   { href: "/admin/payments", label: "결제 관리" },
+  { href: "/admin/members", label: "회원 관리" },
   { href: "/admin/navigation", label: "메뉴/카테고리 관리" },
   { href: "/admin/pages", label: "페이지 관리" },
   { href: "/admin/boards", label: "게시판 관리" },

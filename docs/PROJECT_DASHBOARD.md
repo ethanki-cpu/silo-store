@@ -49,13 +49,13 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-074B
+EPIC-075(관리자 CMS 트리 드래그앤드롭 + Community 1-Row 목록 + 게시글 상세 하단 글 목록) — EPIC-073(Documentation Architecture Refactoring)도 같은 세션에 완료.
 
 =====================================
 
 ## Next EPIC
 
-EPIC-075
+EPIC-076(미정 — 다음 지시 대기)
 
 =====================================
 

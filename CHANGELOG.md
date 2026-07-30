@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 2026-07-30 (EPIC-073)
+- **EPIC-073: `docs/STAGES.md`를 CTO Roadmap 기준으로 전면 재작성** — 사용자가 8단계(Foundation → Content → Creator → Community → Business → Experience → AI → Scale) 구조를 직접 지정, 기존의 EPIC별 상세 진행률 표 형식은 유지하지 않고 전달받은 구조 그대로 교체. 문서 마지막에 CURRENT STAGE/CURRENT EPIC/NEXT EPIC 블록을 항상 유지하는 규칙 반영(현재: Stage 1 — Foundation, EPIC-072 Board Management System, 다음: EPIC-073 Content Platform). 코드 변경 없음(문서 전용).
+
 ## 2026-07-30 (EPIC-072)
 - **EPIC-072: 관리자 CMS(페이지/게시판/전체 글 관리)를 4대 도메인 기준으로 재구성** — "페이지 관리/게시판 관리/전체 글 관리가 분류가 안 되어있다, 메뉴/카테고리 관리처럼 사일로상점/살롱데상/스튜디오/마이페이지로 나뉘면 좋겠다"는 요청.
   - **`src/lib/adminDomainGrouping.ts` 신설**: `boards`/`page_builder`에 "도메인" 컬럼이 없어(boards.group_key는 9종 세분화 허브 키, page_builder는 아예 없음), (1) `group_key`가 있으면 그걸 4대 도메인으로 승격하고 (2) 없으면(게시판 56개 중 52개) `category`/`slug` 키워드 테이블로 폴백하는 최선 추정 분류기. 실제 라이브 데이터(`page_builder.slug` 127개, `boards.category` 56개)를 직접 조회해 테이블을 작성 — 검증 결과 페이지 94%(119/127), 게시판 96%(54/56)가 의미 있는 도메인으로 분류되고 나머지는 로그인/설정 같은 진짜 전역 페이지이거나 category 자체가 없는 게시판(정확히 "공통/기타"가 맞는 케이스).

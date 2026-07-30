@@ -1,4 +1,12 @@
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtmlLib from "sanitize-html";
+
+// EPIC-070: isomorphic-dompurify(jsdom 기반)에서 sanitize-html(순수 JS, DOM
+// 불필요)로 교체 — jsdom의 하위 의존성(html-encoding-sniffer@6 → 순수 ESM인
+// @exodus/bytes)이 Vercel 서버리스 환경의 CJS require()와 충돌해
+// `ERR_REQUIRE_ESM`으로 이 모듈을 import하는 라우트 전체가 500이 났다
+// (로컬 `next start`에서는 재현되지 않고 실제 배포에서만 터짐 — 프로덕션
+// Runtime Logs로 확인). jsdom 의존을 아예 없애 이 클래스의 버그를 원천
+// 차단한다.
 
 // EPIC-052: Tiptap Block Editor 도입에 따라 posts.body가 이제 HTML
 // 문자열을 담을 수 있다 — 클라이언트 에디터를 거치지 않고 API를 직접
@@ -48,15 +56,18 @@ const ALLOWED_ATTR = [
 ];
 
 export function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
+  return sanitizeHtmlLib(html, {
+    allowedTags: ALLOWED_TAGS,
+    // DOMPurify의 ALLOWED_ATTR는 태그 구분 없이 전역으로 적용되는 flat
+    // 배열이었다 — sanitize-html은 태그별 allowlist가 기본이라 "*"(전체
+    // 태그 공통)로 감싸 동일한 의미를 유지한다.
+    allowedAttributes: { "*": ALLOWED_ATTR },
   });
 }
 
 // EPIC-052: 카드 요약(썸네일 미리보기 등)에서 태그를 벗겨낸 순수 텍스트가
 // 필요한 곳에서 재사용 — Tiptap이 저장한 HTML을 그대로 보여주면 태그가
-// 문자 그대로 노출되므로, DOMPurify로 태그만 전부 제거한다.
+// 문자 그대로 노출되므로, 태그만 전부 제거한다.
 export function stripHtml(html: string): string {
-  return DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
+  return sanitizeHtmlLib(html, { allowedTags: [], allowedAttributes: {} });
 }

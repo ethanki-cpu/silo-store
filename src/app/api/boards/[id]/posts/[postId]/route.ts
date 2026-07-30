@@ -1,32 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { getRequestMember, getTier, canReadBoard, RANK_LABELS } from "@/lib/serverAuth";
-import { resolveBoardDefinition, BOARD_RICH_FIELDS, BOARD_LEGACY_FIELDS } from "@/lib/boardLayout";
+import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
 import { enqueueOrphanedImages } from "@/lib/imageGc";
+import { fetchBoard } from "@/lib/boardFetch";
 
 const richFields =
   "id, board_id, title, body, body_json, featured_image_url, featured_image_path, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
 const legacyFields =
   "id, board_id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
-
-async function fetchBoard(id: string) {
-  let { data: board, error: boardError } = await supabase
-    .from("boards")
-    .select(BOARD_RICH_FIELDS)
-    .eq("id", id)
-    .single();
-
-  if (boardError) {
-    ({ data: board, error: boardError } = await supabase
-      .from("boards")
-      .select(BOARD_LEGACY_FIELDS)
-      .eq("id", id)
-      .single());
-  }
-
-  return { board, boardError };
-}
 
 // Board Engine(EPIC-047): tags/view_count/updated_at가 라이브 DB에 아직
 // 없을 수 있어(마이그레이션 전), 새 컬럼 포함 select가 42703으로 실패하면

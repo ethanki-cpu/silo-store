@@ -7,32 +7,9 @@ import {
   canWriteToBoard,
   RANK_LABELS,
 } from "@/lib/serverAuth";
-import {
-  resolveBoardDefinition,
-  isSortOption,
-  type SortOption,
-  BOARD_RICH_FIELDS,
-  BOARD_LEGACY_FIELDS,
-} from "@/lib/boardLayout";
+import { resolveBoardDefinition, isSortOption, type SortOption } from "@/lib/boardLayout";
 import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
-
-async function fetchBoard(id: string) {
-  let { data: board, error: boardError } = await supabase
-    .from("boards")
-    .select(BOARD_RICH_FIELDS)
-    .eq("id", id)
-    .single();
-
-  if (boardError) {
-    ({ data: board, error: boardError } = await supabase
-      .from("boards")
-      .select(BOARD_LEGACY_FIELDS)
-      .eq("id", id)
-      .single());
-  }
-
-  return { board, boardError };
-}
+import { fetchBoard } from "@/lib/boardFetch";
 
 // 게시판 규모가 크지 않아 검색/정렬/페이지네이션을 DB 쪽 복잡한 OR/배열-
 // 포함 쿼리로 밀어넣는 대신, 전체를 가져와 라우트 핸들러에서 처리한다
@@ -340,7 +317,7 @@ export async function POST(
 
   // EPIC-053.1: 클라이언트가 보낸 JSON(Block 정본)을 신뢰하지 않고,
   // 실제로 저장/렌더링할 HTML은 서버가 JSON으로부터 항상 다시 계산한다
-  // (Tiptap 스키마로 렌더링 + DOMPurify 새니타이즈 — Stored XSS 방지
+  // (Tiptap 스키마로 렌더링 + sanitize-html 새니타이즈 — Stored XSS 방지
   // 이중 방어이자, "정본은 JSON, HTML은 파생 캐시" 원칙을 서버에서
   // 강제하는 지점).
   let sanitizedBody: string;

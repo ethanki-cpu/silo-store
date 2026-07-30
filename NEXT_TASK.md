@@ -4,6 +4,8 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-070(완료, 2026-07-30 적용됨)**: dev.silostore.net에서만 자유게시판 등 게시판 위젯이 안 뜨던 문제 — jsdom(`isomorphic-dompurify`) 제거(`sanitize-html`로 교체), 게시글 API 순차 쿼리 병렬화 + 동일 게시판 중복 fetch 제거, Vercel Function Region을 Supabase와 같은 Seoul(icn1)로 통일, Vercel의 별도 `npm run lint` 배포 게이트 실패 해소(신규 strict 규칙 warning 하향 + 실제 `any` 타입 5건 수정)까지 4단계 원인을 순차로 해결. 응답시간 1.9초 → 0.16~0.25초. 상세는 CHANGELOG.md EPIC-070 참고.
+- **EPIC-070 후속(선택, 저위험)**: `react-hooks/set-state-in-effect` 경고 24곳(effect 진입 시 로딩 상태를 동기 setState 후 비동기 fetch 시작하는 흔한 패턴) — 지금은 warning으로만 낮춰뒀고 배포는 막지 않음. 실제로 고치려면 각 파일마다 "loading 초기값을 render-time에 계산" 또는 "fetch 콜백 안에서만 setState"로 재구조화가 필요해 파일 수(24개)에 비례한 신중한 작업 — 필요해지면 진행.
 - **EPIC-069 SQL 실행 필요**: `docs/sql/EPIC-069-hub-widget-upgrade.sql`을 Supabase SQL Editor에서 실행해야 Hub 6개(docent/community-topics/heritage/gallery/archive/membership)의 Slide 위젯 고도화와 orphan 페이지 2개(salon-gallery-awards/shop-reviews) 보강이 실제로 반영됨 — 아직 미실행. 실행 후 각 Hub 페이지와 두 orphan 페이지를 브라우저에서 열어 Slide 위젯에 실제 게시글 미리보기가 뜨는지 확인할 것.
 - **EPIC-068(완료, 2026-07-29 적용됨)**: "카테고리 만들면 자동으로 페이지+위젯 템플릿 생성" 요청 — `src/app/[...slug]/page.tsx`(catch-all) + `src/lib/pageTemplates.ts`(`ensurePageForSlug`)로 메커니즘 구현, `CategoryTreeManager.tsx`의 href 저장 시점에 연결. 실제 카테고리 생성으로 브라우저에서 직접 검증(새 URL이 catch-all로 렌더링, 5위젯 템플릿 자동 생성, PageEditButton도 뜸). 상세는 CHANGELOG.md 참고.
 - **EPIC-068 백필 SQL 실행 완료(2026-07-30)**: `docs/sql/EPIC-068-category-page-templates.sql`을 사용자가 Supabase SQL Editor에서 실행 완료 — 신규 게시판 30개 + 71개 페이지의 위젯 템플릿이 라이브 DB에 반영됨(anon-key REST 조회로 확인). 이제 하위 카테고리에 실제 콘텐츠가 생겼으니, 그 위에 있는 Hub 페이지(예: `/docent`, `/community/topics`)들의 단순 구성을 더 풍부한 Hero+Slide 조합으로 고도화하는 후속 작업이 가능해짐(아래 항목 참고).

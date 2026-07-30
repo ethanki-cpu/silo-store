@@ -20,10 +20,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Claude Code는 새 세션이 시작되면(사용자가 작업을 지시하기 전) 아래 순서로 문서를 읽어 현재 프로젝트 상태를 먼저 이해한다:**
 
-1. **[`docs/VISION.md`](docs/VISION.md)**(EPIC-074) — 이 플랫폼을 왜 만드는가(핵심 가치: Archive First/Story First/Community First/Collection First/Long-term Preservation/Timeless Design). **모든 EPIC은 이 Vision을 기준으로 개발한다** — 새 기능이 이 Vision과 어긋나 보이면 구현 전에 사용자에게 확인한다.
+1. **[`PROJECT_VISION.md`](PROJECT_VISION.md)**(EPIC-074, 2026-07-30 EPIC-073 문서 재구성 때 `docs/VISION.md`에서 이 경로로 이동) — 이 플랫폼을 왜 만드는가(핵심 가치: Archive First/Story First/Community First/Collection First/Long-term Preservation/Timeless Design). **모든 EPIC은 이 Vision을 기준으로 개발한다** — 새 기능이 이 Vision과 어긋나 보이면 구현 전에 사용자에게 확인한다.
 2. **[`docs/PROJECT_DASHBOARD.md`](docs/PROJECT_DASHBOARD.md)** — 현재 Stage/진행률/진행 중인 EPIC/다음 EPIC/최근 완료 10개/최우선 순위/이슈(P0-P3)/기술 부채/다음 마일스톤 요약.
 3. **[`docs/STAGES.md`](docs/STAGES.md)** — 프로젝트 전체 진행 단계(Stage 1 Foundation ~ Stage 8 Scale Platform, EPIC-073에서 CTO Roadmap 구조로 전면 개편) 정의, 문서 끝의 CURRENT STAGE/CURRENT EPIC/NEXT EPIC 블록이 항상 최신 상태여야 한다.
-4. **`PROJECT_BLUEPRINT.md`** — 프로젝트 개요/아키텍처(위 문서들보다 상세하지만 여전히 개요 수준 — 더 깊은 상세는 §10의 도메인별 Blueprint 문서로).
+4. **`PROJECT_BLUEPRINT.md`** — (2026-07-30 EPIC-073 문서 재구성 이후) 더 이상 개요/아키텍처 상세를 담지 않는 **인덱스 전용** 문서 — Project Name/Current Stage/Current Epic과, 아래 모든 문서(`PROJECT_VISION.md`/`PROJECT_ARCHITECTURE.md`/`PROJECT_RULES.md`/`docs/STAGES.md`/`CHANGELOG.md`/`NEXT_TASK.md`/`docs/database-schema.sql`/`BOARD_SYSTEM.md`/`PAGE_BUILDER.md`/`WIDGET_SYSTEM.md`/`MEMBERSHIP_SYSTEM.md`/`POINT_SYSTEM.md`/`NAVIGATION_SYSTEM.md` 등)로의 링크만 담는다 — 실제 아키텍처 상세는 `PROJECT_ARCHITECTURE.md`로 이동했다.
 
 **Stage와 EPIC은 서로 다른 축이며 혼용하지 않는다** — Stage는 "프로젝트가 지금 어느 국면인가"(장기), EPIC은 "무엇을 했는가"(단위 작업 기록)다. 새 EPIC의 제목/커밋 메시지에 Stage 번호를 붙이거나, Stage 번호를 EPIC 번호처럼 순차 증가시키지 않는다.
 
@@ -64,14 +64,15 @@ Account-related pages (`/me`, `/admin/payments`, `/settings`) are **not** part o
 
 This project maintains dedicated design/ops documents in `docs/` — treat each as the SSoT for its domain, not this file:
 
-- [`docs/VISION.md`](docs/VISION.md) — why this platform exists (see "세션 시작 시 읽기 순서" above — read this one first)
+- [`PROJECT_VISION.md`](PROJECT_VISION.md) — why this platform exists (see "세션 시작 시 읽기 순서" above — read this one first; moved from `docs/VISION.md` in the 2026-07-30 EPIC-073 documentation reorg)
 - [`docs/git-sync.md`](docs/git-sync.md) — Git workflow (start/end of work, commit/push, schema-change procedure, forbidden operations)
 - [`docs/EPIC.md`](docs/EPIC.md) — full feature (Epic) list: 완료/진행중/예정
-- [`docs/navigation-blueprint.md`](docs/navigation-blueprint.md) — full nav structure (top tabs, left/right sidebars, URLs, placeholder status, active-tab logic)
-- [`docs/membership-blueprint.md`](docs/membership-blueprint.md) — `membership_rank`/`membership_tiers`, per-rank permissions/benefits, board access, pricing logic
-- [`docs/content-blueprint.md`](docs/content-blueprint.md) — content model (boards/gallery/downloads/docent/shop/mypage) and cross-content connections
+- [`docs/navigation-blueprint.md`](docs/navigation-blueprint.md) — full nav structure (top tabs, left/right sidebars, URLs, placeholder status, active-tab logic) — see also [`NAVIGATION_SYSTEM.md`](NAVIGATION_SYSTEM.md) (root-level summary added in the same reorg, cross-references this file for full detail)
+- [`docs/membership-blueprint.md`](docs/membership-blueprint.md) — `membership_rank`/`membership_tiers`, per-rank permissions/benefits, board access, pricing logic — see also [`MEMBERSHIP_SYSTEM.md`](MEMBERSHIP_SYSTEM.md) (same relationship as above)
+- [`docs/content-blueprint.md`](docs/content-blueprint.md) — content model (boards/gallery/downloads/docent/shop/mypage) and cross-content connections — see also [`BOARD_SYSTEM.md`](BOARD_SYSTEM.md) (same relationship as above, board-focused subset)
 - [`docs/design-system.md`](docs/design-system.md) — de facto color/typography/sidebar/button/card/input conventions
 - `docs/database-schema.sql` — DB schema (see "Verifying/changing the DB schema" below)
+- [`PROJECT_ARCHITECTURE.md`](PROJECT_ARCHITECTURE.md) / [`PROJECT_RULES.md`](PROJECT_RULES.md) / [`PAGE_BUILDER.md`](PAGE_BUILDER.md) / [`WIDGET_SYSTEM.md`](WIDGET_SYSTEM.md) / [`POINT_SYSTEM.md`](POINT_SYSTEM.md) — new root-level documents from the 2026-07-30 EPIC-073 reorg, split out of `PROJECT_BLUEPRINT.md` (which is now an index only — see its "Documentation Index" section for the full map).
 
 **Rules for working in this repo:**
 1. **Before implementing a new feature, check the relevant Blueprint(s) first** — don't re-derive navigation placement, tier gating, content connections, or UI conventions from scratch when a Blueprint already documents them.

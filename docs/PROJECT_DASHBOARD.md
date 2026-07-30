@@ -26,7 +26,7 @@ Stage 2부터는
 
 콘텐츠 구축이 핵심이 된다.
 
-전체 배경은 [docs/VISION.md](VISION.md) 참고.
+전체 배경은 [PROJECT_VISION.md](../PROJECT_VISION.md) 참고(2026-07-30 EPIC-073 문서 재구성 때 `docs/VISION.md`에서 이동).
 
 =====================================
 

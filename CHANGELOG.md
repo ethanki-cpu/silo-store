@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-07-30 (EPIC-072)
+- **EPIC-072: 관리자 CMS(페이지/게시판/전체 글 관리)를 4대 도메인 기준으로 재구성** — "페이지 관리/게시판 관리/전체 글 관리가 분류가 안 되어있다, 메뉴/카테고리 관리처럼 사일로상점/살롱데상/스튜디오/마이페이지로 나뉘면 좋겠다"는 요청.
+  - **`src/lib/adminDomainGrouping.ts` 신설**: `boards`/`page_builder`에 "도메인" 컬럼이 없어(boards.group_key는 9종 세분화 허브 키, page_builder는 아예 없음), (1) `group_key`가 있으면 그걸 4대 도메인으로 승격하고 (2) 없으면(게시판 56개 중 52개) `category`/`slug` 키워드 테이블로 폴백하는 최선 추정 분류기. 실제 라이브 데이터(`page_builder.slug` 127개, `boards.category` 56개)를 직접 조회해 테이블을 작성 — 검증 결과 페이지 94%(119/127), 게시판 96%(54/56)가 의미 있는 도메인으로 분류되고 나머지는 로그인/설정 같은 진짜 전역 페이지이거나 category 자체가 없는 게시판(정확히 "공통/기타"가 맞는 케이스).
+  - **`src/components/admin/AdminDomainTabs.tsx` 신설**: 전체/사일로상점/살롱데상/스튜디오/마이페이지/공통 6개 탭, `?domain=` 쿼리 파라미터로 상태 저장(새로고침·링크 공유 가능) — `useSearchParams`를 쓰므로 호출부는 Suspense로 감싸야 함(이 저장소의 기존 관례, Navbar.tsx/docent page와 동일).
+  - **`/admin/pages`**: 도메인 탭 추가, "전체" 선택 시 도메인별 섹션으로 묶어서(브랜치 정렬처럼) 표시, 특정 도메인 선택 시 그 목록만 평평하게 표시.
+  - **`/admin/boards`**: 도메인 탭 추가(같은 그룹핑 방식), 기존 Category(`group_key`)/Board Type(`render_type`) 드롭다운 필터와 검색은 그대로 유지되어 도메인 탭과 함께 동작.
+  - **`/admin/posts`("전체 글 관리")**: 기존에 이미 [사일로상점]/[살롱데상] 2-Depth 서브 탭이 있었으나(EPIC-025) 스튜디오/마이페이지가 빠져있었고, 살롱데상 탭도 도메인 필터 없이 게시판이 있는 글 전부를 보여주고 있었다(엄밀히 살롱데상 전용이 아니었음). `src/components/admin/AdminPostsBoardView.tsx`로 도메인 매개변수화해 일반화 — boards 전체를 먼저 분류해 해당 도메인 board_id 목록으로 posts를 필터링하는 2단계 조회. `/admin/posts/silostore`(신규, 도슨트 시대별·헤리티지 게시글)·`/admin/posts/studio`·`/admin/posts/mypage`(신규, 현재는 연결된 게시판이 없어 정직하게 빈 목록) 추가, `/admin/posts/salon`은 이 컴포넌트로 교체(이제 실제로 살롱데상 게시판만). `/admin/posts/shop`(물품 관리, `items` 테이블)은 게시글과 다른 데이터라 손대지 않고 그대로 둠.
+  - **검증**: `npx tsc --noEmit`/`npm run lint`(0 errors, 27 warnings — 기존 baseline과 동일)/`npm run build`(신규 라우트 5개 전부 정상 컴파일) 통과. 로컬에서 모든 신규 경로가 미인증 시 정상적으로 `/`로 리다이렉트되고 콘솔 에러 없음을 확인 — 실제 화면 클릭 테스트는 관리자 로그인 세션이 필요해(에이전트가 자격 증명 직접 입력 금지 정책) 사용자가 로그인 후 직접 확인 필요.
+  - **한계**: 도메인 분류는 슬러그/카테고리 문자열 기반 최선 추정이지 DB 정본이 아니다 — 새 페이지/게시판을 추가했는데 엉뚱한 도메인(또는 "공통/기타")으로 분류되면 `src/lib/adminDomainGrouping.ts`의 테이블에 추가해야 한다.
+
 ## 2026-07-30 (EPIC-071-HOTFIX)
 - **긴급: EPIC-071이 추가한 `members` RLS 정책이 무한 재귀를 유발해 사이트 전체가 깨짐 → 즉시 롤백 + 안전한 방식으로 재구현.** 사용자가 "사일로상점 하위 페이지는 '배치된 모듈이 없어요', 페이지 수정 버튼도 사라짐, 살롱데상 하위 페이지는 '페이지를 찾을 수 없어요'"라고 실제 장애를 보고.
   - **원인**: `members` 테이블 자체에 추가한 admin-bypass 정책(`members_admin_select`/`update`)이 `exists (select 1 from members where ...)`로 **자기 자신을 서브쿼리**하는 구조 — `CLAUDE.md`에 이미 기록돼 있던 gotcha(정책 대상과 같은 테이블을 서브쿼리하면 Postgres 무한 재귀 `42P17`)를 그대로 재발시킨 것. `members`는 모든 로그인 확인(`getRequestMember`)에서 조회되고, `page_builder`/`page_modules`의 공개 읽기 정책도 내부적으로 `members`를 서브쿼리해 관리자 여부를 확인하므로(EPIC-060/061), `members` 조회 자체가 깨지자 로그인 확인·페이지 조회·"페이지 수정" 버튼 표시(관리자 판정)가 전부 도미노로 무너졌다.

@@ -5,9 +5,16 @@ import { usePathname } from "next/navigation";
 
 // EPIC-025: "전체 글 관리" 2-Depth 서브 탭. is_admin 가드는
 // src/app/admin/layout.tsx가 이미 처리했으므로 여기서는 서브 네비게이션만 그린다.
+// EPIC-072: 4대 도메인(사일로상점/살롱데상/스튜디오/마이페이지) 기준으로
+// 일관되게 확장 — 물품(items)과 게시판 글(posts)은 서로 다른 데이터라
+// 사일로상점만 두 탭으로 나뉜다. 스튜디오/마이페이지는 아직 연결된
+// 게시판이 없어 빈 목록으로 뜨지만, 게시판이 생기면 자동으로 채워진다.
 const SUB_NAV = [
-  { href: "/admin/posts/shop", label: "[사일로 상점] 카테고리별 글 관리" },
-  { href: "/admin/posts/salon", label: "[살롱데상] 카테고리별 글 관리" },
+  { href: "/admin/posts/shop", label: "[사일로상점] 물품 관리" },
+  { href: "/admin/posts/silostore", label: "[사일로상점] 게시글 관리" },
+  { href: "/admin/posts/salon", label: "[살롱데상] 게시글 관리" },
+  { href: "/admin/posts/studio", label: "[스튜디오] 게시글 관리" },
+  { href: "/admin/posts/mypage", label: "[마이페이지] 게시글 관리" },
 ];
 
 export default function AdminPostsLayout({

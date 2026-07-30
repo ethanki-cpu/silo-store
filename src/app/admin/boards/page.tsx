@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
 import { GROUP_OPTIONS, RENDER_TYPE_OPTIONS } from "@/components/admin/BoardForm";
 import { ConfirmModal } from "@/components/admin/ConfirmModal";
+import { AdminDomainTabs, useAdminDomainFilter } from "@/components/admin/AdminDomainTabs";
+import {
+  ADMIN_DOMAIN_LABELS,
+  ADMIN_DOMAIN_ORDER,
+  classifyBoardCategory,
+  type AdminDomain,
+} from "@/lib/adminDomainGrouping";
 
 type BoardRow = {
   id: string;
@@ -21,8 +28,18 @@ const RENDER_TYPE_LABEL = Object.fromEntries(RENDER_TYPE_OPTIONS.map((o) => [o.v
 // EPIC-066: 게시판 관리 목록 — is_admin 가드는 src/app/admin/layout.tsx가
 // 이미 처리한다. 게시판 수가 ~90개 수준이라(요구사항 ⑬) 검색/필터는 서버
 // 라운드트립 없이 클라이언트에서 처리한다.
+// EPIC-072: 도메인 필터 탭이 useSearchParams를 쓰므로 Suspense로 감싼다.
 export default function AdminBoardsPage() {
+  return (
+    <Suspense fallback={<main className="flex-1 px-8 pb-8 max-w-5xl mx-auto w-full" />}>
+      <AdminBoardsPageContent />
+    </Suspense>
+  );
+}
+
+function AdminBoardsPageContent() {
   const { session } = useAuth();
+  const domainFilter = useAdminDomainFilter();
 
   const [boards, setBoards] = useState<BoardRow[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -59,6 +76,9 @@ export default function AdminBoardsPage() {
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return boards.filter((b) => {
+      if (domainFilter !== "all" && classifyBoardCategory(b.category, b.group_key) !== domainFilter) {
+        return false;
+      }
       if (groupFilter !== "all" && (b.group_key ?? "") !== groupFilter) return false;
       if (typeFilter !== "all" && (b.render_type ?? "") !== typeFilter) return false;
       if (!query) return true;
@@ -67,7 +87,25 @@ export default function AdminBoardsPage() {
         (b.category ?? "").toLowerCase().includes(query)
       );
     });
-  }, [boards, q, groupFilter, typeFilter]);
+  }, [boards, q, groupFilter, typeFilter, domainFilter]);
+
+  const domainCounts = useMemo(() => {
+    const c: Partial<Record<AdminDomain | "all", number>> = { all: boards.length };
+    for (const b of boards) {
+      const d = classifyBoardCategory(b.category, b.group_key);
+      c[d] = (c[d] ?? 0) + 1;
+    }
+    return c;
+  }, [boards]);
+
+  // "전체" 선택 시 도메인별로 묶어서 보여준다(브랜치 정렬처럼).
+  const groupedSections = useMemo(() => {
+    if (domainFilter !== "all") return [{ domain: domainFilter, items: filtered }];
+    return ADMIN_DOMAIN_ORDER.map((domain) => ({
+      domain,
+      items: filtered.filter((b) => classifyBoardCategory(b.category, b.group_key) === domain),
+    })).filter((section) => section.items.length > 0);
+  }, [filtered, domainFilter]);
 
   async function handleDuplicate(board: BoardRow) {
     if (!session) return;
@@ -114,6 +152,8 @@ export default function AdminBoardsPage() {
           + 새 게시판
         </Link>
       </div>
+
+      <AdminDomainTabs counts={domainCounts} />
 
       <div className="flex flex-wrap gap-2 mb-4">
         <input
@@ -173,7 +213,16 @@ export default function AdminBoardsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((board) => (
+              {groupedSections.map((section) => (
+                <Fragment key={section.domain}>
+                  {domainFilter === "all" && (
+                    <tr key={`${section.domain}-header`}>
+                      <td colSpan={6} className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        {ADMIN_DOMAIN_LABELS[section.domain]} ({section.items.length})
+                      </td>
+                    </tr>
+                  )}
+                  {section.items.map((board) => (
                 <tr key={board.id} className="border-b border-gray-100">
                   <td className="py-2 pr-3">
                     <Link href={`/admin/boards/${board.id}`} className="hover:underline font-medium">
@@ -224,6 +273,8 @@ export default function AdminBoardsPage() {
                     </div>
                   </td>
                 </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table>

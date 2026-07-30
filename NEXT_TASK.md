@@ -4,6 +4,7 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-072(완료, 2026-07-30 적용됨 — DB 변경 없음, 즉시 반영)**: "페이지/게시판/전체 글 관리가 분류가 안 되어있다, 4대 도메인(사일로상점/살롱데상/스튜디오/마이페이지)으로 나뉘면 좋겠다"는 요청 — `src/lib/adminDomainGrouping.ts`(분류기) + `AdminDomainTabs`(공용 탭 UI) 신설, `/admin/pages`·`/admin/boards`에 도메인 탭 추가, `/admin/posts`는 기존 2탭(사일로상점/살롱데상)에서 5탭(물품/사일로상점 게시글/살롱데상/스튜디오/마이페이지)으로 확장. DB 마이그레이션 불필요(코드만으로 동작) — **사용자가 로그인 후 세 화면 모두 도메인 탭이 예상대로 필터링되는지 직접 확인 필요**(에이전트는 로그인 세션을 못 만들어 클릭 테스트 불가, 미인증 리다이렉트/콘솔 에러 없음까지만 확인함). 상세는 CHANGELOG.md EPIC-072 참고. 분류가 틀린 페이지/게시판을 발견하면 `src/lib/adminDomainGrouping.ts`의 매핑 테이블에 추가할 것.
 - **EPIC-071-HOTFIX(완료, 2026-07-30 적용 및 사용자 검증 완료)**: `docs/sql/EPIC-071-HOTFIX-member-admin-rls.sql`(`is_current_user_admin()` SECURITY DEFINER 함수 기반 안전한 admin-bypass 정책) 사용자가 Supabase SQL Editor에서 실행 완료 — 사일로상점/살롱데상 하위 페이지 정상, `/admin/members`에서 전체 회원 목록 조회/수정 정상 동작까지 사용자가 직접 확인함(재귀 재발 없음). 상세는 CHANGELOG.md EPIC-071-HOTFIX 참고.
 - **EPIC-071(완료, 2026-07-30 적용됨)**: "ethanki@silostore.net을 관리자로, 회원 정보를 보이고 수정하는 페이지를 만들어달라"는 요청 — `/admin/members` 페이지 + `GET`/`PATCH /api/admin/members[/id]` 신설, 관리자 상단 탭 추가. RLS는 위 EPIC-071-HOTFIX의 안전한 버전으로 최종 확정.
 - **EPIC-070(완료, 2026-07-30 적용됨)**: dev.silostore.net에서만 자유게시판 등 게시판 위젯이 안 뜨던 문제 — jsdom(`isomorphic-dompurify`) 제거(`sanitize-html`로 교체), 게시글 API 순차 쿼리 병렬화 + 동일 게시판 중복 fetch 제거, Vercel Function Region을 Supabase와 같은 Seoul(icn1)로 통일, Vercel의 별도 `npm run lint` 배포 게이트 실패 해소(신규 strict 규칙 warning 하향 + 실제 `any` 타입 5건 수정)까지 4단계 원인을 순차로 해결. 응답시간 1.9초 → 0.16~0.25초. 상세는 CHANGELOG.md EPIC-070 참고.

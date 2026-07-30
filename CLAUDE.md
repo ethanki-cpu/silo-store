@@ -6,13 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## AI Working Rules
 
-이 저장소에서 작업할 때 지켜야 하는 Git 브랜치 전략 및 동기화 규칙이다. 아래 규칙 4번(WIP Push)은 "Git operating rules" 절의 "커밋/푸시는 사용자 승인 후에만" 원칙에 대한 명시적 예외로, 사용자가 작업 중단/퇴근을 알리는 시점에는 승인을 별도로 구하지 않고 즉시 커밋·푸시한다.
+이 저장소에서 작업할 때 지켜야 하는 Git 브랜치 전략 및 동기화 규칙이다. 아래 규칙 4번(WIP Push)과 6번(Multi-Device Sync)은 "Git operating rules" 절의 "커밋/푸시는 사용자 승인 후에만" 원칙에 대한 명시적 예외다 — 4번은 사용자가 작업 중단/퇴근을 알리는 시점에, 6번은 커밋이 이미 승인되어 만들어진 직후에, 각각 push 자체에 대해서는 별도로 승인을 다시 구하지 않는다.
 
 1. **No Direct Commits to Main** — `main` 브랜치에서 직접 코드를 수정하거나 커밋하지 않는다.
 2. **Feature Branch Workflow** — 새로운 EPIC이나 작업을 시작할 때는 반드시 `main`을 최신 상태로 pull 받은 후, `feature/EPIC-<번호>` 또는 `feature/<작업명>` 형식의 새 브랜치를 생성해 이동한 뒤 작업한다.
 3. **Sync First** — 사용자가 작업 시작을 알리면, 다른 작업에 앞서 `git fetch`와 `git status`로 원격 저장소와 로컬의 상태를 먼저 확인하고 그 결과를 사용자에게 보고한다.
 4. **WIP Push** — 사용자가 작업을 중단하거나 퇴근한다고 알리면, 현재 브랜치에 진행 중인 모든 변경 사항을 커밋하고 반드시 `origin`에 push하여 다른 기기에서 이어서 작업할 수 있도록 백업한다.
-5. **`develop` = `dev.silostore.net` 배포 브랜치(2026-07-29, 사용자 지시)** — `develop` 브랜치가 `https://dev.silostore.net/`에 배포되는 브랜치다(Vercel 등 정확한 배포 설정은 레포 밖이라 agent가 직접 확인할 수 없음 — 브랜치 이름과 도메인 이름의 대응으로 추정, 사용자가 확인). **사용자가 "커밋하고 push해줘"라고 할 때마다, 별도로 매번 다시 확인받지 않고**: (1) 현재 작업 브랜치(`feature/EPIC-<번호>`)에 커밋 후 push, (2) `develop`이 그 커밋의 조상(fast-forward 가능)이면 `develop`도 그 커밋으로 fast-forward해서 push까지 한다 — `dev.silostore.net`이 항상 최신 작업을 반영하도록. `develop`이 fast-forward 불가능한 상태(다른 곳에서 별도로 진행된 커밋이 있어 분기됨)면 병합하지 말고 사용자에게 알린다. `main`은 이 규칙과 별개로, 병합은 사용자가 명시적으로 요청할 때만 한다(예: "EPIC 54~63 전부 병합해줘").
+5. **`develop` = `dev.silostore.net` 배포 브랜치(2026-07-29, 사용자 지시)** — `develop` 브랜치가 `https://dev.silostore.net/`에 배포되는 브랜치다(Vercel 등 정확한 배포 설정은 레포 밖이라 agent가 직접 확인할 수 없음 — 브랜치 이름과 도메인 이름의 대응으로 추정, 사용자가 확인, 2026-07-30 Vercel Deployment Details 스크린샷으로 재확인됨: Source `develop`, Domain `dev.silostore.net`). **사용자가 "커밋하고 push해줘"라고 할 때마다, 별도로 매번 다시 확인받지 않고**: (1) 현재 작업 브랜치(`feature/EPIC-<번호>`)에 커밋 후 push, (2) `develop`이 그 커밋의 조상(fast-forward 가능)이면 `develop`도 그 커밋으로 fast-forward해서 push까지 한다 — `dev.silostore.net`이 항상 최신 작업을 반영하도록. `develop`이 fast-forward 불가능한 상태(다른 곳에서 별도로 진행된 커밋이 있어 분기됨)면 병합하지 말고 사용자에게 알린다. `main`은 이 규칙과 별개로, 병합은 사용자가 명시적으로 요청할 때만 한다(예: "EPIC 54~63 전부 병합해줘").
+6. **Multi-Device Sync — 컴퓨터 A/B 번갈아 작업(2026-07-30, 사용자 지시)** — 이 프로젝트는 회사 컴퓨터(A)와 개인 컴퓨터(B)를 번갈아 오가며 작업된다. 로컬 커밋이 한쪽 컴퓨터에만 남아있으면 다른 쪽에서 "최신"이 뭔지 헷갈리는 사고(2026-07-30 실제 발생 — Vercel 배포 커밋과 로컬 커밋의 신구 관계를 반대로 착각함, `git merge-base --is-ancestor`로 실제 조상 관계를 확인해 바로잡음)로 이어지므로: (1) 세션 시작 시 규칙 3(Sync First)의 fetch/status 확인 후, working tree가 clean하면 **바로 pull까지 완료**해 로컬을 원격 최신 상태로 맞춘다(다른 컴퓨터에서 만든 커밋을 놓치지 않기 위함) — local-only 변경이 있으면 pull하지 말고 사용자에게 먼저 보고. (2) 사용자가 커밋을 승인해 실제로 커밋을 만든 뒤에는, "Git operating rules"의 승인 원칙과 별개로 **그 커밋을 사용자가 명시적으로 말리지 않는 한 즉시 같은 세션 내에서 origin에 push까지 진행**한다(하루 끝 WIP push만 기다리지 않고, 커밋 단위로 바로) — 그래야 다른 컴퓨터가 세션 시작 시 pull 한 번으로 항상 최신을 받는다. (3) "로컬이 최신인지 원격이 최신인지" 판단은 절대 타임스탬프나 기억이 아니라 `git merge-base --is-ancestor <A> <B>` 같은 실제 Git 조상 관계 확인으로만 한다.
 
 ## 세션 시작 시 읽기 순서 (EPIC-054E)
 
@@ -80,7 +81,8 @@ This project maintains dedicated design/ops documents in `docs/` — treat each 
 These apply to every session in this repo, in addition to the general Git Safety Protocol — see also [`docs/git-sync.md`](docs/git-sync.md) for the full workflow.
 
 - **Start of work**: always sync in this order — `git status` first, then `git pull` (only if the working tree is clean; report to the user instead of pulling if there are local changes).
-- **End of work**: only run `git add` / `git commit` / `git push` after the user has explicitly approved the change — never on your own initiative.
+- **Committing**: only run `git add` / `git commit` after the user has explicitly approved the change — never on your own initiative.
+- **Pushing**: once a commit is made, push it to `origin` right away by default (see "AI Working Rules" #6, Multi-Device Sync) — don't wait for a separate approval or for end-of-session, unless the user says otherwise for that change.
 - **Git identity is already configured** (`user.name`/`user.email` set locally in this repo) — don't ask the user for it again or re-prompt for identity setup.
 - **After every commit, report the commit hash and the push result** (e.g. `<old>..<new> main -> main`) back to the user.
 - **Never run `--force` push, `reset`, or `rebase`** without an explicit, current instruction from the user to do so.

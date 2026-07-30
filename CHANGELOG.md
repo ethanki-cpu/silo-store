@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 2026-07-30 (EPIC-074B)
+- **EPIC-074B: `docs/PROJECT_DASHBOARD.md` 최상단에 PROJECT VISION/Roadmap/Current EPIC/Next EPIC 블록 추가** — 사용자가 내용을 직접 지정(Roadmap: Stage 1 95%, Stage 2 Ready, Stage 3~8 Waiting / Current EPIC: EPIC-074B / Next EPIC: EPIC-075), 이 블록을 문서 최상단에 항상 유지하는 규칙으로 반영. 기존 문서 하단부에 있던 구식 "## Current EPIC"/"## Next EPIC" 섹션(값이 오래전부터 "없음"/"미정"으로 방치돼 새 최상단 블록과 모순되던 상태)은 제거하고, 최상단 블록이 SSoT임을 명시하는 안내 문구로 대체 — 나머지 Progress/Recent Completed/Known Issues 등 섹션은 이번 범위 밖이라 손대지 않음(여전히 EPIC-068 시점 기준으로 stale, 별도 정리 필요). 코드 변경 없음(문서 전용).
+
 ## 2026-07-30 (EPIC-074)
 - **EPIC-074: `docs/VISION.md` 신설 — "왜 Silo Platform을 만드는가"** — 사용자가 전체 내용을 직접 작성해 그대로 반영(Instagram/네이버 블로그로는 콘텐츠 아카이빙·연결·회원제/큐레이션/도슨트 시스템 구현이 안 된다는 배경, 핵심 가치 6개: Archive First/Story First/Community First/Collection First/Long-term Preservation/Timeless Design). `CLAUDE.md`의 "세션 시작 시 읽기 순서"에 1번(가장 먼저 읽는 문서)으로 추가하고 Blueprint 문서 목록에도 등록 — 앞으로 모든 세션·EPIC이 이 Vision을 기준으로 판단하도록 함. `docs/STAGES.md`의 Stage 개수 언급(6→8)도 EPIC-073 반영 누락분 함께 정정. 코드 변경 없음(문서 전용).
 

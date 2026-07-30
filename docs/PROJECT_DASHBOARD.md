@@ -4,12 +4,63 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-07-30 (EPIC-053 Block Editor `develop` 병합 + EPIC-068 백필 SQL 실행 완료 기준).
->
-> ⚠️ 이 문서는 EPIC-056(2026-07-28) 이후 장기간 갱신되지 않았다가 이번에 EPIC-067
-> 완료 시점 기준으로 다시 동기화됐다 — EPIC-057~066의 상세 요약은 이 문서가 아니라
-> [docs/EPIC.md](EPIC.md) "완료" 섹션에 있다(EPIC-057~062는 커밋 로그 기준 한 줄
-> placeholder만 있고 소급 상세 작성은 아직 미완료, NEXT_TASK.md P2 기록).
+> 최종 확인: 2026-07-30 (EPIC-074B 기준).
+
+=====================================
+
+## PROJECT VISION
+
+Silo Platform은
+
+Instagram의 콘텐츠
+
+네이버 블로그의 콘텐츠
+
+그리고 앞으로 생성되는 모든 콘텐츠를
+
+평생 보존 가능한 문화 플랫폼으로 만드는 프로젝트이다.
+
+Stage 2부터는
+
+기능 개발보다
+
+콘텐츠 구축이 핵심이 된다.
+
+전체 배경은 [docs/VISION.md](VISION.md) 참고.
+
+=====================================
+
+## Roadmap
+
+| Stage | Status |
+|---|---|
+| Stage 1 | 95% |
+| Stage 2 | Ready |
+| Stage 3 | Waiting |
+| Stage 4 | Waiting |
+| Stage 5 | Waiting |
+| Stage 6 | Waiting |
+| Stage 7 | Waiting |
+| Stage 8 | Waiting |
+
+상세는 [docs/STAGES.md](STAGES.md) 참고.
+
+=====================================
+
+## Current EPIC
+
+EPIC-074B
+
+=====================================
+
+## Next EPIC
+
+EPIC-075
+
+=====================================
+
+**위 5개 섹션(PROJECT VISION/Roadmap/Current EPIC/Next EPIC)은 이 문서 최상단에
+항상 유지한다 — 다음 EPIC 착수 시마다 Current EPIC/Next EPIC/Roadmap 상태를 갱신할 것.**
 
 =====================================
 
@@ -44,31 +95,9 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 
 =====================================
 
-## Current EPIC
-
-없음 (대기 중 — 다음 지시 대기). 직전 완료: EPIC-053 Block Editor `develop` 병합
-(오랫동안 별도 브랜치로 남아있던 `feature/EPIC-053`을 정식 병합, 충돌 11개 파일 해소).
-그 전: EPIC-068(카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 신설 + 사이트
-전반 위젯 백필/신규 게시판 30개, 백필 SQL 실행 완료).
-
-=====================================
-
-## Next EPIC
-
-미정 — 사용자 지시 대기. 유력 후보(우선순위순, 아래 "Current Priority" 참고):
-1. 하위 카테고리 실제 콘텐츠가 채워진 Hub 페이지들(`/docent`, `/community/topics`,
-   `/heritage`, `/gallery`, `/archive`, `/membership`)을 Hero + 다중 Slide 위젯 구성으로
-   고도화 — EPIC-068 백필 SQL 실행 이후 실데이터가 생겨 가능해짐.
-2. `salon-gallery-awards`/`shop-reviews` 두 orphan 페이지 — 기존에 이미 있던 부분
-   위젯 설정(gallery 단독)이 EPIC-068 백필의 "0개 모듈일 때만" 가드에 걸려 hero/quote 등
-   나머지 템플릿이 채워지지 않은 상태, 기존 gallery 위젯은 건드리지 않고 나머지만 보강 필요.
-3. EPIC-067 Phase 2 잔여 — 정적 placeholder 8개(`salon/docent-tour`, `salon/drinks`,
-   `space-inquiry/*3`, `studio/*3`) + 마이페이지 12개 탭(병존형).
-4. Dual-nav 구조 정리 — EPIC-068에서 추가로 확인된 구체 사례들(NEXT_TASK.md 참고).
-5. `/admin/boards` 클릭 테스트(EPIC-066, 관리자 로그인 필요해 에이전트가 미검증).
-6. 페이지별 SEO metadata 적용.
-7. `docs/sql/epic-053-1.sql` 실행 — Block Editor의 대표 이미지/Storage Bucket+Policy/GC
-   완전 반영에 필요(코드는 이미 병합됨).
+> **Current EPIC/Next EPIC은 최상단 블록이 SSoT다** — 아래 "Progress"/"Recent
+> Completed"/"Current Priority" 등은 그 시점의 서술형 기록이라 최상단 블록과 표현이
+> 다를 수 있으니, 최신 상태는 항상 최상단을 기준으로 한다.
 
 =====================================
 

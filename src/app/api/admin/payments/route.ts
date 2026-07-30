@@ -32,41 +32,44 @@ export async function GET(request: NextRequest) {
   }
 
   const statusFilter = request.nextUrl.searchParams.get("status") ?? "pending";
+  const pendingOnly = statusFilter === "pending";
 
-  const applyFilter = (query: any) =>
-    statusFilter === "pending"
-      ? query.eq("payment_status", "pending_transfer")
-      : query;
-
+  // 4개 테이블마다 select() 결과 타입이 달라 공통 제네릭 헬퍼로 묶으면
+  // Supabase 빌더 타입의 재귀 추론이 지나치게 깊어져(TS2589) 컴파일이
+  // 안 된다 — `any` 없이 각 호출부에서 그대로 조건부 .eq()를 적용한다.
   const [ordersRes, reservationsRes, rentalRes, docentRes] = await Promise.all([
-    applyFilter(
-      requester.scopedClient
+    (() => {
+      const q = requester.scopedClient
         .from("orders")
         .select(
           "id, member_id, order_type, rental_days, price_charged, payment_status, created_at, items(name)",
-        ),
-    ),
-    applyFilter(
-      requester.scopedClient
+        );
+      return pendingOnly ? q.eq("payment_status", "pending_transfer") : q;
+    })(),
+    (() => {
+      const q = requester.scopedClient
         .from("reservations")
         .select(
           "id, member_id, price_charged, point_earned, payment_status, created_at, club_sessions(session_date, clubs(name))",
-        ),
-    ),
-    applyFilter(
-      requester.scopedClient
+        );
+      return pendingOnly ? q.eq("payment_status", "pending_transfer") : q;
+    })(),
+    (() => {
+      const q = requester.scopedClient
         .from("rental_bookings")
         .select(
           "id, member_id, price_charged, payment_status, created_at, hours, headcount, rental_types(floor, shoot_type)",
-        ),
-    ),
-    applyFilter(
-      requester.scopedClient
+        );
+      return pendingOnly ? q.eq("payment_status", "pending_transfer") : q;
+    })(),
+    (() => {
+      const q = requester.scopedClient
         .from("docent_purchases")
         .select(
           "id, member_id, price_charged, payment_status, purchased_at, docent_contents(title)",
-        ),
-    ),
+        );
+      return pendingOnly ? q.eq("payment_status", "pending_transfer") : q;
+    })(),
   ]);
 
   const rows: PaymentRow[] = [];

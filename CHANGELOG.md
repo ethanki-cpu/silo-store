@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 2026-07-30 (EPIC-074)
+- **EPIC-074: `docs/VISION.md` 신설 — "왜 Silo Platform을 만드는가"** — 사용자가 전체 내용을 직접 작성해 그대로 반영(Instagram/네이버 블로그로는 콘텐츠 아카이빙·연결·회원제/큐레이션/도슨트 시스템 구현이 안 된다는 배경, 핵심 가치 6개: Archive First/Story First/Community First/Collection First/Long-term Preservation/Timeless Design). `CLAUDE.md`의 "세션 시작 시 읽기 순서"에 1번(가장 먼저 읽는 문서)으로 추가하고 Blueprint 문서 목록에도 등록 — 앞으로 모든 세션·EPIC이 이 Vision을 기준으로 판단하도록 함. `docs/STAGES.md`의 Stage 개수 언급(6→8)도 EPIC-073 반영 누락분 함께 정정. 코드 변경 없음(문서 전용).
+
 ## 2026-07-30 (EPIC-073)
 - **EPIC-073: `docs/STAGES.md`를 CTO Roadmap 기준으로 전면 재작성** — 사용자가 8단계(Foundation → Content → Creator → Community → Business → Experience → AI → Scale) 구조를 직접 지정, 기존의 EPIC별 상세 진행률 표 형식은 유지하지 않고 전달받은 구조 그대로 교체. 문서 마지막에 CURRENT STAGE/CURRENT EPIC/NEXT EPIC 블록을 항상 유지하는 규칙 반영(현재: Stage 1 — Foundation, EPIC-072 Board Management System, 다음: EPIC-073 Content Platform). 코드 변경 없음(문서 전용).
 

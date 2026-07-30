@@ -1,7 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/lib/AuthProvider";
 import { GROUP_OPTIONS, RENDER_TYPE_OPTIONS } from "@/components/admin/BoardForm";
 import { ConfirmModal } from "@/components/admin/ConfirmModal";
@@ -13,6 +22,7 @@ import {
   buildAdminTree,
   type NavBranchNode,
 } from "@/lib/adminTreeGrouping";
+import { computeAdminTreeSections, buildSiblingMap } from "@/lib/adminTreeSections";
 
 type BoardRow = {
   id: string;
@@ -21,6 +31,8 @@ type BoardRow = {
   is_public?: boolean;
   group_key?: string | null;
   render_type?: string | null;
+  // EPIC-075: 관리자 트리 화면의 드래그앤드롭 순서.
+  sort_order?: number;
 };
 
 const GROUP_LABEL = Object.fromEntries(GROUP_OPTIONS.map((o) => [o.value, o.label]));
@@ -120,6 +132,49 @@ function AdminBoardsPageContent() {
     [filtered, boardBranchMap, branches, domainFilter],
   );
 
+  // EPIC-075: 드래그앤드롭 순서 변경 — 같은 브랜치(형제 그룹) 안에서만
+  // 허용한다(다른 브랜치로 옮기는 재분류는 /admin/navigation 담당). 검색/
+  // 필터가 걸려 있으면 그 필터링된 부분집합 안에서만 순서를 바꾸게 된다 —
+  // 필터를 끄면 전체 순서 중 그 결과다.
+  const sections = useMemo(() => computeAdminTreeSections(treeRows), [treeRows]);
+  const siblingMap = useMemo(() => buildSiblingMap(sections), [sections]);
+  const sensors = useSensors(useSensor(PointerSensor));
+
+  async function handleDragEnd(e: DragEndEvent) {
+    if (!session) return;
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const siblings = siblingMap.get(activeId);
+    if (!siblings || !siblings.includes(overId)) return; // 다른 브랜치로는 드롭 불가
+
+    const reordered = arrayMove(siblings, siblings.indexOf(activeId), siblings.indexOf(overId));
+
+    // 낙관적 업데이트: 로컬 boards 배열도 같은 순서로 재배치해 즉시 반영.
+    setBoards((prev) => {
+      const byId = new Map(prev.map((b) => [b.id, b]));
+      const reorderedBoards = reordered.map((id) => byId.get(id)).filter((b): b is BoardRow => !!b);
+      const reorderedSet = new Set(reordered);
+      let cursor = 0;
+      return prev.map((b) => (reorderedSet.has(b.id) ? reorderedBoards[cursor++] : b));
+    });
+
+    await Promise.all(
+      reordered.map((id, index) =>
+        fetch(`/api/admin/boards/${id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ sort_order: index }),
+        }),
+      ),
+    );
+  }
+
   async function handleDuplicate(board: BoardRow) {
     if (!session) return;
     setDuplicatingId(board.id);
@@ -214,84 +269,28 @@ function AdminBoardsPageContent() {
         <p className="text-gray-500">표시할 게시판이 없어요.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-left text-gray-500 border-b border-gray-200">
-                <th className="py-2 pr-3">제목</th>
-                <th className="py-2 pr-3">슬러그</th>
-                <th className="py-2 pr-3">Category</th>
-                <th className="py-2 pr-3">Board Type</th>
-                <th className="py-2 pr-3">공개 여부</th>
-                <th className="py-2 pr-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {treeRows.map((row) =>
-                row.kind === "branch" ? (
-                  <tr key={`branch-${row.id}`}>
-                    <td
-                      colSpan={6}
-                      style={{ paddingLeft: row.depth * 20 }}
-                      className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400"
-                    >
-                      📂 {row.title}
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={row.item.id} className="border-b border-gray-100">
-                    <td className="py-2 pr-3" style={{ paddingLeft: row.depth * 20 }}>
-                      <Link href={`/admin/boards/${row.item.id}`} className="hover:underline font-medium">
-                        📄 {row.item.name}
-                      </Link>
-                    </td>
-                    <td className="py-2 pr-3 text-gray-500">{row.item.category ?? "-"}</td>
-                    <td className="py-2 pr-3 text-gray-500">
-                      {row.item.group_key ? GROUP_LABEL[row.item.group_key] ?? row.item.group_key : "-"}
-                    </td>
-                    <td className="py-2 pr-3 text-gray-500">
-                      {row.item.render_type ? RENDER_TYPE_LABEL[row.item.render_type] ?? row.item.render_type : "-"}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {row.item.is_public === false ? (
-                        <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
-                          비공개
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">
-                          공개
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3">
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/admin/boards/${row.item.id}`}
-                          className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
-                        >
-                          수정
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => handleDuplicate(row.item)}
-                          disabled={duplicatingId === row.item.id}
-                          className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          복제
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(row.item)}
-                          className="rounded-md border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-200">
+                  <th className="py-2 pr-1 w-6"></th>
+                  <th className="py-2 pr-3">제목</th>
+                  <th className="py-2 pr-3">슬러그</th>
+                  <th className="py-2 pr-3">Category</th>
+                  <th className="py-2 pr-3">Board Type</th>
+                  <th className="py-2 pr-3">공개 여부</th>
+                  <th className="py-2 pr-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {renderBoardTreeRows(treeRows, sections, {
+                  onDuplicate: handleDuplicate,
+                  onDelete: setDeleteTarget,
+                  duplicatingId,
+                })}
+              </tbody>
+            </table>
+          </DndContext>
         </div>
       )}
 
@@ -304,5 +303,141 @@ function AdminBoardsPageContent() {
         onCancel={() => setDeleteTarget(null)}
       />
     </main>
+  );
+}
+
+// EPIC-075: treeRows(브랜치 헤더 + 항목이 섞인 평평한 배열)를 순회하며, 항목이
+// 연속되는 구간마다 sections[i]의 id 목록으로 SortableContext를 열어준다 —
+// admin/pages/page.tsx의 renderTreeRows와 동일한 패턴(테이블 행 버전).
+function renderBoardTreeRows(
+  treeRows: ReturnType<typeof buildAdminTree<BoardRow>>,
+  sections: ReturnType<typeof computeAdminTreeSections<BoardRow>>,
+  actions: {
+    onDuplicate: (board: BoardRow) => void;
+    onDelete: (board: BoardRow) => void;
+    duplicatingId: string | null;
+  },
+) {
+  const elements: ReactNode[] = [];
+  let sectionIndex = -1;
+  let i = 0;
+
+  while (i < treeRows.length) {
+    const row = treeRows[i];
+    if (row.kind === "branch") {
+      sectionIndex++;
+      elements.push(
+        <tr key={`branch-${row.id}`}>
+          <td
+            colSpan={7}
+            style={{ paddingLeft: row.depth * 20 }}
+            className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400"
+          >
+            📂 {row.title}
+          </td>
+        </tr>,
+      );
+      i++;
+      continue;
+    }
+
+    const itemIds = sections[sectionIndex]?.itemIds ?? [];
+    const runStart = i;
+    while (i < treeRows.length && treeRows[i].kind === "item") i++;
+    const itemRows = treeRows.slice(runStart, i) as Extract<
+      (typeof treeRows)[number],
+      { kind: "item" }
+    >[];
+
+    elements.push(
+      <SortableContext key={`section-${sectionIndex}`} items={itemIds} strategy={verticalListSortingStrategy}>
+        {itemRows.map((r) => (
+          <SortableBoardRow key={r.item.id} row={r} actions={actions} />
+        ))}
+      </SortableContext>,
+    );
+  }
+
+  return elements;
+}
+
+function SortableBoardRow({
+  row,
+  actions,
+}: {
+  row: { depth: number; item: BoardRow };
+  actions: {
+    onDuplicate: (board: BoardRow) => void;
+    onDelete: (board: BoardRow) => void;
+    duplicatingId: string | null;
+  };
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: row.item.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <tr ref={setNodeRef} style={style} className="border-b border-gray-100 bg-white">
+      <td className="py-2 pr-1">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label="드래그해서 순서 변경"
+          className="cursor-grab text-gray-400 select-none touch-none"
+        >
+          ⠿
+        </button>
+      </td>
+      <td className="py-2 pr-3" style={{ paddingLeft: row.depth * 20 }}>
+        <Link href={`/admin/boards/${row.item.id}`} className="hover:underline font-medium">
+          📄 {row.item.name}
+        </Link>
+      </td>
+      <td className="py-2 pr-3 text-gray-500">{row.item.category ?? "-"}</td>
+      <td className="py-2 pr-3 text-gray-500">
+        {row.item.group_key ? GROUP_LABEL[row.item.group_key] ?? row.item.group_key : "-"}
+      </td>
+      <td className="py-2 pr-3 text-gray-500">
+        {row.item.render_type ? RENDER_TYPE_LABEL[row.item.render_type] ?? row.item.render_type : "-"}
+      </td>
+      <td className="py-2 pr-3">
+        {row.item.is_public === false ? (
+          <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">비공개</span>
+        ) : (
+          <span className="px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">공개</span>
+        )}
+      </td>
+      <td className="py-2 pr-3">
+        <div className="flex gap-2">
+          <Link
+            href={`/admin/boards/${row.item.id}`}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+          >
+            수정
+          </Link>
+          <button
+            type="button"
+            onClick={() => actions.onDuplicate(row.item)}
+            disabled={actions.duplicatingId === row.item.id}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+          >
+            복제
+          </button>
+          <button
+            type="button"
+            onClick={() => actions.onDelete(row.item)}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+          >
+            삭제
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }

@@ -9,6 +9,7 @@ import { PostTags } from "@/components/boards/PostTags";
 import { PostActions } from "@/components/boards/PostActions";
 import { PostBody } from "@/components/boards/PostBody";
 import { CommentSection } from "@/components/boards/CommentSection";
+import { BoardPostListPanel } from "@/components/boards/BoardPostListPanel";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 
@@ -255,6 +256,8 @@ export default function PostDetailPage() {
               submitting={commentSubmitting}
             />
           )}
+
+          <BoardPostListPanel boardId={id} currentPostId={postId} />
         </div>
       </div>
       </main>

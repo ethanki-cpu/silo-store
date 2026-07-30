@@ -51,6 +51,7 @@ const EDITABLE_FIELDS = [
   "description",
   "widget_settings",
   "min_rank_to_write",
+  "sort_order",
 ] as const;
 
 export async function PATCH(

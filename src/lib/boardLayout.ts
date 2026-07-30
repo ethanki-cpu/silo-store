@@ -1162,6 +1162,9 @@ export type BoardRow = {
   default_sort?: string | null;
   description?: string | null;
   widget_settings?: Record<string, unknown> | null;
+  // EPIC-075: 관리자 트리 화면의 드래그앤드롭 순서 — 컬럼 없으면(마이그레이션
+  // 전) BOARD_LEGACY_FIELDS 폴백 경로를 타 undefined로 남는다.
+  sort_order?: number | null;
 };
 
 // EPIC-066: boards.select()에 쓸 두 필드 목록 — 신규 admin 컬럼 포함(rich)
@@ -1170,7 +1173,7 @@ export type BoardRow = {
 // 배경은 src/app/api/boards/[id]/posts/route.ts 참고) — 라이브 DB에 EPIC-066
 // 마이그레이션이 아직 안 됐어도 게시판 읽기 자체는 멈추지 않는다.
 export const BOARD_RICH_FIELDS =
-  "id, name, category, board_type, min_rank_to_write, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings";
+  "id, name, category, board_type, min_rank_to_write, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
 export const BOARD_LEGACY_FIELDS = "id, name, category, board_type, min_rank_to_write";
 
 // render_type(admin 편집용 10종) → BoardLayoutType(실제 렌더러 키) 매핑.

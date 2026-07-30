@@ -297,6 +297,15 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
                 <th className="py-2 pr-3"></th>
               </tr>
             </thead>
+            {/* EPIC-075: 이 화면에는 드래그앤드롭 순서 변경을 추가하지 않았다 —
+                게시글은 본질적으로 시간순 콘텐츠라(정렬 기준 자체가 "최신순"),
+                자유롭게 수동 순서를 매기는 대신 상단 필터/정렬로 다루는 게
+                맞다고 판단했다. 브랜치(📂 카테고리) 순서 변경은 이미
+                /admin/navigation(CategoryTreeManager)이 site_navigations를
+                직접 편집해 처리하므로, 여기 별도로 다시 구현하지 않았다(같은
+                site_navigations 데이터를 보여주는 파생 화면이라 그쪽에서
+                바꾸면 여기도 새로고침 시 그대로 반영된다) — admin/pages·
+                admin/boards의 항목(📄) 드래그앤드롭만 새로 추가함. */}
             <tbody>
               {treeRows.map((row) =>
                 row.kind === "branch" ? (

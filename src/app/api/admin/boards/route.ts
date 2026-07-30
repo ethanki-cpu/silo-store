@@ -14,10 +14,14 @@ export async function GET(request: NextRequest) {
   let boards: BoardRow[] | null;
   let error: { message: string } | null;
 
+  // EPIC-075: sort_order로 정렬해야 관리자 트리 화면의 드래그앤드롭 순서가
+  // 실제로 반영된다 — 마이그레이션(docs/sql/EPIC-075-tree-sort-order.sql) 전
+  // 라이브 DB에는 이 컬럼이 없을 수 있어(42703), 그 경우 기존 name 정렬
+  // 레거시 경로로 조용히 폴백한다.
   ({ data: boards, error } = await requester.scopedClient
     .from("boards")
     .select(BOARD_RICH_FIELDS)
-    .order("name"));
+    .order("sort_order", { ascending: true }));
 
   if (error) {
     ({ data: boards, error } = await requester.scopedClient

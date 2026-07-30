@@ -42,6 +42,10 @@ export type PageBuilderRow = {
   layout: string;
   created_at: string;
   updated_at: string;
+  // EPIC-075: 관리자 트리 화면의 드래그앤드롭 순서 — `docs/sql/EPIC-075-tree-sort-order.sql`
+  // 실행 전 라이브 DB에는 이 컬럼이 없을 수 있어 옵셔널(아래 fetchAllPagesForAdmin의
+  // 42703 폴백 참고).
+  sort_order?: number;
 };
 
 export type PageModuleRow = {
@@ -87,10 +91,21 @@ export async function fetchPublishedPageBySlug(
 // 아니면 RLS가 draft 행을 숨기므로(정책 참고), 관리자가 아닌데 이 함수를
 // 호출해도 draft는 보이지 않는다.
 export async function fetchAllPagesForAdmin(): Promise<PageBuilderRow[] | null> {
-  const { data, error } = await supabase
+  // EPIC-075: sort_order로 정렬해야 관리자 트리 화면의 드래그앤드롭 순서가
+  // 실제로 반영된다 — 마이그레이션(docs/sql/EPIC-075-tree-sort-order.sql)
+  // 전 라이브 DB에는 이 컬럼이 없을 수 있어(42703), 그 경우 기존 created_at
+  // 정렬로 조용히 폴백한다(다른 라우트들의 rich/legacy 필드 폴백과 동일 패턴).
+  let { data, error } = await supabase
     .from("page_builder")
     .select("*")
-    .order("created_at", { ascending: true });
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    ({ data, error } = await supabase
+      .from("page_builder")
+      .select("*")
+      .order("created_at", { ascending: true }));
+  }
 
   if (error) return null;
   return (data ?? []) as PageBuilderRow[];

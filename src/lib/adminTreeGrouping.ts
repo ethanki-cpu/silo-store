@@ -152,7 +152,7 @@ export const UNASSIGNED_BRANCH_ID = "__unassigned__";
 const UNASSIGNED_TITLE = "기타 / 미분류";
 
 export type AdminTreeRow<T> =
-  | { kind: "branch"; id: string; title: string; href: string | null; depth: number }
+  | { kind: "branch"; id: string; title: string; href: string | null; depth: number; parentId: string | null }
   | { kind: "item"; depth: number; item: T };
 
 // 항목 배열(페이지/게시판/게시글)을 브랜치(가지) id로 묶어, 실제
@@ -197,14 +197,28 @@ export function buildAdminTree<T>(
   for (const branch of branches) {
     if (domainFilter !== "all" && branch.domain !== domainFilter) continue;
     if (!neededBranchIds.has(branch.id)) continue;
-    rows.push({ kind: "branch", id: branch.id, title: branch.title, href: branch.href, depth: branch.depth });
+    rows.push({
+      kind: "branch",
+      id: branch.id,
+      title: branch.title,
+      href: branch.href,
+      depth: branch.depth,
+      parentId: branch.parentId,
+    });
     for (const item of itemsByBranch.get(branch.id) ?? []) {
       rows.push({ kind: "item", depth: branch.depth + 1, item });
     }
   }
 
   if (unassigned.length > 0 && (domainFilter === "all" || domainFilter === "common")) {
-    rows.push({ kind: "branch", id: UNASSIGNED_BRANCH_ID, title: UNASSIGNED_TITLE, href: null, depth: 0 });
+    rows.push({
+      kind: "branch",
+      id: UNASSIGNED_BRANCH_ID,
+      title: UNASSIGNED_TITLE,
+      href: null,
+      depth: 0,
+      parentId: null,
+    });
     for (const item of unassigned) rows.push({ kind: "item", depth: 1, item });
   }
 

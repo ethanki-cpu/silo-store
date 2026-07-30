@@ -9,12 +9,13 @@ import {
   type PageBuilderRow,
 } from "@/lib/pageBuilder";
 import { AdminDomainTabs, useAdminDomainFilter } from "@/components/admin/AdminDomainTabs";
+import { type AdminDomain } from "@/lib/adminDomainGrouping";
 import {
-  ADMIN_DOMAIN_LABELS,
-  ADMIN_DOMAIN_ORDER,
-  classifyPageSlug,
-  type AdminDomain,
-} from "@/lib/adminDomainGrouping";
+  fetchNavBranches,
+  buildSlugToBranchId,
+  buildAdminTree,
+  type NavBranchNode,
+} from "@/lib/adminTreeGrouping";
 
 // EPIC-060: Page Builder 관리자 목록 — 페이지 목록/새 페이지/삭제/수정
 // 진입/공개-비공개 전환. is_admin 가드는 src/app/admin/layout.tsx가 이미
@@ -32,6 +33,7 @@ export default function AdminPagesListPage() {
 function AdminPagesListContent() {
   const domainFilter = useAdminDomainFilter();
   const [pages, setPages] = useState<PageBuilderRow[]>([]);
+  const [branches, setBranches] = useState<NavBranchNode[]>([]);
   const [fetching, setFetching] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,8 @@ function AdminPagesListContent() {
       return;
     }
     setTableMissing(false);
-    const data = await fetchAllPagesForAdmin();
+    const [data, navBranches] = await Promise.all([fetchAllPagesForAdmin(), fetchNavBranches()]);
+    setBranches(navBranches);
     if (data === null) {
       setError("페이지 목록을 불러오지 못했어요.");
     } else {
@@ -104,28 +107,31 @@ function AdminPagesListContent() {
     await load();
   }
 
-  const pagesWithDomain = useMemo(
-    () => pages.map((page) => ({ page, domain: classifyPageSlug(page.slug) })),
-    [pages],
-  );
+  const slugToBranchId = useMemo(() => buildSlugToBranchId(branches), [branches]);
+  const branchById = useMemo(() => new Map(branches.map((b) => [b.id, b])), [branches]);
+
+  function branchIdOfPage(page: PageBuilderRow): string | null {
+    return slugToBranchId.get(page.slug) ?? null;
+  }
 
   const counts = useMemo(() => {
-    const c: Partial<Record<AdminDomain | "all", number>> = { all: pagesWithDomain.length };
-    for (const { domain } of pagesWithDomain) c[domain] = (c[domain] ?? 0) + 1;
+    const c: Partial<Record<AdminDomain | "all", number>> = { all: pages.length };
+    for (const page of pages) {
+      const branchId = branchIdOfPage(page);
+      const domain = branchId ? (branchById.get(branchId)?.domain ?? "common") : "common";
+      c[domain] = (c[domain] ?? 0) + 1;
+    }
     return c;
-  }, [pagesWithDomain]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages, slugToBranchId, branchById]);
 
-  // "전체" 선택 시에는 도메인별로 묶어서(브랜치 정렬처럼) 보여주고, 특정
-  // 도메인을 고르면 그 목록만 평평하게 보여준다.
-  const groupedSections = useMemo(() => {
-    const domains = domainFilter === "all" ? ADMIN_DOMAIN_ORDER : [domainFilter];
-    return domains
-      .map((domain) => ({
-        domain,
-        items: pagesWithDomain.filter((p) => p.domain === domain).map((p) => p.page),
-      }))
-      .filter((section) => section.items.length > 0);
-  }, [pagesWithDomain, domainFilter]);
+  // 사이트 내비게이션 트리 그대로 들여쓰기된 행 목록(브랜치 헤더 + 그 아래
+  // 페이지) — 매칭 안 되는 페이지는 맨 끝 "기타 / 미분류"로 모인다.
+  const treeRows = useMemo(
+    () => buildAdminTree(pages, branchIdOfPage, branches, domainFilter),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pages, branches, domainFilter, slugToBranchId],
+  );
 
   if (tableMissing) {
     return (
@@ -186,62 +192,62 @@ function AdminPagesListContent() {
 
       {fetching ? (
         <p className="text-gray-400 text-sm">불러오는 중...</p>
-      ) : groupedSections.length === 0 ? (
+      ) : treeRows.length === 0 ? (
         <p className="text-gray-400 text-sm">등록된 페이지가 없어요.</p>
       ) : (
-        <div className="space-y-6">
-          {groupedSections.map((section) => (
-            <div key={section.domain}>
-              {domainFilter === "all" && (
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-                  {ADMIN_DOMAIN_LABELS[section.domain]} ({section.items.length})
-                </h2>
-              )}
-              <ul className="space-y-2">
-                {section.items.map((page) => (
-                  <li
-                    key={page.id}
-                    className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 p-3"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{page.title}</p>
-                      <p className="text-xs text-gray-400">/{page.slug}</p>
-                    </div>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full ${
-                        page.status === "published"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-500"
-                      }`}
-                    >
-                      {page.status === "published" ? "공개" : "비공개"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStatus(page)}
-                      className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
-                    >
-                      {page.status === "published" ? "비공개로 전환" : "공개로 전환"}
-                    </button>
-                    <Link
-                      href={`/admin/pages/${page.id}`}
-                      className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
-                    >
-                      수정
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(page.id, page.title)}
-                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                    >
-                      삭제
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <ul className="space-y-1.5">
+          {treeRows.map((row) =>
+            row.kind === "branch" ? (
+              <li
+                key={`branch-${row.id}`}
+                style={{ marginLeft: row.depth * 20 }}
+                className="text-xs font-semibold uppercase tracking-wide text-gray-400 pt-3 first:pt-0"
+              >
+                📂 {row.title}
+              </li>
+            ) : (
+              <li
+                key={row.item.id}
+                style={{ marginLeft: row.depth * 20 }}
+                className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 p-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900">📄 {row.item.title}</p>
+                  <p className="text-xs text-gray-400">/{row.item.slug}</p>
+                </div>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full ${
+                    row.item.status === "published"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {row.item.status === "published" ? "공개" : "비공개"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleStatus(row.item)}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+                >
+                  {row.item.status === "published" ? "비공개로 전환" : "공개로 전환"}
+                </button>
+                <Link
+                  href={`/admin/pages/${row.item.id}`}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+                >
+                  수정
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(row.item.id, row.item.title)}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                >
+                  삭제
+                </button>
+              </li>
+            ),
+          )}
+        </ul>
       )}
     </main>
   );

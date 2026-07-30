@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-07-30 (EPIC-072B)
+- **EPIC-072B: 관리자 CMS UX 개편 — `site_navigations` 실제 트리 기반 계층형(Branch) 뷰** — EPIC-072가 만든 "4대 도메인" 분류는 키워드/휴리스틱 추정(`adminDomainGrouping.ts`)이라 평면 목록을 도메인별로 묶는 정도였는데, 이번엔 "`메뉴/카테고리 관리`처럼 상위-하위가 가지 형태로 들여쓰기된 트리"를 원하는 요청 — 실제 `site_navigations` 트리 구조 그 자체를 SSoT로 써서 각 항목이 정확히 어느 가지에 속하는지 구조적으로 매칭한다(추정이 아님).
+  - **`src/lib/adminTreeGrouping.ts` 신설**: `fetchNavBranches()`가 `site_navigations`를 depth-first로 펼쳐 `{id, title, href, slug(=hrefToSlug(href)), depth, parentId, domain}` 배열로 반환(최상위 4개 루트 행의 실제 id로 도메인을 정확히 판별 — 문자열 추정 아님, "사일로 상점"/"살롱데상"/"스튜디오"/"마이 페이지" 4개뿐이라 완전 매칭). 페이지는 `hrefToSlug(nav.href) === page.slug` 완전 일치로 매칭(138개 기존 slug가 전부 이 규칙으로 생성됨, `pageTemplates.ts` 참고). 게시판은 `page_modules`에서 그 board_id를 참조하는 페이지를 찾아 그 페이지의 slug로 다시 매칭 — 한 게시판이 여러 페이지에 걸쳐 있으면(예: "예술 클럽" 게시판은 자기 전용 페이지 `community-topics-art`의 `board` 위젯뿐 아니라 상위 hub `community`/`community-topics`의 `slide` 미리보기에도 등장) `module_type==="board"`(그 게시판의 진짜 전용 페이지)를 최우선으로, 그마저 여럿이면 더 긴(더 구체적인) slug를 택한다. 게시글은 별도 매칭 없이 소속 게시판의 브랜치를 그대로 물려받는다. 매칭 안 되는 항목은 전부 "기타 / 미분류"로 모아 누락 없이 보여준다.
+  - **`/admin/pages`/`/admin/boards`/`/admin/posts/*`**: 평면 목록/테이블을 브랜치 헤더(📂, `depth*20px` 들여쓰기) + 그 아래 항목(📄)으로 재구성 — 기존 수정/삭제/공개전환/복제 등 액션 버튼은 전부 그대로 유지. 도메인 필터 탭(`AdminDomainTabs`, EPIC-072)은 그대로 재사용하되 판별 기준을 실제 브랜치 매칭으로 교체.
+  - **한계**: `/admin/posts/*`는 여전히 "도메인 전체 최신순 20건" 서버 페이지네이션이라, 한 페이지 안의 트리는 그 페이지에 걸린 게시글의 브랜치만 보여준다(모든 브랜치를 매 페이지 완전하게 보여주진 않음) — 브랜치별 완전한 페이지네이션은 범위 밖, 후속 과제로 남김.
+  - **검증**: `npx tsc --noEmit`(0 errors)/`npm run build`(전체 라우트 정상 컴파일)/`npm run lint`(0 errors, 27 warnings — pull 직후 baseline과 동일, 신규 파일·수정 파일 전부 무관 확인) 통과. `page_modules(board_id, page_builder(slug))` PostgREST 임베디드 조회 문법을 실제 라이브 DB에 직접 curl로 검증(정상 동작, 다중 참조 케이스도 실제로 확인). 관리자 로그인 세션이 필요해(에이전트 자격 증명 직접 입력 금지 정책) 화면 클릭 테스트는 사용자가 직접 확인 필요.
+
 ## 2026-07-30 (EPIC-074B)
 - **EPIC-074B: `docs/PROJECT_DASHBOARD.md` 최상단에 PROJECT VISION/Roadmap/Current EPIC/Next EPIC 블록 추가** — 사용자가 내용을 직접 지정(Roadmap: Stage 1 95%, Stage 2 Ready, Stage 3~8 Waiting / Current EPIC: EPIC-074B / Next EPIC: EPIC-075), 이 블록을 문서 최상단에 항상 유지하는 규칙으로 반영. 기존 문서 하단부에 있던 구식 "## Current EPIC"/"## Next EPIC" 섹션(값이 오래전부터 "없음"/"미정"으로 방치돼 새 최상단 블록과 모순되던 상태)은 제거하고, 최상단 블록이 SSoT임을 명시하는 안내 문구로 대체 — 나머지 Progress/Recent Completed/Known Issues 등 섹션은 이번 범위 밖이라 손대지 않음(여전히 EPIC-068 시점 기준으로 stale, 별도 정리 필요). 코드 변경 없음(문서 전용).
 

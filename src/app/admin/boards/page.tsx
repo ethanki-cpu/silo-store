@@ -1,17 +1,18 @@
 "use client";
 
-import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
 import { GROUP_OPTIONS, RENDER_TYPE_OPTIONS } from "@/components/admin/BoardForm";
 import { ConfirmModal } from "@/components/admin/ConfirmModal";
 import { AdminDomainTabs, useAdminDomainFilter } from "@/components/admin/AdminDomainTabs";
+import { type AdminDomain } from "@/lib/adminDomainGrouping";
 import {
-  ADMIN_DOMAIN_LABELS,
-  ADMIN_DOMAIN_ORDER,
-  classifyBoardCategory,
-  type AdminDomain,
-} from "@/lib/adminDomainGrouping";
+  fetchNavBranches,
+  fetchBoardBranchMap,
+  buildAdminTree,
+  type NavBranchNode,
+} from "@/lib/adminTreeGrouping";
 
 type BoardRow = {
   id: string;
@@ -42,6 +43,8 @@ function AdminBoardsPageContent() {
   const domainFilter = useAdminDomainFilter();
 
   const [boards, setBoards] = useState<BoardRow[]>([]);
+  const [branches, setBranches] = useState<NavBranchNode[]>([]);
+  const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -63,6 +66,10 @@ function AdminBoardsPageContent() {
       setFetching(false);
       return;
     }
+    const navBranches = await fetchNavBranches();
+    const branchMap = await fetchBoardBranchMap(navBranches);
+    setBranches(navBranches);
+    setBoardBranchMap(branchMap);
     setError(null);
     setBoards(Array.isArray(data) ? data : []);
     setFetching(false);
@@ -73,12 +80,17 @@ function AdminBoardsPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
+  const branchById = useMemo(() => new Map(branches.map((b) => [b.id, b])), [branches]);
+
+  function domainOfBoard(board: BoardRow): AdminDomain {
+    const branchId = boardBranchMap.get(board.id);
+    return branchId ? (branchById.get(branchId)?.domain ?? "common") : "common";
+  }
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return boards.filter((b) => {
-      if (domainFilter !== "all" && classifyBoardCategory(b.category, b.group_key) !== domainFilter) {
-        return false;
-      }
+      if (domainFilter !== "all" && domainOfBoard(b) !== domainFilter) return false;
       if (groupFilter !== "all" && (b.group_key ?? "") !== groupFilter) return false;
       if (typeFilter !== "all" && (b.render_type ?? "") !== typeFilter) return false;
       if (!query) return true;
@@ -87,25 +99,26 @@ function AdminBoardsPageContent() {
         (b.category ?? "").toLowerCase().includes(query)
       );
     });
-  }, [boards, q, groupFilter, typeFilter, domainFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boards, q, groupFilter, typeFilter, domainFilter, boardBranchMap, branchById]);
 
   const domainCounts = useMemo(() => {
     const c: Partial<Record<AdminDomain | "all", number>> = { all: boards.length };
     for (const b of boards) {
-      const d = classifyBoardCategory(b.category, b.group_key);
+      const d = domainOfBoard(b);
       c[d] = (c[d] ?? 0) + 1;
     }
     return c;
-  }, [boards]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boards, boardBranchMap, branchById]);
 
-  // "전체" 선택 시 도메인별로 묶어서 보여준다(브랜치 정렬처럼).
-  const groupedSections = useMemo(() => {
-    if (domainFilter !== "all") return [{ domain: domainFilter, items: filtered }];
-    return ADMIN_DOMAIN_ORDER.map((domain) => ({
-      domain,
-      items: filtered.filter((b) => classifyBoardCategory(b.category, b.group_key) === domain),
-    })).filter((section) => section.items.length > 0);
-  }, [filtered, domainFilter]);
+  // 사이트 내비게이션 트리 그대로 들여쓰기된 행 목록 — 매칭 안 되는
+  // 게시판은 맨 끝 "기타 / 미분류"로 모인다. 검색/필터(q/groupFilter/
+  // typeFilter)는 이미 걸러진 filtered 배열에 대해 적용한다.
+  const treeRows = useMemo(
+    () => buildAdminTree(filtered, (b) => boardBranchMap.get(b.id) ?? null, branches, domainFilter),
+    [filtered, boardBranchMap, branches, domainFilter],
+  );
 
   async function handleDuplicate(board: BoardRow) {
     if (!session) return;
@@ -213,69 +226,70 @@ function AdminBoardsPageContent() {
               </tr>
             </thead>
             <tbody>
-              {groupedSections.map((section) => (
-                <Fragment key={section.domain}>
-                  {domainFilter === "all" && (
-                    <tr key={`${section.domain}-header`}>
-                      <td colSpan={6} className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                        {ADMIN_DOMAIN_LABELS[section.domain]} ({section.items.length})
-                      </td>
-                    </tr>
-                  )}
-                  {section.items.map((board) => (
-                <tr key={board.id} className="border-b border-gray-100">
-                  <td className="py-2 pr-3">
-                    <Link href={`/admin/boards/${board.id}`} className="hover:underline font-medium">
-                      {board.name}
-                    </Link>
-                  </td>
-                  <td className="py-2 pr-3 text-gray-500">{board.category ?? "-"}</td>
-                  <td className="py-2 pr-3 text-gray-500">
-                    {board.group_key ? GROUP_LABEL[board.group_key] ?? board.group_key : "-"}
-                  </td>
-                  <td className="py-2 pr-3 text-gray-500">
-                    {board.render_type ? RENDER_TYPE_LABEL[board.render_type] ?? board.render_type : "-"}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {board.is_public === false ? (
-                      <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
-                        비공개
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">
-                        공개
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3">
-                    <div className="flex gap-2">
-                      <Link
-                        href={`/admin/boards/${board.id}`}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
-                      >
-                        수정
+              {treeRows.map((row) =>
+                row.kind === "branch" ? (
+                  <tr key={`branch-${row.id}`}>
+                    <td
+                      colSpan={6}
+                      style={{ paddingLeft: row.depth * 20 }}
+                      className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400"
+                    >
+                      📂 {row.title}
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={row.item.id} className="border-b border-gray-100">
+                    <td className="py-2 pr-3" style={{ paddingLeft: row.depth * 20 }}>
+                      <Link href={`/admin/boards/${row.item.id}`} className="hover:underline font-medium">
+                        📄 {row.item.name}
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => handleDuplicate(board)}
-                        disabled={duplicatingId === board.id}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        복제
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(board)}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                  ))}
-                </Fragment>
-              ))}
+                    </td>
+                    <td className="py-2 pr-3 text-gray-500">{row.item.category ?? "-"}</td>
+                    <td className="py-2 pr-3 text-gray-500">
+                      {row.item.group_key ? GROUP_LABEL[row.item.group_key] ?? row.item.group_key : "-"}
+                    </td>
+                    <td className="py-2 pr-3 text-gray-500">
+                      {row.item.render_type ? RENDER_TYPE_LABEL[row.item.render_type] ?? row.item.render_type : "-"}
+                    </td>
+                    <td className="py-2 pr-3">
+                      {row.item.is_public === false ? (
+                        <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
+                          비공개
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">
+                          공개
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/admin/boards/${row.item.id}`}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+                        >
+                          수정
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicate(row.item)}
+                          disabled={duplicatingId === row.item.id}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          복제
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(row.item)}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>

@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { ADMIN_DOMAIN_LABELS, classifyBoardCategory, type AdminDomain } from "@/lib/adminDomainGrouping";
+import { ADMIN_DOMAIN_LABELS, type AdminDomain } from "@/lib/adminDomainGrouping";
+import {
+  fetchNavBranches,
+  fetchBoardBranchMap,
+  buildAdminTree,
+  type NavBranchNode,
+} from "@/lib/adminTreeGrouping";
 
 // EPIC-028의 "[살롱데상] 카테고리별 글 관리"를 EPIC-072에서 도메인
 // 매개변수화해 일반화한 버전 — `posts`(+`boards`) 테이블을 최신순 데이터
@@ -12,8 +18,14 @@ import { ADMIN_DOMAIN_LABELS, classifyBoardCategory, type AdminDomain } from "@/
 //
 // boards에 도메인 컬럼이 없어 이 게시판들이 어느 도메인인지 서버 쿼리
 // 하나로 걸러낼 수 없다 — 먼저 boards 전체(수십 개 수준)를 가져와
-// classifyBoardCategory로 분류한 뒤, 그 도메인에 속하는 board_id 목록으로
-// posts를 필터링하는 2단계 조회를 쓴다.
+// adminTreeGrouping.ts의 실제 site_navigations 트리 매칭(어느 페이지가
+// 이 게시판을 위젯으로 연결했는지 → 그 페이지가 어느 nav 브랜치인지)으로
+// 도메인을 정확히 판별한 뒤, 그 도메인에 속하는 board_id 목록으로 posts를
+// 필터링하는 2단계 조회를 쓴다(EPIC-072B, 키워드 추정 대신 실제 구조 매칭).
+// 화면 자체도 평면 표가 아니라 그 트리 그대로 들여쓰기된 목록으로 그린다 —
+// 단, 페이지네이션은 기존처럼 도메인 전체를 최신순으로 20건씩 자르므로,
+// 한 페이지 안의 트리는 그 페이지에 걸린 게시글의 브랜치만 보여준다(모든
+// 브랜치를 항상 완전하게 보여주는 것은 아님).
 
 type BoardType =
   | "topic"
@@ -30,6 +42,7 @@ type PostRow = {
   body: string | null;
   author_id: string;
   authorName: string;
+  board_id: string;
   board_name: string;
   board_type: BoardType;
   like_count: number;
@@ -51,6 +64,8 @@ const PAGE_SIZE = 20;
 
 export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
   const [posts, setPosts] = useState<PostRow[]>([]);
+  const [branches, setBranches] = useState<NavBranchNode[]>([]);
+  const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [fetching, setFetching] = useState(true);
@@ -62,9 +77,10 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
   async function load() {
     setFetching(true);
 
-    const { data: allBoards, error: boardsError } = await supabase
-      .from("boards")
-      .select("id, category, group_key");
+    const [{ data: allBoards, error: boardsError }, navBranches] = await Promise.all([
+      supabase.from("boards").select("id, category, group_key"),
+      fetchNavBranches(),
+    ]);
 
     if (boardsError) {
       setError(boardsError.message);
@@ -72,8 +88,20 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
       return;
     }
 
+    const branchMap = await fetchBoardBranchMap(navBranches);
+    const branchById = new Map(navBranches.map((b) => [b.id, b]));
+    setBranches(navBranches);
+    setBoardBranchMap(branchMap);
+
+    // 사이트 내비게이션 트리에서 이 도메인(4대 탭 중 하나)에 속하는 것으로
+    // 매칭된 게시판만 이 화면에 노출한다 — 어디에도 매칭 안 되는 게시판은
+    // 이 도메인 탭이 아니라 "공통/기타" 탭(domain==="common")에서만 보인다.
     const domainBoardIds = (allBoards ?? [])
-      .filter((b) => classifyBoardCategory(b.category, b.group_key) === domain)
+      .filter((b) => {
+        const branchId = branchMap.get(b.id);
+        const boardDomain = branchId ? (branchById.get(branchId)?.domain ?? "common") : "common";
+        return boardDomain === domain;
+      })
       .map((b) => b.id);
 
     if (domainBoardIds.length === 0) {
@@ -95,7 +123,7 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
 
     let query = supabase
       .from("posts")
-      .select(`id, title, body, author_id, like_count, is_hidden, created_at, ${boardsSelect}`, {
+      .select(`id, title, body, author_id, board_id, like_count, is_hidden, created_at, ${boardsSelect}`, {
         count: "exact",
       })
       .in("board_id", domainBoardIds)
@@ -121,6 +149,7 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
       title: string | null;
       body: string | null;
       author_id: string;
+      board_id: string;
       like_count: number;
       is_hidden: boolean;
       created_at: string;
@@ -151,6 +180,7 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
         body: r.body,
         author_id: r.author_id,
         authorName: nameById.get(r.author_id) ?? "알 수 없음",
+        board_id: r.board_id,
         board_name: r.boards?.name ?? "-",
         board_type: r.boards?.board_type ?? "topic",
         like_count: r.like_count,
@@ -197,6 +227,13 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
     }
     setPosts((rows) => rows.filter((r) => r.id !== post.id));
   }
+
+  // 사이트 내비게이션 트리 그대로 들여쓰기된 행 목록 — 게시글은 자기 자신이
+  // 아니라 소속 게시판의 브랜치를 그대로 물려받는다.
+  const treeRows = useMemo(
+    () => buildAdminTree(posts, (p) => boardBranchMap.get(p.board_id) ?? null, branches, domain),
+    [posts, boardBranchMap, branches, domain],
+  );
 
   if (noBoardsInDomain && !fetching) {
     return (
@@ -261,50 +298,64 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
               </tr>
             </thead>
             <tbody>
-              {posts.map((post) => (
-                <tr key={post.id} className="border-b border-gray-100">
-                  <td className="py-2 pr-3 whitespace-nowrap">{post.board_name}</td>
-                  <td className="py-2 pr-3 max-w-xs truncate">
-                    {post.title || post.body || "(내용 없음)"}
-                  </td>
-                  <td className="py-2 pr-3 whitespace-nowrap">{post.authorName}</td>
-                  <td className="py-2 pr-3">{post.like_count}</td>
-                  <td className="py-2 pr-3 text-xs text-gray-500 whitespace-nowrap">
-                    {new Date(post.created_at).toLocaleString()}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {post.is_hidden ? (
-                      <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
-                        숨김
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">
-                        공개
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleHidden(post)}
-                        disabled={processingId === post.id}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        {post.is_hidden ? "숨김 해제" : "숨기기"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(post)}
-                        disabled={processingId === post.id}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {treeRows.map((row) =>
+                row.kind === "branch" ? (
+                  <tr key={`branch-${row.id}`}>
+                    <td
+                      colSpan={7}
+                      style={{ paddingLeft: row.depth * 20 }}
+                      className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400"
+                    >
+                      📂 {row.title}
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={row.item.id} className="border-b border-gray-100">
+                    <td className="py-2 pr-3 whitespace-nowrap" style={{ paddingLeft: row.depth * 20 }}>
+                      {row.item.board_name}
+                    </td>
+                    <td className="py-2 pr-3 max-w-xs truncate">
+                      {row.item.title || row.item.body || "(내용 없음)"}
+                    </td>
+                    <td className="py-2 pr-3 whitespace-nowrap">{row.item.authorName}</td>
+                    <td className="py-2 pr-3">{row.item.like_count}</td>
+                    <td className="py-2 pr-3 text-xs text-gray-500 whitespace-nowrap">
+                      {new Date(row.item.created_at).toLocaleString()}
+                    </td>
+                    <td className="py-2 pr-3">
+                      {row.item.is_hidden ? (
+                        <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700">
+                          숨김
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">
+                          공개
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleHidden(row.item)}
+                          disabled={processingId === row.item.id}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          {row.item.is_hidden ? "숨김 해제" : "숨기기"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(row.item)}
+                          disabled={processingId === row.item.id}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>

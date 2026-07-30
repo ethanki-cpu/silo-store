@@ -49,6 +49,7 @@ type SidebarIconsValue = {
   leftIconUrl: string;
   rightIconUrl: string;
   iconSizePx: number;
+  backgroundColor: string;
 };
 
 const DEFAULT_LOGO_TEXT = "사일로 스토어";
@@ -58,6 +59,8 @@ const DEFAULT_LOGO_FONT_SIZE_PX = 16;
 const DEFAULT_LOGO_TEXT_COLOR = "#166534";
 // EPIC-041: 사이드바 여닫이 아이콘 기본 크기 — 기존 하드코딩 w-8 h-8(32px)과 맞춤.
 const DEFAULT_ICON_SIZE_PX = 32;
+// EPIC-076: 사이드바 여닫이 버튼 배경색 기본값 — 기존 하드코딩 bg-green-800(#166534)과 맞춤.
+const DEFAULT_ICON_BG_COLOR = "#166534";
 // EPIC-043: main_logo.customFonts의 각 활성 항목에 주입할 @font-face의
 // font-family 이름 접두사 — 항목 id로 구분해 여러 개를 동시에 등록한다.
 const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
@@ -172,6 +175,7 @@ export function Navbar() {
             leftIconUrl: value.leftIconUrl ?? "",
             rightIconUrl: value.rightIconUrl ?? "",
             iconSizePx: value.iconSizePx || DEFAULT_ICON_SIZE_PX,
+            backgroundColor: value.backgroundColor || DEFAULT_ICON_BG_COLOR,
           });
         }
       });
@@ -511,6 +515,7 @@ export function Navbar() {
         onClose={() => setLeftOpen(false)}
         iconUrl={sidebarIcons?.leftIconUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
+        iconBackgroundColor={sidebarIcons?.backgroundColor || DEFAULT_ICON_BG_COLOR}
       />
       <RightSidebar
         tab={rightSidebarTab}
@@ -519,6 +524,7 @@ export function Navbar() {
         onClose={() => setRightOpen(false)}
         iconUrl={sidebarIcons?.rightIconUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
+        iconBackgroundColor={sidebarIcons?.backgroundColor || DEFAULT_ICON_BG_COLOR}
       />
     </header>
   );

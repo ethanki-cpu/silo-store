@@ -37,6 +37,7 @@ export function LeftSidebar({
   onClose,
   iconUrl,
   iconSizePx = 32,
+  iconBackgroundColor = "#166534",
 }: {
   tab?: NavTab;
   open: boolean;
@@ -45,6 +46,8 @@ export function LeftSidebar({
   iconUrl?: string;
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
+  // EPIC-076: 관리자 설정 여닫이 버튼 배경색 — 기본값은 기존 하드코딩이었던 bg-green-800(#166534).
+  iconBackgroundColor?: string;
 }) {
   // EPIC-054D(접근성 감사 §13): Escape로 닫기 + 닫힐 때 트리거 아이콘으로
   // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
@@ -95,18 +98,43 @@ export function LeftSidebar({
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="left-sidebar-panel"
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-r-md bg-green-800 text-white p-2 shadow-md"
+          style={{ backgroundColor: iconBackgroundColor }}
+          className="group fixed left-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-r-md text-white p-2 shadow-md"
         >
+          {/* EPIC-076: 아르누보 백합 개화 모션 — 평상시엔 줄기/잎이 살짝
+              기울어진 채 정지해 있다가, 호버 시 바람에 살랑이듯 미세하게
+              회전한다(transform-origin이 뿌리 쪽에 고정돼 위치는 그대로).
+              아이콘(꽃봉오리)은 별도로 scale-110되며 피어나는 느낌을 준다. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2"
+          >
+            <span className="block h-3 w-px origin-bottom bg-emerald-300/70 group-hover:[animation:silo-stem-sway_1.6s_ease-in-out_infinite]" />
+          </span>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-[135%]"
+          >
+            <span className="block h-2 w-2.5 origin-bottom-right -rotate-12 rounded-full bg-emerald-400/60 group-hover:[animation:silo-leaf-sway-left_1.8s_ease-in-out_infinite]" />
+          </span>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-1 left-1/2 translate-x-[35%]"
+          >
+            <span className="block h-2 w-2.5 origin-bottom-left rotate-12 rounded-full bg-emerald-400/60 group-hover:[animation:silo-leaf-sway-right_1.8s_ease-in-out_infinite]" />
+          </span>
           {iconUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={iconUrl}
               alt={tab.label}
-              className="object-contain"
+              className="relative z-10 object-contain transition-transform duration-700 ease-in-out group-hover:scale-110"
               style={{ width: iconSizePx, height: iconSizePx }}
             />
           ) : (
-            <span className="text-lg">🔑</span>
+            <span className="relative z-10 text-lg transition-transform duration-700 ease-in-out group-hover:scale-110">
+              🔑
+            </span>
           )}
         </button>
       )}

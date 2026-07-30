@@ -25,6 +25,7 @@ export function RightSidebar({
   onClose,
   iconUrl,
   iconSizePx = 32,
+  iconBackgroundColor = "#166534",
 }: {
   tab?: NavTab;
   open: boolean;
@@ -33,6 +34,8 @@ export function RightSidebar({
   iconUrl?: string;
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
+  // EPIC-076: 관리자 설정 여닫이 버튼 배경색 — 기본값은 기존 하드코딩이었던 bg-green-800(#166534).
+  iconBackgroundColor?: string;
 }) {
   // EPIC-054D(접근성 감사 §13): Escape로 닫기 + 닫힐 때 트리거 아이콘으로
   // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
@@ -82,19 +85,32 @@ export function RightSidebar({
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="right-sidebar-panel"
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-l-md bg-green-800 text-white p-2 shadow-md"
+          style={{ backgroundColor: iconBackgroundColor }}
+          className="group fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center overflow-hidden rounded-l-md text-white p-2 shadow-md [perspective:700px]"
         >
           {iconUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={iconUrl}
               alt={tab.label}
-              className="object-contain"
+              className="relative object-contain"
               style={{ width: iconSizePx, height: iconSizePx }}
             />
           ) : (
-            <span className="text-lg">🚪</span>
+            <span className="relative text-lg">🚪</span>
           )}
+          {/* EPIC-076: 아르누보 양문형 문 3D 개폐 모션 — 평상시엔 붉은 문
+              두 짝이 아이콘을 가리고 닫혀 있다가, 호버 시 각 경첩
+              (origin-left/origin-right)을 기준으로 rotateY 회전하며 열려
+              뒤의 아이콘을 드러낸다. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/2 origin-left border-r border-amber-300/50 bg-gradient-to-r from-red-950 via-red-800 to-red-900 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.4)] transition-transform duration-500 ease-in-out group-hover:[transform:rotateY(-108deg)]"
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-1/2 origin-right border-l border-amber-300/50 bg-gradient-to-l from-red-950 via-red-800 to-red-900 shadow-[inset_2px_0_4px_rgba(0,0,0,0.4)] transition-transform duration-500 ease-in-out group-hover:[transform:rotateY(108deg)]"
+          />
         </button>
       )}
 

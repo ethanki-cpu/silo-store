@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-07-30 (EPIC-076)
+- **EPIC-076: 사이드바 아이콘 커스텀 배경색 + 아르누보 호버 모션 애니메이션** — "좌/우 사이드바 여닫이 아이콘 주변의 하드코딩된 초록색 박스가 밋밋하다, 배경색을 자유롭게 지정하고 앤틱/아르누보 감성의 고급스러운 호버 모션을 넣어달라"는 요청.
+  - **배경색 커스텀**: `site_settings.sidebar_icons`에 `backgroundColor` 필드 추가(기본값 `#166534` — 기존 하드코딩 `bg-green-800`과 동일해 미설정 시 기존 화면 그대로). `/admin/navigation/settings`에 transparent/#HEX 자유 입력 텍스트 필드(+ #HEX일 때만 참고용 컬러 picker 병행 노출) 추가. `LeftSidebar.tsx`/`RightSidebar.tsx` 트리거 버튼의 `bg-green-800` 클래스를 제거하고 `style={{ backgroundColor: iconBackgroundColor }}`로 동적 바인딩(사이드바 패널 자체의 초록 배경은 이번 범위 밖이라 그대로 둠).
+  - **오른쪽 사이드바 — 아르누보 양문형 문 3D 개폐**: 트리거 버튼에 붉은 문 두 짝(`bg-gradient-to-r/l from-red-950 to-red-900`)을 절반씩 겹쳐 평상시엔 아이콘을 가리고, `group-hover`에서 각 문짝이 자신의 경첩(`origin-left`/`origin-right`)을 기준으로 `rotateY(∓108deg)`(버튼에 `[perspective:700px]`, `transition-transform duration-500 ease-in-out`)로 회전하며 열려 뒤의 아이콘을 드러낸다.
+  - **왼쪽 사이드바 — 아르누보 백합 개화**: 아이콘 자체는 `group-hover:scale-110`(duration-700 ease-in-out)로 살짝 피어나듯 확대되고, 아이콘 주변에 순수 CSS로 그린 줄기/잎사귀 장식 요소가 `globals.css`에 신설한 keyframe(`silo-stem-sway`/`silo-leaf-sway-left`/`silo-leaf-sway-right`, 각 transform-origin이 뿌리 쪽에 고정돼 회전만 해도 위치가 어긋나지 않음)으로 바람에 살랑이듯 회전 — 영상/GIF 없이 CSS `transform`만 사용해 렌더링 비용 없음.
+  - **검증**: `npx tsc --noEmit`(0 errors)/`npm run lint`(0 errors, 28 warnings — 기존 baseline과 동일, 변경 파일 무관 확인) 통과. 로컬 dev 서버에서 컴파일된 CSS를 직접 fetch해 `rotateY(-108deg)`/`rotateY(108deg)`/`silo-stem-sway`/`silo-leaf-sway-left`/`silo-leaf-sway-right`/`group-hover:scale-110` 규칙이 실제로 `:where(.group):hover` 스코프로 생성됨을 확인, 트리거 버튼의 `backgroundColor` 인라인 스타일이 기본값 `rgb(22, 101, 52)`(#166534)로 정상 적용됨을 확인(Browser pane 미표시 환경이라 스크린샷 대신 컴파일된 CSS·계산된 스타일로 검증).
+
 ## 2026-07-30 (EPIC-075)
 - **EPIC-075: 관리자 CMS 트리 드래그앤드롭 + Community 게시판 1-Row 컴팩트 목록 + 게시글 상세 하단 글 목록** — "EPIC-072 트리 UI에서 순서가 고정돼 불편하다, 목록형 게시판 가독성과 상세 화면 탐색성을 개선해달라"는 요청.
   - **관리자 트리 드래그앤드롭(`/admin/pages`, `/admin/boards`)**: `docs/sql/EPIC-075-tree-sort-order.sql` 신설 — `page_builder`/`boards`에 `sort_order` 컬럼 추가(라이브 DB에는 아직 미적용, 컬럼 없어도 기존 정렬로 조용히 폴백하도록 `fetchAllPagesForAdmin`/`/api/admin/boards` GET에 42703 폴백 추가). `@dnd-kit/core`+`sortable`(CategoryTreeManager와 동일 라이브러리, 이미 의존성 있음)로 각 화면에 드래그 핸들(⠿)을 추가하고, **같은 브랜치(형제 그룹) 안에서의 순서 변경만** 지원한다 — 다른 브랜치로 옮기는 재분류는 이미 `/admin/navigation`(CategoryTreeManager)이 site_navigations를 직접 편집해 처리하는 영역이라 여기서 중복 구현하지 않았고, `/admin/posts`는 게시글이 본질적으로 시간순 콘텐츠라 드래그 순서 변경 자체를 추가하지 않았다(코드 주석으로 이 스코프 결정을 명시). `src/lib/adminTreeSections.ts` 신설 — `buildAdminTree`의 평평한 행 배열에서 "브랜치 헤더 다음에 오는 연속된 항목들"을 형제 그룹으로 복원하는 공용 헬퍼(두 화면이 공유).

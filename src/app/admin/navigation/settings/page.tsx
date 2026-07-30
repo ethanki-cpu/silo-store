@@ -125,10 +125,13 @@ type SidebarIconsValue = {
   leftIconUrl: string;
   rightIconUrl: string;
   iconSizePx: number;
+  backgroundColor: string;
 };
 
 const MAX_WALLPAPERS = 10;
 const DEFAULT_ICON_SIZE_PX = 32;
+// EPIC-076: 사이드바 여닫이 버튼 배경색 기본값 — 기존 하드코딩 bg-green-800(#166534)과 맞춤.
+const DEFAULT_ICON_BG_COLOR = "#166534";
 
 function makeDefaultCustomFont(): CustomFontEntry {
   return {
@@ -178,6 +181,7 @@ const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
   leftIconUrl: "",
   rightIconUrl: "",
   iconSizePx: DEFAULT_ICON_SIZE_PX,
+  backgroundColor: DEFAULT_ICON_BG_COLOR,
 };
 
 const STORAGE_BUCKET = "public-assets";
@@ -942,6 +946,40 @@ export default function AdminNavigationSettingsPage() {
                 })
               }
             />
+          </div>
+          {/* EPIC-076: 여닫이 버튼 배경색 — 하드코딩된 초록색(bg-green-800)을
+              대체. "transparent" 또는 #HEX 코드를 자유 입력, 색상 picker는
+              #HEX일 때만 유효하므로 참고용으로 병행 노출한다. */}
+          <div className="mt-3">
+            <label className="block text-sm mb-1">
+              아이콘 배경색 (transparent 또는 #HEX 코드)
+            </label>
+            <div className="flex items-center gap-2">
+              {/^#[0-9a-fA-F]{6}$/.test(sidebarIcons.backgroundColor) && (
+                <input
+                  type="color"
+                  value={sidebarIcons.backgroundColor}
+                  onChange={(e) =>
+                    setSidebarIcons({
+                      ...sidebarIcons,
+                      backgroundColor: e.target.value,
+                    })
+                  }
+                  className="h-9 w-12 rounded border border-gray-300 p-1"
+                />
+              )}
+              <input
+                className={`${inputClass} w-40`}
+                value={sidebarIcons.backgroundColor}
+                onChange={(e) =>
+                  setSidebarIcons({
+                    ...sidebarIcons,
+                    backgroundColor: e.target.value,
+                  })
+                }
+                placeholder={DEFAULT_ICON_BG_COLOR}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-3 mt-3">
             <button

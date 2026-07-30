@@ -5,6 +5,41 @@ import { useAuth } from "@/lib/AuthProvider";
 import type { BoardPost, SortOption } from "@/lib/boardLayout";
 
 type Board = { id: string; name: string; category: string | null; board_type: string };
+type FetchResult = { board: Board | null; posts: BoardPost[] };
+
+// EPIC-070: 같은 페이지 안에 같은 게시판을 가리키는 위젯이 여러 개
+// 있으면(예: Board+Gallery+Timeline이 전부 자유게시판을 가리키는 Hub
+// 페이지) 각자 독립적으로 fetch해 동일한 요청이 중복 발생했다 — 진행 중인
+// 동일 요청(같은 게시판/정렬/세션)을 공유해 실제 네트워크 요청을 1번으로
+// 줄인다. 완료 후에는 즉시 캐시에서 지워 최신 글이 계속 반영되게 한다
+// (시간 경과에 따른 stale 캐시가 아니라 "동시에 뜬 요청끼리만" 공유).
+const inFlightRequests = new Map<string, Promise<FetchResult>>();
+
+function fetchBoardPosts(
+  boardId: string,
+  sort: SortOption,
+  accessToken: string | undefined,
+): Promise<FetchResult> {
+  const key = `${boardId}|${sort}|${accessToken ?? "anon"}`;
+  const existing = inFlightRequests.get(key);
+  if (existing) return existing;
+
+  const params = new URLSearchParams({ page: "1", sort, q: "" });
+  const promise = fetch(`/api/boards/${boardId}/posts?${params.toString()}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  })
+    .then((res) => res.json())
+    .then((data) => ({
+      board: (data.board ?? null) as Board | null,
+      posts: (Array.isArray(data.posts) ? data.posts : []) as BoardPost[],
+    }))
+    .finally(() => {
+      inFlightRequests.delete(key);
+    });
+
+  inFlightRequests.set(key, promise);
+  return promise;
+}
 
 // EPIC-060: Page Builder의 Slide/Gallery/Timeline 모듈(DbFeedModules.tsx)이
 // 공유하는 "게시판 하나의 글 목록" 조회 — src/components/modules/
@@ -33,15 +68,11 @@ export function useBoardPosts(
     let cancelled = false;
     setLoading(true);
 
-    const params = new URLSearchParams({ page: "1", sort, q: "" });
-    fetch(`/api/boards/${boardId}/posts?${params.toString()}`, {
-      headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
-    })
-      .then((res) => res.json())
+    fetchBoardPosts(boardId, sort, session?.access_token)
       .then((data) => {
         if (cancelled) return;
-        setBoard(data.board ?? null);
-        setPosts(Array.isArray(data.posts) ? data.posts.slice(0, limit) : []);
+        setBoard(data.board);
+        setPosts(data.posts.slice(0, limit));
         setLoading(false);
       })
       .catch(() => {

@@ -16,12 +16,7 @@ import {
 } from "@/lib/boardLayout";
 import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-
+async function fetchBoard(id: string) {
   let { data: board, error: boardError } = await supabase
     .from("boards")
     .select(BOARD_RICH_FIELDS)
@@ -36,6 +31,59 @@ export async function GET(
       .single());
   }
 
+  return { board, boardError };
+}
+
+// 게시판 규모가 크지 않아 검색/정렬/페이지네이션을 DB 쪽 복잡한 OR/배열-
+// 포함 쿼리로 밀어넣는 대신, 전체를 가져와 라우트 핸들러에서 처리한다
+// (이 저장소의 다른 라우트들과 동일한 접근).
+//
+// tags/view_count/updated_at는 라이브 DB에 아직 마이그레이션되지 않았을
+// 수 있다 — 없는 컬럼을 select하면 PostgREST가 쿼리 전체를 42703으로
+// 실패시키므로, 먼저 새 컬럼 포함으로 시도하고 실패하면 레거시 컬럼만으로
+// 재시도해 마이그레이션 전에도 게시판 읽기가 완전히 멈추지 않게 한다.
+const richFields =
+  "id, title, body, is_docent_post, like_count, is_best, photo_url, featured_image_url, tags, view_count, updated_at, author_id, created_at";
+const legacyFields =
+  "id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
+
+async function fetchPosts(client: typeof supabase, id: string) {
+  let usedRichFields = true;
+  let posts: Record<string, unknown>[] | null;
+  let postsError: { message: string } | null;
+
+  ({ data: posts, error: postsError } = await client
+    .from("posts")
+    .select(richFields)
+    .eq("board_id", id)
+    .order("created_at", { ascending: false }));
+
+  if (postsError) {
+    usedRichFields = false;
+    ({ data: posts, error: postsError } = await client
+      .from("posts")
+      .select(legacyFields)
+      .eq("board_id", id)
+      .order("created_at", { ascending: false }));
+  }
+
+  return { posts, postsError, usedRichFields };
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+
+  // EPIC-070: 서로 의존관계 없는 쿼리(게시판 조회 / 로그인 사용자 확인)를
+  // 순차 await 대신 Promise.all로 병렬화 — Vercel 서버리스에서 Supabase
+  // 왕복 지연이 그대로 누적되는 게 페이지 로딩이 느린 핵심 원인이었다.
+  const [{ board, boardError }, requester] = await Promise.all([
+    fetchBoard(id),
+    getRequestMember(request),
+  ]);
+
   if (boardError || !board) {
     return NextResponse.json(
       { error: "게시판을 찾을 수 없어요." },
@@ -49,9 +97,15 @@ export async function GET(
   // 컬럼(is_public/render_type/...)이 실려 있으면 resolveBoardDefinition이
   // 하드코딩 값 위에 얹어 즉시 반영한다.
   const definition = resolveBoardDefinition(board);
+  const client = requester ? requester.scopedClient : supabase;
 
-  const requester = await getRequestMember(request);
-  const tier = requester ? await getTier(requester.member.membership_rank) : null;
+  // EPIC-070: 게시글 조회는 권한 체크(tier) 결과와 무관하게 board_id만
+  // 있으면 되므로, 권한 판정이 끝나길 기다리지 않고 tier 조회와 동시에
+  // 시작한다 — 거부 판정이면 아래에서 결과를 버리고 403을 반환한다.
+  const [tier, { posts, postsError, usedRichFields }] = await Promise.all([
+    requester ? getTier(requester.member.membership_rank) : Promise.resolve(null),
+    fetchPosts(client, id),
+  ]);
 
   if (!canReadBoard(board, tier, requester?.member.is_admin)) {
     return NextResponse.json(
@@ -74,40 +128,6 @@ export async function GET(
   // 수준(어떤 게시판을 보여줄지)에서 걸러야 할 값이라 여기서 다루지 않는다.
   const tagFilter = searchParams.get("tag")?.trim() || null;
   const yearFilter = searchParams.get("year")?.trim() || null;
-
-  const client = requester ? requester.scopedClient : supabase;
-
-  // 게시판 규모가 크지 않아 검색/정렬/페이지네이션을 DB 쪽 복잡한 OR/배열-
-  // 포함 쿼리로 밀어넣는 대신, 전체를 가져와 라우트 핸들러에서 처리한다
-  // (이 저장소의 다른 라우트들과 동일한 접근).
-  //
-  // tags/view_count/updated_at는 라이브 DB에 아직 마이그레이션되지 않았을
-  // 수 있다 — 없는 컬럼을 select하면 PostgREST가 쿼리 전체를 42703으로
-  // 실패시키므로, 먼저 새 컬럼 포함으로 시도하고 실패하면 레거시 컬럼만으로
-  // 재시도해 마이그레이션 전에도 게시판 읽기가 완전히 멈추지 않게 한다.
-  const richFields =
-    "id, title, body, is_docent_post, like_count, is_best, photo_url, featured_image_url, tags, view_count, updated_at, author_id, created_at";
-  const legacyFields =
-    "id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
-
-  let usedRichFields = true;
-  let posts: Record<string, unknown>[] | null;
-  let postsError: { message: string } | null;
-
-  ({ data: posts, error: postsError } = await client
-    .from("posts")
-    .select(richFields)
-    .eq("board_id", id)
-    .order("created_at", { ascending: false }));
-
-  if (postsError) {
-    usedRichFields = false;
-    ({ data: posts, error: postsError } = await client
-      .from("posts")
-      .select(legacyFields)
-      .eq("board_id", id)
-      .order("created_at", { ascending: false }));
-  }
 
   if (postsError || !posts) {
     return NextResponse.json(
@@ -151,18 +171,21 @@ export async function GET(
       }));
 
   const authorIds = [...new Set(normalizedPosts.map((p) => p.author_id))];
-  const { data: profiles } = await supabase
-    .from("public_profiles")
-    .select("id, name")
-    .in("id", authorIds.length > 0 ? authorIds : ["00000000-0000-0000-0000-000000000000"]);
+  const postIds = normalizedPosts.map((p) => p.id);
+
+  // 서로 독립적인 두 조회(작성자 이름 / 댓글 수)를 병렬화.
+  const [{ data: profiles }, { data: allComments }] = await Promise.all([
+    supabase
+      .from("public_profiles")
+      .select("id, name")
+      .in("id", authorIds.length > 0 ? authorIds : ["00000000-0000-0000-0000-000000000000"]),
+    supabase
+      .from("comments")
+      .select("post_id")
+      .in("post_id", postIds.length > 0 ? postIds : ["00000000-0000-0000-0000-000000000000"]),
+  ]);
 
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.name]));
-
-  const postIds = normalizedPosts.map((p) => p.id);
-  const { data: allComments } = await supabase
-    .from("comments")
-    .select("post_id")
-    .in("post_id", postIds.length > 0 ? postIds : ["00000000-0000-0000-0000-000000000000"]);
 
   const commentCountByPostId = new Map<string, number>();
   for (const c of allComments ?? []) {

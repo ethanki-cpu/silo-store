@@ -10,12 +10,7 @@ const richFields =
 const legacyFields =
   "id, board_id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; postId: string }> },
-) {
-  const { id, postId } = await params;
-
+async function fetchBoard(id: string) {
   let { data: board, error: boardError } = await supabase
     .from("boards")
     .select(BOARD_RICH_FIELDS)
@@ -30,34 +25,13 @@ export async function GET(
       .single());
   }
 
-  if (boardError || !board) {
-    return NextResponse.json(
-      { error: "게시판을 찾을 수 없어요." },
-      { status: 404 },
-    );
-  }
+  return { board, boardError };
+}
 
-  const definition = resolveBoardDefinition(board);
-
-  const requester = await getRequestMember(request);
-  const tier = requester
-    ? await getTier(requester.member.membership_rank)
-    : null;
-
-  if (!canReadBoard(board, tier, requester?.member.is_admin)) {
-    return NextResponse.json(
-      {
-        error: `이 게시판은 ${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능해요.`,
-      },
-      { status: 403 },
-    );
-  }
-
-  const client = requester ? requester.scopedClient : supabase;
-
-  // Board Engine(EPIC-047): tags/view_count/updated_at가 라이브 DB에 아직
-  // 없을 수 있어(마이그레이션 전), 새 컬럼 포함 select가 42703으로 실패하면
-  // 레거시 컬럼만으로 재시도한다(자세한 배경은 posts/route.ts 참고).
+// Board Engine(EPIC-047): tags/view_count/updated_at가 라이브 DB에 아직
+// 없을 수 있어(마이그레이션 전), 새 컬럼 포함 select가 42703으로 실패하면
+// 레거시 컬럼만으로 재시도한다(자세한 배경은 posts/route.ts 참고).
+async function fetchPost(client: typeof supabase, id: string, postId: string) {
   let usedRichFields = true;
   let { data: post, error: postError } = await client
     .from("posts")
@@ -74,6 +48,49 @@ export async function GET(
       .eq("id", postId)
       .eq("board_id", id)
       .single());
+  }
+
+  return { post, postError, usedRichFields };
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; postId: string }> },
+) {
+  const { id, postId } = await params;
+
+  // EPIC-070: 서로 의존관계 없는 쿼리를 순차 await 대신 Promise.all로
+  // 병렬화 — Vercel 서버리스에서 Supabase 왕복 지연이 그대로 누적되는 게
+  // 페이지 로딩이 느린 핵심 원인이었다(posts/route.ts와 동일한 배경).
+  const [{ board, boardError }, requester] = await Promise.all([
+    fetchBoard(id),
+    getRequestMember(request),
+  ]);
+
+  if (boardError || !board) {
+    return NextResponse.json(
+      { error: "게시판을 찾을 수 없어요." },
+      { status: 404 },
+    );
+  }
+
+  const definition = resolveBoardDefinition(board);
+  const client = requester ? requester.scopedClient : supabase;
+
+  // 게시글 조회 자체는 권한 판정과 무관하게 시작할 수 있어 tier 조회와
+  // 동시에 진행하고, 거부 판정이면 아래에서 결과를 버리고 403을 반환한다.
+  const [tier, { post, postError, usedRichFields }] = await Promise.all([
+    requester ? getTier(requester.member.membership_rank) : Promise.resolve(null),
+    fetchPost(client, id, postId),
+  ]);
+
+  if (!canReadBoard(board, tier, requester?.member.is_admin)) {
+    return NextResponse.json(
+      {
+        error: `이 게시판은 ${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능해요.`,
+      },
+      { status: 403 },
+    );
   }
 
   if (postError || !post) {
@@ -123,29 +140,53 @@ export async function GET(
         updated_at: (post as { created_at: string }).created_at,
       };
 
-  // 조회수 증가 — view_count 컬럼이 없으면(마이그레이션 전) 조용히 무시.
-  if (usedRichFields) {
-    await client
-      .from("posts")
-      .update({ view_count: (normalizedPost.view_count ?? 0) + 1 })
-      .eq("id", postId);
-  }
-
-  // EPIC-046: "글 번호(No.)" — 별도 시퀀스 컬럼이 없어, 같은 게시판에서
-  // 이 글보다 먼저(또는 동시에) 작성된 글의 개수로 파생 계산한다(1부터 시작).
-  const { count: postNumber } = await client
-    .from("posts")
-    .select("id", { count: "exact", head: true })
-    .eq("board_id", id)
-    .lte("created_at", normalizedPost.created_at);
-
-  const { data: comments } = definition.comments
-    ? await client
-        .from("comments")
-        .select("id, body, author_id, created_at")
-        .eq("post_id", postId)
-        .order("created_at", { ascending: true })
-    : { data: [] as { id: string; body: string; author_id: string; created_at: string }[] };
+  // EPIC-070: 서로 독립적인 5개 쿼리(조회수 증가/글 번호/댓글/좋아요 여부/
+  // 북마크 여부)를 병렬화 — 전부 postId/board_id/normalizedPost만 있으면
+  // 되고 서로의 결과를 필요로 하지 않는다.
+  const [, { count: postNumber }, { data: comments }, likedByMe, bookmarkedByMe] =
+    await Promise.all([
+      // 조회수 증가 — view_count 컬럼이 없으면(마이그레이션 전) 조용히 무시.
+      usedRichFields
+        ? client
+            .from("posts")
+            .update({ view_count: (normalizedPost.view_count ?? 0) + 1 })
+            .eq("id", postId)
+        : Promise.resolve(null),
+      // EPIC-046: "글 번호(No.)" — 별도 시퀀스 컬럼이 없어, 같은 게시판에서
+      // 이 글보다 먼저(또는 동시에) 작성된 글의 개수로 파생 계산한다(1부터 시작).
+      client
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .eq("board_id", id)
+        .lte("created_at", normalizedPost.created_at),
+      definition.comments
+        ? client
+            .from("comments")
+            .select("id, body, author_id, created_at")
+            .eq("post_id", postId)
+            .order("created_at", { ascending: true })
+        : Promise.resolve({ data: [] as { id: string; body: string; author_id: string; created_at: string }[] }),
+      requester && definition.likes
+        ? requester.scopedClient
+            .from("likes")
+            .select("id")
+            .eq("post_id", postId)
+            .eq("member_id", requester.member.id)
+            .maybeSingle()
+            .then(({ data }) => !!data)
+        : Promise.resolve(false),
+      // post_bookmarks가 라이브 DB에 아직 없을 수 있어(마이그레이션 전) 에러는
+      // 무시하고 기본값 false로 둔다.
+      requester && definition.bookmarks
+        ? requester.scopedClient
+            .from("post_bookmarks")
+            .select("id")
+            .eq("post_id", postId)
+            .eq("member_id", requester.member.id)
+            .maybeSingle()
+            .then(({ data }) => !!data)
+        : Promise.resolve(false),
+    ]);
 
   const authorIds = [
     ...new Set([
@@ -159,32 +200,6 @@ export async function GET(
     .in("id", authorIds);
 
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.name]));
-
-  let likedByMe = false;
-  let bookmarkedByMe = false;
-  if (requester) {
-    if (definition.likes) {
-      const { data: myLike } = await requester.scopedClient
-        .from("likes")
-        .select("id")
-        .eq("post_id", postId)
-        .eq("member_id", requester.member.id)
-        .maybeSingle();
-      likedByMe = !!myLike;
-    }
-
-    // post_bookmarks가 라이브 DB에 아직 없을 수 있어(마이그레이션 전) 에러는
-    // 무시하고 기본값 false로 둔다.
-    if (definition.bookmarks) {
-      const { data: myBookmark } = await requester.scopedClient
-        .from("post_bookmarks")
-        .select("id")
-        .eq("post_id", postId)
-        .eq("member_id", requester.member.id)
-        .maybeSingle();
-      bookmarkedByMe = !!myBookmark;
-    }
-  }
 
   return NextResponse.json({
     board,

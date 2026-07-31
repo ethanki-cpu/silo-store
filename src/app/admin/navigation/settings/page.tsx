@@ -2,18 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  DOMAIN_OPTIONS,
-  inputClass,
-  primaryButtonClass,
-  smallButtonClass,
-  type CategoryDomain,
-} from "../shared";
+import { inputClass, primaryButtonClass, smallButtonClass } from "../shared";
 
 // EPIC-026: "홈페이지 설정 관리" 실 구현. site_settings(key-value, EPIC-026)의
-// 3개 키(main_logo/hero_slideshow/home_curation)를 조회/저장한다. 다른 CMS
+// 키(main_logo/hero_slideshow/sidebar_icons)를 조회/저장한다. 다른 CMS
 // 페이지들과 동일하게 별도 API Route 없이 브라우저에서 anon key + RLS
 // (admin bypass)로 직접 CUD한다.
+//
+// EPIC-078 후속 3차: "노출 필터(홈 큐레이션)"(home_curation, EPIC-041에서
+// 블록 배열로 고도화됐던 기능)는 홈페이지가 이제 Page Builder 위젯으로
+// 직접 관리되어(EPIC-067) 더 이상 필요 없다는 요청으로 완전히 삭제 —
+// 이 파일의 상태/핸들러/렌더링, page.tsx의 조회/렌더링,
+// HomeCurationSlider.tsx 컴포넌트 전부 제거. 기존에 저장된
+// site_settings.home_curation DB 행 자체는 지우지 않았다(더 이상 아무 코드도
+// 읽지 않는 비활성 데이터로 남음).
 //
 // EPIC-033: 이미지 URL 텍스트 입력 옆에 파일 업로드를 추가 — 선택 시
 // Supabase Storage("public-assets" 버킷)에 즉시 업로드하고 반환된 public
@@ -110,16 +112,11 @@ type HeroSlideshowValue = {
   /** @deprecated EPIC-039: wallpaperUrls(배열)로 대체. 구버전 데이터 호환용으로만 읽는다. */
   wallpaperUrl: string;
   wallpaperUrls: string[];
-};
-type HomeCurationBlock = {
-  id: string;
-  title: string;
-  domain: CategoryDomain;
-  slugs: string[];
-  sortBy: "latest" | "popular";
-};
-type HomeCurationSettingValue = {
-  blocks: HomeCurationBlock[];
+  // EPIC-078 후속: 여백 배경 이미지 업로드 시 적용할 압축 품질(원본 대비 %,
+  // 1~100). 100이면 압축 없이 원본 그대로 업로드한다. 이미 업로드된
+  // 이미지에는 소급 적용되지 않는다 — 다음에 파일을 새로 업로드할 때부터
+  // 적용.
+  wallpaperQuality: number;
 };
 // EPIC-078: 기본(default)/호버(hover) 2종 미디어로 확장 — 이미지뿐 아니라
 // 투명 배경 비디오(.webm/.mp4)도 지원해 실제 사이트에서 호버 시 기본
@@ -179,18 +176,7 @@ const DEFAULT_HERO_SLIDESHOW: HeroSlideshowValue = {
   objectFit: "cover",
   wallpaperUrl: "",
   wallpaperUrls: [],
-};
-function makeDefaultCurationBlock(): HomeCurationBlock {
-  return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    title: "",
-    domain: "shop",
-    slugs: [],
-    sortBy: "latest",
-  };
-}
-const DEFAULT_HOME_CURATION: HomeCurationSettingValue = {
-  blocks: [],
+  wallpaperQuality: 100,
 };
 const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
   leftIconDefaultUrl: "",
@@ -230,6 +216,30 @@ async function uploadImage(
   return { url: data.publicUrl, error: null };
 }
 
+// EPIC-078 후속: 여백 배경 이미지를 원본 대비 quality%(1~100)로 재인코딩한다
+// — 캔버스에 원본 해상도 그대로 그린 뒤 JPEG로 압축(리사이즈는 하지 않음,
+// 오직 압축률만 조절). 100이면 원본을 그대로 둔다(불필요한 손실 재인코딩
+// 방지). 외부 서비스 없이 브라우저 canvas만으로 동작한다.
+async function compressImage(file: File, quality: number): Promise<File> {
+  if (quality >= 100) return file;
+
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.drawImage(bitmap, 0, 0);
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", Math.max(1, Math.min(100, quality)) / 100),
+  );
+  if (!blob) return file;
+
+  const newName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+  return new File([blob], newName, { type: "image/jpeg" });
+}
+
 export default function AdminNavigationSettingsPage() {
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -238,9 +248,6 @@ export default function AdminNavigationSettingsPage() {
   const [mainLogo, setMainLogo] = useState<MainLogoValue>(DEFAULT_MAIN_LOGO);
   const [heroSlideshow, setHeroSlideshow] = useState<HeroSlideshowValue>(
     DEFAULT_HERO_SLIDESHOW,
-  );
-  const [homeCuration, setHomeCuration] = useState<HomeCurationSettingValue>(
-    DEFAULT_HOME_CURATION,
   );
   const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
     DEFAULT_SIDEBAR_ICONS,
@@ -269,7 +276,6 @@ export default function AdminNavigationSettingsPage() {
         .in("setting_key", [
           "main_logo",
           "hero_slideshow",
-          "home_curation",
           "sidebar_icons",
         ]);
 
@@ -310,31 +316,6 @@ export default function AdminNavigationSettingsPage() {
             value.wallpaperUrls = [value.wallpaperUrl];
           }
           setHeroSlideshow(value);
-        } else if (row.setting_key === "home_curation") {
-          const raw = row.setting_value as
-            | Partial<HomeCurationSettingValue>
-            | (Partial<HomeCurationBlock> & { blocks?: undefined })
-            | null;
-          // EPIC-041: 구버전은 { domain, slugs, sortBy } 단일 객체였다 —
-          // blocks 배열이 없고 domain 필드가 있으면 그 값을 블록 1개로 이전.
-          if (raw && !raw.blocks && "domain" in raw) {
-            const legacy = raw as Partial<HomeCurationBlock>;
-            setHomeCuration({
-              blocks: [
-                {
-                  ...makeDefaultCurationBlock(),
-                  title: "홈 큐레이션",
-                  domain: legacy.domain ?? "shop",
-                  slugs: legacy.slugs ?? [],
-                  sortBy: legacy.sortBy ?? "latest",
-                },
-              ],
-            });
-          } else {
-            setHomeCuration({
-              blocks: raw?.blocks ?? [],
-            });
-          }
         } else if (row.setting_key === "sidebar_icons") {
           // EPIC-078: 구버전 leftIconUrl/rightIconUrl(단일 URL)을
           // leftIconDefaultUrl/rightIconDefaultUrl로 1회 폴백.
@@ -458,7 +439,8 @@ export default function AdminNavigationSettingsPage() {
     if (!file) return;
     setUploadingWallpaperIdx(index);
     setError(null);
-    const { url, error: uploadError } = await uploadImage(file, "wallpaper");
+    const compressed = await compressImage(file, heroSlideshow.wallpaperQuality);
+    const { url, error: uploadError } = await uploadImage(compressed, "wallpaper");
     setUploadingWallpaperIdx(null);
     if (uploadError || !url) {
       setError(uploadError ?? "업로드에 실패했어요.");
@@ -488,37 +470,6 @@ export default function AdminNavigationSettingsPage() {
       ...prev,
       customFonts: prev.customFonts.filter((f) => f.id !== id),
     }));
-  }
-
-  function addCurationBlock() {
-    setHomeCuration((prev) => ({
-      blocks: [...prev.blocks, makeDefaultCurationBlock()],
-    }));
-  }
-
-  function updateCurationBlock(id: string, patch: Partial<HomeCurationBlock>) {
-    setHomeCuration((prev) => ({
-      blocks: prev.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)),
-    }));
-  }
-
-  function removeCurationBlock(id: string) {
-    setHomeCuration((prev) => ({
-      blocks: prev.blocks.filter((b) => b.id !== id),
-    }));
-  }
-
-  function moveCurationBlock(id: string, direction: "up" | "down") {
-    setHomeCuration((prev) => {
-      const idx = prev.blocks.findIndex((b) => b.id === id);
-      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (idx < 0 || targetIdx < 0 || targetIdx >= prev.blocks.length) {
-        return prev;
-      }
-      const blocks = [...prev.blocks];
-      [blocks[idx], blocks[targetIdx]] = [blocks[targetIdx], blocks[idx]];
-      return { blocks };
-    });
   }
 
   if (fetching) {
@@ -787,26 +738,38 @@ export default function AdminNavigationSettingsPage() {
                       삭제
                     </button>
                   </div>
-                  <input
-                    className={inputClass}
-                    placeholder="이미지 URL (또는 아래에서 파일 직접 업로드)"
-                    value={slide.imageUrl}
-                    onChange={(e) =>
-                      updateSlide(idx, { imageUrl: e.target.value })
-                    }
-                  />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    disabled={uploadingSlideIdx === idx}
-                    onChange={(e) =>
-                      handleSlideFileChange(idx, e.target.files?.[0] ?? null)
-                    }
-                    className="text-sm"
-                  />
-                  {uploadingSlideIdx === idx && (
-                    <p className="text-xs text-gray-400">업로드 중...</p>
-                  )}
+                  <div className="flex items-start gap-2">
+                    {slide.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={slide.imageUrl}
+                        alt={`슬라이드 #${idx + 1} 미리보기`}
+                        className="w-16 h-16 object-contain rounded bg-gray-100 shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <input
+                        className={inputClass}
+                        placeholder="이미지 URL (또는 아래에서 파일 직접 업로드)"
+                        value={slide.imageUrl}
+                        onChange={(e) =>
+                          updateSlide(idx, { imageUrl: e.target.value })
+                        }
+                      />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingSlideIdx === idx}
+                        onChange={(e) =>
+                          handleSlideFileChange(idx, e.target.files?.[0] ?? null)
+                        }
+                        className="text-sm"
+                      />
+                      {uploadingSlideIdx === idx && (
+                        <p className="text-xs text-gray-400">업로드 중...</p>
+                      )}
+                    </div>
+                  </div>
                   <input
                     className={inputClass}
                     placeholder="타이틀"
@@ -879,6 +842,29 @@ export default function AdminNavigationSettingsPage() {
                 + 추가
               </button>
             </div>
+            <div className="mb-2">
+              <label className="block text-sm mb-1">
+                업로드 압축 품질 (원본 대비 %) — 100이면 압축 없이 원본 그대로
+                업로드해요. 이미 업로드된 이미지에는 소급 적용되지 않고, 다음에
+                파일을 새로 올릴 때부터 적용돼요.
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                className={`${inputClass} max-w-[120px]`}
+                value={heroSlideshow.wallpaperQuality}
+                onChange={(e) =>
+                  setHeroSlideshow((prev) => ({
+                    ...prev,
+                    wallpaperQuality: Math.max(
+                      1,
+                      Math.min(100, Number(e.target.value) || 100),
+                    ),
+                  }))
+                }
+              />
+            </div>
             {heroSlideshow.wallpaperUrls.length === 0 ? (
               <p className="text-sm text-gray-400">
                 아직 추가된 배경 이미지가 없어요.
@@ -887,6 +873,14 @@ export default function AdminNavigationSettingsPage() {
               <div className="space-y-2">
                 {heroSlideshow.wallpaperUrls.map((url, idx) => (
                   <div key={idx} className="flex items-center gap-2">
+                    {url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={url}
+                        alt={`여백 배경 이미지 #${idx + 1} 미리보기`}
+                        className="w-16 h-16 object-contain rounded bg-gray-100 shrink-0"
+                      />
+                    )}
                     <input
                       className={inputClass}
                       placeholder="이미지 URL (또는 파일 직접 업로드)"
@@ -1061,145 +1055,6 @@ export default function AdminNavigationSettingsPage() {
               저장하기
             </button>
             {savedKey === "sidebar_icons" && (
-              <span className="text-sm text-green-600">저장됐어요.</span>
-            )}
-          </div>
-        </section>
-
-        {/* EPIC-041: 노출 필터(홈 큐레이션) — 단일 필터에서 여러 개의
-            "큐레이션 블록"(섹션 제목 + 필터 기준 + 타겟 값)을 추가/삭제/
-            순서 변경할 수 있는 동적 배열 폼으로 확장. 저장된 순서 그대로
-            page.tsx가 <HomeCurationSlider>를 렌더링한다. */}
-        <section className="rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">노출 필터 (홈 큐레이션)</h2>
-            <button
-              type="button"
-              onClick={addCurationBlock}
-              className={smallButtonClass}
-            >
-              + 큐레이션 블록 추가
-            </button>
-          </div>
-
-          {homeCuration.blocks.length === 0 ? (
-            <p className="text-sm text-gray-400 mb-3">
-              아직 추가된 큐레이션 블록이 없어요.
-            </p>
-          ) : (
-            <div className="space-y-3 mb-3">
-              {homeCuration.blocks.map((block, idx) => (
-                <div
-                  key={block.id}
-                  className="rounded-md border border-gray-200 p-3 space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-500">
-                      블록 #{idx + 1}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => moveCurationBlock(block.id, "up")}
-                        disabled={idx === 0}
-                        className="text-xs text-gray-500 hover:underline disabled:opacity-30"
-                      >
-                        위로
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveCurationBlock(block.id, "down")}
-                        disabled={idx === homeCuration.blocks.length - 1}
-                        className="text-xs text-gray-500 hover:underline disabled:opacity-30"
-                      >
-                        아래로
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeCurationBlock(block.id)}
-                        className="text-xs text-red-600 hover:underline"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                  <input
-                    className={inputClass}
-                    placeholder="섹션 제목 (예: 이번 주 신상 보물)"
-                    value={block.title}
-                    onChange={(e) =>
-                      updateCurationBlock(block.id, { title: e.target.value })
-                    }
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm mb-1">
-                        필터 기준 (대상 도메인)
-                      </label>
-                      <select
-                        className={inputClass}
-                        value={block.domain}
-                        onChange={(e) =>
-                          updateCurationBlock(block.id, {
-                            domain: e.target.value as CategoryDomain,
-                          })
-                        }
-                      >
-                        {DOMAIN_OPTIONS.map((d) => (
-                          <option key={d.value} value={d.value}>
-                            {d.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm mb-1">정렬 기준</label>
-                      <select
-                        className={inputClass}
-                        value={block.sortBy}
-                        onChange={(e) =>
-                          updateCurationBlock(block.id, {
-                            sortBy: e.target.value as "latest" | "popular",
-                          })
-                        }
-                      >
-                        <option value="latest">최신순</option>
-                        <option value="popular">인기순</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1">
-                      타겟 값 — 카테고리/태그 slug (쉼표로 구분, 비우면 전체)
-                    </label>
-                    <input
-                      className={inputClass}
-                      value={block.slugs.join(", ")}
-                      onChange={(e) =>
-                        updateCurationBlock(block.id, {
-                          slugs: e.target.value
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        })
-                      }
-                      placeholder="예: renaissance, baroque"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => handleSave("home_curation", homeCuration)}
-              className={primaryButtonClass}
-            >
-              저장하기
-            </button>
-            {savedKey === "home_curation" && (
               <span className="text-sm text-green-600">저장됐어요.</span>
             )}
           </div>

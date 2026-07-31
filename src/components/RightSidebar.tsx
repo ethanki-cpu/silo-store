@@ -93,14 +93,15 @@ export function RightSidebar({
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="right-sidebar-panel"
-          className="group fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white shadow-md"
+          className="group fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white"
         >
           {/* EPIC-078: 기본/호버 미디어를 같은 자리에 겹쳐 opacity로
-              크로스페이드 — 인위적인 CSS 3D 회전 모션은 전부 제거하고
-              미디어 자체(이미지 또는 투명 비디오)의 전환만으로 표현한다. */}
+              크로스페이드 — 미디어 자체(이미지 또는 투명 비디오)의 전환으로
+              표현한다. 커서를 올리면 아이콘 전체가 20% 확대된다
+              (group-hover:scale-[1.2]). */}
           {iconDefaultUrl || iconHoverUrl ? (
             <span
-              className="relative block"
+              className="relative block transition-transform duration-300 group-hover:scale-[1.2]"
               style={{ width: iconSizePx, height: iconSizePx }}
             >
               <SidebarTriggerMedia

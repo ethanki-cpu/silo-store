@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2026-07-31 (EPIC-078 후속 핫픽스 — 사이드바 아이콘 hover 영상 PiP 버튼 + 흰 사각형)
+- **PiP(그림 속 그림) 버튼 노출**: 사이드바 여닫이 아이콘에 커서를 올리면(EPIC-078의 호버 크로스페이드가 `<video>`를 노출) 크롬이 자동으로 "화면 속 화면" 미니 버튼을 띄우는 문제 — `LeftSidebar.tsx`/`RightSidebar.tsx`의 `<video>`에 `disablePictureInPicture`/`disableRemotePlayback` 속성 추가로 해결.
+- **hover 영상 주위 흰(불투명) 사각형**: 위 수정 후에도 호버 시 아이콘 주위에 사각형이 남아있다는 후속 피드백 — 처음엔 "아이콘 이미지 자체에 배경색이 박혀있다"고 오판했으나, 실제 파일(art nouveau 백합/빈티지 열쇠 PNG·WebM)을 직접 열어 픽셀 단위로 확인한 결과 원본은 전부 정상적으로 완전 투명이었음. 진짜 원인은 알파 채널이 있는 WebM(VP8/VP9 `alpha_mode: 1`)을 `<video>` 태그로 화면에 직접 그리면, 일부 브라우저/GPU 가속 디코딩 경로가 알파를 무시하고 불투명하게 합성하는 알려진 한계였다 — `<canvas>` 2D `drawImage`로 직접 그렸을 때는 알파가 항상 정확히 보존됨을 스크립트로 확인. **수정**: `<video>`는 화면에 노출하지 않는 숨김 프레임 소스로만 두고, `requestVideoFrameCallback`(폴백: `requestAnimationFrame`)으로 매 프레임을 `<canvas>`에 그려 투명도를 브라우저/GPU에 무관하게 보장 — `LeftSidebar.tsx`/`RightSidebar.tsx`에 완전히 중복돼 있던 `isVideoUrl`/`SidebarTriggerMedia`를 신규 공용 컴포넌트 `src/components/SidebarTriggerMedia.tsx`로 추출해 양쪽에서 재사용하도록 정리.
+- **검증**: `npx tsc --noEmit`(0 errors)/`npm run lint`(0 errors, 변경 파일 관련 새 warning 없음) 통과. dev 서버에서 실제 렌더링 확인 — hover 영상 슬롯이 `<video>`(숨김, 1x1px) + `<canvas>`(각 원본 영상의 실제 해상도 544×678/720×1280과 정확히 일치)로 구성되어 프레임이 정상적으로 그려지고 있음을 확인. Supabase Storage에 처리된 이미지를 재업로드하는 방법도 검토했으나 anon key로는 RLS(403)에 막혀 애초에 불가능했고, 원본 자체는 문제가 없었으므로 재업로드가 필요 없었다.
+
 ## 2026-07-31 (EPIC-078)
 - **EPIC-078: 사이드바 아이콘 기본/호버 듀얼 미디어 업로드 + 순수 크로스페이드 전환** — "EPIC-076의 인위적인 CSS 3D/회전 호버 애니메이션을 전부 제거하고, 관리자가 기본(Default)/호버(Hover) 미디어를 각각 독립적으로 업로드해 실제 사이트에서 커서를 올리면 두 미디어가 부드럽게 크로스페이드되도록 해달라"는 요청.
   - **스키마 확장**: `site_settings.sidebar_icons`의 `leftIconUrl`/`rightIconUrl`(단일 URL)을 `leftIconDefaultUrl`/`leftIconHoverUrl`/`rightIconDefaultUrl`/`rightIconHoverUrl`(기본/호버 각각) 4개 필드로 확장. 구버전 단일 URL 데이터는 `Navbar.tsx`/`admin/navigation/settings/page.tsx` 양쪽 로드 시 `xxxDefaultUrl`로 1회 폴백(다음 저장부터 새 필드로 자연스럽게 이전, 마이그레이션 불필요).

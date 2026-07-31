@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { NavTab } from "@/lib/navConfig";
+import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 
 // EPIC-039: EPIC-037이 sidebar-left 탭을 다른 상위 탭과 동일한 작은 hover
 // 드롭다운으로 통합했지만, 실사용 결과 화면 전체 높이의 슬라이드인 패널이
@@ -29,40 +30,6 @@ import type { NavTab } from "@/lib/navConfig";
 // 기본 접힘, 나머지는 기본 펼침)을 제거 — 모든 그룹이 예외 없이 기본
 // 접힘으로 시작해야 한다는 요구사항이라 RightSidebar.tsx와 동일하게
 // 단순화한다.
-
-// EPIC-078: 기본/호버 미디어 URL 확장자로 이미지 vs 비디오를 판별한다.
-function isVideoUrl(url: string): boolean {
-  return /\.(webm|mp4)(\?|$)/i.test(url);
-}
-
-// EPIC-078: 기본(Default) 미디어와 호버(Hover) 미디어를 같은 자리에 겹쳐
-// 그리고 opacity로 크로스페이드한다 — 이미지/투명 비디오(webm/mp4) 모두
-// 같은 방식으로 렌더링.
-function SidebarTriggerMedia({
-  url,
-  alt,
-  className,
-}: {
-  url: string;
-  alt: string;
-  className: string;
-}) {
-  if (!url) return null;
-  if (isVideoUrl(url)) {
-    return (
-      <video
-        src={url}
-        autoPlay
-        loop
-        muted
-        playsInline
-        className={className}
-      />
-    );
-  }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt={alt} className={className} />;
-}
 
 export function LeftSidebar({
   tab,

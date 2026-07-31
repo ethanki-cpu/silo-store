@@ -1165,6 +1165,11 @@ export type BoardRow = {
   // EPIC-075: 관리자 트리 화면의 드래그앤드롭 순서 — 컬럼 없으면(마이그레이션
   // 전) BOARD_LEGACY_FIELDS 폴백 경로를 타 undefined로 남는다.
   sort_order?: number | null;
+  // EPIC-077: "사이트 구성 관리" 통합 트리의 게시판 관리 모달용 주제/대표
+  // 이미지 — 컬럼 없으면(마이그레이션 전) BOARD_RICH_FIELDS 폴백 경로를 타
+  // undefined로 남는다(3단 폴백, BOARD_RICH_FIELDS_EXT 참고).
+  topic?: string | null;
+  thumbnail_url?: string | null;
 };
 
 // EPIC-066: boards.select()에 쓸 두 필드 목록 — 신규 admin 컬럼 포함(rich)
@@ -1175,6 +1180,10 @@ export type BoardRow = {
 export const BOARD_RICH_FIELDS =
   "id, name, category, board_type, min_rank_to_write, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
 export const BOARD_LEGACY_FIELDS = "id, name, category, board_type, min_rank_to_write";
+// EPIC-077: BOARD_RICH_FIELDS + topic/thumbnail_url — 3단 폴백의 첫 단계
+// (EXT → RICH → LEGACY). 기존 BOARD_RICH_FIELDS 시그니처는 그대로 둬서
+// 다른 호출부에 영향 없음.
+export const BOARD_RICH_FIELDS_EXT = `${BOARD_RICH_FIELDS}, topic, thumbnail_url`;
 
 // render_type(admin 편집용 10종) → BoardLayoutType(실제 렌더러 키) 매핑.
 // forum/collection은 새 레이아웃을 만들지 않고 기존 community/gallery를

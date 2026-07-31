@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestMember } from "@/lib/serverAuth";
-import { BOARD_RICH_FIELDS, BOARD_LEGACY_FIELDS } from "@/lib/boardLayout";
+import { BOARD_RICH_FIELDS_EXT, BOARD_RICH_FIELDS, BOARD_LEGACY_FIELDS } from "@/lib/boardLayout";
 
 export async function GET(
   request: NextRequest,
@@ -14,9 +14,17 @@ export async function GET(
 
   let { data: board, error } = await requester.scopedClient
     .from("boards")
-    .select(BOARD_RICH_FIELDS)
+    .select(BOARD_RICH_FIELDS_EXT)
     .eq("id", id)
     .single();
+
+  if (error) {
+    ({ data: board, error } = await requester.scopedClient
+      .from("boards")
+      .select(BOARD_RICH_FIELDS)
+      .eq("id", id)
+      .single());
+  }
 
   if (error) {
     ({ data: board, error } = await requester.scopedClient
@@ -52,6 +60,8 @@ const EDITABLE_FIELDS = [
   "widget_settings",
   "min_rank_to_write",
   "sort_order",
+  "topic",
+  "thumbnail_url",
 ] as const;
 
 export async function PATCH(

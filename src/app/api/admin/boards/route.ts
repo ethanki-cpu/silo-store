@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestMember } from "@/lib/serverAuth";
-import { BOARD_RICH_FIELDS, BOARD_LEGACY_FIELDS, type BoardRow } from "@/lib/boardLayout";
+import {
+  BOARD_RICH_FIELDS_EXT,
+  BOARD_RICH_FIELDS,
+  BOARD_LEGACY_FIELDS,
+  type BoardRow,
+} from "@/lib/boardLayout";
 
 // EPIC-066: 관리자 게시판 관리 — 목록(전체, 비공개 포함)/생성.
 // 공개용 /api/boards(GET)와 달리 인증+is_admin 필수(payments 라우트와 동일
@@ -18,10 +23,20 @@ export async function GET(request: NextRequest) {
   // 실제로 반영된다 — 마이그레이션(docs/sql/EPIC-075-tree-sort-order.sql) 전
   // 라이브 DB에는 이 컬럼이 없을 수 있어(42703), 그 경우 기존 name 정렬
   // 레거시 경로로 조용히 폴백한다.
+  // EPIC-077: topic/thumbnail_url까지 포함한 EXT를 먼저 시도하고, 그 컬럼만
+  // 없으면(EPIC-077 마이그레이션 미실행) EPIC-066 필드는 그대로 유지한 채
+  // RICH로, 그마저 없으면 LEGACY로 3단 폴백한다.
   ({ data: boards, error } = await requester.scopedClient
     .from("boards")
-    .select(BOARD_RICH_FIELDS)
+    .select(BOARD_RICH_FIELDS_EXT)
     .order("sort_order", { ascending: true }));
+
+  if (error) {
+    ({ data: boards, error } = await requester.scopedClient
+      .from("boards")
+      .select(BOARD_RICH_FIELDS)
+      .order("sort_order", { ascending: true }));
+  }
 
   if (error) {
     ({ data: boards, error } = await requester.scopedClient

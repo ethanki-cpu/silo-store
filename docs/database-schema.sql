@@ -408,7 +408,14 @@ create table boards (
                         'latest','views','popular','comments','oldest'
                       )),  -- SortOption(src/lib/boardLayout.ts)과 동일한 값 — "좋아요순"은 기존 코드 관례상 popular
   description         text,
-  widget_settings     jsonb not null default '{}'::jsonb
+  widget_settings     jsonb not null default '{}'::jsonb,
+  -- EPIC-075: 관리자 트리 화면 드래그앤드롭 순서(docs/sql/EPIC-075-tree-sort-order.sql)
+  sort_order          int not null default 0,
+  -- EPIC-077: "사이트 구성 관리" 통합 트리의 게시판 관리 모달용 주제/대표
+  -- 이미지 — site_navigations.topic/thumbnail_url과 별개 독립 컬럼
+  -- (docs/sql/EPIC-077-board-topic-thumbnail.sql)
+  topic               varchar,
+  thumbnail_url       text
 );
 
 -- EPIC-066 ALTER TABLE — 라이브 DB(boards 이미 존재)에 위 신규 컬럼을 추가할 때
@@ -438,6 +445,13 @@ create table boards (
 -- create policy "boards_admin_write" on boards for all
 --   using (exists (select 1 from members where auth_user_id = auth.uid() and is_admin = true))
 --   with check (exists (select 1 from members where auth_user_id = auth.uid() and is_admin = true));
+
+-- EPIC-077 ALTER TABLE — 라이브 DB에 topic/thumbnail_url 컬럼을 추가할 때
+-- Supabase SQL Editor에서 그대로 실행(docs/sql/EPIC-077-board-topic-thumbnail.sql과 동일):
+--
+-- alter table boards
+--   add column if not exists topic varchar,
+--   add column if not exists thumbnail_url text;
 
 -- 실제 라이브 DB의 boards 26행 전체 (2026-07-23 기준, 그대로 재확인됨)
 insert into boards (name, category, board_type) values

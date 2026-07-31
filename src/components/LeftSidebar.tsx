@@ -38,6 +38,7 @@ export function LeftSidebar({
   iconUrl,
   iconSizePx = 32,
   iconBackgroundColor = "#166534",
+  triggerMode = "click",
 }: {
   tab?: NavTab;
   open: boolean;
@@ -48,6 +49,10 @@ export function LeftSidebar({
   iconSizePx?: number;
   // EPIC-076: 관리자 설정 여닫이 버튼 배경색 — 기본값은 기존 하드코딩이었던 bg-green-800(#166534).
   iconBackgroundColor?: string;
+  // EPIC-077: 여닫이 트리거 모드 — "click"이면 호버는 아르누보 애니메이션만
+  // 재생하고 클릭해야 패널이 열린다. "hover"면 EPIC-063 이전 방식대로 호버
+  // 즉시 열린다.
+  triggerMode?: "click" | "hover";
 }) {
   // EPIC-054D(접근성 감사 §13): Escape로 닫기 + 닫힐 때 트리거 아이콘으로
   // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
@@ -94,7 +99,7 @@ export function LeftSidebar({
           ref={triggerRef}
           type="button"
           onClick={onIconClick}
-          onMouseEnter={onIconClick}
+          onMouseEnter={triggerMode === "hover" ? onIconClick : undefined}
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="left-sidebar-panel"

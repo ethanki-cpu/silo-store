@@ -50,6 +50,7 @@ type SidebarIconsValue = {
   rightIconUrl: string;
   iconSizePx: number;
   backgroundColor: string;
+  triggerMode: "click" | "hover";
 };
 
 const DEFAULT_LOGO_TEXT = "사일로 스토어";
@@ -61,6 +62,9 @@ const DEFAULT_LOGO_TEXT_COLOR = "#166534";
 const DEFAULT_ICON_SIZE_PX = 32;
 // EPIC-076: 사이드바 여닫이 버튼 배경색 기본값 — 기존 하드코딩 bg-green-800(#166534)과 맞춤.
 const DEFAULT_ICON_BG_COLOR = "#166534";
+// EPIC-077: 사이드바 여닫이 트리거 모드 기본값 — 호버 시 아르누보 애니메이션만
+// 재생되고 클릭해야 패널이 열리도록 "click"을 기본으로 한다.
+const DEFAULT_TRIGGER_MODE: "click" | "hover" = "click";
 // EPIC-043: main_logo.customFonts의 각 활성 항목에 주입할 @font-face의
 // font-family 이름 접두사 — 항목 id로 구분해 여러 개를 동시에 등록한다.
 const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
@@ -176,6 +180,7 @@ export function Navbar() {
             rightIconUrl: value.rightIconUrl ?? "",
             iconSizePx: value.iconSizePx || DEFAULT_ICON_SIZE_PX,
             backgroundColor: value.backgroundColor || DEFAULT_ICON_BG_COLOR,
+            triggerMode: value.triggerMode === "hover" ? "hover" : DEFAULT_TRIGGER_MODE,
           });
         }
       });
@@ -516,6 +521,7 @@ export function Navbar() {
         iconUrl={sidebarIcons?.leftIconUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
         iconBackgroundColor={sidebarIcons?.backgroundColor || DEFAULT_ICON_BG_COLOR}
+        triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
       />
       <RightSidebar
         tab={rightSidebarTab}
@@ -525,6 +531,7 @@ export function Navbar() {
         iconUrl={sidebarIcons?.rightIconUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
         iconBackgroundColor={sidebarIcons?.backgroundColor || DEFAULT_ICON_BG_COLOR}
+        triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
       />
     </header>
   );

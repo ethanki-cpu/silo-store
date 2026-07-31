@@ -126,12 +126,16 @@ type SidebarIconsValue = {
   rightIconUrl: string;
   iconSizePx: number;
   backgroundColor: string;
+  triggerMode: "click" | "hover";
 };
 
 const MAX_WALLPAPERS = 10;
 const DEFAULT_ICON_SIZE_PX = 32;
 // EPIC-076: 사이드바 여닫이 버튼 배경색 기본값 — 기존 하드코딩 bg-green-800(#166534)과 맞춤.
 const DEFAULT_ICON_BG_COLOR = "#166534";
+// EPIC-077: 사이드바 여닫이 트리거 모드 기본값 — 호버 시 아르누보 애니메이션만
+// 재생되고 클릭해야 패널이 열리도록 "click"을 기본으로 한다.
+const DEFAULT_TRIGGER_MODE: "click" | "hover" = "click";
 
 function makeDefaultCustomFont(): CustomFontEntry {
   return {
@@ -182,6 +186,7 @@ const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
   rightIconUrl: "",
   iconSizePx: DEFAULT_ICON_SIZE_PX,
   backgroundColor: DEFAULT_ICON_BG_COLOR,
+  triggerMode: DEFAULT_TRIGGER_MODE,
 };
 
 const STORAGE_BUCKET = "public-assets";
@@ -980,6 +985,25 @@ export default function AdminNavigationSettingsPage() {
                 placeholder={DEFAULT_ICON_BG_COLOR}
               />
             </div>
+          </div>
+          {/* EPIC-077: 여닫이 트리거 모드 — "click"이면 호버는 아르누보
+              애니메이션만 재생하고 클릭해야 패널이 열린다. "hover"면 EPIC-063
+              이전 방식대로 호버 즉시 열린다. */}
+          <div className="mt-3">
+            <label className="block text-sm mb-1">여닫이 트리거 방식</label>
+            <select
+              className={inputClass}
+              value={sidebarIcons.triggerMode}
+              onChange={(e) =>
+                setSidebarIcons({
+                  ...sidebarIcons,
+                  triggerMode: e.target.value === "hover" ? "hover" : "click",
+                })
+              }
+            >
+              <option value="click">클릭으로 열기 (기본)</option>
+              <option value="hover">호버로 열기 (기존 방식)</option>
+            </select>
           </div>
           <div className="flex items-center gap-3 mt-3">
             <button

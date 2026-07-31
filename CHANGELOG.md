@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-07-31 (EPIC-077)
+- **EPIC-077: 사이드바 트리거 모드 설정(호버/클릭) + "사이트 구성 관리" 통합 CMS 개편** — "EPIC-076 호버 애니메이션을 감상할 새 없이 사이드바가 바로 열린다, 관리자가 트리거 모드를 고를 수 있게 해달라"는 요청과, "메뉴/카테고리·페이지·게시판 관리 3개 화면이 분리돼 있어 카테고리 계층 수정이 사이트 전반에 통합 적용되지 않는다"는 요청. 3개 커밋으로 나눠 진행.
+  - **1/3 — 사이드바 트리거 모드**: `site_settings.sidebar_icons`에 `triggerMode: 'click' | 'hover'`(기본 `click`, DB 마이그레이션 불필요) 추가. `/admin/navigation/settings`의 "사이드바 아이콘" 섹션에 select 컨트롤 추가. `LeftSidebar.tsx`/`RightSidebar.tsx` 트리거 버튼의 `onMouseEnter={onIconClick}`을 `onMouseEnter={triggerMode === "hover" ? onIconClick : undefined}`로 조건부 바인딩 — `onClick`은 그대로 유지. 아르누보 호버 애니메이션(EPIC-076)은 이미 `group-hover:` CSS만으로 동작해 JS 상태와 무관하므로 마크업 변경 없이 그대로 재생된다. Browser pane(비로그인)으로 기본값 `triggerMode: 'click'`에서 호버해도 패널이 안 열리고(`aria-hidden="true"`) 클릭하면 열림(`aria-hidden="false"`)을 직접 확인.
+
 ## 2026-07-30 (EPIC-076)
 - **EPIC-076: 사이드바 아이콘 커스텀 배경색 + 아르누보 호버 모션 애니메이션** — "좌/우 사이드바 여닫이 아이콘 주변의 하드코딩된 초록색 박스가 밋밋하다, 배경색을 자유롭게 지정하고 앤틱/아르누보 감성의 고급스러운 호버 모션을 넣어달라"는 요청.
   - **배경색 커스텀**: `site_settings.sidebar_icons`에 `backgroundColor` 필드 추가(기본값 `#166534` — 기존 하드코딩 `bg-green-800`과 동일해 미설정 시 기존 화면 그대로). `/admin/navigation/settings`에 transparent/#HEX 자유 입력 텍스트 필드(+ #HEX일 때만 참고용 컬러 picker 병행 노출) 추가. `LeftSidebar.tsx`/`RightSidebar.tsx` 트리거 버튼의 `bg-green-800` 클래스를 제거하고 `style={{ backgroundColor: iconBackgroundColor }}`로 동적 바인딩(사이드바 패널 자체의 초록 배경은 이번 범위 밖이라 그대로 둠).

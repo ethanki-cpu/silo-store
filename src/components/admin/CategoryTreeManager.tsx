@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
@@ -20,6 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { ensurePageForSlug, hrefToSlug } from "@/lib/pageTemplates";
+import { WIDGET_DEFAULT_SETTINGS } from "@/lib/pageBuilder";
 
 // EPIC-035: 티스토리 스타일 드래그앤드롭 카테고리(site_navigations) 관리
 // 컴포넌트. 상단 탭/좌측 사이드바/우측 사이드바 3개 관리 화면(각각
@@ -88,16 +90,15 @@ function isDescendant(
 export function CategoryTreeManager({
   title,
   targetTypes,
-  branchToBoardIds,
   session,
 }: {
   title: string;
   targetTypes: TargetTypeLiteral[];
-  // EPIC-077: "사이트 구성 관리" 통합 트리에서 "관리" 모달이 연결된 페이지/
-  // 게시판까지 한 번에 보여주기 위해 전달 — /admin/navigation(기존
-  // CategoryTreeManager 단독 사용처)에서는 생략 가능(둘 다 undefined면
-  // 페이지/게시판 섹션은 그냥 렌더링하지 않는다).
-  branchToBoardIds?: Map<string, string[]>;
+  // EPIC-077: "사이트 구성 관리" 통합 트리에서 "관리" 모달이 연결된 게시판을
+  // 직접 선택/변경/해제할 수 있게 하려면 관리자 세션 토큰이 필요(boards는
+  // anon 직접 쓰기가 없어 /api/admin/boards를 거친다) — /admin/navigation
+  // (기존 CategoryTreeManager 단독 사용처)에서는 생략 가능(undefined면
+  // 게시판 섹션의 저장 버튼이 동작하지 않을 뿐 렌더링 자체는 된다).
   session?: Session | null;
 }) {
   const [rows, setRows] = useState<CategoryNavRow[]>([]);
@@ -106,17 +107,33 @@ export function CategoryTreeManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [managingId, setManagingId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // EPIC-077: href → 연결된 page_builder id — 행의 "페이지 수정" 바로가기
+  // 버튼용. hrefToSlug(nav.href) === page.slug 완전 일치 규칙(adminTreeGrouping.ts
+  // 와 동일)으로 매칭한다.
+  const [pageIdBySlug, setPageIdBySlug] = useState<Map<string, string>>(new Map());
 
   const sensors = useSensors(useSensor(PointerSensor));
 
   async function load() {
     setFetching(true);
-    const { data, error: fetchError } = await supabase
-      .from("site_navigations")
-      .select(
-        "id, key, title, href, parent_id, target_type, sort_order, is_active, topic, thumbnail_url, description, is_public",
-      )
-      .order("sort_order", { ascending: true });
+    const [navResult, pagesResult] = await Promise.all([
+      supabase
+        .from("site_navigations")
+        .select(
+          "id, key, title, href, parent_id, target_type, sort_order, is_active, topic, thumbnail_url, description, is_public",
+        )
+        .order("sort_order", { ascending: true }),
+      supabase.from("page_builder").select("id, slug"),
+    ]);
+    const { data, error: fetchError } = navResult;
+
+    if (pagesResult.data) {
+      setPageIdBySlug(
+        new Map(
+          (pagesResult.data as { id: string; slug: string }[]).map((p) => [p.slug, p.id]),
+        ),
+      );
+    }
 
     if (fetchError) {
       setError(fetchError.message);
@@ -328,6 +345,7 @@ export function CategoryTreeManager({
             depth={0}
             editingId={editingId}
             managingId={managingId}
+            pageIdBySlug={pageIdBySlug}
             onEdit={setEditingId}
             onManage={setManagingId}
             onUpdate={updateRow}
@@ -347,7 +365,6 @@ export function CategoryTreeManager({
       {managingRow && (
         <CategoryDetailModal
           row={managingRow}
-          branchToBoardIds={branchToBoardIds}
           session={session}
           onClose={() => setManagingId(null)}
           onSave={async (patch) => {
@@ -366,6 +383,7 @@ function TreeLevel({
   depth,
   editingId,
   managingId,
+  pageIdBySlug,
   onEdit,
   onManage,
   onUpdate,
@@ -377,6 +395,7 @@ function TreeLevel({
   depth: number;
   editingId: string | null;
   managingId: string | null;
+  pageIdBySlug: Map<string, string>;
   onEdit: (id: string | null) => void;
   onManage: (id: string | null) => void;
   onUpdate: (id: string, patch: Partial<CategoryNavRow>) => Promise<boolean>;
@@ -410,6 +429,7 @@ function TreeLevel({
               row={child}
               isEditing={editingId === child.id}
               isManaging={managingId === child.id}
+              pageId={child.href ? pageIdBySlug.get(hrefToSlug(child.href)) : undefined}
               onEdit={onEdit}
               onManage={onManage}
               onUpdate={onUpdate}
@@ -422,6 +442,7 @@ function TreeLevel({
               depth={depth + 1}
               editingId={editingId}
               managingId={managingId}
+              pageIdBySlug={pageIdBySlug}
               onEdit={onEdit}
               onManage={onManage}
               onUpdate={onUpdate}
@@ -438,6 +459,7 @@ function TreeLevel({
 function CategoryRow({
   row,
   isEditing,
+  pageId,
   onEdit,
   onManage,
   onUpdate,
@@ -447,6 +469,9 @@ function CategoryRow({
   row: CategoryNavRow;
   isEditing: boolean;
   isManaging: boolean;
+  // EPIC-077: 이 항목의 href와 매칭되는 page_builder.id — 있으면 "페이지
+  // 수정" 바로가기 버튼을 노출한다.
+  pageId?: string;
   onEdit: (id: string | null) => void;
   onManage: (id: string | null) => void;
   onUpdate: (id: string, patch: Partial<CategoryNavRow>) => Promise<boolean>;
@@ -597,6 +622,11 @@ function CategoryRow({
             >
               수정
             </button>
+            {pageId && (
+              <Link href={`/admin/pages/${pageId}`} className={smallButtonClass}>
+                페이지 수정
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => onManage(row.id)}
@@ -637,13 +667,11 @@ type BoardDraft = {
 
 function CategoryDetailModal({
   row,
-  branchToBoardIds,
   session,
   onClose,
   onSave,
 }: {
   row: CategoryNavRow;
-  branchToBoardIds?: Map<string, string[]>;
   session?: Session | null;
   onClose: () => void;
   onSave: (patch: Partial<CategoryNavRow>) => void;
@@ -684,76 +712,174 @@ function CategoryDetailModal({
     };
   }, [row.href]);
 
-  // EPIC-077: 연결된 게시판 — branchToBoardIds로 이 노드에 연결된
-  // board_id들을 찾아 /api/admin/boards/[id]로 각각 조회한다(관리자 세션
-  // 토큰 필요, boards는 anon 직접 쓰기가 없어 API 라우트를 거친다).
-  const boardIds = branchToBoardIds?.get(row.id) ?? [];
-  const [boardDrafts, setBoardDrafts] = useState<Record<string, BoardDraft>>({});
-  const [boardSaving, setBoardSaving] = useState<string | null>(null);
-  const [boardSavedId, setBoardSavedId] = useState<string | null>(null);
-  const [boardError, setBoardError] = useState<string | null>(null);
+  // EPIC-077: 연결된 게시판 — 어느 게시판을 연결할지 직접 선택/변경/해제할
+  // 수 있어야 한다는 요구에 따라, page_modules(module_type='board',
+  // board_id) 행 하나("이 페이지의 대표 게시판", 위젯 빌더가 board 위젯을
+  // 추가할 때와 동일한 구조)를 이 모달에서 직접 만들고/바꾸고/지운다 —
+  // fetchBoardBranchMap의 "추정 매칭"에 더 이상 기대지 않는다.
+  const [allBoards, setAllBoards] = useState<{ id: string; name: string }[]>([]);
+  const [boardModule, setBoardModule] = useState<{ id: string; board_id: string } | null>(null);
+  const [moduleCount, setModuleCount] = useState(0);
+  const [selectedBoardId, setSelectedBoardId] = useState("");
+  const [linkSaving, setLinkSaving] = useState(false);
+  const [linkSaved, setLinkSaved] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session || boardIds.length === 0) return;
+    // boards는 공개 읽기 RLS라 세션 없이도 목록을 볼 수 있다.
+    supabase
+      .from("boards")
+      .select("id, name")
+      .order("name")
+      .then(({ data }) => setAllBoards((data as { id: string; name: string }[]) ?? []));
+  }, []);
+
+  useEffect(() => {
+    if (!pageInfo) {
+      setBoardModule(null);
+      setSelectedBoardId("");
+      return;
+    }
     let cancelled = false;
-    Promise.all(
-      boardIds.map((id) =>
-        fetch(`/api/admin/boards/${id}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((data) => [id, data] as const),
-      ),
-    ).then((results) => {
+    Promise.all([
+      supabase
+        .from("page_modules")
+        .select("id, board_id")
+        .eq("page_id", pageInfo.id)
+        .eq("module_type", "board")
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("page_modules")
+        .select("id", { count: "exact", head: true })
+        .eq("page_id", pageInfo.id),
+    ]).then(([moduleRes, countRes]) => {
       if (cancelled) return;
-      setBoardDrafts((prev) => {
-        const next = { ...prev };
-        for (const [id, data] of results) {
-          if (!data) continue;
-          next[id] = {
-            name: data.name ?? "",
-            topic: data.topic ?? "",
-            thumbnail_url: data.thumbnail_url ?? "",
-            description: data.description ?? "",
-            is_public: data.is_public ?? true,
-          };
-        }
-        return next;
-      });
+      const mod = moduleRes.data as { id: string; board_id: string | null } | null;
+      setBoardModule(mod?.board_id ? { id: mod.id, board_id: mod.board_id } : null);
+      setSelectedBoardId(mod?.board_id ?? "");
+      setModuleCount(countRes.count ?? 0);
     });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, row.id]);
+  }, [pageInfo]);
 
-  async function saveBoard(boardId: string) {
-    if (!session) return;
-    const draft = boardDrafts[boardId];
-    if (!draft) return;
-    setBoardSaving(boardId);
+  async function saveBoardLink() {
+    if (!pageInfo) return;
+    setLinkSaving(true);
+    setLinkError(null);
+    setLinkSaved(false);
+
+    if (!selectedBoardId) {
+      if (boardModule) {
+        const { error: deleteError } = await supabase
+          .from("page_modules")
+          .delete()
+          .eq("id", boardModule.id);
+        if (deleteError) {
+          setLinkError(deleteError.message);
+          setLinkSaving(false);
+          return;
+        }
+        setBoardModule(null);
+      }
+    } else if (boardModule) {
+      const { error: updateError } = await supabase
+        .from("page_modules")
+        .update({ board_id: selectedBoardId })
+        .eq("id", boardModule.id);
+      if (updateError) {
+        setLinkError(updateError.message);
+        setLinkSaving(false);
+        return;
+      }
+      setBoardModule({ id: boardModule.id, board_id: selectedBoardId });
+    } else {
+      const { data: inserted, error: insertError } = await supabase
+        .from("page_modules")
+        .insert({
+          page_id: pageInfo.id,
+          module_type: "board",
+          board_id: selectedBoardId,
+          settings: WIDGET_DEFAULT_SETTINGS.board ?? {},
+          sort_order: moduleCount,
+          is_hidden: false,
+        })
+        .select("id, board_id")
+        .single();
+      if (insertError || !inserted) {
+        setLinkError(insertError?.message ?? "게시판 연결에 실패했어요.");
+        setLinkSaving(false);
+        return;
+      }
+      setBoardModule(inserted as { id: string; board_id: string });
+      setModuleCount((c) => c + 1);
+    }
+
+    setLinkSaving(false);
+    setLinkSaved(true);
+  }
+
+  // EPIC-077: 연결된 게시판 자체의 주제/대표이미지/소개/공개여부 — boards는
+  // anon 직접 쓰기가 없어 /api/admin/boards/[id]를 거친다(관리자 세션 필요).
+  const [boardDraft, setBoardDraft] = useState<BoardDraft | null>(null);
+  const [boardSaving, setBoardSaving] = useState(false);
+  const [boardSaved, setBoardSaved] = useState(false);
+  const [boardError, setBoardError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const boardId = boardModule?.board_id;
+    if (!session || !boardId) {
+      setBoardDraft(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/admin/boards/${boardId}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setBoardDraft({
+          name: data.name ?? "",
+          topic: data.topic ?? "",
+          thumbnail_url: data.thumbnail_url ?? "",
+          description: data.description ?? "",
+          is_public: data.is_public ?? true,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, boardModule?.board_id]);
+
+  async function saveBoardProperties() {
+    if (!session || !boardModule?.board_id || !boardDraft) return;
+    setBoardSaving(true);
     setBoardError(null);
-    setBoardSavedId(null);
-    const res = await fetch(`/api/admin/boards/${boardId}`, {
+    setBoardSaved(false);
+    const res = await fetch(`/api/admin/boards/${boardModule.board_id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
-        topic: draft.topic || null,
-        thumbnail_url: draft.thumbnail_url || null,
-        description: draft.description || null,
-        is_public: draft.is_public,
+        topic: boardDraft.topic || null,
+        thumbnail_url: boardDraft.thumbnail_url || null,
+        description: boardDraft.description || null,
+        is_public: boardDraft.is_public,
       }),
     });
     const data = await res.json();
-    setBoardSaving(null);
+    setBoardSaving(false);
     if (!res.ok) {
       setBoardError(data.error ?? "게시판 저장에 실패했어요.");
       return;
     }
-    setBoardSavedId(boardId);
+    setBoardSaved(true);
   }
 
   async function handleFileChange(file: File | null) {
@@ -893,104 +1019,111 @@ function CategoryDetailModal({
             )}
           </div>
 
-          {/* EPIC-077: 연결된 게시판 — topic/thumbnail_url/description/
-              is_public만 여기서 바로 편집하고, 그 외(render_type 등)는
-              상세 편집기로 링크한다. */}
+          {/* EPIC-077: 연결된 게시판 — 어느 게시판을 연결할지 여기서 직접
+              선택/변경/해제한다(page_modules의 board 위젯 한 칸으로 표현). */}
           <div className="border-t border-gray-100 pt-4">
             <p className="text-sm font-medium mb-2">연결된 게시판</p>
-            {boardIds.length === 0 ? (
-              <p className="text-xs text-gray-400">연결된 게시판 없음</p>
+            {!pageInfo ? (
+              <p className="text-xs text-gray-400">
+                이 항목에 href를 먼저 지정하면 페이지가 자동 생성돼요.
+              </p>
             ) : (
-              <div className="space-y-3">
-                {boardIds.map((boardId) => {
-                  const draft = boardDrafts[boardId];
-                  if (!draft) {
-                    return (
-                      <p key={boardId} className="text-xs text-gray-400">
-                        불러오는 중...
-                      </p>
-                    );
-                  }
-                  return (
-                    <div
-                      key={boardId}
-                      className="rounded-md border border-gray-200 p-3 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{draft.name}</span>
-                        <a
-                          href={`/admin/boards/${boardId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-gray-500 underline hover:text-gray-800"
-                        >
-                          상세 편집으로 이동
-                        </a>
-                      </div>
-                      <input
-                        className={inputClass}
-                        value={draft.topic}
-                        placeholder="주제 / 태그"
-                        onChange={(e) =>
-                          setBoardDrafts((prev) => ({
-                            ...prev,
-                            [boardId]: { ...draft, topic: e.target.value },
-                          }))
-                        }
-                      />
-                      <input
-                        className={inputClass}
-                        value={draft.thumbnail_url}
-                        placeholder="대표 이미지 URL"
-                        onChange={(e) =>
-                          setBoardDrafts((prev) => ({
-                            ...prev,
-                            [boardId]: { ...draft, thumbnail_url: e.target.value },
-                          }))
-                        }
-                      />
-                      <textarea
-                        className={inputClass}
-                        rows={2}
-                        value={draft.description}
-                        placeholder="소개글"
-                        onChange={(e) =>
-                          setBoardDrafts((prev) => ({
-                            ...prev,
-                            [boardId]: { ...draft, description: e.target.value },
-                          }))
-                        }
-                      />
-                      <label className="flex items-center gap-1 text-xs text-gray-600">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    className={inputClass}
+                    value={selectedBoardId}
+                    onChange={(e) => setSelectedBoardId(e.target.value)}
+                  >
+                    <option value="">(연결 안 함)</option>
+                    {allBoards.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={saveBoardLink}
+                    disabled={linkSaving}
+                    className={smallButtonClass}
+                  >
+                    {linkSaving ? "저장 중..." : "연결 저장"}
+                  </button>
+                </div>
+                {linkSaved && <p className="text-xs text-green-600">저장됐어요.</p>}
+                {linkError && <p className="text-xs text-red-600">{linkError}</p>}
+
+                {boardModule?.board_id && (
+                  <div className="rounded-md border border-gray-200 p-3 space-y-2 mt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{boardDraft?.name}</span>
+                      <a
+                        href={`/admin/boards/${boardModule.board_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-gray-500 underline hover:text-gray-800"
+                      >
+                        상세 편집으로 이동
+                      </a>
+                    </div>
+                    {!boardDraft ? (
+                      <p className="text-xs text-gray-400">불러오는 중...</p>
+                    ) : (
+                      <>
                         <input
-                          type="checkbox"
-                          checked={draft.is_public}
+                          className={inputClass}
+                          value={boardDraft.topic}
+                          placeholder="주제 / 태그"
                           onChange={(e) =>
-                            setBoardDrafts((prev) => ({
-                              ...prev,
-                              [boardId]: { ...draft, is_public: e.target.checked },
-                            }))
+                            setBoardDraft({ ...boardDraft, topic: e.target.value })
                           }
                         />
-                        공개
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => saveBoard(boardId)}
-                          disabled={boardSaving === boardId}
-                          className={smallButtonClass}
-                        >
-                          {boardSaving === boardId ? "저장 중..." : "게시판 정보 저장"}
-                        </button>
-                        {boardSavedId === boardId && (
-                          <span className="text-xs text-green-600">저장됐어요.</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {boardError && <p className="text-xs text-red-600">{boardError}</p>}
+                        <input
+                          className={inputClass}
+                          value={boardDraft.thumbnail_url}
+                          placeholder="대표 이미지 URL"
+                          onChange={(e) =>
+                            setBoardDraft({ ...boardDraft, thumbnail_url: e.target.value })
+                          }
+                        />
+                        <textarea
+                          className={inputClass}
+                          rows={2}
+                          value={boardDraft.description}
+                          placeholder="소개글"
+                          onChange={(e) =>
+                            setBoardDraft({ ...boardDraft, description: e.target.value })
+                          }
+                        />
+                        <label className="flex items-center gap-1 text-xs text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={boardDraft.is_public}
+                            onChange={(e) =>
+                              setBoardDraft({ ...boardDraft, is_public: e.target.checked })
+                            }
+                          />
+                          공개
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={saveBoardProperties}
+                            disabled={boardSaving}
+                            className={smallButtonClass}
+                          >
+                            {boardSaving ? "저장 중..." : "게시판 정보 저장"}
+                          </button>
+                          {boardSaved && (
+                            <span className="text-xs text-green-600">저장됐어요.</span>
+                          )}
+                        </div>
+                        {boardError && <p className="text-xs text-red-600">{boardError}</p>}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

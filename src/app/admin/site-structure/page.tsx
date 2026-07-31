@@ -24,7 +24,6 @@ import {
   fetchNavBranches,
   fetchBoardBranchMap,
   buildSlugToBranchId,
-  buildBranchToBoardIds,
   type NavBranchNode,
 } from "@/lib/adminTreeGrouping";
 
@@ -75,10 +74,6 @@ export default function AdminSiteStructurePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  const branchToBoardIds = useMemo(
-    () => buildBranchToBoardIds(boardBranchMap),
-    [boardBranchMap],
-  );
   const slugToBranchId = useMemo(() => buildSlugToBranchId(branches), [branches]);
 
   const unassignedPages = useMemo(
@@ -104,19 +99,16 @@ export default function AdminSiteStructurePage() {
       <CategoryTreeManager
         title="상단 탭"
         targetTypes={["tab", "dropdown"]}
-        branchToBoardIds={branchToBoardIds}
         session={session}
       />
       <CategoryTreeManager
         title="왼쪽 사이드바"
         targetTypes={["sidebar_left"]}
-        branchToBoardIds={branchToBoardIds}
         session={session}
       />
       <CategoryTreeManager
         title="오른쪽 사이드바"
         targetTypes={["sidebar_right"]}
-        branchToBoardIds={branchToBoardIds}
         session={session}
       />
 

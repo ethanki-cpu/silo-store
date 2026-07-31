@@ -148,24 +148,6 @@ export async function fetchBoardBranchMap(
   return map;
 }
 
-// EPIC-077: "사이트 구성 관리" 통합 트리의 "관리" 모달이 노드별로 연결된
-// 게시판을 보여줘야 해서 fetchBoardBranchMap(board_id -> branchId)을
-// 역방향(branchId -> board_id[])으로 뒤집는다. 한 게시판은 fetchBoardBranchMap의
-// "가장 적합한 한 곳" 매칭 로직상 브랜치 하나에만 연결되지만, 한 브랜치가
-// 여러 게시판을 가질 수 있어(예: 여러 topic 게시판이 같은 hub 페이지에
-// 슬라이드로 얹힌 경우) 값은 배열이다.
-export function buildBranchToBoardIds(
-  boardBranchMap: Map<string, string>,
-): Map<string, string[]> {
-  const map = new Map<string, string[]>();
-  for (const [boardId, branchId] of boardBranchMap) {
-    const list = map.get(branchId) ?? [];
-    list.push(boardId);
-    map.set(branchId, list);
-  }
-  return map;
-}
-
 export const UNASSIGNED_BRANCH_ID = "__unassigned__";
 const UNASSIGNED_TITLE = "기타 / 미분류";
 

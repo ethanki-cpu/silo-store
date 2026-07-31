@@ -49,13 +49,13 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-075(관리자 CMS 트리 드래그앤드롭 + Community 1-Row 목록 + 게시글 상세 하단 글 목록) — EPIC-073(Documentation Architecture Refactoring)도 같은 세션에 완료.
+EPIC-077(사이드바 트리거 모드 설정(호버/클릭) + "사이트 구성 관리" 통합 CMS 개편 — `/admin/navigation`·`/admin/pages`·`/admin/boards` 3개 화면을 `/admin/site-structure` 하나로 흡수) — EPIC-076(사이드바 아이콘 배경색 + 아르누보 호버 모션)도 그 사이에 완료.
 
 =====================================
 
 ## Next EPIC
 
-EPIC-076(미정 — 다음 지시 대기)
+미정 — 다음 지시 대기
 
 =====================================
 

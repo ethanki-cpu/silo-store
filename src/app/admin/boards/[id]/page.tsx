@@ -104,7 +104,7 @@ export default function AdminBoardEditPage() {
       return;
     }
 
-    router.push("/admin/boards");
+    router.push("/admin/site-structure");
   }
 
   if (loadError) {

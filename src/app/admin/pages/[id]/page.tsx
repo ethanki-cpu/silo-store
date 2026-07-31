@@ -330,10 +330,10 @@ export default function AdminPageEditorPage() {
       <div className="flex items-center justify-between max-w-6xl mx-auto mb-4">
         <button
           type="button"
-          onClick={() => router.push("/admin/pages")}
+          onClick={() => router.push("/admin/site-structure")}
           className="text-sm text-gray-500 hover:underline"
         >
-          ← 페이지 목록
+          ← 사이트 구성 관리로
         </button>
         <label className="flex items-center gap-1.5 text-xs text-gray-500">
           <input

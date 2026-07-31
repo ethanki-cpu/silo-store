@@ -11,10 +11,12 @@ import { usePathname } from "next/navigation";
 // 관리 화면, /admin/navigation 자체)로 대체되어 삭제 — 같은 site_navigations
 // 를 다루는 UI가 두 벌로 병존하던 문제 해소. 이제 서브 탭은 "카테고리 통합
 // 관리"(트리 D&D)와 "홈페이지 설정 관리"(로고/슬라이드쇼/노출 필터) 2개뿐.
-const SUB_NAV = [
-  { href: "/admin/navigation", label: "카테고리 통합 관리" },
-  { href: "/admin/navigation/settings", label: "홈페이지 설정 관리" },
-];
+//
+// EPIC-077: "카테고리 통합 관리"(/admin/navigation)는 "사이트 구성 관리"
+// (/admin/site-structure)로 흡수되어 리다이렉트만 남았다 — 이 레이아웃
+// 아래에는 이제 "홈페이지 설정 관리"(/admin/navigation/settings) 하나만
+// 실질적으로 남아 서브 탭도 그것 하나로 줄인다.
+const SUB_NAV = [{ href: "/admin/navigation/settings", label: "홈페이지 설정 관리" }];
 
 export default function AdminNavigationLayout({
   children,
@@ -26,7 +28,7 @@ export default function AdminNavigationLayout({
   return (
     <div className="flex-1 flex flex-col">
       <div className="max-w-4xl mx-auto w-full px-8 pt-6">
-        <h1 className="text-2xl font-bold mb-4">메뉴 / 카테고리 관리</h1>
+        <h1 className="text-2xl font-bold mb-4">홈페이지 설정 관리</h1>
         <nav className="flex gap-1 overflow-x-auto whitespace-nowrap border-b border-gray-200 mb-6">
           {SUB_NAV.map((item) => (
             <Link

@@ -181,12 +181,11 @@ Stage 1 — Foundation
 
 **CURRENT EPIC**
 
-EPIC-072
-Board Management System
+EPIC-077
+사이드바 트리거 모드 설정 + "사이트 구성 관리" 통합 CMS 개편
 
 **NEXT EPIC**
 
-EPIC-073
-Content Platform
+미정 — 다음 지시 대기
 
 ---

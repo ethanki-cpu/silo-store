@@ -17,6 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { ensurePageForSlug, hrefToSlug } from "@/lib/pageTemplates";
 
@@ -87,9 +88,17 @@ function isDescendant(
 export function CategoryTreeManager({
   title,
   targetTypes,
+  branchToBoardIds,
+  session,
 }: {
   title: string;
   targetTypes: TargetTypeLiteral[];
+  // EPIC-077: "사이트 구성 관리" 통합 트리에서 "관리" 모달이 연결된 페이지/
+  // 게시판까지 한 번에 보여주기 위해 전달 — /admin/navigation(기존
+  // CategoryTreeManager 단독 사용처)에서는 생략 가능(둘 다 undefined면
+  // 페이지/게시판 섹션은 그냥 렌더링하지 않는다).
+  branchToBoardIds?: Map<string, string[]>;
+  session?: Session | null;
 }) {
   const [rows, setRows] = useState<CategoryNavRow[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -338,6 +347,8 @@ export function CategoryTreeManager({
       {managingRow && (
         <CategoryDetailModal
           row={managingRow}
+          branchToBoardIds={branchToBoardIds}
+          session={session}
           onClose={() => setManagingId(null)}
           onSave={async (patch) => {
             const ok = await updateRow(managingRow.id, patch);
@@ -607,12 +618,33 @@ function CategoryRow({
   );
 }
 
+const TARGET_TYPE_LABELS: Record<TargetTypeLiteral, string> = {
+  tab: "상단 탭",
+  dropdown: "드롭다운",
+  sidebar_left: "왼쪽 사이드바",
+  sidebar_right: "오른쪽 사이드바",
+};
+
+type LinkedPageInfo = { id: string; slug: string; status: "draft" | "published" } | null;
+
+type BoardDraft = {
+  name: string;
+  topic: string;
+  thumbnail_url: string;
+  description: string;
+  is_public: boolean;
+};
+
 function CategoryDetailModal({
   row,
+  branchToBoardIds,
+  session,
   onClose,
   onSave,
 }: {
   row: CategoryNavRow;
+  branchToBoardIds?: Map<string, string[]>;
+  session?: Session | null;
   onClose: () => void;
   onSave: (patch: Partial<CategoryNavRow>) => void;
 }) {
@@ -620,8 +652,109 @@ function CategoryDetailModal({
   const [topic, setTopic] = useState(row.topic ?? "");
   const [description, setDescription] = useState(row.description ?? "");
   const [thumbnailUrl, setThumbnailUrl] = useState(row.thumbnail_url ?? "");
+  const [targetType, setTargetType] = useState<TargetTypeLiteral>(row.target_type);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // EPIC-077: 연결된 페이지(page_builder) — href가 있으면 hrefToSlug로
+  // slug를 찾아 조회한다(ensurePageForSlug가 updateRow에서 이미 자동
+  // 생성해주므로 보통 존재한다).
+  const [pageInfo, setPageInfo] = useState<LinkedPageInfo>(null);
+  const [pageLoading, setPageLoading] = useState(false);
+
+  useEffect(() => {
+    if (!row.href) {
+      setPageInfo(null);
+      return;
+    }
+    let cancelled = false;
+    setPageLoading(true);
+    supabase
+      .from("page_builder")
+      .select("id, slug, status")
+      .eq("slug", hrefToSlug(row.href))
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        setPageInfo((data as LinkedPageInfo) ?? null);
+        setPageLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [row.href]);
+
+  // EPIC-077: 연결된 게시판 — branchToBoardIds로 이 노드에 연결된
+  // board_id들을 찾아 /api/admin/boards/[id]로 각각 조회한다(관리자 세션
+  // 토큰 필요, boards는 anon 직접 쓰기가 없어 API 라우트를 거친다).
+  const boardIds = branchToBoardIds?.get(row.id) ?? [];
+  const [boardDrafts, setBoardDrafts] = useState<Record<string, BoardDraft>>({});
+  const [boardSaving, setBoardSaving] = useState<string | null>(null);
+  const [boardSavedId, setBoardSavedId] = useState<string | null>(null);
+  const [boardError, setBoardError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session || boardIds.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      boardIds.map((id) =>
+        fetch(`/api/admin/boards/${id}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => [id, data] as const),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setBoardDrafts((prev) => {
+        const next = { ...prev };
+        for (const [id, data] of results) {
+          if (!data) continue;
+          next[id] = {
+            name: data.name ?? "",
+            topic: data.topic ?? "",
+            thumbnail_url: data.thumbnail_url ?? "",
+            description: data.description ?? "",
+            is_public: data.is_public ?? true,
+          };
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, row.id]);
+
+  async function saveBoard(boardId: string) {
+    if (!session) return;
+    const draft = boardDrafts[boardId];
+    if (!draft) return;
+    setBoardSaving(boardId);
+    setBoardError(null);
+    setBoardSavedId(null);
+    const res = await fetch(`/api/admin/boards/${boardId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        topic: draft.topic || null,
+        thumbnail_url: draft.thumbnail_url || null,
+        description: draft.description || null,
+        is_public: draft.is_public,
+      }),
+    });
+    const data = await res.json();
+    setBoardSaving(null);
+    if (!res.ok) {
+      setBoardError(data.error ?? "게시판 저장에 실패했어요.");
+      return;
+    }
+    setBoardSavedId(boardId);
+  }
 
   async function handleFileChange(file: File | null) {
     if (!file) return;
@@ -657,6 +790,31 @@ function CategoryDetailModal({
               <option value="public">공개</option>
               <option value="private">비공개</option>
             </select>
+          </div>
+
+          {/* EPIC-077: target_type은 루트 노드가 바뀌면 addChild가 하위로
+              그대로 전파하고, 각 트리 인스턴스는 targetTypes로 범위를
+              필터링하므로 하위 노드에서 단독으로 바꾸면 구조가 어긋난다 —
+              루트에서만 편집 가능, 하위는 읽기전용 배지. */}
+          <div>
+            <label className="block text-sm mb-1">노출 위치</label>
+            {row.parent_id === null ? (
+              <select
+                className={inputClass}
+                value={targetType}
+                onChange={(e) => setTargetType(e.target.value as TargetTypeLiteral)}
+              >
+                {Object.entries(TARGET_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="inline-block text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">
+                {TARGET_TYPE_LABELS[row.target_type]} (상위 항목과 동일 — 최상위 항목에서만 변경 가능)
+              </span>
+            )}
           </div>
 
           <div>
@@ -699,6 +857,144 @@ function CategoryDetailModal({
             />
           </div>
 
+          {/* EPIC-077: 연결된 페이지(page_builder) — href가 없으면 아직
+              연결된 페이지가 없다는 안내만 보여준다(href를 저장하면
+              ensurePageForSlug가 자동 생성한다). */}
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-sm font-medium mb-1">연결된 페이지</p>
+            {!row.href ? (
+              <p className="text-xs text-gray-400">
+                이 항목에 href를 먼저 지정하면 페이지가 자동 생성돼요.
+              </p>
+            ) : pageLoading ? (
+              <p className="text-xs text-gray-400">불러오는 중...</p>
+            ) : pageInfo ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full ${
+                    pageInfo.status === "published"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {pageInfo.status === "published" ? "공개" : "비공개"}
+                </span>
+                <a
+                  href={`/admin/pages/${pageInfo.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-gray-700 underline hover:text-gray-900"
+                >
+                  페이지 위젯 편집으로 이동
+                </a>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">연결된 페이지 없음</p>
+            )}
+          </div>
+
+          {/* EPIC-077: 연결된 게시판 — topic/thumbnail_url/description/
+              is_public만 여기서 바로 편집하고, 그 외(render_type 등)는
+              상세 편집기로 링크한다. */}
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-sm font-medium mb-2">연결된 게시판</p>
+            {boardIds.length === 0 ? (
+              <p className="text-xs text-gray-400">연결된 게시판 없음</p>
+            ) : (
+              <div className="space-y-3">
+                {boardIds.map((boardId) => {
+                  const draft = boardDrafts[boardId];
+                  if (!draft) {
+                    return (
+                      <p key={boardId} className="text-xs text-gray-400">
+                        불러오는 중...
+                      </p>
+                    );
+                  }
+                  return (
+                    <div
+                      key={boardId}
+                      className="rounded-md border border-gray-200 p-3 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{draft.name}</span>
+                        <a
+                          href={`/admin/boards/${boardId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-gray-500 underline hover:text-gray-800"
+                        >
+                          상세 편집으로 이동
+                        </a>
+                      </div>
+                      <input
+                        className={inputClass}
+                        value={draft.topic}
+                        placeholder="주제 / 태그"
+                        onChange={(e) =>
+                          setBoardDrafts((prev) => ({
+                            ...prev,
+                            [boardId]: { ...draft, topic: e.target.value },
+                          }))
+                        }
+                      />
+                      <input
+                        className={inputClass}
+                        value={draft.thumbnail_url}
+                        placeholder="대표 이미지 URL"
+                        onChange={(e) =>
+                          setBoardDrafts((prev) => ({
+                            ...prev,
+                            [boardId]: { ...draft, thumbnail_url: e.target.value },
+                          }))
+                        }
+                      />
+                      <textarea
+                        className={inputClass}
+                        rows={2}
+                        value={draft.description}
+                        placeholder="소개글"
+                        onChange={(e) =>
+                          setBoardDrafts((prev) => ({
+                            ...prev,
+                            [boardId]: { ...draft, description: e.target.value },
+                          }))
+                        }
+                      />
+                      <label className="flex items-center gap-1 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={draft.is_public}
+                          onChange={(e) =>
+                            setBoardDrafts((prev) => ({
+                              ...prev,
+                              [boardId]: { ...draft, is_public: e.target.checked },
+                            }))
+                          }
+                        />
+                        공개
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveBoard(boardId)}
+                          disabled={boardSaving === boardId}
+                          className={smallButtonClass}
+                        >
+                          {boardSaving === boardId ? "저장 중..." : "게시판 정보 저장"}
+                        </button>
+                        {boardSavedId === boardId && (
+                          <span className="text-xs text-green-600">저장됐어요.</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {boardError && <p className="text-xs text-red-600">{boardError}</p>}
+              </div>
+            )}
+          </div>
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex gap-2 pt-2">
@@ -717,6 +1013,7 @@ function CategoryDetailModal({
                   topic: topic || null,
                   description: description || null,
                   thumbnail_url: thumbnailUrl || null,
+                  ...(row.parent_id === null ? { target_type: targetType } : {}),
                 })
               }
               className="flex-1 rounded-md bg-gray-800 text-white px-3 py-2"

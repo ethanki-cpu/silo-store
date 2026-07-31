@@ -5,12 +5,17 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 
+// EPIC-077: "메뉴/카테고리 관리"/"페이지 관리"/"게시판 관리" 3개 탭을
+// "사이트 구성 관리"(/admin/site-structure) 하나로 통합했다. 그 3개 화면
+// 중 "메뉴/카테고리 관리"의 서브 탭이었던 "홈페이지 설정 관리"
+// (/admin/navigation/settings)는 통합 대상이 아니라서(로고/슬라이드쇼/노출
+// 필터/사이드바 아이콘 설정) 최상위 탭으로 별도 승격 — 안 그러면 URL 직접
+// 입력 외엔 접근 불가능해진다.
 const ADMIN_NAV = [
   { href: "/admin/payments", label: "결제 관리" },
   { href: "/admin/members", label: "회원 관리" },
-  { href: "/admin/navigation", label: "메뉴/카테고리 관리" },
-  { href: "/admin/pages", label: "페이지 관리" },
-  { href: "/admin/boards", label: "게시판 관리" },
+  { href: "/admin/site-structure", label: "사이트 구성 관리" },
+  { href: "/admin/navigation/settings", label: "홈페이지 설정 관리" },
   { href: "/admin/posts", label: "전체 글 관리" },
   { href: "/admin/projects/new", label: "스튜디오 포트폴리오 등록" },
 ];

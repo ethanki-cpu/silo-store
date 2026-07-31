@@ -121,10 +121,21 @@ type HomeCurationBlock = {
 type HomeCurationSettingValue = {
   blocks: HomeCurationBlock[];
 };
+// EPIC-078: 기본(default)/호버(hover) 2종 미디어로 확장 — 이미지뿐 아니라
+// 투명 배경 비디오(.webm/.mp4)도 지원해 실제 사이트에서 호버 시 기본
+// 미디어가 호버 미디어로 크로스페이드된다. 구버전 leftIconUrl/rightIconUrl
+// (단일 URL)은 leftIconDefaultUrl/rightIconDefaultUrl로 로드 시 1회
+// 폴백한다(아래 load() 참고) — 데이터 자체를 변형하지 않고, 다음 저장 시
+// 새 필드로 자연스럽게 옮겨간다.
 type SidebarIconsValue = {
-  leftIconUrl: string;
-  rightIconUrl: string;
+  leftIconDefaultUrl: string;
+  leftIconHoverUrl: string;
+  rightIconDefaultUrl: string;
+  rightIconHoverUrl: string;
   iconSizePx: number;
+  // EPIC-078: 실제 트리거 버튼에는 더 이상 적용하지 않는다(항상 완전
+  // 투명 유지 요구사항과 충돌) — 다만 이 설정 자체를 지우면 그동안 저장된
+  // 값이 사라지므로 필드/UI는 남겨두고 시각적 적용만 중단했다.
   backgroundColor: string;
   triggerMode: "click" | "hover";
 };
@@ -182,8 +193,10 @@ const DEFAULT_HOME_CURATION: HomeCurationSettingValue = {
   blocks: [],
 };
 const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
-  leftIconUrl: "",
-  rightIconUrl: "",
+  leftIconDefaultUrl: "",
+  leftIconHoverUrl: "",
+  rightIconDefaultUrl: "",
+  rightIconHoverUrl: "",
   iconSizePx: DEFAULT_ICON_SIZE_PX,
   backgroundColor: DEFAULT_ICON_BG_COLOR,
   triggerMode: DEFAULT_TRIGGER_MODE,
@@ -239,6 +252,13 @@ export default function AdminNavigationSettingsPage() {
   );
   const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<
     number | null
+  >(null);
+  // EPIC-078: 좌/우 x 기본/호버 4개 업로드 슬롯 중 지금 업로드 중인 것.
+  const [uploadingSidebarIconField, setUploadingSidebarIconField] = useState<
+    keyof Pick<
+      SidebarIconsValue,
+      "leftIconDefaultUrl" | "leftIconHoverUrl" | "rightIconDefaultUrl" | "rightIconHoverUrl"
+    > | null
   >(null);
 
   useEffect(() => {
@@ -316,9 +336,17 @@ export default function AdminNavigationSettingsPage() {
             });
           }
         } else if (row.setting_key === "sidebar_icons") {
+          // EPIC-078: 구버전 leftIconUrl/rightIconUrl(단일 URL)을
+          // leftIconDefaultUrl/rightIconDefaultUrl로 1회 폴백.
+          const raw = row.setting_value as Partial<SidebarIconsValue> & {
+            leftIconUrl?: string;
+            rightIconUrl?: string;
+          };
           setSidebarIcons({
             ...DEFAULT_SIDEBAR_ICONS,
-            ...(row.setting_value as object),
+            ...raw,
+            leftIconDefaultUrl: raw.leftIconDefaultUrl || raw.leftIconUrl || "",
+            rightIconDefaultUrl: raw.rightIconDefaultUrl || raw.rightIconUrl || "",
           });
         }
       }
@@ -371,6 +399,25 @@ export default function AdminNavigationSettingsPage() {
       return;
     }
     setMainLogo((prev) => ({ ...prev, type: "image", imageUrl: url }));
+  }
+
+  // EPIC-078: 사이드바 아이콘 4개 슬롯(좌/우 x 기본/호버) 공용 업로드
+  // 핸들러 — uploadImage()는 파일 종류를 가리지 않으므로 이미지/비디오
+  // 모두 그대로 재사용한다.
+  async function handleSidebarIconFileChange(
+    field: "leftIconDefaultUrl" | "leftIconHoverUrl" | "rightIconDefaultUrl" | "rightIconHoverUrl",
+    file: File | null,
+  ) {
+    if (!file) return;
+    setUploadingSidebarIconField(field);
+    setError(null);
+    const { url, error: uploadError } = await uploadImage(file, "sidebar_icons");
+    setUploadingSidebarIconField(null);
+    if (uploadError || !url) {
+      setError(uploadError ?? "업로드에 실패했어요.");
+      return;
+    }
+    setSidebarIcons((prev) => ({ ...prev, [field]: url }));
   }
 
   async function handleSlideFileChange(index: number, file: File | null) {
@@ -889,52 +936,48 @@ export default function AdminNavigationSettingsPage() {
         </section>
 
         {/* EPIC-039: 좌/우 사이드바 여닫이 버튼에 쓰이는 커스텀 아이콘.
-            비어 있으면 Navbar.tsx가 기존 🔑/🚪 이모지로 대체한다. */}
+            비어 있으면 Navbar.tsx가 기존 🔑/🚪 이모지로 대체한다.
+            EPIC-078: 기본(Default)/호버(Hover) 2개 미디어로 확장 — 이미지뿐
+            아니라 투명 배경 비디오(.webm/.mp4)도 업로드할 수 있다. */}
         <section className="rounded-lg border border-gray-200 p-4">
           <h2 className="text-lg font-semibold mb-3">사이드바 아이콘</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm mb-1">
-                좌측 사이드바 아이콘 URL (사일로상점)
-              </label>
-              {sidebarIcons.leftIconUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={sidebarIcons.leftIconUrl}
-                  alt="좌측 사이드바 아이콘"
-                  className="w-8 h-8 mb-2 object-contain"
-                />
-              )}
-              <input
-                className={inputClass}
-                value={sidebarIcons.leftIconUrl}
-                onChange={(e) =>
-                  setSidebarIcons({ ...sidebarIcons, leftIconUrl: e.target.value })
-                }
-                placeholder="https://..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                우측 사이드바 아이콘 URL (살롱데상)
-              </label>
-              {sidebarIcons.rightIconUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={sidebarIcons.rightIconUrl}
-                  alt="우측 사이드바 아이콘"
-                  className="w-8 h-8 mb-2 object-contain"
-                />
-              )}
-              <input
-                className={inputClass}
-                value={sidebarIcons.rightIconUrl}
-                onChange={(e) =>
-                  setSidebarIcons({ ...sidebarIcons, rightIconUrl: e.target.value })
-                }
-                placeholder="https://..."
-              />
-            </div>
+            <SidebarIconUploadField
+              label="좌측 사이드바 — 1. 기본 아이콘 (사일로상점)"
+              value={sidebarIcons.leftIconDefaultUrl}
+              uploading={uploadingSidebarIconField === "leftIconDefaultUrl"}
+              onFileChange={(file) => handleSidebarIconFileChange("leftIconDefaultUrl", file)}
+              onUrlChange={(url) =>
+                setSidebarIcons({ ...sidebarIcons, leftIconDefaultUrl: url })
+              }
+            />
+            <SidebarIconUploadField
+              label="좌측 사이드바 — 2. Hover 미디어 (커서 올렸을 때, WebM/WebP/GIF 등)"
+              value={sidebarIcons.leftIconHoverUrl}
+              uploading={uploadingSidebarIconField === "leftIconHoverUrl"}
+              onFileChange={(file) => handleSidebarIconFileChange("leftIconHoverUrl", file)}
+              onUrlChange={(url) =>
+                setSidebarIcons({ ...sidebarIcons, leftIconHoverUrl: url })
+              }
+            />
+            <SidebarIconUploadField
+              label="우측 사이드바 — 1. 기본 아이콘 (살롱데상)"
+              value={sidebarIcons.rightIconDefaultUrl}
+              uploading={uploadingSidebarIconField === "rightIconDefaultUrl"}
+              onFileChange={(file) => handleSidebarIconFileChange("rightIconDefaultUrl", file)}
+              onUrlChange={(url) =>
+                setSidebarIcons({ ...sidebarIcons, rightIconDefaultUrl: url })
+              }
+            />
+            <SidebarIconUploadField
+              label="우측 사이드바 — 2. Hover 미디어 (커서 올렸을 때, WebM/WebP/GIF 등)"
+              value={sidebarIcons.rightIconHoverUrl}
+              uploading={uploadingSidebarIconField === "rightIconHoverUrl"}
+              onFileChange={(file) => handleSidebarIconFileChange("rightIconHoverUrl", file)}
+              onUrlChange={(url) =>
+                setSidebarIcons({ ...sidebarIcons, rightIconHoverUrl: url })
+              }
+            />
           </div>
           <div className="mt-3">
             <label className="block text-sm mb-1">아이콘 크기 (px)</label>
@@ -954,7 +997,11 @@ export default function AdminNavigationSettingsPage() {
           </div>
           {/* EPIC-076: 여닫이 버튼 배경색 — 하드코딩된 초록색(bg-green-800)을
               대체. "transparent" 또는 #HEX 코드를 자유 입력, 색상 picker는
-              #HEX일 때만 유효하므로 참고용으로 병행 노출한다. */}
+              #HEX일 때만 유효하므로 참고용으로 병행 노출한다.
+              EPIC-078: 트리거 버튼이 항상 완전 투명이어야 한다는 요구사항과
+              충돌해 실제 버튼에는 더 이상 적용하지 않는다 — 그동안 저장된
+              값이 사라지지 않도록 설정 자체는 남겨뒀다(값을 저장해도 화면에
+              반영되지 않음). */}
           <div className="mt-3">
             <label className="block text-sm mb-1">
               아이콘 배경색 (transparent 또는 #HEX 코드)
@@ -1159,5 +1206,64 @@ export default function AdminNavigationSettingsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+// EPIC-078: 사이드바 아이콘 업로드 슬롯 4개(좌/우 x 기본/호버)가 미리보기
+// (이미지/비디오 자동 판별)+URL 텍스트 입력+파일 업로드 구조를 그대로
+// 공유해 공용 컴포넌트로 뽑았다.
+function isSidebarIconVideoUrl(url: string): boolean {
+  return /\.(webm|mp4)(\?|$)/i.test(url);
+}
+
+function SidebarIconUploadField({
+  label,
+  value,
+  uploading,
+  onFileChange,
+  onUrlChange,
+}: {
+  label: string;
+  value: string;
+  uploading: boolean;
+  onFileChange: (file: File | null) => void;
+  onUrlChange: (url: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm mb-1">{label}</label>
+      {value &&
+        (isSidebarIconVideoUrl(value) ? (
+          <video
+            src={value}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-16 h-16 mb-2 object-contain rounded bg-gray-100"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={value}
+            alt={label}
+            className="w-16 h-16 mb-2 object-contain rounded bg-gray-100"
+          />
+        ))}
+      <input
+        className={inputClass}
+        value={value}
+        onChange={(e) => onUrlChange(e.target.value)}
+        placeholder="https://... (또는 아래에서 파일 직접 업로드)"
+      />
+      <input
+        type="file"
+        accept="image/*,.webm,.mp4,video/webm,video/mp4"
+        disabled={uploading}
+        onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+        className="mt-2 text-sm"
+      />
+      {uploading && <p className="text-xs text-gray-400 mt-1">업로드 중...</p>}
+    </div>
   );
 }

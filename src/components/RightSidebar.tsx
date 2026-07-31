@@ -18,25 +18,61 @@ import type { NavTab } from "@/lib/navConfig";
 // EPIC-063: LeftSidebar.tsx와 동일하게 아이콘 hover로도 열리도록 변경하고,
 // "마우스가 패널을 벗어나면 닫힘"(hover-out close)을 제거한다 — 자세한
 // 배경은 LeftSidebar.tsx 주석 참고.
+// EPIC-078: 기본/호버 미디어 URL 확장자로 이미지 vs 비디오를 판별한다.
+function isVideoUrl(url: string): boolean {
+  return /\.(webm|mp4)(\?|$)/i.test(url);
+}
+
+// EPIC-078: 기본(Default) 미디어와 호버(Hover) 미디어를 같은 자리에 겹쳐
+// 그리고 opacity로 크로스페이드한다 — 이미지/투명 비디오(webm/mp4) 모두
+// 같은 방식으로 렌더링.
+function SidebarTriggerMedia({
+  url,
+  alt,
+  className,
+}: {
+  url: string;
+  alt: string;
+  className: string;
+}) {
+  if (!url) return null;
+  if (isVideoUrl(url)) {
+    return (
+      <video
+        src={url}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className={className}
+      />
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt={alt} className={className} />;
+}
+
 export function RightSidebar({
   tab,
   open,
   onIconClick,
   onClose,
-  iconUrl,
+  iconDefaultUrl,
+  iconHoverUrl,
   iconSizePx = 32,
-  iconBackgroundColor = "#166534",
   triggerMode = "click",
 }: {
   tab?: NavTab;
   open: boolean;
   onIconClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
-  iconUrl?: string;
+  // EPIC-078: 평상시 노출되는 기본 미디어 — 이미지 또는 투명 비디오(webm/mp4).
+  iconDefaultUrl?: string;
+  // EPIC-078: 커서를 올렸을 때(group-hover) 크로스페이드로 드러나는 미디어.
+  // 비어 있으면 기본 미디어로 폴백해 호버해도 아이콘이 사라지지 않는다.
+  iconHoverUrl?: string;
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
-  // EPIC-076: 관리자 설정 여닫이 버튼 배경색 — 기본값은 기존 하드코딩이었던 bg-green-800(#166534).
-  iconBackgroundColor?: string;
   // EPIC-077: 여닫이 트리거 모드 — "click"이면 호버는 아르누보 애니메이션만
   // 재생하고 클릭해야 패널이 열린다. "hover"면 EPIC-063 이전 방식대로 호버
   // 즉시 열린다.
@@ -90,32 +126,30 @@ export function RightSidebar({
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="right-sidebar-panel"
-          style={{ backgroundColor: iconBackgroundColor }}
-          className="group fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center overflow-hidden rounded-l-md text-white p-2 shadow-md [perspective:700px]"
+          className="group fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white shadow-md"
         >
-          {iconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={iconUrl}
-              alt={tab.label}
-              className="relative object-contain"
+          {/* EPIC-078: 기본/호버 미디어를 같은 자리에 겹쳐 opacity로
+              크로스페이드 — 인위적인 CSS 3D 회전 모션은 전부 제거하고
+              미디어 자체(이미지 또는 투명 비디오)의 전환만으로 표현한다. */}
+          {iconDefaultUrl || iconHoverUrl ? (
+            <span
+              className="relative block"
               style={{ width: iconSizePx, height: iconSizePx }}
-            />
+            >
+              <SidebarTriggerMedia
+                url={iconDefaultUrl ?? ""}
+                alt={tab.label}
+                className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 group-hover:opacity-0"
+              />
+              <SidebarTriggerMedia
+                url={iconHoverUrl || iconDefaultUrl || ""}
+                alt={tab.label}
+                className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              />
+            </span>
           ) : (
-            <span className="relative text-lg">🚪</span>
+            <span className="text-lg">🚪</span>
           )}
-          {/* EPIC-076: 아르누보 양문형 문 3D 개폐 모션 — 평상시엔 붉은 문
-              두 짝이 아이콘을 가리고 닫혀 있다가, 호버 시 각 경첩
-              (origin-left/origin-right)을 기준으로 rotateY 회전하며 열려
-              뒤의 아이콘을 드러낸다. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 left-0 w-1/2 origin-left border-r border-amber-300/50 bg-gradient-to-r from-red-950 via-red-800 to-red-900 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.4)] transition-transform duration-500 ease-in-out group-hover:[transform:rotateY(-108deg)]"
-          />
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 w-1/2 origin-right border-l border-amber-300/50 bg-gradient-to-l from-red-950 via-red-800 to-red-900 shadow-[inset_2px_0_4px_rgba(0,0,0,0.4)] transition-transform duration-500 ease-in-out group-hover:[transform:rotateY(108deg)]"
-          />
         </button>
       )}
 

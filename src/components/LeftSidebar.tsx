@@ -30,25 +30,61 @@ import type { NavTab } from "@/lib/navConfig";
 // 접힘으로 시작해야 한다는 요구사항이라 RightSidebar.tsx와 동일하게
 // 단순화한다.
 
+// EPIC-078: 기본/호버 미디어 URL 확장자로 이미지 vs 비디오를 판별한다.
+function isVideoUrl(url: string): boolean {
+  return /\.(webm|mp4)(\?|$)/i.test(url);
+}
+
+// EPIC-078: 기본(Default) 미디어와 호버(Hover) 미디어를 같은 자리에 겹쳐
+// 그리고 opacity로 크로스페이드한다 — 이미지/투명 비디오(webm/mp4) 모두
+// 같은 방식으로 렌더링.
+function SidebarTriggerMedia({
+  url,
+  alt,
+  className,
+}: {
+  url: string;
+  alt: string;
+  className: string;
+}) {
+  if (!url) return null;
+  if (isVideoUrl(url)) {
+    return (
+      <video
+        src={url}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className={className}
+      />
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt={alt} className={className} />;
+}
+
 export function LeftSidebar({
   tab,
   open,
   onIconClick,
   onClose,
-  iconUrl,
+  iconDefaultUrl,
+  iconHoverUrl,
   iconSizePx = 32,
-  iconBackgroundColor = "#166534",
   triggerMode = "click",
 }: {
   tab?: NavTab;
   open: boolean;
   onIconClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
-  iconUrl?: string;
+  // EPIC-078: 평상시 노출되는 기본 미디어 — 이미지 또는 투명 비디오(webm/mp4).
+  iconDefaultUrl?: string;
+  // EPIC-078: 커서를 올렸을 때(group-hover) 크로스페이드로 드러나는 미디어.
+  // 비어 있으면 기본 미디어로 폴백해 호버해도 아이콘이 사라지지 않는다.
+  iconHoverUrl?: string;
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
-  // EPIC-076: 관리자 설정 여닫이 버튼 배경색 — 기본값은 기존 하드코딩이었던 bg-green-800(#166534).
-  iconBackgroundColor?: string;
   // EPIC-077: 여닫이 트리거 모드 — "click"이면 호버는 아르누보 애니메이션만
   // 재생하고 클릭해야 패널이 열린다. "hover"면 EPIC-063 이전 방식대로 호버
   // 즉시 열린다.
@@ -103,43 +139,29 @@ export function LeftSidebar({
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="left-sidebar-panel"
-          style={{ backgroundColor: iconBackgroundColor }}
-          className="group fixed left-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-r-md text-white p-2 shadow-md"
+          className="group fixed left-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-r-md bg-transparent p-2 text-white shadow-md"
         >
-          {/* EPIC-076: 아르누보 백합 개화 모션 — 평상시엔 줄기/잎이 살짝
-              기울어진 채 정지해 있다가, 호버 시 바람에 살랑이듯 미세하게
-              회전한다(transform-origin이 뿌리 쪽에 고정돼 위치는 그대로).
-              아이콘(꽃봉오리)은 별도로 scale-110되며 피어나는 느낌을 준다. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2"
-          >
-            <span className="block h-3 w-px origin-bottom bg-emerald-300/70 group-hover:[animation:silo-stem-sway_1.6s_ease-in-out_infinite]" />
-          </span>
-          <span
-            aria-hidden
-            className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-[135%]"
-          >
-            <span className="block h-2 w-2.5 origin-bottom-right -rotate-12 rounded-full bg-emerald-400/60 group-hover:[animation:silo-leaf-sway-left_1.8s_ease-in-out_infinite]" />
-          </span>
-          <span
-            aria-hidden
-            className="pointer-events-none absolute bottom-1 left-1/2 translate-x-[35%]"
-          >
-            <span className="block h-2 w-2.5 origin-bottom-left rotate-12 rounded-full bg-emerald-400/60 group-hover:[animation:silo-leaf-sway-right_1.8s_ease-in-out_infinite]" />
-          </span>
-          {iconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={iconUrl}
-              alt={tab.label}
-              className="relative z-10 object-contain transition-transform duration-700 ease-in-out group-hover:scale-110"
+          {/* EPIC-078: 기본/호버 미디어를 같은 자리에 겹쳐 opacity로
+              크로스페이드 — 인위적인 CSS 회전/스케일 모션은 전부 제거하고
+              미디어 자체(이미지 또는 투명 비디오)의 전환만으로 표현한다. */}
+          {iconDefaultUrl || iconHoverUrl ? (
+            <span
+              className="relative block"
               style={{ width: iconSizePx, height: iconSizePx }}
-            />
-          ) : (
-            <span className="relative z-10 text-lg transition-transform duration-700 ease-in-out group-hover:scale-110">
-              🔑
+            >
+              <SidebarTriggerMedia
+                url={iconDefaultUrl ?? ""}
+                alt={tab.label}
+                className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 group-hover:opacity-0"
+              />
+              <SidebarTriggerMedia
+                url={iconHoverUrl || iconDefaultUrl || ""}
+                alt={tab.label}
+                className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              />
             </span>
+          ) : (
+            <span className="text-lg">🔑</span>
           )}
         </button>
       )}

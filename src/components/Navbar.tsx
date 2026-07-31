@@ -45,9 +45,14 @@ type MainLogoValue = {
   customFonts: CustomFontEntry[];
 };
 
+// EPIC-078: 기본(default)/호버(hover) 2종 미디어로 확장 — settings/page.tsx
+// 참고. 구버전 leftIconUrl/rightIconUrl(단일 URL)은 아래 fetch 시
+// leftIconDefaultUrl/rightIconDefaultUrl로 폴백한다.
 type SidebarIconsValue = {
-  leftIconUrl: string;
-  rightIconUrl: string;
+  leftIconDefaultUrl: string;
+  leftIconHoverUrl: string;
+  rightIconDefaultUrl: string;
+  rightIconHoverUrl: string;
   iconSizePx: number;
   backgroundColor: string;
   triggerMode: "click" | "hover";
@@ -173,11 +178,17 @@ export function Navbar() {
       .maybeSingle()
       .then(({ data }) => {
         if (cancelled) return;
-        const value = data?.setting_value as Partial<SidebarIconsValue> | null;
+        // EPIC-078: 구버전 leftIconUrl/rightIconUrl(단일 URL)을
+        // leftIconDefaultUrl/rightIconDefaultUrl로 폴백한다.
+        const value = data?.setting_value as
+          | (Partial<SidebarIconsValue> & { leftIconUrl?: string; rightIconUrl?: string })
+          | null;
         if (value) {
           setSidebarIcons({
-            leftIconUrl: value.leftIconUrl ?? "",
-            rightIconUrl: value.rightIconUrl ?? "",
+            leftIconDefaultUrl: value.leftIconDefaultUrl || value.leftIconUrl || "",
+            leftIconHoverUrl: value.leftIconHoverUrl ?? "",
+            rightIconDefaultUrl: value.rightIconDefaultUrl || value.rightIconUrl || "",
+            rightIconHoverUrl: value.rightIconHoverUrl ?? "",
             iconSizePx: value.iconSizePx || DEFAULT_ICON_SIZE_PX,
             backgroundColor: value.backgroundColor || DEFAULT_ICON_BG_COLOR,
             triggerMode: value.triggerMode === "hover" ? "hover" : DEFAULT_TRIGGER_MODE,
@@ -518,9 +529,9 @@ export function Navbar() {
         open={leftOpen}
         onIconClick={() => setLeftOpen(true)}
         onClose={() => setLeftOpen(false)}
-        iconUrl={sidebarIcons?.leftIconUrl || undefined}
+        iconDefaultUrl={sidebarIcons?.leftIconDefaultUrl || undefined}
+        iconHoverUrl={sidebarIcons?.leftIconHoverUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
-        iconBackgroundColor={sidebarIcons?.backgroundColor || DEFAULT_ICON_BG_COLOR}
         triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
       />
       <RightSidebar
@@ -528,9 +539,9 @@ export function Navbar() {
         open={rightOpen}
         onIconClick={() => setRightOpen(true)}
         onClose={() => setRightOpen(false)}
-        iconUrl={sidebarIcons?.rightIconUrl || undefined}
+        iconDefaultUrl={sidebarIcons?.rightIconDefaultUrl || undefined}
+        iconHoverUrl={sidebarIcons?.rightIconHoverUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
-        iconBackgroundColor={sidebarIcons?.backgroundColor || DEFAULT_ICON_BG_COLOR}
         triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
       />
     </header>

@@ -181,8 +181,8 @@ Stage 1 — Foundation
 
 **CURRENT EPIC**
 
-EPIC-077
-사이드바 트리거 모드 설정 + "사이트 구성 관리" 통합 CMS 개편
+EPIC-078
+사이드바 아이콘 기본/호버 듀얼 미디어 업로드 + 순수 크로스페이드 전환
 
 **NEXT EPIC**
 

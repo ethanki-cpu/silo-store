@@ -170,7 +170,18 @@ export type EmbedProvider =
   | "naverBlog"
   | "naverMap"
   | "raw";
-export type EmbedAttrs = { provider: EmbedProvider; url: string; caption: string; height: number | null };
+// EPIC-079-PHASE-3: 플랫폼별 렌더링 커스터마이징 — youtube는 화면 비율,
+// instagram은 캡션(본문) 노출 여부를 이 두 속성으로 조절한다. 둘 다
+// optional/기본값 있음 — 값이 없으면 기존과 동일하게 동작(하위 호환).
+export type EmbedAspectRatio = "16:9" | "9:16";
+export type EmbedAttrs = {
+  provider: EmbedProvider;
+  url: string;
+  caption: string;
+  height: number | null;
+  aspectRatio: EmbedAspectRatio | null;
+  hideCaption: boolean;
+};
 
 export function extractYoutubeId(url: string): string | null {
   const patterns = [
@@ -218,6 +229,23 @@ export function extractNaverBlogPost(url: string): { blogId: string; logNo: stri
   }
   const m = url.match(/blog\.naver\.com\/([^/?#]+)\/(\d+)/);
   return m ? { blogId: m[1], logNo: m[2] } : null;
+}
+
+// EPIC-079-PHASE-3: EmbedConfigModal이 사용자가 붙여넣은 URL 하나만 보고
+// 플랫폼을 자동으로 알아내기 위한 판별기 — 기존 provider별 추출 함수를
+// 순서대로 시도해 처음 매치되는 provider를 돌려준다. 어느 것도 매치되지
+// 않으면 null(모달이 "인식할 수 없는 URL"로 안내, 삽입 버튼 비활성화).
+export function detectProvider(url: string): EmbedProvider | null {
+  if (!url.trim()) return null;
+  if (extractYoutubeId(url)) return "youtube";
+  if (extractVimeoId(url)) return "vimeo";
+  if (extractInstagramPost(url)) return "instagram";
+  if (extractTweetId(url)) return "twitter";
+  if (extractNaverBlogPost(url)) return "naverBlog";
+  if (/open\.spotify\.com/i.test(url)) return "spotify";
+  if (/google\.[a-z.]+\/maps|\/maps\/embed/i.test(url)) return "googleMaps";
+  if (/naver\.com|naver\.me/i.test(url)) return "naverMap";
+  return null;
 }
 
 /**
@@ -361,6 +389,12 @@ export const EmbedBlock = Node.create({
       // EPIC-079: "어디까지 보이게 할 것인지" 뷰 영역 조절 — null이면
       // DEFAULT_EMBED_HEIGHT[provider]를 쓴다.
       height: { default: null },
+      // EPIC-079-PHASE-3: youtube 전용 — "16:9" | "9:16". null이면 기존처럼
+      // 고정 높이(height) iframe으로 렌더링(하위 호환).
+      aspectRatio: { default: null },
+      // EPIC-079-PHASE-3: instagram 전용 — true면 공식 위젯의 본문(캡션)을
+      // 숨긴다(data-instgrm-captioned 속성을 아예 빼서 표현).
+      hideCaption: { default: false },
     };
   },
 
@@ -394,6 +428,9 @@ export const EmbedBlock = Node.create({
               : link?.getAttribute("href") ?? "",
             caption: captionEl?.textContent ?? "",
             height: heightAttr ? Number(heightAttr) : null,
+            // EPIC-079-PHASE-3: 저장된 wrapper div의 data-* 속성에서 복원.
+            aspectRatio: (div.getAttribute("data-aspect-ratio") as EmbedAspectRatio | null) ?? null,
+            hideCaption: div.getAttribute("data-hide-caption") === "true",
           };
         },
       },
@@ -428,6 +465,8 @@ export const EmbedBlock = Node.create({
             url: src,
             caption: "",
             height: heightAttr ? Number(heightAttr) : null,
+            aspectRatio: null,
+            hideCaption: false,
           };
         },
       },
@@ -435,7 +474,7 @@ export const EmbedBlock = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { provider, url, caption, height } = HTMLAttributes as EmbedAttrs;
+    const { provider, url, caption, height, aspectRatio, hideCaption } = HTMLAttributes as EmbedAttrs;
     const src = embedSrc(provider, url);
     const h = String(height ?? DEFAULT_EMBED_HEIGHT[provider]);
 
@@ -453,13 +492,16 @@ export const EmbedBlock = Node.create({
         // 나오던 버그 — Instagram 공식 blockquote+embed.js 위젯 방식으로
         // 교체(src/lib/instagramEmbed.ts가 게시글이 실제로 보이는 화면에서
         // embed.js를 로드하고 이 blockquote를 실제 임베드로 변환한다).
+        // EPIC-079-PHASE-3: hideCaption이 true면 공식 위젯이 본문(캡션)을
+        // 숨기도록 data-instgrm-captioned 속성 자체를 뺀다(Instagram embed.js가
+        // 이 속성의 유무로만 캡션 노출을 결정 — 별도 URL 파라미터 없음).
         [
           "blockquote",
           {
             class: "instagram-media",
             "data-instgrm-permalink": src,
             "data-instgrm-version": "14",
-            "data-instgrm-captioned": "",
+            ...(hideCaption ? {} : { "data-instgrm-captioned": "" }),
             style:
               "background:#FFF; border:0; border-radius:3px; margin:1px; max-width:540px; min-width:326px; padding:0; width:99%;",
           },
@@ -469,6 +511,30 @@ export const EmbedBlock = Node.create({
             "Instagram 게시물 보기",
           ],
         ]
+      : provider === "youtube" && aspectRatio
+      ? // EPIC-079-PHASE-3: "16:9"/"9:16" 화면 비율 선택 — 고정 높이(px)
+        // iframe 대신, 비율을 유지한 채 너비에 맞춰 늘어나는 반응형 wrapper로
+        // 렌더링한다(표준 "padding-trick" 대신 CSS aspect-ratio 사용, 최신
+        // 브라우저 기준 더 간단하고 정확함). 9:16(쇼츠)은 세로로 길어 보이도록
+        // 최대 너비도 함께 제한한다.
+        [
+          "div",
+          {
+            style: `position:relative; width:100%; max-width:${
+              aspectRatio === "9:16" ? "360px" : "100%"
+            }; aspect-ratio:${aspectRatio === "9:16" ? "9/16" : "16/9"};`,
+          },
+          [
+            "iframe",
+            {
+              src,
+              style: "position:absolute; inset:0; width:100%; height:100%;",
+              frameborder: "0",
+              allowfullscreen: "true",
+              loading: "lazy",
+            },
+          ],
+        ]
       : [
           "iframe",
           { src, width: "100%", height: h, frameborder: "0", allowfullscreen: "true", loading: "lazy" },
@@ -476,7 +542,13 @@ export const EmbedBlock = Node.create({
 
     return renderSpec([
       "div",
-      mergeAttributes({ "data-type": "embed", "data-provider": provider, class: "embed" }),
+      mergeAttributes({
+        "data-type": "embed",
+        "data-provider": provider,
+        class: "embed",
+        ...(aspectRatio ? { "data-aspect-ratio": aspectRatio } : {}),
+        ...(hideCaption ? { "data-hide-caption": "true" } : {}),
+      }),
       inner,
       ...(caption ? [["p", { class: "embed-caption" }, caption]] : []),
     ]);

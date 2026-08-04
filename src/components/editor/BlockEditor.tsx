@@ -14,11 +14,13 @@ import {
   embedSrc,
   type JSONContent,
   type EmbedProvider,
+  type EmbedAspectRatio,
   type GalleryImageAttrs,
   emptyDoc,
 } from "@/lib/blockEditorCore";
 import { Lightbox, type LightboxImage } from "./Lightbox";
 import { processInstagramEmbeds } from "@/lib/instagramEmbed";
+import { EmbedConfigModal, type EmbedInsertResult } from "./EmbedConfigModal";
 
 // EPIC-053.1: Block Editor 확장.
 // - 정본 저장 형식을 HTML에서 Tiptap JSON(ProseMirror doc)으로 전환 —
@@ -313,11 +315,13 @@ const EMBED_DEFAULT_HEIGHT: Record<EmbedProvider, number> = {
 };
 
 function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
-  const { provider, url, caption, height } = node.attrs as {
+  const { provider, url, caption, height, aspectRatio, hideCaption } = node.attrs as {
     provider: EmbedProvider;
     url: string;
     caption: string;
     height: number | null;
+    aspectRatio: EmbedAspectRatio | null;
+    hideCaption: boolean;
   };
   const labels: Record<EmbedProvider, string> = {
     youtube: "YouTube",
@@ -350,11 +354,39 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
         onChange={(e) => updateAttributes({ url: e.target.value })}
         className="w-full text-sm border border-gray-200 rounded px-2 py-1 mb-2"
       />
-      <EmbedPreview provider={provider} url={url} height={height} />
+      <EmbedPreview provider={provider} url={url} height={height} aspectRatio={aspectRatio} hideCaption={hideCaption} />
+      {/* EPIC-079-PHASE-3: instagram은 캡션 노출 여부를, youtube는 화면
+          비율을 삽입 후에도 다시 바꿀 수 있게 한다(모달은 삽입 시점 설정일
+          뿐, 이후 편집은 이 NodeView가 담당). */}
+      {provider === "instagram" && (
+        <label className="flex items-center gap-2 text-xs text-gray-600 mt-2">
+          <input
+            type="checkbox"
+            checked={hideCaption}
+            onChange={(e) => updateAttributes({ hideCaption: e.target.checked })}
+          />
+          본문(캡션) 숨기기
+        </label>
+      )}
+      {provider === "youtube" && (
+        <div className="flex items-center gap-2 mt-2">
+          <label className="text-xs text-gray-500 shrink-0">화면 비율</label>
+          <select
+            value={aspectRatio ?? "16:9"}
+            onChange={(e) => updateAttributes({ aspectRatio: e.target.value as EmbedAspectRatio })}
+            className="text-xs border border-gray-200 rounded px-2 py-1"
+          >
+            <option value="16:9">16:9 가로형</option>
+            <option value="9:16">9:16 쇼츠(세로형)</option>
+          </select>
+        </div>
+      )}
       {/* EPIC-079-PHASE-2 후속 핫픽스: instagram은 이제 iframe이 아니라
           embed.js 위젯이 자체적으로 크기를 정하는 blockquote라, 높이 입력이
-          아무 효과가 없어 숨긴다. */}
-      {provider !== "instagram" && (
+          아무 효과가 없어 숨긴다. EPIC-079-PHASE-3: youtube가 화면비율
+          모드(aspectRatio 지정)일 때도 고정 높이(px) 입력은 무시되므로 함께
+          숨긴다(반응형 aspect-ratio wrapper가 대신 크기를 결정). */}
+      {provider !== "instagram" && !(provider === "youtube" && aspectRatio) && (
         <div className="flex items-center gap-2 mt-2">
           <label className="text-xs text-gray-500 shrink-0">
             높이(px, 보이는 영역)
@@ -384,10 +416,14 @@ function EmbedPreview({
   provider,
   url,
   height,
+  aspectRatio,
+  hideCaption,
 }: {
   provider: EmbedProvider;
   url: string;
   height: number | null;
+  aspectRatio?: EmbedAspectRatio | null;
+  hideCaption?: boolean;
 }) {
   if (!url) return <p className="text-xs text-gray-400">URL을 입력하면 미리보기가 표시됩니다.</p>;
 
@@ -407,7 +443,30 @@ function EmbedPreview({
   // X-Frame-Options: DENY라 iframe으로는 절대 못 띄운다(항상 "차단됨"
   // 아이콘만 나오던 원인) — 공식 blockquote+embed.js 위젯으로 대체.
   if (provider === "instagram") {
-    return <InstagramEmbedPreview permalink={src} />;
+    return <InstagramEmbedPreview permalink={src} hideCaption={Boolean(hideCaption)} />;
+  }
+
+  // EPIC-079-PHASE-3: youtube + 화면 비율 지정 시 고정 높이 대신 반응형
+  // aspect-ratio wrapper로 미리보기 — renderHTML()의 실제 저장 마크업과
+  // 동일한 방식이라 에디터 미리보기와 실제 게시글이 항상 같아 보인다.
+  if (provider === "youtube" && aspectRatio) {
+    return (
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          maxWidth: aspectRatio === "9:16" ? 360 : "100%",
+          aspectRatio: aspectRatio === "9:16" ? "9/16" : "16/9",
+        }}
+      >
+        <iframe
+          src={src}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+          loading="lazy"
+          className="rounded"
+        />
+      </div>
+    );
   }
 
   return (
@@ -423,21 +482,22 @@ function EmbedPreview({
   );
 }
 
-function InstagramEmbedPreview({ permalink }: { permalink: string }) {
+function InstagramEmbedPreview({ permalink, hideCaption }: { permalink: string; hideCaption: boolean }) {
   // embed.js가 blockquote DOM을 자기 방식대로 통째로 갈아치우므로, url이
   // 바뀔 때마다 React가 새 DOM 노드를 만들도록 key로 강제한다(같은 노드를
-  // 재사용하면 이전 embed.js 처리 결과가 그대로 남아있을 수 있음).
+  // 재사용하면 이전 embed.js 처리 결과가 그대로 남아있을 수 있음). hideCaption도
+  // key에 포함해, 캡션 토글을 바꾸면 embed.js가 처음부터 다시 처리하도록 한다.
   useEffect(() => {
     processInstagramEmbeds();
-  }, [permalink]);
+  }, [permalink, hideCaption]);
 
   return (
     <blockquote
-      key={permalink}
+      key={`${permalink}-${hideCaption}`}
       className="instagram-media"
       data-instgrm-permalink={permalink}
       data-instgrm-version="14"
-      data-instgrm-captioned=""
+      {...(hideCaption ? {} : { "data-instgrm-captioned": "" })}
       style={{
         background: "#FFF",
         border: 0,
@@ -527,7 +587,7 @@ function Toolbar({
 }: ToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const [embedMenuOpen, setEmbedMenuOpen] = useState(false);
+  const [embedModalOpen, setEmbedModalOpen] = useState(false);
 
   // EPIC-079: focus("end") 없이 focus()만 쓰면, 직전에 삽입한 atom 블록(이미지/
   // 임베드/갤러리/링크카드는 전부 group:"block", atom:true) 바로 뒤에 selection이
@@ -535,11 +595,24 @@ function Toolbar({
   // 위치를 못 찾고 그 블록 자체를 선택) 다음 insertContent가 새로 추가되는 게
   // 아니라 그 블록을 통째로 "교체"해버렸다(연속으로 이미지+임베드를 넣으면
   // 이미지가 사라지는 버그로 재현 확인) — 항상 문서 끝에서 삽입하도록 고정.
-  function insertEmbed(provider: EmbedProvider) {
-    const url = window.prompt(`${provider} URL을 입력하세요`);
-    setEmbedMenuOpen(false);
-    if (!url) return;
-    editor.chain().focus("end").insertContent({ type: "embed", attrs: { provider, url, caption: "" } }).run();
+  // EPIC-079-PHASE-3: window.prompt() 기반 단일 URL 입력을 EmbedConfigModal로
+  // 교체 — 플랫폼별 옵션(비율/캡션/사이즈)까지 한 번에 받아 삽입한다.
+  function insertEmbedWithConfig(result: EmbedInsertResult) {
+    editor
+      .chain()
+      .focus("end")
+      .insertContent({
+        type: "embed",
+        attrs: {
+          provider: result.provider,
+          url: result.url,
+          caption: "",
+          height: result.height,
+          aspectRatio: result.aspectRatio,
+          hideCaption: result.hideCaption,
+        },
+      })
+      .run();
   }
 
   function insertLinkCard() {
@@ -674,41 +747,18 @@ function Toolbar({
         }}
       />
 
-      <div className="relative">
-        <ToolbarButton title="임베드 삽입" onClick={() => setEmbedMenuOpen((v) => !v)}>
-          ▶
-        </ToolbarButton>
-        {embedMenuOpen && (
-          <div className="absolute z-20 top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-md text-sm min-w-[140px]">
-            {(
-              [
-                "youtube",
-                "vimeo",
-                "instagram",
-                "spotify",
-                "googleMaps",
-                "twitter",
-                "naverBlog",
-              ] as EmbedProvider[]
-            ).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => insertEmbed(p)}
-                className="block w-full text-left px-3 py-1.5 hover:bg-gray-50"
-              >
-                {p === "youtube" && "YouTube"}
-                {p === "vimeo" && "Vimeo"}
-                {p === "instagram" && "Instagram"}
-                {p === "spotify" && "Spotify"}
-                {p === "googleMaps" && "Google Maps"}
-                {p === "twitter" && "X (Twitter)"}
-                {p === "naverBlog" && "네이버 블로그"}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <ToolbarButton title="임베드 삽입" onClick={() => setEmbedModalOpen(true)}>
+        ▶
+      </ToolbarButton>
+      {embedModalOpen && (
+        <EmbedConfigModal
+          onClose={() => setEmbedModalOpen(false)}
+          onInsert={(result) => {
+            insertEmbedWithConfig(result);
+            setEmbedModalOpen(false);
+          }}
+        />
+      )}
 
       <ToolbarButton title="외부 링크 카드" onClick={insertLinkCard}>
         🔗card

@@ -57,6 +57,8 @@ const ALLOWED_ATTR = [
   // 마크업(src/lib/instagramEmbed.ts) — 이 세 속성이 없으면 embed.js가
   // blockquote를 인식하지 못해 그대로 fallback 링크만 남는다.
   "data-instgrm-permalink", "data-instgrm-version", "data-instgrm-captioned",
+  // EPIC-079-PHASE-3: youtube 화면비율/instagram 캡션 숨김 설정 round-trip용.
+  "data-aspect-ratio", "data-hide-caption",
 ];
 
 export function sanitizeHtml(html: string): string {

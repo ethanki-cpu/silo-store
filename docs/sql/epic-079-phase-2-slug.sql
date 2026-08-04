@@ -56,7 +56,7 @@ begin
     select id, name, category
     from boards
     where slug is null
-    order by created_at nulls last, id
+    order by id
   loop
     base := nullif(slugify(coalesce(r.category, r.name)), '');
     if base is null then

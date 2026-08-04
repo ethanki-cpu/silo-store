@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-04 (EPIC-079-PHASE-2 SQL 실행 — 마이그레이션 라이브 반영)
+- 사용자가 제공한 Supabase Management API 토큰으로 `docs/sql/epic-079-phase-2-slug.sql`을 직접 실행 — `boards`/`posts` 양쪽에 `slug` 컬럼이 실제로 추가되고 기존 행이 전부 백필됨을 재조회로 확인. **드리프트 발견**: 백필 스크립트가 `boards.created_at`으로 정렬하도록 작성돼 있었는데, 라이브 `boards` 테이블에는 애초에 그 컬럼이 없어(다른 EPIC에서도 반복 발견된 스키마 드리프트 패턴) 1차 실행이 `42703`으로 실패 — `order by id`로 수정해 재실행, 성공(`docs/sql/epic-079-phase-2-slug.sql` 파일도 함께 수정됨).
+- dev 서버로 `/boards/general`(실제 slug 라우팅)과 게시글 상세(`/boards/general/silo-angel`)가 UUID 없이 정상 렌더링·댓글까지 표시되는 것을 직접 확인 — slug 기반 라우팅이 이제 완전히 동작한다.
+- 검증 중 만든 테스트 카테고리("새 항목", href `/c/97571a7b-...`)와 자동 생성됐던 연결 `page_builder`/`page_modules` 행을 SQL로 함께 정리.
+- **보안 노트**: 이번에 받은 Management API 토큰은 마이그레이션 실행에만 사용했고 메모리·파일 등 어디에도 저장하지 않았다(CLAUDE.md의 "토큰은 이 대화에서만 유효, 저장하지 않음" 방침 그대로 준수) — 다음에 DDL이 필요하면 다시 요청해야 한다.
+
 ## 2026-08-04 (EPIC-079-PHASE-2 — Routing, Navigation, and UI Polish)
 - **게시판 URL을 UUID에서 slug 기반으로 전면 마이그레이션**: `/boards/[id]/[postId]` → `/boards/[board_slug]/[post_slug]`. `boards.slug`(전역 UNIQUE)/`posts.slug`(board별 UNIQUE) 신규 컬럼 + 백필 SQL(`docs/sql/epic-079-phase-2-slug.sql`, 한글 등 slugify 결과가 빈 문자열이면 id 앞 8자리로 폴백, 충돌 시 `-2`/`-3` 접미사). API 라우트 6개(`/api/boards/[id]/**` 전부) 및 페이지 라우트 4개(`/boards/[id]/**`)를 `[board_slug]`/`[post_slug]`로 재구성, `fetchBoard()`(`src/lib/boardFetch.ts`)에 slug 우선 조회 + 구 UUID 링크 하위호환 폴백 추가. 게시글 생성 시 제목을 slugify해 게시판 내 유니크한 slug를 서버가 자동 생성(`generateUniquePostSlug`). `BOARD_LEGACY_FIELDS`에는 의도적으로 slug를 넣지 않아(RICH 단계에만 포함) 마이그레이션 미실행 DB에서도 게시판 목록 조회 자체는 계속 동작하도록 기존 rich/legacy 폴백 철학을 유지 — 개별 게시판/게시글 상세는 라우팅 키 자체가 slug라 마이그레이션 전엔 동작 불가(불가피, UUID 폴백으로 완화). 게시판 생성/복제 API(`/api/admin/boards`, `.../duplicate`)에도 슬러그 자동 생성 로직 추가.
 - **상단 탭(Navbar) 드롭다운이 서브카테고리(손자 항목)를 못 보여주던 버그 수정**: `navConfig.ts`의 `buildNavTree()`가 `dropdown` 타입에서 자식(1단계)까지만 읽고 손자를 버렸던 것을, sidebar-left/right와 동일하게 한 단계 더 재귀해 `NavItem.children`으로 담도록 수정. `Navbar.tsx`는 기존 group 2차 플라이아웃과 동일한 패턴으로 `item.children`이 있으면 hover 플라이아웃을 렌더링.

@@ -10,6 +10,7 @@ import {
 import { resolveBoardDefinition, isSortOption, type SortOption } from "@/lib/boardLayout";
 import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
 import { fetchBoard } from "@/lib/boardFetch";
+import { slugifyWithFallback } from "@/lib/slugify";
 
 // 게시판 규모가 크지 않아 검색/정렬/페이지네이션을 DB 쪽 복잡한 OR/배열-
 // 포함 쿼리로 밀어넣는 대신, 전체를 가져와 라우트 핸들러에서 처리한다
@@ -20,11 +21,11 @@ import { fetchBoard } from "@/lib/boardFetch";
 // 실패시키므로, 먼저 새 컬럼 포함으로 시도하고 실패하면 레거시 컬럼만으로
 // 재시도해 마이그레이션 전에도 게시판 읽기가 완전히 멈추지 않게 한다.
 const richFields =
-  "id, title, body, is_docent_post, like_count, is_best, photo_url, featured_image_url, thumbnail_visible, category, tags, view_count, updated_at, author_id, created_at";
+  "id, slug, title, body, is_docent_post, like_count, is_best, photo_url, featured_image_url, thumbnail_visible, category, tags, view_count, updated_at, author_id, created_at";
 const legacyFields =
   "id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
-async function fetchPosts(client: typeof supabase, id: string) {
+async function fetchPosts(client: typeof supabase, boardId: string) {
   let usedRichFields = true;
   let posts: Record<string, unknown>[] | null;
   let postsError: { message: string } | null;
@@ -32,7 +33,7 @@ async function fetchPosts(client: typeof supabase, id: string) {
   ({ data: posts, error: postsError } = await client
     .from("posts")
     .select(richFields)
-    .eq("board_id", id)
+    .eq("board_id", boardId)
     .order("created_at", { ascending: false }));
 
   if (postsError) {
@@ -40,7 +41,7 @@ async function fetchPosts(client: typeof supabase, id: string) {
     ({ data: posts, error: postsError } = await client
       .from("posts")
       .select(legacyFields)
-      .eq("board_id", id)
+      .eq("board_id", boardId)
       .order("created_at", { ascending: false }));
   }
 
@@ -49,15 +50,15 @@ async function fetchPosts(client: typeof supabase, id: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ board_slug: string }> },
 ) {
-  const { id } = await params;
+  const { board_slug: boardSlug } = await params;
 
   // EPIC-070: 서로 의존관계 없는 쿼리(게시판 조회 / 로그인 사용자 확인)를
   // 순차 await 대신 Promise.all로 병렬화 — Vercel 서버리스에서 Supabase
   // 왕복 지연이 그대로 누적되는 게 페이지 로딩이 느린 핵심 원인이었다.
   const [{ board, boardError }, requester] = await Promise.all([
-    fetchBoard(id),
+    fetchBoard(boardSlug),
     getRequestMember(request),
   ]);
 
@@ -67,6 +68,8 @@ export async function GET(
       { status: 404 },
     );
   }
+
+  const boardId = (board as { id: string }).id;
 
   // Board Definition System(EPIC-047): 검색/정렬/페이지네이션 동작 자체가
   // 게시판 설정에 따라 달라진다 — 하드코딩된 상수 대신 이 게시판이 어떤
@@ -81,7 +84,7 @@ export async function GET(
   // 시작한다 — 거부 판정이면 아래에서 결과를 버리고 403을 반환한다.
   const [tier, { posts, postsError, usedRichFields }] = await Promise.all([
     requester ? getTier(requester.member.membership_rank) : Promise.resolve(null),
-    fetchPosts(client, id),
+    fetchPosts(client, boardId),
   ]);
 
   if (!canReadBoard(board, tier, requester?.member.is_admin)) {
@@ -116,6 +119,7 @@ export async function GET(
   const normalizedPosts = usedRichFields
     ? (posts as unknown as {
         id: string;
+        slug: string;
         title: string | null;
         body: string | null;
         is_docent_post: boolean;
@@ -143,6 +147,7 @@ export async function GET(
         created_at: string;
       }[]).map((p) => ({
         ...p,
+        slug: p.id,
         featured_image_url: null as string | null,
         thumbnail_visible: true as boolean | null,
         category: null as string | null,
@@ -265,22 +270,47 @@ export async function GET(
   });
 }
 
+// EPIC-079-PHASE-2: 새 글의 slug를 제목에서 생성한다 — 같은 게시판 안에서만
+// UNIQUE면 되므로(docs/sql/epic-079-phase-2-slug.sql의 (board_id, slug)
+// 복합 UNIQUE 인덱스), 충돌 시 -2, -3 ... 접미사를 붙여 재시도한다. 한글
+// 제목처럼 slugify 결과가 빈 문자열이면 id 없이는 만들 수 없으므로, insert
+// 성공 후 반환된 실제 id로 폴백 slug를 다시 한번 계산해 UPDATE한다.
+async function generateUniquePostSlug(
+  client: typeof supabase,
+  boardId: string,
+  title: string,
+): Promise<string | null> {
+  const base = slugifyWithFallback(title, "");
+  if (!base) return null; // 호출부가 insert 후 id 기반 폴백을 처리한다.
+
+  let candidate = base;
+  let suffix = 1;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data } = await client
+      .from("posts")
+      .select("id")
+      .eq("board_id", boardId)
+      .eq("slug", candidate)
+      .maybeSingle();
+    if (!data) return candidate;
+    suffix += 1;
+    candidate = `${base}-${suffix}`;
+  }
+}
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ board_slug: string }> },
 ) {
-  const { id } = await params;
+  const { board_slug: boardSlug } = await params;
 
   const requester = await getRequestMember(request);
   if (!requester) {
     return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
   }
 
-  const { data: board, error: boardError } = await supabase
-    .from("boards")
-    .select("id, name, category, board_type")
-    .eq("id", id)
-    .single();
+  const { board, boardError } = await fetchBoard(boardSlug);
 
   if (boardError || !board) {
     return NextResponse.json(
@@ -289,6 +319,7 @@ export async function POST(
     );
   }
 
+  const boardId = (board as { id: string }).id;
   const definition = resolveBoardDefinition(board);
 
   if (!definition.allowPosting) {
@@ -370,10 +401,12 @@ export async function POST(
     validatedOrderId = order.id;
   }
 
+  const slug = await generateUniquePostSlug(requester.scopedClient, boardId, title);
+
   let { data: post, error: insertError } = await requester.scopedClient
     .from("posts")
     .insert({
-      board_id: id,
+      board_id: boardId,
       author_id: requester.member.id,
       title,
       body: sanitizedBody,
@@ -386,6 +419,7 @@ export async function POST(
       visibility: "public",
       order_id: validatedOrderId,
       tags,
+      ...(slug ? { slug } : {}),
     })
     .select()
     .single();
@@ -399,7 +433,7 @@ export async function POST(
     ({ data: post, error: insertError } = await requester.scopedClient
       .from("posts")
       .insert({
-        board_id: id,
+        board_id: boardId,
         author_id: requester.member.id,
         title,
         body: sanitizedBody,
@@ -407,6 +441,7 @@ export async function POST(
         visibility: "public",
         order_id: validatedOrderId,
         tags,
+        ...(slug ? { slug } : {}),
       })
       .select()
       .single());
@@ -416,13 +451,14 @@ export async function POST(
     ({ data: post, error: insertError } = await requester.scopedClient
       .from("posts")
       .insert({
-        board_id: id,
+        board_id: boardId,
         author_id: requester.member.id,
         title,
         body: sanitizedBody,
         is_docent_post: isDocentPost,
         visibility: "public",
         order_id: validatedOrderId,
+        ...(slug ? { slug } : {}),
       })
       .select()
       .single());
@@ -433,6 +469,20 @@ export async function POST(
       { error: "글 작성에 실패했어요.", detail: insertError?.message },
       { status: 500 },
     );
+  }
+
+  // 제목이 slugify로 빈 문자열이 됐던 경우(한글 제목 등) — 이제 실제 id를
+  // 알았으니 id 앞 8자리로 slug를 채운다(docs/sql/epic-079-phase-2-slug.sql
+  // 백필 로직과 동일한 폴백 규칙).
+  if (!slug && post.id) {
+    const fallbackSlug = (post.id as string).slice(0, 8);
+    const { data: updated } = await requester.scopedClient
+      .from("posts")
+      .update({ slug: fallbackSlug })
+      .eq("id", post.id)
+      .select()
+      .single();
+    if (updated) post = updated;
   }
 
   await requester.scopedClient.from("points_ledger").insert({

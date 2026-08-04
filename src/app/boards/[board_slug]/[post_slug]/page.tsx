@@ -15,6 +15,7 @@ import { PageEditButton } from "@/components/admin/PageEditButton";
 
 type PostDetail = {
   id: string;
+  slug?: string;
   title: string;
   body: string;
   is_docent_post: boolean;
@@ -48,8 +49,16 @@ type Comment = {
   created_at: string;
 };
 
+// EPIC-079-PHASE-2: URL이 UUID(/boards/[id]/[postId])에서 slug
+// (/boards/[board_slug]/[post_slug])로 바뀌었다 — 이 페이지 자체는 slug를
+// 그대로 API에 전달하기만 하면 되고(API가 내부적으로 slug→실제 id를
+// 해석), 하위 액션(좋아요/북마크/댓글/삭제)도 같은 board_slug/post_slug
+// 경로를 재사용한다.
 export default function PostDetailPage() {
-  const { id, postId } = useParams<{ id: string; postId: string }>();
+  const { board_slug: boardSlug, post_slug: postSlug } = useParams<{
+    board_slug: string;
+    post_slug: string;
+  }>();
   const { session, member, loading: authLoading } = useAuth();
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
@@ -71,7 +80,7 @@ export default function PostDetailPage() {
     setFetching(true);
     setError(null);
 
-    const res = await fetch(`/api/boards/${id}/posts/${postId}`, {
+    const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}`, {
       headers: session
         ? { Authorization: `Bearer ${session.access_token}` }
         : {},
@@ -97,12 +106,12 @@ export default function PostDetailPage() {
     if (authLoading) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, postId, session, authLoading]);
+  }, [boardSlug, postSlug, session, authLoading]);
 
   async function handleLike() {
     setLikeSubmitting(true);
 
-    const res = await fetch(`/api/boards/${id}/posts/${postId}/like`, {
+    const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}/like`, {
       method: "POST",
       headers: session
         ? { Authorization: `Bearer ${session.access_token}` }
@@ -137,7 +146,7 @@ export default function PostDetailPage() {
 
     setBookmarkSubmitting(true);
 
-    const res = await fetch(`/api/boards/${id}/posts/${postId}/bookmark`, {
+    const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}/bookmark`, {
       method: "POST",
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
@@ -157,7 +166,7 @@ export default function PostDetailPage() {
     e.preventDefault();
     setCommentSubmitting(true);
 
-    const res = await fetch(`/api/boards/${id}/posts/${postId}/comments`, {
+    const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}/comments`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -184,7 +193,7 @@ export default function PostDetailPage() {
     if (!window.confirm("이 글을 삭제할까요? 되돌릴 수 없어요.")) return;
 
     setDeleting(true);
-    const res = await fetch(`/api/boards/${id}/posts/${postId}`, {
+    const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}`, {
       method: "DELETE",
       headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
     });
@@ -196,7 +205,7 @@ export default function PostDetailPage() {
       return;
     }
 
-    router.push(`/boards/${id}`);
+    router.push(`/boards/${boardSlug}`);
   }
 
   if (fetching) {
@@ -249,7 +258,7 @@ export default function PostDetailPage() {
           showViewCount={definition.showViewCount}
           editHref={
             member?.id === post.author_id || member?.is_admin
-              ? `/boards/${id}/${postId}/edit`
+              ? `/boards/${boardSlug}/${postSlug}/edit`
               : undefined
           }
           onDelete={member?.id === post.author_id || member?.is_admin ? handleDelete : undefined}
@@ -285,7 +294,7 @@ export default function PostDetailPage() {
             />
           )}
 
-          <BoardPostListPanel boardId={id} currentPostId={postId} />
+          <BoardPostListPanel boardId={boardSlug} currentPostId={postSlug} />
         </div>
       </div>
       </main>

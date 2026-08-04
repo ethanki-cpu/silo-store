@@ -497,16 +497,46 @@ export function Navbar() {
                             </div>
                           </div>
                         ))
-                      : (tab.items ?? []).map((item) => (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={(e) => e.currentTarget.blur()}
-                            className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            {item.label}
-                          </Link>
-                        ))}
+                      : (tab.items ?? []).map((item) =>
+                          item.children && item.children.length > 0 ? (
+                            // EPIC-079-PHASE-2: 드롭다운 항목도 서브카테고리(손자)가
+                            // 있으면 group과 동일한 2차 플라이아웃 패턴으로 렌더링.
+                            <div key={item.href} className="relative group/row">
+                              <Link
+                                href={item.href}
+                                onClick={(e) => e.currentTarget.blur()}
+                                aria-haspopup="true"
+                                className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                              >
+                                <span>{item.label}</span>
+                                <span className="text-gray-400 text-xs">›</span>
+                              </Link>
+                              <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
+                                <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
+                                  {item.children.map((child, idx) => (
+                                    <Link
+                                      key={`${child.href}-${idx}`}
+                                      href={child.href}
+                                      onClick={(e) => e.currentTarget.blur()}
+                                      className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                    >
+                                      {child.label}
+                                    </Link>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              onClick={(e) => e.currentTarget.blur()}
+                              className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            >
+                              {item.label}
+                            </Link>
+                          ),
+                        )}
                   </div>
                 </div>
               )}

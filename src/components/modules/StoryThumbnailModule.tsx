@@ -37,7 +37,7 @@ export function StoryThumbnailModule({
       {posts.map((post) => (
         <StoryCard
           key={post.id}
-          href={`/boards/${boardId}/${post.id}`}
+          href={`/boards/${boardId}/${post.slug ?? post.id}`}
           photoUrl={
             showThumbnail && post.thumbnail_visible !== false
               ? (post.featured_image_url ?? post.photo_url)

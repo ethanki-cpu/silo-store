@@ -31,6 +31,10 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 
 export type BoardPost = {
   id: string;
+  // EPIC-079-PHASE-2: URL 라우팅 키(/boards/[board_slug]/[slug]) — API가
+  // 항상 채워서 내려주지만(폴백 포함), 마이그레이션 전 legacy select 경로를
+  // 위해 optional로 둔다(id로 폴백해서 링크를 구성하면 됨).
+  slug?: string;
   title: string | null;
   body: string | null;
   is_docent_post: boolean;
@@ -123,7 +127,11 @@ export function getPostCategories(definition: Pick<BoardDefinition, "categories"
 // hub 레이아웃이 화면에 보여줄 종합 피드(최신글/인기글/추천글) 한 건.
 export type HubFeedItem = {
   id: string;
+  // EPIC-079-PHASE-2: URL 라우팅 키 — /api/boards/feed가 항상 채워서
+  // 내려준다(폴백 포함, id로 대체될 수 있음).
+  slug?: string;
   board_id: string;
+  board_slug?: string;
   board_name: string;
   title: string | null;
   like_count: number;
@@ -150,6 +158,8 @@ export type HubFeed = {
 // hub 하단 "하위 게시판 카드"에 쓰이는 자식 게시판 요약 정보.
 export type HubChildBoard = {
   id: string;
+  // EPIC-079-PHASE-2: URL 라우팅 키 — /api/boards가 항상 채워서 내려준다.
+  slug?: string;
   name: string;
   locked: boolean;
   lockMessage: string | null;
@@ -1162,6 +1172,10 @@ export type BoardRow = {
   name?: string;
   board_type: string;
   category: string | null;
+  // EPIC-079-PHASE-2: URL 라우팅 키(/boards/[slug]) — DB에서는 NOT NULL
+  // UNIQUE지만, 마이그레이션 전 legacy select 경로/구 데이터를 위해 여기선
+  // optional로 둔다(다른 EPIC-066/077 신규 컬럼과 동일한 패턴).
+  slug?: string | null;
   min_rank_to_write?: number | null;
   is_public?: boolean | null;
   group_key?: string | null;
@@ -1191,7 +1205,13 @@ export type BoardRow = {
 // 배경은 src/app/api/boards/[id]/posts/route.ts 참고) — 라이브 DB에 EPIC-066
 // 마이그레이션이 아직 안 됐어도 게시판 읽기 자체는 멈추지 않는다.
 export const BOARD_RICH_FIELDS =
-  "id, name, category, board_type, min_rank_to_write, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
+  "id, name, category, slug, board_type, min_rank_to_write, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
+// EPIC-079-PHASE-2: slug는 RICH 단계에만 포함한다 — LEGACY는 "docs/sql/
+// epic-079-phase-2-slug.sql이 아직 적용되지 않은 라이브 DB"를 위한
+// 최후 폴백 단계라, 여기에도 slug를 넣으면 마이그레이션 전엔 게시판
+// 목록 조회 자체가 완전히 실패한다(다른 rich/legacy 폴백들과 동일하게
+// "읽기는 절대 멈추지 않는다" 원칙 유지) — 호출부는 board.slug가
+// undefined면 board.id로 폴백해서 링크를 구성한다.
 export const BOARD_LEGACY_FIELDS = "id, name, category, board_type, min_rank_to_write";
 // EPIC-077: BOARD_RICH_FIELDS + topic/thumbnail_url — 3단 폴백의 첫 단계
 // (EXT → RICH → LEGACY). 기존 BOARD_RICH_FIELDS 시그니처는 그대로 둬서

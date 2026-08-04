@@ -252,16 +252,36 @@ export function CategoryTreeManager({
 
   async function addChild(parentId: string | null, targetType: TargetTypeLiteral) {
     const siblingCount = rows.filter((r) => r.parent_id === parentId).length;
-    const { error: insertError } = await supabase.from("site_navigations").insert({
-      parent_id: parentId,
-      title: "새 항목",
-      target_type: targetType,
-      sort_order: siblingCount,
-    });
-    if (insertError) {
-      setError(insertError.message);
+    const { data: inserted, error: insertError } = await supabase
+      .from("site_navigations")
+      .insert({
+        parent_id: parentId,
+        title: "새 항목",
+        target_type: targetType,
+        sort_order: siblingCount,
+      })
+      .select("id")
+      .single();
+    if (insertError || !inserted) {
+      setError(insertError?.message ?? "카테고리 생성에 실패했어요.");
       return;
     }
+
+    // EPIC-079-PHASE-2: 생성 직후엔 href가 비어있어 updateRow의 href-저장
+    // 트리거(EPIC-068)가 한 번도 실행되지 않고, 그래서 "페이지 수정" 버튼이
+    // 관리자가 나중에 href를 수동 입력할 때까지 나타나지 않았다 — 생성 시점에
+    // 새 행의 id 기반 고유 href를 바로 채워 넣어 ensurePageForSlug가 즉시
+    // 실행되도록 한다. 관리자는 이후 원하는 href로 자유롭게 덮어쓸 수 있다
+    // (updateRow가 그 새 href에 대해서도 동일하게 페이지를 자동 생성/재사용).
+    const autoHref = `/c/${inserted.id}`;
+    const { error: hrefError } = await supabase
+      .from("site_navigations")
+      .update({ href: autoHref })
+      .eq("id", inserted.id);
+    if (!hrefError) {
+      ensurePageForSlug(hrefToSlug(autoHref), "새 항목", null).catch(() => {});
+    }
+
     await load();
   }
 

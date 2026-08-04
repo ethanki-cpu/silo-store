@@ -26,7 +26,7 @@ export function SlideModule({
           {items.map((item) => (
             <Link
               key={item.id}
-              href={`/boards/${item.board_id}/${item.id}`}
+              href={`/boards/${item.board_slug ?? item.board_id}/${item.slug ?? item.id}`}
               className="shrink-0 w-56 rounded-lg border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
             >
               {item.photo_url && (

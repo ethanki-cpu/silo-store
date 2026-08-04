@@ -15,6 +15,8 @@ import type { PageModuleConfig } from "@/lib/pageModules";
 
 type Board = {
   id: string;
+  // EPIC-079-PHASE-2: URL 라우팅 키 — /api/boards가 항상 채워서 내려준다.
+  slug?: string;
   name: string;
   category: string | null;
   board_type:
@@ -73,7 +75,7 @@ export default function BoardsPage() {
   const modules: PageModuleConfig[] = hubBoards.map((b) => ({
     id: b.id,
     kind: "slide_board",
-    props: { boardId: b.id, includeChildBoards: false },
+    props: { boardId: b.slug ?? b.id, includeChildBoards: false },
   }));
 
   return (
@@ -101,7 +103,7 @@ export default function BoardsPage() {
               {hubBoards.map((b) => (
                 <Link
                   key={b.id}
-                  href={`/boards/${b.id}`}
+                  href={`/boards/${b.slug ?? b.id}`}
                   className="block rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow group"
                 >
                   <p className="font-serif font-medium text-gray-900 group-hover:underline">
@@ -141,7 +143,7 @@ export default function BoardsPage() {
                   ) : (
                     <Link
                       key={board.id}
-                      href={`/boards/${board.id}`}
+                      href={`/boards/${board.slug ?? board.id}`}
                       className="block py-3 group"
                     >
                       <p className="font-serif font-medium text-gray-900 group-hover:underline">

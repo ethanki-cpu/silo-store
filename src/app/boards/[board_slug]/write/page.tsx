@@ -8,8 +8,12 @@ import { resolveBoardDefinition, getPostCategories } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PostForm, type ConfirmedOrder, type PostFormSubmitPayload } from "@/components/boards/PostForm";
 
+// EPIC-079-PHASE-2: URL이 board id(UUID) 대신 board slug를 쓰도록
+// 바뀌었다 — boards 테이블 직접 조회도 slug로 바꾼다(API 라우트가 아니라
+// 클라이언트가 직접 Supabase를 호출하는 경로라 boardFetch.ts의 fallback
+// 로직을 재사용할 수 없어, 여기서도 동일한 "slug 우선" 조회를 해준다).
 export default function WritePostPage() {
-  const { id } = useParams<{ id: string }>();
+  const { board_slug: boardSlug } = useParams<{ board_slug: string }>();
   const { session, member } = useAuth();
   const router = useRouter();
 
@@ -24,13 +28,13 @@ export default function WritePostPage() {
     supabase
       .from("boards")
       .select("board_type, category")
-      .eq("id", id)
+      .eq("slug", boardSlug)
       .single()
       .then(({ data }) => {
         setBoardType(data?.board_type ?? null);
         setBoardCategory(data?.category ?? null);
       });
-  }, [id]);
+  }, [boardSlug]);
 
   const definition = boardType
     ? resolveBoardDefinition({ board_type: boardType, category: boardCategory })
@@ -40,11 +44,11 @@ export default function WritePostPage() {
   // 가볍게 재사용(게시글 목록 API가 이미 availableTags를 계산해 돌려준다,
   // 별도 엔드포인트 신설 없음).
   useEffect(() => {
-    fetch(`/api/boards/${id}/posts?pageSize=1`)
+    fetch(`/api/boards/${boardSlug}/posts?pageSize=1`)
       .then((res) => res.json())
       .then((data) => setExistingTags(data.availableTags ?? []))
       .catch(() => {});
-  }, [id]);
+  }, [boardSlug]);
 
   useEffect(() => {
     if (boardType !== "adoption_story" || !member) return;
@@ -73,7 +77,7 @@ export default function WritePostPage() {
     setError(null);
     setLoading(true);
 
-    const res = await fetch(`/api/boards/${id}/posts`, {
+    const res = await fetch(`/api/boards/${boardSlug}/posts`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -101,7 +105,7 @@ export default function WritePostPage() {
       return;
     }
 
-    router.push(`/boards/${id}/${data.id}`);
+    router.push(`/boards/${boardSlug}/${data.slug ?? data.id}`);
   }
 
   if (definition && !definition.allowPosting) {
@@ -120,13 +124,13 @@ export default function WritePostPage() {
       <h1 className="font-serif text-2xl font-bold mb-6">글쓰기</h1>
       <PostForm
         mode="create"
-        boardId={id}
+        boardId={boardSlug}
         boardType={boardType}
         showTags={Boolean(definition?.tags)}
         confirmedOrders={confirmedOrders}
         categories={definition ? getPostCategories(definition) : undefined}
         existingTags={existingTags}
-        draftStorageKey={`draft-${id}`}
+        draftStorageKey={`draft-${boardSlug}`}
         submitLabel="등록"
         onSubmit={handleSubmit}
         submitting={loading}

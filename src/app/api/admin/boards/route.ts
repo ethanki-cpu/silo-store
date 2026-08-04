@@ -6,6 +6,7 @@ import {
   BOARD_LEGACY_FIELDS,
   type BoardRow,
 } from "@/lib/boardLayout";
+import { slugify } from "@/lib/slugify";
 
 // EPIC-066: 관리자 게시판 관리 — 목록(전체, 비공개 포함)/생성.
 // 공개용 /api/boards(GET)와 달리 인증+is_admin 필수(payments 라우트와 동일
@@ -79,6 +80,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "이미 사용 중인 슬러그예요." }, { status: 409 });
   }
 
+  // EPIC-079-PHASE-2: boards.slug(URL 라우팅 키, /boards/[slug])는 관리자가
+  // "슬러그"라고 입력하는 category와는 별개 컬럼이라 전역 UNIQUE로 새로
+  // 뽑아야 한다 — category를 slugify한 값을 기본으로, 충돌하면 -2, -3...
+  // 접미사를 붙인다(docs/sql/epic-079-phase-2-slug.sql 백필과 동일한 규칙).
+  const baseRouteSlug = slugify(category) || slugify(name) || "board";
+  let routeSlug = baseRouteSlug;
+  let routeSuffix = 2;
+  while (true) {
+    const { data: taken } = await requester.scopedClient
+      .from("boards")
+      .select("id")
+      .eq("slug", routeSlug)
+      .maybeSingle();
+    if (!taken) break;
+    routeSlug = `${baseRouteSlug}-${routeSuffix}`;
+    routeSuffix += 1;
+  }
+
   // EPIC-066: 관리자 UI는 "Board Type"(render_type, 레이아웃)만 다루고
   // boards.board_type(등급/쓰기 권한 축, src/lib/serverAuth.ts)은 노출하지
   // 않는다 — 신규 게시판은 가장 보편적인 'topic'(전체 등급 글쓰기 허용,
@@ -89,6 +108,7 @@ export async function POST(request: NextRequest) {
     .insert({
       name,
       category,
+      slug: routeSlug,
       board_type: "topic",
       min_rank_to_write: 0,
       is_public: body?.is_public ?? true,

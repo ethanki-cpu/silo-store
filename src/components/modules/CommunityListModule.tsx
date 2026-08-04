@@ -50,7 +50,7 @@ export function CommunityListModule({
   isQna,
   // EPIC-066: Board Widget이 "카테고리"까지 실제로 출력해야 한다는 요구 —
   // 카테고리는 게시글이 아니라 게시판 단위 속성이라 posts에는 없다.
-  // 상세 페이지(boards/[id]/[postId])가 이미 하던 대로(board?.category를
+  // 상세 페이지(boards/[board_slug]/[post_slug])가 이미 하던 대로(board?.category를
   // 태그처럼 붙여 보여줌) 목록에서도 동일하게 태그 칩 하나로 표시한다.
   boardCategory,
   showLikes,
@@ -73,7 +73,7 @@ export function CommunityListModule({
         return (
           <Link
             key={post.id}
-            href={`/boards/${boardId}/${post.id}`}
+            href={`/boards/${boardId}/${post.slug ?? post.id}`}
             className="flex items-center gap-3 py-2.5 group"
           >
             <div className="min-w-0 flex-1 flex items-center gap-2">

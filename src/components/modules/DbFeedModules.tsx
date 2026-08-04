@@ -59,7 +59,7 @@ export function DbGalleryModule({ boardId }: { boardId: string | null }) {
 function TimelinePostRow({ boardId, post }: { boardId: string; post: BoardPost }) {
   return (
     <Link
-      href={`/boards/${boardId}/${post.id}`}
+      href={`/boards/${boardId}/${post.slug ?? post.id}`}
       className="block rounded-md border border-gray-100 p-3 hover:bg-gray-50"
     >
       <p className="text-sm font-medium text-gray-900">{post.title}</p>

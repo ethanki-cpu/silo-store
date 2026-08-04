@@ -1,6 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
 
-export type NavItem = { label: string; href: string };
+// EPIC-079-PHASE-2: dropdown 탭의 항목도 sidebar의 group→item처럼 한 단계
+// 더 자식(서브카테고리)을 가질 수 있다 — children이 있으면 Navbar가 2차
+// 플라이아웃으로 렌더링하고, 없으면(기존처럼) 클릭 시 바로 이동하는 평범한
+// 항목으로 렌더링한다.
+export type NavItem = { label: string; href: string; children?: NavItem[] };
 // EPIC-058: 그룹 헤더(상위 카테고리) 자체도 Hub Page로 이동하는 링크가 될 수
 // 있도록 href를 추가한다. 없으면(기존처럼) 클릭 불가한 라벨로만 렌더링된다
 // — LeftSidebar.tsx/RightSidebar.tsx가 이 값의 유무로 분기한다.
@@ -187,10 +191,21 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
     }
 
     if (type === "dropdown") {
-      const items = (byParent.get(top.id) ?? []).map((i) => ({
-        label: i.title,
-        href: i.href ?? "#",
-      }));
+      // EPIC-079-PHASE-2: sidebar-left/right(아래)와 동일하게 손자(자식의
+      // 자식)까지 재귀적으로 읽어 items[].children으로 담는다 — 이전엔
+      // byParent.get(top.id)까지만 읽어 새 최상위 카테고리의 서브카테고리가
+      // 드롭다운에 아예 나타나지 않았다(사이드바는 group.items로 정상 출력).
+      const items = (byParent.get(top.id) ?? []).map((i) => {
+        const children = (byParent.get(i.id) ?? []).map((c) => ({
+          label: c.title,
+          href: c.href ?? "#",
+        }));
+        return {
+          label: i.title,
+          href: i.href ?? "#",
+          children: children.length > 0 ? children : undefined,
+        };
+      });
       // EPIC-058: 드롭다운 트리거(예: 스튜디오) 자체도 href가 있으면 Hub
       // Page로 이동하는 링크가 된다 — 없으면(기존처럼) 클릭 불가한 버튼.
       return {

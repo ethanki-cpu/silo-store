@@ -39,6 +39,31 @@ function TransparentVideo({
     let vfcId = 0;
     let cancelled = false;
 
+    // EPIC-079-PHASE-2: 지금까지 <video autoPlay muted>의 JSX 속성만 믿고
+    // 재생을 시작했는데, React가 hydration 시점에 `muted`를 DOM
+    // "속성"(attribute)이 아니라 "프로퍼티"로 정확히 반영하는 타이밍이
+    // 브라우저의 autoplay 정책(음소거 상태여야 autoplay 허용) 판정보다
+    // 늦으면 play()가 조용히 reject되고, videoWidth/height가 계속 0으로
+    // 남아 draw()가 canvas에 아무것도 그리지 못한다 — 그 결과 CSS
+    // scale(hover 확대)만 눈에 보이고 애니메이션 자체는 재생되지 않는
+    // 것처럼 보였다. muted를 프로퍼티로 명시적으로 먼저 설정한 뒤 직접
+    // play()를 호출하고, 실패하면 사용자가 실제로 hover(마우스 진입)할
+    // 때 한 번 더 재시도한다.
+    video.muted = true;
+    const tryPlay = () => {
+      video.play().catch(() => {
+        /* 자동재생이 거부됐다면 아래 canplay/사용자 상호작용 재시도로 넘어간다. */
+      });
+    };
+    tryPlay();
+    // <video>는 pointerEvents: "none"이라 자신에게는 hover가 닿지 않으므로,
+    // canplay(디코딩 준비 완료)와 문서 전역의 최초 사용자 상호작용 시점에도
+    // 한 번씩 더 재생을 시도한다 — 브라우저가 처음엔 autoplay를 거부했더라도
+    // 실제 상호작용이 있었다는 신호가 생기면 재생이 허용되는 경우가 많다.
+    video.addEventListener("canplay", tryPlay);
+    document.addEventListener("pointerdown", tryPlay, { once: true });
+    document.addEventListener("keydown", tryPlay, { once: true });
+
     function draw() {
       if (cancelled || !video || !canvas || !ctx) return;
       if (video.videoWidth && video.videoHeight) {
@@ -67,6 +92,9 @@ function TransparentVideo({
       if (vfcId && typeof video.cancelVideoFrameCallback === "function") {
         video.cancelVideoFrameCallback(vfcId);
       }
+      video.removeEventListener("canplay", tryPlay);
+      document.removeEventListener("pointerdown", tryPlay);
+      document.removeEventListener("keydown", tryPlay);
     };
   }, [src]);
 

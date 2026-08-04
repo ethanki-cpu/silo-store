@@ -12,6 +12,9 @@ export default function AdminBoardEditPage() {
   const router = useRouter();
 
   const [values, setValues] = useState<BoardFormValues | null>(null);
+  // EPIC-079-PHASE-2: "미리보기" 링크가 이제 board id(UUID) 대신 slug로
+  // 라우팅되므로(/boards/[board_slug]), 폼 값과 별개로 slug만 따로 보관한다.
+  const [boardSlug, setBoardSlug] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -30,6 +33,7 @@ export default function AdminBoardEditPage() {
         setLoadError(data.error ?? "게시판을 불러오지 못했어요.");
         return;
       }
+      setBoardSlug(data.slug ?? null);
       setValues({
         ...DEFAULT_BOARD_FORM_VALUES,
         name: data.name ?? "",
@@ -131,7 +135,7 @@ export default function AdminBoardEditPage() {
         <h1 className="text-2xl font-bold">게시판 수정</h1>
         <div className="flex gap-2">
           <a
-            href={`/boards/${id}`}
+            href={`/boards/${boardSlug ?? id}`}
             target="_blank"
             rel="noreferrer"
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { data: allBoards } = await supabase
     .from("boards")
-    .select("id, name, category, board_type");
+    .select("id, name, category, board_type, slug");
 
   if (!allBoards) {
     return NextResponse.json({ latest: [], popular: [], recommended: [] });
@@ -35,6 +35,9 @@ export async function GET(request: NextRequest) {
     .map((b) => b.id);
 
   const boardNameById = new Map(boards.map((b) => [b.id, b.name]));
+  // EPIC-079-PHASE-2: 슬러그 라우팅(/boards/[board_slug]/[post_slug]) 링크를
+  // 만들려면 board_id → board_slug 매핑도 필요하다.
+  const boardSlugById = new Map(boards.map((b) => [b.id, (b as { slug?: string }).slug ?? b.id]));
 
   if (readableBoardIds.length === 0) {
     return NextResponse.json({ latest: [], popular: [], recommended: [] });
@@ -48,6 +51,7 @@ export async function GET(request: NextRequest) {
   let posts:
     | {
         id: string;
+        slug?: string;
         board_id: string | null;
         title: string | null;
         like_count: number;
@@ -63,7 +67,7 @@ export async function GET(request: NextRequest) {
   ({ data: posts } = await supabase
     .from("posts")
     .select(
-      "id, board_id, title, like_count, is_best, photo_url, author_id, created_at, view_count, tags",
+      "id, slug, board_id, title, like_count, is_best, photo_url, author_id, created_at, view_count, tags",
     )
     .in("board_id", readableBoardIds)
     .eq("visibility", "public")
@@ -105,7 +109,9 @@ export async function GET(request: NextRequest) {
   function toFeedItem(p: (typeof allPosts)[number]) {
     return {
       id: p.id,
+      slug: p.slug ?? p.id,
       board_id: p.board_id,
+      board_slug: boardSlugById.get(p.board_id ?? "") ?? p.board_id,
       board_name: boardNameById.get(p.board_id ?? "") ?? "",
       title: p.title,
       like_count: p.like_count,

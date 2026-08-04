@@ -32,7 +32,7 @@ export function GalleryModule({
         return (
         <Link
           key={post.id}
-          href={`/boards/${boardId}/${post.id}`}
+          href={`/boards/${boardId}/${post.slug ?? post.id}`}
           className="block mb-4 break-inside-avoid group"
         >
           {imageUrl ? (

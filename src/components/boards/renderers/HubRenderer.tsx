@@ -37,7 +37,7 @@ export function HubRenderer({ hubFeed, hubChildBoards }: BoardRendererProps) {
                 ) : (
                   <Link
                     key={board.id}
-                    href={`/boards/${board.id}`}
+                    href={`/boards/${board.slug ?? board.id}`}
                     className="block rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow group"
                   >
                     <p className="font-serif font-medium text-gray-900 group-hover:underline">

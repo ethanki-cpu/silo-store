@@ -6,13 +6,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestMember } from "@/lib/serverAuth";
 import { supabase } from "@/lib/supabaseClient";
+import { fetchBoard } from "@/lib/boardFetch";
 
 // GET: 임시 저장본 조회
+// EPIC-079-PHASE-2: URL이 board_slug로 바뀌면서 posts.board_id(실제 UUID)를
+// 얻으려면 먼저 board를 slug로 조회해야 한다.
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ board_slug: string }> },
 ) {
-  const { id: boardId } = await params;
+  const { board_slug: boardSlug } = await params;
+
+  const { board, boardError } = await fetchBoard(boardSlug);
+  if (boardError || !board) {
+    return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+  }
+  const boardId = (board as { id: string }).id;
 
   // 현재 사용자 확인 (익명도 가능)
   const requester = await getRequestMember(request);
@@ -38,9 +47,9 @@ export async function GET(
 // POST: 임시 저장 생성/업데이트
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ board_slug: string }> },
 ) {
-  const { id: boardId } = await params;
+  const { board_slug: boardSlug } = await params;
 
   // 현재 사용자 확인
   const requester = await getRequestMember(request);
@@ -70,11 +79,16 @@ export async function POST(
     }
     return NextResponse.json({ draft: data });
   } else {
+    const { board, boardError } = await fetchBoard(boardSlug);
+    if (boardError || !board) {
+      return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+    }
+
     // 새 임시 저장
     const { data, error } = await supabase
       .from("posts")
       .insert({
-        board_id: boardId,
+        board_id: (board as { id: string }).id,
         author_id: requester.member.id,
         title: title ?? "",
         body: content ?? "",
@@ -95,9 +109,9 @@ export async function POST(
 // DELETE: 임시 저장 삭제
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ board_slug: string }> },
 ) {
-  // params에서 boardId 추출 (경로 파라미터지만 실제로는 draftId로 식별)
+  // params에서 boardSlug 추출 (경로 파라미터지만 실제로는 draftId로 식별)
   await params;
 
   // 현재 사용자 확인

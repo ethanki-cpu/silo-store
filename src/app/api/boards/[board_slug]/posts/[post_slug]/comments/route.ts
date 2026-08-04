@@ -1,16 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestMember } from "@/lib/serverAuth";
+import { fetchBoard } from "@/lib/boardFetch";
 
+// EPIC-079-PHASE-2: posts.slug는 board별로만 UNIQUE라, 실제 post_id를
+// 알려면 먼저 board를 slug로 찾아야 한다(bookmark/like route와 동일한 이유).
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; postId: string }> },
+  { params }: { params: Promise<{ board_slug: string; post_slug: string }> },
 ) {
-  const { postId } = await params;
+  const { board_slug: boardSlug, post_slug: postSlug } = await params;
 
   const requester = await getRequestMember(request);
   if (!requester) {
     return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
   }
+
+  const { board, boardError } = await fetchBoard(boardSlug);
+  if (boardError || !board) {
+    return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+  }
+
+  const { data: post, error: postError } = await requester.scopedClient
+    .from("posts")
+    .select("id")
+    .eq("slug", postSlug)
+    .eq("board_id", (board as { id: string }).id)
+    .single();
+
+  if (postError || !post) {
+    return NextResponse.json({ error: "게시글을 찾을 수 없어요." }, { status: 404 });
+  }
+
+  const postId = post.id as string;
 
   const body = await request.json();
   const commentBody = body?.body as string | undefined;

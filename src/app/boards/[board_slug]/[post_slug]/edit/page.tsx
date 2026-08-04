@@ -10,8 +10,13 @@ import { resolveBoardDefinition, getPostCategories } from "@/lib/boardLayout";
 // EPIC-053.1: 게시글 수정 — Board Engine의 모든 게시판이 write와 동일한
 // PostForm/BlockEditor를 재사용한다(새 Editor 생성 금지). JSON Block이
 // 정본이므로 body_json을 그대로 에디터에 복원한다.
+// EPIC-079-PHASE-2: URL이 board slug / post slug 기반으로 바뀌었다 — slug는
+// 수정해도 바뀌지 않으므로(URL 안정성), 저장 후에도 같은 postSlug로 돌아간다.
 export default function EditPostPage() {
-  const { id, postId } = useParams<{ id: string; postId: string }>();
+  const { board_slug: boardSlug, post_slug: postSlug } = useParams<{
+    board_slug: string;
+    post_slug: string;
+  }>();
   const { session, member, memberLoading } = useAuth();
   const router = useRouter();
 
@@ -38,7 +43,7 @@ export default function EditPostPage() {
   useEffect(() => {
     if (memberLoading) return;
 
-    fetch(`/api/boards/${id}/posts/${postId}`, {
+    fetch(`/api/boards/${boardSlug}/posts/${postSlug}`, {
       headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
     })
       .then((res) => res.json())
@@ -66,20 +71,20 @@ export default function EditPostPage() {
         setBoard(data.board);
         setLoadingPost(false);
       });
-  }, [id, postId, session, member, memberLoading]);
+  }, [boardSlug, postSlug, session, member, memberLoading]);
 
   useEffect(() => {
-    fetch(`/api/boards/${id}/posts?pageSize=1`)
+    fetch(`/api/boards/${boardSlug}/posts?pageSize=1`)
       .then((res) => res.json())
       .then((data) => setExistingTags(data.availableTags ?? []))
       .catch(() => {});
-  }, [id]);
+  }, [boardSlug]);
 
   async function handleSubmit(payload: PostFormSubmitPayload) {
     setError(null);
     setSubmitting(true);
 
-    const res = await fetch(`/api/boards/${id}/posts/${postId}`, {
+    const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -106,14 +111,14 @@ export default function EditPostPage() {
       return;
     }
 
-    router.push(`/boards/${id}/${postId}`);
+    router.push(`/boards/${boardSlug}/${postSlug}`);
   }
 
   async function handleDelete() {
     if (!window.confirm("이 글을 삭제할까요? 되돌릴 수 없어요.")) return;
 
     setDeleting(true);
-    const res = await fetch(`/api/boards/${id}/posts/${postId}`, {
+    const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}`, {
       method: "DELETE",
       headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
     });
@@ -125,7 +130,7 @@ export default function EditPostPage() {
       return;
     }
 
-    router.push(`/boards/${id}`);
+    router.push(`/boards/${boardSlug}`);
   }
 
   if (loadingPost || memberLoading) {
@@ -153,7 +158,7 @@ export default function EditPostPage() {
       <h1 className="font-serif text-2xl font-bold mb-6">글 수정</h1>
       <PostForm
         mode="edit"
-        boardId={id}
+        boardId={boardSlug}
         boardType={board?.board_type ?? null}
         showTags={(post.tags ?? []).length > 0 || (post.tags != null)}
         categories={board ? getPostCategories(resolveBoardDefinition(board)) : undefined}
@@ -167,7 +172,7 @@ export default function EditPostPage() {
         initialFeaturedImagePath={post.featured_image_path}
         initialThumbnailVisible={post.thumbnail_visible ?? true}
         initialCategory={post.category}
-        draftStorageKey={`draft-edit-${postId}`}
+        draftStorageKey={`draft-edit-${postSlug}`}
         submitLabel="수정 완료"
         onSubmit={handleSubmit}
         submitting={submitting}

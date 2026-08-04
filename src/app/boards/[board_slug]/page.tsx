@@ -16,8 +16,13 @@ import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder"
 // 렌더링(EPIC-066이 발견한 PageEditButton-only 결함 수정, Phase 1) —
 // BoardModule이 담당하는 실제 게시판 기능(글 목록/검색/정렬/페이지네이션)은
 // 그대로 두고, 관리자가 추가로 배치한 위젯만 그 아래에 덧붙인다.
+//
+// EPIC-079-PHASE-2: URL이 board id(UUID) 대신 board slug를 쓰도록
+// 바뀌었다 — BoardModule은 이 slug를 그대로 받아 API(/api/boards/[board_slug]/
+// posts)를 호출한다(내부적으로 board_id로 다시 바꿀 필요 없음, API가 이미
+// slug로 board를 조회함).
 export default function BoardPostsPage() {
-  const { id } = useParams<{ id: string }>();
+  const { board_slug: boardSlug } = useParams<{ board_slug: string }>();
 
   const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
   useEffect(() => {
@@ -35,7 +40,7 @@ export default function BoardPostsPage() {
       <PageEditButton slug="boards-id" />
       <main className="flex-1 bg-white px-6 py-12">
         <div className="max-w-3xl mx-auto w-full">
-          <BoardModule boardId={String(id)} />
+          <BoardModule boardId={String(boardSlug)} />
 
           <div className="mt-12 pt-8 border-t border-gray-200">
             <PageBuilderRenderer modules={pageModules} />

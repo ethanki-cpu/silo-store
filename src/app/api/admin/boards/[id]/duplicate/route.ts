@@ -49,6 +49,25 @@ export async function POST(
     suffix += 1;
   }
 
+  // EPIC-079-PHASE-2: boards.slug는 category와 별개로 전역 UNIQUE라(라우팅
+  // 키), category와 같은 값을 그대로 복사하면 원본과 충돌한다 — category와
+  // 동일한 규칙(-copy, -copy-2, ...)으로 별도 유니크 slug를 새로 뽑는다.
+  const baseRouteSlug = `${(source as { slug?: string }).slug ?? source.id}-copy`;
+  let candidateRouteSlug = baseRouteSlug;
+  let routeSuffix = 2;
+
+  while (true) {
+    const { data: taken } = await requester.scopedClient
+      .from("boards")
+      .select("id")
+      .eq("slug", candidateRouteSlug)
+      .maybeSingle();
+
+    if (!taken) break;
+    candidateRouteSlug = `${baseRouteSlug}-${routeSuffix}`;
+    routeSuffix += 1;
+  }
+
   const rest = { ...(source as Record<string, unknown>) };
   delete rest.id;
 
@@ -58,6 +77,7 @@ export async function POST(
       ...rest,
       name: `${source.name} 사본`,
       category: candidateSlug,
+      slug: candidateRouteSlug,
     })
     .select()
     .single();

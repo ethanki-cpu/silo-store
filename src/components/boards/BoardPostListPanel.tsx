@@ -10,7 +10,10 @@ import type { BoardPost } from "@/lib/boardLayout";
 // 전체(검색/정렬/헤더 포함)를 그대로 다시 넣으면 상세 화면 안에 또 다른
 // 게시판 화면이 통째로 얹히는 셈이라 무거워서, 목록 + 현재 글 하이라이트만
 // 담당하는 가벼운 전용 컴포넌트로 새로 만들었다 — 기존 게시글 목록 API
-// (`GET /api/boards/[id]/posts`)를 그대로 재사용한다(새 API 없음).
+// (`GET /api/boards/[board_slug]/posts`)를 그대로 재사용한다(새 API 없음).
+// EPIC-079-PHASE-2: boardId는 실제로는 board slug, currentPostId는 post
+// slug를 받는다 — 링크도 slug 기반 라우팅(/boards/[board_slug]/[post_slug])
+// 으로 구성한다.
 export function BoardPostListPanel({
   boardId,
   currentPostId,
@@ -53,11 +56,12 @@ export function BoardPostListPanel({
       </h2>
       <div className="divide-y divide-gray-100 text-sm">
         {posts.map((post) => {
-          const isCurrent = post.id === currentPostId;
+          const postSlug = post.slug ?? post.id;
+          const isCurrent = postSlug === currentPostId;
           return (
             <Link
               key={post.id}
-              href={`/boards/${boardId}/${post.id}`}
+              href={`/boards/${boardId}/${postSlug}`}
               className={`flex items-center gap-3 py-2.5 rounded-md ${
                 isCurrent ? "bg-amber-50 border border-amber-200 px-3 -mx-3" : "hover:bg-gray-50 px-3 -mx-3"
               }`}

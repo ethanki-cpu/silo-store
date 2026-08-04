@@ -23,7 +23,7 @@ function TimelinePostRow({
   boardCategory?: string | null;
 }) {
   return (
-    <Link href={`/boards/${boardId}/${post.id}`} className="flex gap-3 group">
+    <Link href={`/boards/${boardId}/${post.slug ?? post.id}`} className="flex gap-3 group">
       {post.photo_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={post.photo_url} alt="" className="w-14 h-14 shrink-0 rounded-md object-cover" />

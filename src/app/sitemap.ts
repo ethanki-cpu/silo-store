@@ -72,19 +72,21 @@ function collectNamedRoutes(): string[] {
 // DB에서 조회해야 하는 동적 라우트 — 테이블 하나가 실패해도 나머지는
 // 그대로 포함되도록 개별적으로 방어한다(사이트맵 전체가 깨지지 않게).
 async function collectDynamicRoutes(): Promise<string[]> {
-  const sources: { table: string; toPath: (id: string) => string }[] = [
-    { table: "boards", toPath: (id) => `/boards/${id}` },
-    { table: "items", toPath: (id) => `/shop/${id}` },
-    { table: "docent_contents", toPath: (id) => `/docent/${id}` },
-    { table: "clubs", toPath: (id) => `/clubs/${id}` },
+  const sources: { table: string; select: string; toPath: (row: { id: string; slug?: string }) => string }[] = [
+    // EPIC-079-PHASE-2: /boards는 이제 slug로 라우팅한다 — slug가 아직
+    // 없는(마이그레이션 전) 행은 id로 폴백.
+    { table: "boards", select: "id, slug", toPath: (row) => `/boards/${row.slug ?? row.id}` },
+    { table: "items", select: "id", toPath: (row) => `/shop/${row.id}` },
+    { table: "docent_contents", select: "id", toPath: (row) => `/docent/${row.id}` },
+    { table: "clubs", select: "id", toPath: (row) => `/clubs/${row.id}` },
   ];
 
   const routes: string[] = [];
-  for (const { table, toPath } of sources) {
+  for (const { table, select, toPath } of sources) {
     try {
-      const { data } = await supabase.from(table).select("id").limit(1000);
-      for (const row of (data ?? []) as { id: string }[]) {
-        routes.push(toPath(row.id));
+      const { data } = await supabase.from(table).select(select).limit(1000);
+      for (const row of (data ?? []) as unknown as { id: string; slug?: string }[]) {
+        routes.push(toPath(row));
       }
     } catch {
       // 해당 테이블 조회 실패는 그 테이블만 건너뛴다.

@@ -7,20 +7,23 @@ import { enqueueOrphanedImages, enqueueAllImages } from "@/lib/imageGc";
 import { fetchBoard } from "@/lib/boardFetch";
 
 const richFields =
-  "id, board_id, title, body, body_json, featured_image_url, featured_image_path, thumbnail_visible, category, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
+  "id, board_id, slug, title, body, body_json, featured_image_url, featured_image_path, thumbnail_visible, category, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
 const legacyFields =
   "id, board_id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
-// Board Engine(EPIC-047): tags/view_count/updated_at가 라이브 DB에 아직
-// 없을 수 있어(마이그레이션 전), 새 컬럼 포함 select가 42703으로 실패하면
-// 레거시 컬럼만으로 재시도한다(자세한 배경은 posts/route.ts 참고).
-async function fetchPost(client: typeof supabase, id: string, postId: string) {
+// EPIC-079-PHASE-2: UUID 라우팅(/boards/[id]/[postId])에서 slug 라우팅
+// (/boards/[board_slug]/[post_slug])으로 바뀌면서 게시글 조회 키도
+// slug(같은 board_id 안에서 UNIQUE)로 바뀐다 — legacy select엔 slug
+// 컬럼이 없을 수 있어(마이그레이션 전) 그 경우 id로 한 번 더 시도한다
+// (fetchBoard의 UUID 폴백과 동일한 패턴, 이 프로젝트에서 post_slug 자체가
+// UUID처럼 보일 일은 거의 없지만 방어적으로 남겨둔다).
+async function fetchPost(client: typeof supabase, boardId: string, postSlug: string) {
   let usedRichFields = true;
   let { data: post, error: postError } = await client
     .from("posts")
     .select(richFields)
-    .eq("id", postId)
-    .eq("board_id", id)
+    .eq("slug", postSlug)
+    .eq("board_id", boardId)
     .single();
 
   if (postError) {
@@ -28,8 +31,8 @@ async function fetchPost(client: typeof supabase, id: string, postId: string) {
     ({ data: post, error: postError } = await client
       .from("posts")
       .select(legacyFields)
-      .eq("id", postId)
-      .eq("board_id", id)
+      .eq("id", postSlug)
+      .eq("board_id", boardId)
       .single());
   }
 
@@ -38,15 +41,15 @@ async function fetchPost(client: typeof supabase, id: string, postId: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; postId: string }> },
+  { params }: { params: Promise<{ board_slug: string; post_slug: string }> },
 ) {
-  const { id, postId } = await params;
+  const { board_slug: boardSlug, post_slug: postSlug } = await params;
 
   // EPIC-070: 서로 의존관계 없는 쿼리를 순차 await 대신 Promise.all로
   // 병렬화 — Vercel 서버리스에서 Supabase 왕복 지연이 그대로 누적되는 게
   // 페이지 로딩이 느린 핵심 원인이었다(posts/route.ts와 동일한 배경).
   const [{ board, boardError }, requester] = await Promise.all([
-    fetchBoard(id),
+    fetchBoard(boardSlug),
     getRequestMember(request),
   ]);
 
@@ -59,12 +62,13 @@ export async function GET(
 
   const definition = resolveBoardDefinition(board);
   const client = requester ? requester.scopedClient : supabase;
+  const boardId = (board as { id: string }).id;
 
   // 게시글 조회 자체는 권한 판정과 무관하게 시작할 수 있어 tier 조회와
   // 동시에 진행하고, 거부 판정이면 아래에서 결과를 버리고 403을 반환한다.
   const [tier, { post, postError, usedRichFields }] = await Promise.all([
     requester ? getTier(requester.member.membership_rank) : Promise.resolve(null),
-    fetchPost(client, id, postId),
+    fetchPost(client, boardId, postSlug),
   ]);
 
   if (!canReadBoard(board, tier, requester?.member.is_admin)) {
@@ -87,6 +91,7 @@ export async function GET(
     ? (post as unknown as {
         id: string;
         board_id: string;
+        slug: string;
         title: string | null;
         body: string | null;
         body_json: JSONContent | null;
@@ -117,6 +122,7 @@ export async function GET(
           author_id: string;
           created_at: string;
         }),
+        slug: (post as { id: string }).id,
         body_json: null as JSONContent | null,
         featured_image_url: null as string | null,
         featured_image_path: null as string | null,
@@ -127,8 +133,10 @@ export async function GET(
         updated_at: (post as { created_at: string }).created_at,
       };
 
+  const postId = normalizedPost.id;
+
   // EPIC-070: 서로 독립적인 5개 쿼리(조회수 증가/글 번호/댓글/좋아요 여부/
-  // 북마크 여부)를 병렬화 — 전부 postId/board_id/normalizedPost만 있으면
+  // 북마크 여부)를 병렬화 — 전부 postId/boardId/normalizedPost만 있으면
   // 되고 서로의 결과를 필요로 하지 않는다.
   const [, { count: postNumber }, { data: comments }, likedByMe, bookmarkedByMe] =
     await Promise.all([
@@ -144,7 +152,7 @@ export async function GET(
       client
         .from("posts")
         .select("id", { count: "exact", head: true })
-        .eq("board_id", id)
+        .eq("board_id", boardId)
         .lte("created_at", normalizedPost.created_at),
       definition.comments
         ? client
@@ -210,22 +218,32 @@ export async function GET(
 // body_json(정본)을 받아 서버가 HTML을 다시 계산해 저장하고, 이전 본문에서
 // 빠진 이미지는 즉시 삭제하지 않고 image_cleanup_queue에 적재한다(Storage
 // Garbage Collection — src/lib/imageGc.ts).
+// EPIC-079-PHASE-2: slug는 URL 안정성을 위해 수정 시 건드리지 않는다(제목이
+// 바뀌어도 기존 링크가 계속 살아있어야 함).
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; postId: string }> },
+  { params }: { params: Promise<{ board_slug: string; post_slug: string }> },
 ) {
-  const { id, postId } = await params;
+  const { board_slug: boardSlug, post_slug: postSlug } = await params;
 
   const requester = await getRequestMember(request);
   if (!requester) {
     return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
   }
 
+  const { board, boardError } = await fetchBoard(boardSlug);
+
+  if (boardError || !board) {
+    return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+  }
+
+  const boardId = (board as { id: string }).id;
+
   const { data: existing, error: existingError } = await requester.scopedClient
     .from("posts")
     .select("id, author_id, body_json")
-    .eq("id", postId)
-    .eq("board_id", id)
+    .eq("slug", postSlug)
+    .eq("board_id", boardId)
     .single();
 
   if (existingError || !existing) {
@@ -236,15 +254,7 @@ export async function PATCH(
     return NextResponse.json({ error: "본인이 작성한 글만 수정할 수 있어요." }, { status: 403 });
   }
 
-  const { data: board, error: boardError } = await supabase
-    .from("boards")
-    .select("id, name, category, board_type")
-    .eq("id", id)
-    .single();
-
-  if (boardError || !board) {
-    return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
-  }
+  const postId = existing.id as string;
 
   const definition = resolveBoardDefinition(board);
 
@@ -324,20 +334,28 @@ export async function PATCH(
 // image_cleanup_queue에 적재한다(수정과 동일한 GC 패턴).
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; postId: string }> },
+  { params }: { params: Promise<{ board_slug: string; post_slug: string }> },
 ) {
-  const { id, postId } = await params;
+  const { board_slug: boardSlug, post_slug: postSlug } = await params;
 
   const requester = await getRequestMember(request);
   if (!requester) {
     return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
   }
 
+  const { board, boardError } = await fetchBoard(boardSlug);
+
+  if (boardError || !board) {
+    return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+  }
+
+  const boardId = (board as { id: string }).id;
+
   const { data: existing, error: existingError } = await requester.scopedClient
     .from("posts")
     .select("id, author_id, body_json")
-    .eq("id", postId)
-    .eq("board_id", id)
+    .eq("slug", postSlug)
+    .eq("board_id", boardId)
     .single();
 
   if (existingError || !existing) {
@@ -347,6 +365,8 @@ export async function DELETE(
   if (existing.author_id !== requester.member.id && !requester.member.is_admin) {
     return NextResponse.json({ error: "본인이 작성한 글만 삭제할 수 있어요." }, { status: 403 });
   }
+
+  const postId = existing.id as string;
 
   await enqueueAllImages(requester.scopedClient, postId, existing.body_json as JSONContent | null);
 

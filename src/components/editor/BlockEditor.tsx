@@ -476,11 +476,17 @@ function Toolbar({
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [embedMenuOpen, setEmbedMenuOpen] = useState(false);
 
+  // EPIC-079: focus("end") 없이 focus()만 쓰면, 직전에 삽입한 atom 블록(이미지/
+  // 임베드/갤러리/링크카드는 전부 group:"block", atom:true) 바로 뒤에 selection이
+  // NodeSelection으로 남는 경우가 있어(빈 문단 사이에서 ProseMirror가 텍스트
+  // 위치를 못 찾고 그 블록 자체를 선택) 다음 insertContent가 새로 추가되는 게
+  // 아니라 그 블록을 통째로 "교체"해버렸다(연속으로 이미지+임베드를 넣으면
+  // 이미지가 사라지는 버그로 재현 확인) — 항상 문서 끝에서 삽입하도록 고정.
   function insertEmbed(provider: EmbedProvider) {
     const url = window.prompt(`${provider} URL을 입력하세요`);
     setEmbedMenuOpen(false);
     if (!url) return;
-    editor.chain().focus().insertContent({ type: "embed", attrs: { provider, url, caption: "" } }).run();
+    editor.chain().focus("end").insertContent({ type: "embed", attrs: { provider, url, caption: "" } }).run();
   }
 
   function insertLinkCard() {
@@ -489,7 +495,7 @@ function Toolbar({
     const title = window.prompt("카드에 표시할 제목 (선택)") ?? "";
     editor
       .chain()
-      .focus()
+      .focus("end")
       .insertContent({ type: "linkCard", attrs: { url, title, description: "" } })
       .run();
   }
@@ -768,7 +774,7 @@ export function BlockEditor({
           }
           editor
             .chain()
-            .focus()
+            .focus("end")
             .insertContent({
               type: "figureImage",
               attrs: { src: result.url, path: result.path, alt: file.name, caption: "", featured: false },
@@ -790,7 +796,7 @@ export function BlockEditor({
         .filter((r) => !r.error)
         .map((r) => ({ src: r.url, path: r.path, alt: "", caption: "" }));
       if (images.length === 0) return;
-      editor.chain().focus().insertContent({ type: "gallery", attrs: { images, columns: 3 } }).run();
+      editor.chain().focus("end").insertContent({ type: "gallery", attrs: { images, columns: 3 } }).run();
     },
     [editor],
   );

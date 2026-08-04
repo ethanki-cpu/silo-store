@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { BlockEditor } from "@/components/editor/BlockEditor";
-import { findFeaturedImage, findFirstImage, type JSONContent } from "@/lib/blockEditorCore";
+import { findFeaturedImage, findFirstImage, isEmptyDoc, type JSONContent } from "@/lib/blockEditorCore";
 import { uploadPostImage } from "@/lib/storage";
 
 // EPIC-053.1: 글쓰기(write)와 수정(edit) 페이지가 공유하는 폼 —
@@ -137,7 +137,7 @@ export function PostForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isBodyEmpty = bodyHtml.replace(/<[^>]*>/g, "").trim().length === 0;
+  const isBodyEmpty = isEmptyDoc(bodyJson);
 
   async function handleFeaturedImageUpload(file: File) {
     setUploadingFeatured(true);

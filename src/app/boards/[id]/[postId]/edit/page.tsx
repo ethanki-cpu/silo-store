@@ -55,6 +55,13 @@ export default function EditPostPage() {
           setLoadingPost(false);
           return;
         }
+        // AuthProvider의 session/member 로딩 타이밍에 따라 이 effect가
+        // member=null인 상태로 먼저 한 번 돌아 notAllowed=true를 남겼다가,
+        // member가 뒤늦게 채워져 다시 성공적으로 돌 수 있다(AuthProvider.tsx
+        // 수정으로 이 레이스 자체는 줄였지만, 남아있는 재실행 케이스에서도
+        // notAllowed가 true로 고정된 채 남지 않도록 성공 경로에서 명시적으로
+        // 되돌린다 — render가 notAllowed를 post 유무보다 먼저 체크하므로.
+        setNotAllowed(false);
         setPost(data.post);
         setBoard(data.board);
         setLoadingPost(false);

@@ -505,3 +505,34 @@ export function findFirstImage(json: JSONContent | null | undefined): string | n
   walk(json);
   return found;
 }
+
+/**
+ * EPIC-079: 문서에 실제 내용(텍스트 또는 미디어 블록)이 있는지 판정한다.
+ * PostForm.tsx가 예전엔 이 판정을 editor의 onChange가 넘겨주는 HTML
+ * 문자열(bodyHtml state)로 했는데, 수정 화면에서 body_json으로 기존 글을
+ * 불러온 직후(에디터를 한 번도 건드리지 않은 상태)엔 onChange가 아직
+ * 한 번도 안 불려 bodyHtml이 계속 빈 문자열로 남아있어 "본문을 그대로 두고
+ * 제목만 고쳐서 저장"이 매번 조용히 무시되는 버그가 있었다(에러 표시도
+ * 없이 그냥 아무 일도 안 일어남) — 실제 정본인 JSON 트리 자체를 직접
+ * 검사해 이 문제를 근본적으로 없앤다.
+ */
+export function isEmptyDoc(json: JSONContent | null | undefined): boolean {
+  if (!json) return true;
+  let empty = true;
+
+  function walk(node: JSONContent) {
+    if (!empty) return;
+    if (node.type === "text" && (node.text ?? "").trim().length > 0) {
+      empty = false;
+      return;
+    }
+    if (["figureImage", "gallery", "embed", "linkCard"].includes(node.type ?? "")) {
+      empty = false;
+      return;
+    }
+    for (const child of node.content ?? []) walk(child);
+  }
+
+  walk(json);
+  return empty;
+}

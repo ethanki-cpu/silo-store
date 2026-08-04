@@ -48,6 +48,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // EPIC-079: session의 초기 state는 항상 null이고, 실제 로그인 여부는
+    // getSession()이 비동기로 resolve된 뒤에야 알 수 있다 — 이 effect가
+    // `loading`(세션 확인 자체가 끝났는지)을 기다리지 않고 session===null만
+    // 보고 즉시 memberLoading=false를 내보내면, 로그인된 사용자도 첫
+    // 렌더링에서 아주 짧게 "로그인 안 됨"(member=null, memberLoading=false)
+    // 상태가 실제로 관측된다 — 이 순간에 값을 읽는 화면(예: 글 수정 페이지의
+    // 작성자 확인)이 잘못된 판정을 내려버리는 버그를 실제로 재현/확인했다.
+    if (loading) return;
+
     if (!session) {
       setMember(null);
       setMemberLoading(false);
@@ -77,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         setMemberLoading(false);
       });
-  }, [session]);
+  }, [session, loading]);
 
   return (
     <AuthContext.Provider value={{ session, member, loading, memberLoading }}>

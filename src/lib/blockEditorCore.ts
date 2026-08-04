@@ -152,7 +152,7 @@ export const GalleryBlock = Node.create({
 // ============================================================
 
 export type EmbedProvider = "youtube" | "vimeo" | "instagram" | "spotify" | "googleMaps";
-export type EmbedAttrs = { provider: EmbedProvider; url: string; caption: string };
+export type EmbedAttrs = { provider: EmbedProvider; url: string; caption: string; height: number | null };
 
 export function extractYoutubeId(url: string): string | null {
   const patterns = [
@@ -171,7 +171,32 @@ export function extractVimeoId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-function embedSrc(provider: EmbedProvider, url: string): string | null {
+/** instagram.com/{p|reel|tv}/{shortcode} 형태에서 종류+shortcode를 추출한다. */
+export function extractInstagramPost(url: string): { kind: "p" | "reel" | "tv"; id: string } | null {
+  const match = url.match(/instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
+  if (!match) return null;
+  return { kind: match[1] as "p" | "reel" | "tv", id: match[2] };
+}
+
+/**
+ * Google Maps 공유 링크를 embed 가능한 URL로 정규화한다. 이미 embed
+ * URL(`/maps/embed` 또는 `output=embed`)이면 그대로 쓰고, 일반
+ * google.com/maps 링크면 `output=embed`를 붙인다(공식 Embed API 키 없이도
+ * 동작하는 잘 알려진 방법). maps.app.goo.gl 같은 단축 링크는 리다이렉트를
+ * 서버 없이 풀 수 없어 지원 범위 밖 — null을 반환해 링크 카드로 폴백한다.
+ */
+export function normalizeGoogleMapsEmbedUrl(url: string): string | null {
+  if (!url) return null;
+  if (/\/maps\/embed/.test(url) || /[?&]output=embed/.test(url)) return url;
+  if (/google\.[a-z.]+\/maps/i.test(url)) {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}output=embed`;
+  }
+  return null;
+}
+
+export function embedSrc(provider: EmbedProvider, url: string): string | null {
+  if (!url) return null;
   switch (provider) {
     case "youtube": {
       const id = extractYoutubeId(url);
@@ -184,13 +209,56 @@ function embedSrc(provider: EmbedProvider, url: string): string | null {
     case "spotify":
       return `https://open.spotify.com/embed?url=${encodeURIComponent(url)}`;
     case "googleMaps":
-      return url;
-    case "instagram":
-      return null; // Instagram은 공식 oEmbed 없이 iframe 임베드가 불가능 — 링크 카드로 표시.
+      return normalizeGoogleMapsEmbedUrl(url);
+    case "instagram": {
+      // 공식 oEmbed(script 기반 <blockquote>)는 sanitize-html이 <script>를
+      // 허용하지 않아(Stored XSS 방지) 쓸 수 없다 — 대신 Instagram이 자체
+      // 제공하는 직접 iframe 임베드 엔드포인트(/embed/captioned/)를 쓴다.
+      const post = extractInstagramPost(url);
+      return post ? `https://www.instagram.com/${post.kind}/${post.id}/embed/captioned/` : null;
+    }
     default:
       return null;
   }
 }
+
+/** embedSrc()의 역변환 — 저장된 HTML(body_json 없는 레거시 글)을 다시 열 때 iframe src로부터 원본 URL/높이를 복원한다. */
+function reverseEmbedSrc(provider: EmbedProvider, src: string): string {
+  if (!src) return "";
+  switch (provider) {
+    case "youtube": {
+      const m = src.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+      return m ? `https://www.youtube.com/watch?v=${m[1]}` : src;
+    }
+    case "vimeo": {
+      const m = src.match(/vimeo\.com\/video\/(\d+)/);
+      return m ? `https://vimeo.com/${m[1]}` : src;
+    }
+    case "spotify": {
+      try {
+        return new URL(src).searchParams.get("url") ?? src;
+      } catch {
+        return src;
+      }
+    }
+    case "instagram": {
+      const m = src.match(/instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
+      return m ? `https://www.instagram.com/${m[1]}/${m[2]}/` : src;
+    }
+    case "googleMaps":
+      return src.replace(/[?&]output=embed/, "");
+    default:
+      return src;
+  }
+}
+
+const DEFAULT_EMBED_HEIGHT: Record<EmbedProvider, number> = {
+  youtube: 315,
+  vimeo: 315,
+  spotify: 152,
+  googleMaps: 350,
+  instagram: 550,
+};
 
 export const EmbedBlock = Node.create({
   name: "embed",
@@ -203,37 +271,63 @@ export const EmbedBlock = Node.create({
       provider: { default: "youtube" },
       url: { default: "" },
       caption: { default: "" },
+      // EPIC-079: "어디까지 보이게 할 것인지" 뷰 영역 조절 — null이면
+      // DEFAULT_EMBED_HEIGHT[provider]를 쓴다.
+      height: { default: null },
     };
   },
 
   parseHTML() {
-    return [{ tag: "div[data-type='embed']" }];
+    return [
+      {
+        tag: "div[data-type='embed']",
+        // 레거시 HTML round-trip: provider/url/caption/height는 실제 HTML
+        // 속성으로 저장되지 않고 자식 요소(iframe src, <p class="embed-
+        // caption">)로만 표현되므로, 기본 Tiptap 파서(JS 속성명과 동일한
+        // HTML 속성을 찾음)로는 절대 복원되지 않는다 — 항상 "youtube"/빈
+        // URL로 리셋되는 버그가 있었다. 직접 역변환한다.
+        getAttrs: (el) => {
+          const div = el as HTMLElement;
+          const provider = (div.getAttribute("data-provider") as EmbedProvider | null) ?? "youtube";
+          const iframe = div.querySelector("iframe");
+          const link = div.querySelector("a.link-card");
+          const captionEl = div.querySelector("p.embed-caption");
+          const heightAttr = iframe?.getAttribute("height");
+          return {
+            provider,
+            url: iframe
+              ? reverseEmbedSrc(provider, iframe.getAttribute("src") ?? "")
+              : link?.getAttribute("href") ?? "",
+            caption: captionEl?.textContent ?? "",
+            height: heightAttr ? Number(heightAttr) : null,
+          };
+        },
+      },
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { provider, url, caption } = HTMLAttributes as EmbedAttrs;
+    const { provider, url, caption, height } = HTMLAttributes as EmbedAttrs;
     const src = embedSrc(provider, url);
+    const h = String(height ?? DEFAULT_EMBED_HEIGHT[provider]);
 
-    const inner: unknown[] =
-      provider === "instagram" || !src
-        ? [
-            "a",
-            { href: url, target: "_blank", rel: "noopener noreferrer", class: "link-card" },
-            provider === "instagram" ? "Instagram에서 보기" : url,
-          ]
-        : provider === "spotify"
-        ? ["iframe", { src, width: "100%", height: "152", frameborder: "0", allow: "encrypted-media", loading: "lazy" }]
-        : [
-            "iframe",
-            {
-              src,
-              width: "100%",
-              height: provider === "googleMaps" ? "350" : "315",
-              frameborder: "0",
-              allowfullscreen: "true",
-              loading: "lazy",
-            },
-          ];
+    const inner: unknown[] = !src
+      ? [
+          "a",
+          { href: url, target: "_blank", rel: "noopener noreferrer", class: "link-card" },
+          url || "링크",
+        ]
+      : provider === "spotify"
+      ? ["iframe", { src, width: "100%", height: h, frameborder: "0", allow: "encrypted-media", loading: "lazy" }]
+      : provider === "instagram"
+      ? [
+          "iframe",
+          { src, width: "100%", height: h, frameborder: "0", scrolling: "no", allowtransparency: "true", loading: "lazy" },
+        ]
+      : [
+          "iframe",
+          { src, width: "100%", height: h, frameborder: "0", allowfullscreen: "true", loading: "lazy" },
+        ];
 
     return renderSpec([
       "div",

@@ -11,6 +11,7 @@ import {
   GalleryBlock,
   EmbedBlock,
   LinkCardBlock,
+  embedSrc,
   type JSONContent,
   type EmbedProvider,
   type GalleryImageAttrs,
@@ -298,8 +299,21 @@ function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
 // Embed / LinkCard NodeView (편집 가능한 URL/캡션 + 실제 Preview)
 // ============================================================
 
+const EMBED_DEFAULT_HEIGHT: Record<EmbedProvider, number> = {
+  youtube: 315,
+  vimeo: 315,
+  spotify: 152,
+  googleMaps: 350,
+  instagram: 550,
+};
+
 function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
-  const { provider, url, caption } = node.attrs as { provider: EmbedProvider; url: string; caption: string };
+  const { provider, url, caption, height } = node.attrs as {
+    provider: EmbedProvider;
+    url: string;
+    caption: string;
+    height: number | null;
+  };
   const labels: Record<EmbedProvider, string> = {
     youtube: "YouTube",
     vimeo: "Vimeo",
@@ -319,11 +333,28 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
       <input
         type="text"
         value={url}
-        placeholder="URL을 입력하세요"
+        placeholder={
+          provider === "googleMaps"
+            ? "Google Maps 지도 링크(공유 URL)를 입력하세요"
+            : "URL을 입력하세요"
+        }
         onChange={(e) => updateAttributes({ url: e.target.value })}
         className="w-full text-sm border border-gray-200 rounded px-2 py-1 mb-2"
       />
-      <EmbedPreview provider={provider} url={url} />
+      <EmbedPreview provider={provider} url={url} height={height} />
+      <div className="flex items-center gap-2 mt-2">
+        <label className="text-xs text-gray-500 shrink-0">
+          높이(px, 보이는 영역)
+        </label>
+        <input
+          type="number"
+          min={100}
+          max={1200}
+          value={height ?? EMBED_DEFAULT_HEIGHT[provider]}
+          onChange={(e) => updateAttributes({ height: Number(e.target.value) || null })}
+          className="w-24 text-xs border border-gray-200 rounded px-2 py-1"
+        />
+      </div>
       <input
         type="text"
         value={caption}
@@ -335,43 +366,38 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
   );
 }
 
-function EmbedPreview({ provider, url }: { provider: EmbedProvider; url: string }) {
+function EmbedPreview({
+  provider,
+  url,
+  height,
+}: {
+  provider: EmbedProvider;
+  url: string;
+  height: number | null;
+}) {
   if (!url) return <p className="text-xs text-gray-400">URL을 입력하면 미리보기가 표시됩니다.</p>;
 
-  if (provider === "instagram") {
+  const src = embedSrc(provider, url);
+
+  if (!src) {
     return (
-      <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm hover:underline">
-        Instagram에서 보기 ↗
-      </a>
+      <p className="text-xs text-amber-600">
+        {provider === "googleMaps"
+          ? "이 URL에서 지도를 인식하지 못했어요 — google.com/maps로 시작하는 링크를 입력해주세요(단축 URL은 지원하지 않아요)."
+          : "URL에서 ID를 인식하지 못했어요."}
+      </p>
     );
   }
-
-  const src =
-    provider === "youtube"
-      ? (() => {
-          const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/) ??
-            url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/);
-          return m ? `https://www.youtube.com/embed/${m[1]}` : null;
-        })()
-      : provider === "vimeo"
-      ? (() => {
-          const m = url.match(/vimeo\.com\/(\d+)/);
-          return m ? `https://player.vimeo.com/video/${m[1]}` : null;
-        })()
-      : provider === "spotify"
-      ? `https://open.spotify.com/embed?url=${encodeURIComponent(url)}`
-      : url; // googleMaps: embed URL을 그대로 사용
-
-  if (!src) return <p className="text-xs text-amber-600">URL에서 ID를 인식하지 못했어요.</p>;
 
   return (
     <iframe
       src={src}
       width="100%"
-      height={provider === "spotify" ? 152 : provider === "googleMaps" ? 300 : 250}
+      height={height ?? EMBED_DEFAULT_HEIGHT[provider]}
       style={{ border: 0 }}
       loading="lazy"
-      allow="encrypted-media"
+      allow={provider === "spotify" ? "encrypted-media" : undefined}
+      scrolling={provider === "instagram" ? "no" : undefined}
       className="rounded"
     />
   );

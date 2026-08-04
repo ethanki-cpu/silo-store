@@ -28,7 +28,7 @@ export function GalleryModule({
   return (
     <div className="columns-2 sm:columns-3 gap-4 [column-fill:_balance]">
       {posts.map((post) => {
-        const imageUrl = post.featured_image_url ?? post.photo_url;
+        const imageUrl = post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null;
         return (
         <Link
           key={post.id}

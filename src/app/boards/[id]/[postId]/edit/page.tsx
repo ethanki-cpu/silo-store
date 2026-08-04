@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { PostForm, type PostFormSubmitPayload } from "@/components/boards/PostForm";
 import type { JSONContent } from "@/lib/blockEditorCore";
+import { resolveBoardDefinition, getPostCategories } from "@/lib/boardLayout";
 
 // EPIC-053.1: 게시글 수정 — Board Engine의 모든 게시판이 write와 동일한
 // PostForm/BlockEditor를 재사용한다(새 Editor 생성 금지). JSON Block이
@@ -25,10 +26,14 @@ export default function EditPostPage() {
     author_id: string;
     featured_image_url: string | null;
     featured_image_path: string | null;
+    thumbnail_visible: boolean | null;
+    category: string | null;
   } | null>(null);
   const [board, setBoard] = useState<{ board_type: string; category: string | null } | null>(null);
+  const [existingTags, setExistingTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (memberLoading) return;
@@ -42,7 +47,10 @@ export default function EditPostPage() {
           setLoadingPost(false);
           return;
         }
-        if (!member || data.post.author_id !== member.id) {
+        // 관리자는 본인 글이 아니어도 수정할 수 있다(PATCH API도 동일하게
+        // 허용) — 이전에는 client-side 게이트가 이 예외를 놓쳐 실제 admin도
+        // 여기서 막혔었다.
+        if (!member || (data.post.author_id !== member.id && !member.is_admin)) {
           setNotAllowed(true);
           setLoadingPost(false);
           return;
@@ -52,6 +60,13 @@ export default function EditPostPage() {
         setLoadingPost(false);
       });
   }, [id, postId, session, member, memberLoading]);
+
+  useEffect(() => {
+    fetch(`/api/boards/${id}/posts?pageSize=1`)
+      .then((res) => res.json())
+      .then((data) => setExistingTags(data.availableTags ?? []))
+      .catch(() => {});
+  }, [id]);
 
   async function handleSubmit(payload: PostFormSubmitPayload) {
     setError(null);
@@ -69,6 +84,8 @@ export default function EditPostPage() {
         bodyHtml: payload.bodyHtml,
         featuredImageUrl: payload.featuredImageUrl,
         featuredImagePath: payload.featuredImagePath,
+        thumbnailVisible: payload.thumbnailVisible,
+        category: payload.category,
         isDocentPost: payload.isDocentPost,
         tags: payload.tags,
       }),
@@ -83,6 +100,25 @@ export default function EditPostPage() {
     }
 
     router.push(`/boards/${id}/${postId}`);
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("이 글을 삭제할까요? 되돌릴 수 없어요.")) return;
+
+    setDeleting(true);
+    const res = await fetch(`/api/boards/${id}/posts/${postId}`, {
+      method: "DELETE",
+      headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "삭제에 실패했어요.");
+      setDeleting(false);
+      return;
+    }
+
+    router.push(`/boards/${id}`);
   }
 
   if (loadingPost || memberLoading) {
@@ -113,6 +149,8 @@ export default function EditPostPage() {
         boardId={id}
         boardType={board?.board_type ?? null}
         showTags={(post.tags ?? []).length > 0 || (post.tags != null)}
+        categories={board ? getPostCategories(resolveBoardDefinition(board)) : undefined}
+        existingTags={existingTags}
         initialTitle={post.title}
         initialBodyJson={post.body_json}
         initialLegacyHtml={post.body_json ? undefined : post.body}
@@ -120,12 +158,25 @@ export default function EditPostPage() {
         initialIsDocentPost={post.is_docent_post}
         initialFeaturedImageUrl={post.featured_image_url}
         initialFeaturedImagePath={post.featured_image_path}
+        initialThumbnailVisible={post.thumbnail_visible ?? true}
+        initialCategory={post.category}
         draftStorageKey={`draft-edit-${postId}`}
         submitLabel="수정 완료"
         onSubmit={handleSubmit}
         submitting={submitting}
         error={error}
       />
+
+      <div className="mt-8 pt-6 border-t border-gray-100">
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-sm text-red-600 hover:underline disabled:opacity-50"
+        >
+          {deleting ? "삭제 중..." : "글 삭제"}
+        </button>
+      </div>
     </main>
   );
 }

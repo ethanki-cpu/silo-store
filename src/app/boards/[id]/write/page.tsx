@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
-import { resolveBoardDefinition } from "@/lib/boardLayout";
+import { resolveBoardDefinition, getPostCategories } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PostForm, type ConfirmedOrder, type PostFormSubmitPayload } from "@/components/boards/PostForm";
 
@@ -16,6 +16,7 @@ export default function WritePostPage() {
   const [boardType, setBoardType] = useState<string | null>(null);
   const [boardCategory, setBoardCategory] = useState<string | null>(null);
   const [confirmedOrders, setConfirmedOrders] = useState<ConfirmedOrder[]>([]);
+  const [existingTags, setExistingTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -34,6 +35,16 @@ export default function WritePostPage() {
   const definition = boardType
     ? resolveBoardDefinition({ board_type: boardType, category: boardCategory })
     : null;
+
+  // EPIC-079: "기존 태그 선택" 칩 — 이 게시판에서 이미 쓰인 태그 목록을
+  // 가볍게 재사용(게시글 목록 API가 이미 availableTags를 계산해 돌려준다,
+  // 별도 엔드포인트 신설 없음).
+  useEffect(() => {
+    fetch(`/api/boards/${id}/posts?pageSize=1`)
+      .then((res) => res.json())
+      .then((data) => setExistingTags(data.availableTags ?? []))
+      .catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     if (boardType !== "adoption_story" || !member) return;
@@ -74,6 +85,8 @@ export default function WritePostPage() {
         bodyHtml: payload.bodyHtml,
         featuredImageUrl: payload.featuredImageUrl,
         featuredImagePath: payload.featuredImagePath,
+        thumbnailVisible: payload.thumbnailVisible,
+        category: payload.category,
         isDocentPost: payload.isDocentPost,
         tags: payload.tags,
         ...(boardType === "adoption_story" ? { orderId: payload.orderId } : {}),
@@ -111,6 +124,8 @@ export default function WritePostPage() {
         boardType={boardType}
         showTags={Boolean(definition?.tags)}
         confirmedOrders={confirmedOrders}
+        categories={definition ? getPostCategories(definition) : undefined}
+        existingTags={existingTags}
         draftStorageKey={`draft-${id}`}
         submitLabel="등록"
         onSubmit={handleSubmit}

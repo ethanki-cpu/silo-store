@@ -21,6 +21,8 @@ export function PostDetailHeader({
   showComments = true,
   showViewCount = true,
   editHref,
+  onDelete,
+  deleting,
 }: {
   postNumber: number | null;
   createdAt: string;
@@ -39,6 +41,9 @@ export function PostDetailHeader({
   showViewCount?: boolean;
   /** 작성자 본인(또는 관리자)에게만 전달 — 있으면 "수정" 링크를 보여준다. */
   editHref?: string;
+  /** 작성자 본인(또는 관리자)에게만 전달 — 있으면 "삭제" 버튼을 보여준다. */
+  onDelete?: () => void;
+  deleting?: boolean;
 }) {
   const statParts = [
     ...(showLikes ? [`좋아요 ${likeCount}`] : []),
@@ -96,6 +101,16 @@ export function PostDetailHeader({
             <Link href={editHref} className="text-xs text-gray-400 hover:underline hover:text-gray-600 mt-2 block">
               수정
             </Link>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              className="text-xs text-gray-400 hover:underline hover:text-red-600 mt-1 block ml-auto disabled:opacity-50"
+            >
+              {deleting ? "삭제 중..." : "삭제"}
+            </button>
           )}
         </div>
       </div>

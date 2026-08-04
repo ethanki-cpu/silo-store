@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import type { JSONContent } from "@/lib/blockEditorCore";
 import { PostDetailHeader } from "@/components/boards/PostDetailHeader";
@@ -23,6 +23,7 @@ type PostDetail = {
   photo_url: string | null;
   body_json: JSONContent | null;
   featured_image_url: string | null;
+  thumbnail_visible: boolean | null;
   tags: string[] | null;
   view_count: number | null;
   author_id: string;
@@ -50,6 +51,8 @@ type Comment = {
 export default function PostDetailPage() {
   const { id, postId } = useParams<{ id: string; postId: string }>();
   const { session, member, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
 
   const [board, setBoard] = useState<Board | null>(null);
   const [post, setPost] = useState<PostDetail | null>(null);
@@ -177,6 +180,25 @@ export default function PostDetailPage() {
     load();
   }
 
+  async function handleDelete() {
+    if (!window.confirm("이 글을 삭제할까요? 되돌릴 수 없어요.")) return;
+
+    setDeleting(true);
+    const res = await fetch(`/api/boards/${id}/posts/${postId}`, {
+      method: "DELETE",
+      headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "삭제에 실패했어요.");
+      setDeleting(false);
+      return;
+    }
+
+    router.push(`/boards/${id}`);
+  }
+
   if (fetching) {
     return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
   }
@@ -218,14 +240,20 @@ export default function PostDetailPage() {
           title={post.title}
           authorId={post.author_id}
           authorName={post.author_name}
-          photoUrl={post.featured_image_url ?? post.photo_url}
+          photoUrl={post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null}
           likeCount={post.like_count}
           viewCount={post.view_count}
           commentCount={comments.length}
           showLikes={definition.likes}
           showComments={definition.comments}
           showViewCount={definition.showViewCount}
-          editHref={member?.id === post.author_id ? `/boards/${id}/${postId}/edit` : undefined}
+          editHref={
+            member?.id === post.author_id || member?.is_admin
+              ? `/boards/${id}/${postId}/edit`
+              : undefined
+          }
+          onDelete={member?.id === post.author_id || member?.is_admin ? handleDelete : undefined}
+          deleting={deleting}
         />
 
         <div className="max-w-2xl mx-auto w-full">

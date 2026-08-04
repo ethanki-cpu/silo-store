@@ -3,11 +3,11 @@ import { supabase } from "@/lib/supabaseClient";
 import { getRequestMember, getTier, canReadBoard, RANK_LABELS } from "@/lib/serverAuth";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
-import { enqueueOrphanedImages } from "@/lib/imageGc";
+import { enqueueOrphanedImages, enqueueAllImages } from "@/lib/imageGc";
 import { fetchBoard } from "@/lib/boardFetch";
 
 const richFields =
-  "id, board_id, title, body, body_json, featured_image_url, featured_image_path, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
+  "id, board_id, title, body, body_json, featured_image_url, featured_image_path, thumbnail_visible, category, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
 const legacyFields =
   "id, board_id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
@@ -92,6 +92,8 @@ export async function GET(
         body_json: JSONContent | null;
         featured_image_url: string | null;
         featured_image_path: string | null;
+        thumbnail_visible: boolean | null;
+        category: string | null;
         is_docent_post: boolean;
         like_count: number;
         is_best: boolean;
@@ -118,6 +120,8 @@ export async function GET(
         body_json: null as JSONContent | null,
         featured_image_url: null as string | null,
         featured_image_path: null as string | null,
+        thumbnail_visible: true as boolean | null,
+        category: null as string | null,
         tags: [] as string[] | null,
         view_count: 0 as number | null,
         updated_at: (post as { created_at: string }).created_at,
@@ -250,6 +254,8 @@ export async function PATCH(
   const isDocentPost = Boolean(body?.isDocentPost);
   const featuredImageUrl = (body?.featuredImageUrl as string | null | undefined) ?? null;
   const featuredImagePath = (body?.featuredImagePath as string | null | undefined) ?? null;
+  const thumbnailVisible = body?.thumbnailVisible === undefined ? true : Boolean(body.thumbnailVisible);
+  const category = (body?.category as string | null | undefined) ?? null;
   const tags =
     definition.tags && Array.isArray(body?.tags)
       ? (body.tags as unknown[])
@@ -280,6 +286,8 @@ export async function PATCH(
       body_json: bodyJson,
       featured_image_url: featuredImageUrl,
       featured_image_path: featuredImagePath,
+      thumbnail_visible: thumbnailVisible,
+      category,
       is_docent_post: isDocentPost,
       tags,
       updated_at: new Date().toISOString(),
@@ -308,4 +316,51 @@ export async function PATCH(
   await enqueueOrphanedImages(requester.scopedClient, postId, existing.body_json as JSONContent | null, bodyJson);
 
   return NextResponse.json(updated);
+}
+
+// EPIC-079: 게시글 삭제 — 본인 작성 글만(관리자는 예외) 삭제 가능.
+// comments/likes는 FK ON DELETE CASCADE로 함께 삭제된다(docs/sql/
+// epic-079-phase-1.sql에서 확인). 본문 이미지는 즉시 삭제하지 않고
+// image_cleanup_queue에 적재한다(수정과 동일한 GC 패턴).
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; postId: string }> },
+) {
+  const { id, postId } = await params;
+
+  const requester = await getRequestMember(request);
+  if (!requester) {
+    return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
+  }
+
+  const { data: existing, error: existingError } = await requester.scopedClient
+    .from("posts")
+    .select("id, author_id, body_json")
+    .eq("id", postId)
+    .eq("board_id", id)
+    .single();
+
+  if (existingError || !existing) {
+    return NextResponse.json({ error: "게시글을 찾을 수 없어요." }, { status: 404 });
+  }
+
+  if (existing.author_id !== requester.member.id && !requester.member.is_admin) {
+    return NextResponse.json({ error: "본인이 작성한 글만 삭제할 수 있어요." }, { status: 403 });
+  }
+
+  await enqueueAllImages(requester.scopedClient, postId, existing.body_json as JSONContent | null);
+
+  const { error: deleteError } = await requester.scopedClient
+    .from("posts")
+    .delete()
+    .eq("id", postId);
+
+  if (deleteError) {
+    return NextResponse.json(
+      { error: "글 삭제에 실패했어요.", detail: deleteError.message },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ ok: true });
 }

@@ -20,7 +20,7 @@ import { fetchBoard } from "@/lib/boardFetch";
 // 실패시키므로, 먼저 새 컬럼 포함으로 시도하고 실패하면 레거시 컬럼만으로
 // 재시도해 마이그레이션 전에도 게시판 읽기가 완전히 멈추지 않게 한다.
 const richFields =
-  "id, title, body, is_docent_post, like_count, is_best, photo_url, featured_image_url, tags, view_count, updated_at, author_id, created_at";
+  "id, title, body, is_docent_post, like_count, is_best, photo_url, featured_image_url, thumbnail_visible, category, tags, view_count, updated_at, author_id, created_at";
 const legacyFields =
   "id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
@@ -123,6 +123,8 @@ export async function GET(
         is_best: boolean;
         photo_url: string | null;
         featured_image_url: string | null;
+        thumbnail_visible: boolean | null;
+        category: string | null;
         tags: string[] | null;
         view_count: number | null;
         updated_at: string;
@@ -142,6 +144,8 @@ export async function GET(
       }[]).map((p) => ({
         ...p,
         featured_image_url: null as string | null,
+        thumbnail_visible: true as boolean | null,
+        category: null as string | null,
         tags: [] as string[] | null,
         view_count: 0 as number | null,
         updated_at: p.created_at,
@@ -301,6 +305,8 @@ export async function POST(
   const orderId = body?.orderId as string | undefined;
   const featuredImageUrl = (body?.featuredImageUrl as string | null | undefined) ?? null;
   const featuredImagePath = (body?.featuredImagePath as string | null | undefined) ?? null;
+  const thumbnailVisible = body?.thumbnailVisible === undefined ? true : Boolean(body.thumbnailVisible);
+  const category = (body?.category as string | null | undefined) ?? null;
   const tags =
     definition.tags && Array.isArray(body?.tags)
       ? (body.tags as unknown[])
@@ -374,6 +380,8 @@ export async function POST(
       body_json: bodyJson,
       featured_image_url: featuredImageUrl,
       featured_image_path: featuredImagePath,
+      thumbnail_visible: thumbnailVisible,
+      category,
       is_docent_post: isDocentPost,
       visibility: "public",
       order_id: validatedOrderId,

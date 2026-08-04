@@ -43,9 +43,9 @@ const ALLOWED_ATTR = [
   "src", "alt", "width", "height", "style", "class",
   "controls", "autoplay", "loop", "muted",
   "data", "type", // object/param
-  // EPIC-053: iframe (유튜브/밈오/맵스/스포티파이)
+  // EPIC-053: iframe (유튜브/밈오/맵스/스포티파이/인스타그램)
   "src", "width", "height", "frameborder", "allowfullscreen",
-  "allow", "allowtransparency",
+  "allow", "allowtransparency", "scrolling",
   "loading", // lazy loading
   // EPIC-053: 정렬/스타일
   "text-align", "align",

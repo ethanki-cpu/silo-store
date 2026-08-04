@@ -41,6 +41,9 @@ export type BoardPost = {
   photo_url: string | null;
   /** EPIC-053.1: Block Editor에서 지정한 대표 이미지 — 있으면 photo_url보다 우선해서 썸네일로 쓴다. */
   featured_image_url?: string | null;
+  /** EPIC-079: false면 featured_image_url/photo_url이 있어도 목록/상세에서 썸네일을 렌더링하지 않는다. */
+  thumbnail_visible?: boolean | null;
+  category?: string | null;
   tags: string[] | null;
   author_id: string;
   author_name: string;
@@ -105,7 +108,17 @@ export type BoardDefinition = {
   // 필드다. 새 예약 시스템/컴포넌트를 만들지 않고, BoardHeader가 이 값을
   // 그대로 링크 버튼으로 렌더링만 한다.
   ctas?: { label: string; href: string }[];
+  // EPIC-079: 글쓰기 폼의 카테고리 드롭다운 — 게시판별 고정 목록(정규화
+  // 테이블 없음). 생략하면 DEFAULT_POST_CATEGORIES로 폴백한다.
+  categories?: string[];
 };
+
+// EPIC-079: categories를 명시하지 않은 게시판이 쓰는 기본 카테고리 목록.
+export const DEFAULT_POST_CATEGORIES = ["공지", "자유", "질문", "정보", "후기", "기타"];
+
+export function getPostCategories(definition: Pick<BoardDefinition, "categories">): string[] {
+  return definition.categories ?? DEFAULT_POST_CATEGORIES;
+}
 
 // hub 레이아웃이 화면에 보여줄 종합 피드(최신글/인기글/추천글) 한 건.
 export type HubFeedItem = {

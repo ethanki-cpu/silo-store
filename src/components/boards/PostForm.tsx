@@ -18,6 +18,8 @@ export type PostFormSubmitPayload = {
   bodyHtml: string;
   featuredImageUrl: string | null;
   featuredImagePath: string | null;
+  thumbnailVisible: boolean;
+  category: string | null;
   tags: string[];
   isDocentPost: boolean;
   orderId?: string;
@@ -29,6 +31,8 @@ export function PostForm({
   boardType,
   showTags,
   confirmedOrders,
+  categories,
+  existingTags = [],
   initialTitle = "",
   initialBodyJson = null,
   initialLegacyHtml,
@@ -37,6 +41,8 @@ export function PostForm({
   initialOrderId = "",
   initialFeaturedImageUrl = null,
   initialFeaturedImagePath = null,
+  initialThumbnailVisible = true,
+  initialCategory = null,
   draftStorageKey,
   submitLabel,
   onSubmit,
@@ -48,6 +54,10 @@ export function PostForm({
   boardType: string | null;
   showTags: boolean;
   confirmedOrders?: ConfirmedOrder[];
+  /** EPIC-079: 카테고리 드롭다운 선택지 — 없으면 드롭다운 자체를 숨긴다. */
+  categories?: string[];
+  /** EPIC-079: "기존 태그 선택" 칩으로 보여줄, 이 게시판에서 이미 쓰인 태그 목록. */
+  existingTags?: string[];
   initialTitle?: string;
   initialBodyJson?: JSONContent | null;
   initialLegacyHtml?: string;
@@ -56,6 +66,8 @@ export function PostForm({
   initialOrderId?: string;
   initialFeaturedImageUrl?: string | null;
   initialFeaturedImagePath?: string | null;
+  initialThumbnailVisible?: boolean;
+  initialCategory?: string | null;
   draftStorageKey: string;
   submitLabel: string;
   onSubmit: (payload: PostFormSubmitPayload) => Promise<void>;
@@ -70,6 +82,8 @@ export function PostForm({
   const [tagsInput, setTagsInput] = useState(initialTags.join(", "));
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(initialFeaturedImageUrl);
   const [featuredImagePath, setFeaturedImagePath] = useState<string | null>(initialFeaturedImagePath);
+  const [thumbnailVisible, setThumbnailVisible] = useState(initialThumbnailVisible);
+  const [category, setCategory] = useState<string>(initialCategory ?? "");
   const [uploadingFeatured, setUploadingFeatured] = useState(false);
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
 
@@ -147,6 +161,8 @@ export function PostForm({
       bodyHtml,
       featuredImageUrl,
       featuredImagePath,
+      thumbnailVisible,
+      category: category || null,
       tags: tagsInput
         .split(",")
         .map((t) => t.trim())
@@ -195,6 +211,24 @@ export function PostForm({
           className="w-full rounded-md border border-gray-300 px-3 py-2"
         />
       </div>
+
+      {categories && categories.length > 0 && (
+        <div>
+          <label className="block text-sm mb-1">카테고리</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2"
+          >
+            <option value="">선택 안 함</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label className="block text-sm mb-1">내용</label>
@@ -249,6 +283,16 @@ export function PostForm({
             )}
           </div>
         </div>
+        {featuredImageUrl && (
+          <label className="flex items-center gap-2 text-xs text-gray-600 mt-2">
+            <input
+              type="checkbox"
+              checked={thumbnailVisible}
+              onChange={(e) => setThumbnailVisible(e.target.checked)}
+            />
+            목록/상세에서 이 대표 이미지를 썸네일로 보여주기
+          </label>
+        )}
       </div>
 
       {showTags && (
@@ -261,6 +305,34 @@ export function PostForm({
             placeholder="예: 여행, 후기, 사진"
             className="w-full rounded-md border border-gray-300 px-3 py-2"
           />
+          {existingTags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {existingTags.map((t) => {
+                const current = tagsInput
+                  .split(",")
+                  .map((x) => x.trim())
+                  .filter((x) => x.length > 0);
+                const active = current.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      const next = active ? current.filter((x) => x !== t) : [...current, t];
+                      setTagsInput(next.join(", "));
+                    }}
+                    className={`text-xs px-2 py-0.5 rounded-full border ${
+                      active
+                        ? "bg-gray-800 text-white border-gray-800"
+                        : "bg-white text-gray-500 border-gray-300 hover:border-gray-400"
+                    }`}
+                  >
+                    #{t}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

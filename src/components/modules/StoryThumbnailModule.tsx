@@ -38,7 +38,11 @@ export function StoryThumbnailModule({
         <StoryCard
           key={post.id}
           href={`/boards/${boardId}/${post.id}`}
-          photoUrl={showThumbnail ? (post.featured_image_url ?? post.photo_url) : null}
+          photoUrl={
+            showThumbnail && post.thumbnail_visible !== false
+              ? (post.featured_image_url ?? post.photo_url)
+              : null
+          }
           title={post.title ?? ""}
           summary={post.body ? stripHtml(post.body) : null}
           tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]}

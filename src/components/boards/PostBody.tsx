@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
+import { processInstagramEmbeds } from "@/lib/instagramEmbed";
 
 // EPIC-052: Tiptap Block Editor 도입 이전 글(plain text)과 이후 글(HTML)이
 // 같은 posts.body 컬럼에 섞여 있어, 태그 포함 여부로 렌더링 방식을
@@ -16,6 +17,16 @@ import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
 export function PostBody({ body }: { body: string }) {
   const looksLikeHtml = /<[a-z][\s\S]*>/i.test(body);
   const [lightbox, setLightbox] = useState<{ images: LightboxImage[]; index: number } | null>(null);
+
+  // EPIC-079-PHASE-2 후속 핫픽스: 본문에 Instagram blockquote가 있으면
+  // embed.js를 로드해 실제 임베드로 바꿔치기한다 — dangerouslySetInnerHTML로
+  // 넣은 정적 HTML은 그 자체로는 아무것도 렌더링하지 않는 빈 blockquote일
+  // 뿐이라 이 처리가 없으면 아무것도 안 보인다(src/lib/instagramEmbed.ts).
+  useEffect(() => {
+    if (looksLikeHtml && body.includes("instagram-media")) {
+      processInstagramEmbeds();
+    }
+  }, [body, looksLikeHtml]);
 
   function handleClick(e: MouseEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;

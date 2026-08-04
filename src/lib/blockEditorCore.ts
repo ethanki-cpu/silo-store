@@ -151,7 +151,25 @@ export const GalleryBlock = Node.create({
 // Embed — Youtube/Vimeo/Instagram/Spotify/Google Maps 공용 노드.
 // ============================================================
 
-export type EmbedProvider = "youtube" | "vimeo" | "instagram" | "spotify" | "googleMaps";
+// EPIC-079-TIPTAP-FIX-V2: twitter(X)/naverBlog/naverMap 3종 추가.
+// naverMap은 googleMaps와 달리 일반 공유 링크→embed URL 정규화 규칙이 없다
+// (Naver는 지도 페이지 자체를 X-Frame-Options: DENY로 막아둬서, "링크 하나
+// 붙여넣기"로는 애초에 만들 수 있는 embed URL이 없다 — 직접 확인 완료).
+// 대신 사용자가 네이버 지도 "퍼가기"에서 받은 <iframe> 코드를 통째로 본문에
+// 붙여넣으면 parseHTML의 raw-iframe 캡처 규칙이 그 src를 그대로 가져와
+// 쓴다("naverMap"/미인식 도메인은 "raw"). googleMaps도 같은 붙여넣기 경로를
+// 지원하지만 기존처럼 일반 공유 링크 타이핑도 계속 지원한다(embedSrc가
+// 이미 embed URL이면 그대로 통과시키므로 두 입력 경로가 자연히 호환됨).
+export type EmbedProvider =
+  | "youtube"
+  | "vimeo"
+  | "instagram"
+  | "spotify"
+  | "googleMaps"
+  | "twitter"
+  | "naverBlog"
+  | "naverMap"
+  | "raw";
 export type EmbedAttrs = { provider: EmbedProvider; url: string; caption: string; height: number | null };
 
 export function extractYoutubeId(url: string): string | null {
@@ -176,6 +194,30 @@ export function extractInstagramPost(url: string): { kind: "p" | "reel" | "tv"; 
   const match = url.match(/instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
   if (!match) return null;
   return { kind: match[1] as "p" | "reel" | "tv", id: match[2] };
+}
+
+/** twitter.com/x.com/{user}/status/{id} 형태에서 트윗 ID를 추출한다. */
+export function extractTweetId(url: string): string | null {
+  const m = url.match(/(?:twitter|x)\.com\/[^/?#]+\/status(?:es)?\/(\d+)/);
+  return m ? m[1] : null;
+}
+
+/**
+ * blog.naver.com/{blogId}/{logNo} 또는
+ * blog.naver.com/PostView.naver?blogId=&logNo= 형태에서 블로그 글을
+ * 식별하는 두 값을 추출한다.
+ */
+export function extractNaverBlogPost(url: string): { blogId: string; logNo: string } | null {
+  try {
+    const u = new URL(url);
+    const blogId = u.searchParams.get("blogId");
+    const logNo = u.searchParams.get("logNo");
+    if (blogId && logNo) return { blogId, logNo };
+  } catch {
+    // URL 파싱 실패는 아래 경로 기반 매칭으로 폴백.
+  }
+  const m = url.match(/blog\.naver\.com\/([^/?#]+)\/(\d+)/);
+  return m ? { blogId: m[1], logNo: m[2] } : null;
 }
 
 /**
@@ -211,12 +253,36 @@ export function embedSrc(provider: EmbedProvider, url: string): string | null {
     case "googleMaps":
       return normalizeGoogleMapsEmbedUrl(url);
     case "instagram": {
-      // 공식 oEmbed(script 기반 <blockquote>)는 sanitize-html이 <script>를
-      // 허용하지 않아(Stored XSS 방지) 쓸 수 없다 — 대신 Instagram이 자체
-      // 제공하는 직접 iframe 임베드 엔드포인트(/embed/captioned/)를 쓴다.
+      // EPIC-079-PHASE-2 후속 핫픽스: 이전엔 여기서 `/embed/captioned/`
+      // 직접 iframe 엔드포인트를 반환했는데, 그 응답 헤더에
+      // `X-Frame-Options: DENY`가 있어 어떤 사이트에도 iframe으로 못 들어가
+      // 항상 "차단됨" 화면만 떴다(실제로 한 번도 동작한 적이 없었음). 이제
+      // 이 함수는 iframe src가 아니라 정규화된 permalink를 반환하고,
+      // renderHTML()이 이를 `data-instgrm-permalink`로 써서 공식
+      // blockquote+embed.js 위젯 방식으로 렌더링한다(src/lib/instagramEmbed.ts).
       const post = extractInstagramPost(url);
-      return post ? `https://www.instagram.com/${post.kind}/${post.id}/embed/captioned/` : null;
+      return post ? `https://www.instagram.com/${post.kind}/${post.id}/` : null;
     }
+    case "twitter": {
+      // platform.twitter.com/embed/Tweet.html은 확인 결과 X-Frame-Options가
+      // 없어(공식 임베드 iframe 엔드포인트) instagram과 달리 직접 iframe으로
+      // 정상 동작한다.
+      const id = extractTweetId(url);
+      return id ? `https://platform.twitter.com/embed/Tweet.html?id=${id}` : null;
+    }
+    case "naverBlog": {
+      // blog.naver.com/PostView.naver도 확인 결과 X-Frame-Options가 없다.
+      const post = extractNaverBlogPost(url);
+      return post
+        ? `https://blog.naver.com/PostView.naver?blogId=${encodeURIComponent(post.blogId)}&logNo=${encodeURIComponent(post.logNo)}`
+        : null;
+    }
+    case "naverMap":
+    case "raw":
+      // 둘 다 URL 변환 규칙이 없다 — parseHTML의 raw-iframe 캡처가 이미
+      // 완성된 embed URL(사용자가 "퍼가기"로 받은 iframe의 src)을 그대로
+      // url에 담아두므로 여기서는 그 값을 그대로 돌려주기만 한다.
+      return url || null;
     default:
       return null;
   }
@@ -247,6 +313,23 @@ function reverseEmbedSrc(provider: EmbedProvider, src: string): string {
     }
     case "googleMaps":
       return src.replace(/[?&]output=embed/, "");
+    case "twitter": {
+      const m = src.match(/[?&]id=(\d+)/);
+      return m ? `https://twitter.com/i/status/${m[1]}` : src;
+    }
+    case "naverBlog": {
+      try {
+        const u = new URL(src);
+        const blogId = u.searchParams.get("blogId");
+        const logNo = u.searchParams.get("logNo");
+        return blogId && logNo ? `https://blog.naver.com/${blogId}/${logNo}` : src;
+      } catch {
+        return src;
+      }
+    }
+    case "naverMap":
+    case "raw":
+      return src;
     default:
       return src;
   }
@@ -258,6 +341,10 @@ const DEFAULT_EMBED_HEIGHT: Record<EmbedProvider, number> = {
   spotify: 152,
   googleMaps: 350,
   instagram: 550,
+  twitter: 550,
+  naverBlog: 600,
+  naverMap: 400,
+  raw: 400,
 };
 
 export const EmbedBlock = Node.create({
@@ -290,6 +377,11 @@ export const EmbedBlock = Node.create({
           const div = el as HTMLElement;
           const provider = (div.getAttribute("data-provider") as EmbedProvider | null) ?? "youtube";
           const iframe = div.querySelector("iframe");
+          // EPIC-079-PHASE-2 후속 핫픽스: instagram은 더 이상 iframe이 아니라
+          // blockquote.instagram-media(+data-instgrm-permalink)로 저장된다 —
+          // 다만 그 사이(EPIC-079-PHASE-1~이번 핫픽스 전)에 저장된 글은 여전히
+          // 깨진 iframe 형태라 iframe 분기를 먼저 시도해 하위 호환한다.
+          const instagramBlockquote = div.querySelector("blockquote.instagram-media");
           const link = div.querySelector("a.link-card");
           const captionEl = div.querySelector("p.embed-caption");
           const heightAttr = iframe?.getAttribute("height");
@@ -297,8 +389,44 @@ export const EmbedBlock = Node.create({
             provider,
             url: iframe
               ? reverseEmbedSrc(provider, iframe.getAttribute("src") ?? "")
+              : instagramBlockquote
+              ? instagramBlockquote.getAttribute("data-instgrm-permalink") ?? ""
               : link?.getAttribute("href") ?? "",
             caption: captionEl?.textContent ?? "",
+            height: heightAttr ? Number(heightAttr) : null,
+          };
+        },
+      },
+      // EPIC-079-TIPTAP-FIX-V2: 구글 지도/네이버 지도의 "퍼가기" 공유 코드는
+      // <iframe src="..."> 하나만 달랑 던져주는 형태라, 툴바의 URL 입력창을
+      // 거치지 않고 사용자가 에디터에 그 코드를 직접 붙여넣는 경우가 있다
+      // (특히 Naver Map은 URL 하나로는 embed URL을 만들 방법이 없어 — 지도
+      // 페이지 자체가 X-Frame-Options: DENY라 확인함 — 이 붙여넣기가 사실상
+      // 유일한 입력 경로다). 위 div[data-type='embed'] 규칙은 우리가 저장한
+      // 마크업 전용이라 이 raw <iframe>은 안 잡히므로 별도 규칙을 추가한다.
+      {
+        tag: "iframe",
+        getAttrs: (el) => {
+          const iframe = el as HTMLIFrameElement;
+          // 우리 자신이 저장한 div[data-type='embed'] 안의 iframe(스포티파이/
+          // 유튜브/비메오/기타 provider)은 위 규칙이 이미 통째로 처리하므로
+          // 여기서 다시 잡지 않는다 — false를 반환하면 다음 규칙/기본 처리로
+          // 넘어간다(ProseMirror DOMParser 표준 동작).
+          if (iframe.closest("div[data-type='embed']")) return false;
+          const src = iframe.getAttribute("src");
+          if (!src) return false;
+
+          const provider: EmbedProvider = /google\.[a-z.]+\/maps|\/maps\/embed/i.test(src)
+            ? "googleMaps"
+            : /naver\.com|naver\.me/i.test(src)
+            ? "naverMap"
+            : "raw";
+
+          const heightAttr = iframe.getAttribute("height");
+          return {
+            provider,
+            url: src,
+            caption: "",
             height: heightAttr ? Number(heightAttr) : null,
           };
         },
@@ -320,9 +448,26 @@ export const EmbedBlock = Node.create({
       : provider === "spotify"
       ? ["iframe", { src, width: "100%", height: h, frameborder: "0", allow: "encrypted-media", loading: "lazy" }]
       : provider === "instagram"
-      ? [
-          "iframe",
-          { src, width: "100%", height: h, frameborder: "0", scrolling: "no", allowtransparency: "true", loading: "lazy" },
+      ? // EPIC-079-PHASE-2 후속 핫픽스: instagram.com이 /embed/*를
+        // X-Frame-Options: DENY로 막아 직접 iframe이 항상 "차단됨"으로
+        // 나오던 버그 — Instagram 공식 blockquote+embed.js 위젯 방식으로
+        // 교체(src/lib/instagramEmbed.ts가 게시글이 실제로 보이는 화면에서
+        // embed.js를 로드하고 이 blockquote를 실제 임베드로 변환한다).
+        [
+          "blockquote",
+          {
+            class: "instagram-media",
+            "data-instgrm-permalink": src,
+            "data-instgrm-version": "14",
+            "data-instgrm-captioned": "",
+            style:
+              "background:#FFF; border:0; border-radius:3px; margin:1px; max-width:540px; min-width:326px; padding:0; width:99%;",
+          },
+          [
+            "a",
+            { href: src, target: "_blank", rel: "noopener noreferrer" },
+            "Instagram 게시물 보기",
+          ],
         ]
       : [
           "iframe",

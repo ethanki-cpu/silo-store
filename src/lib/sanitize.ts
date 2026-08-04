@@ -53,6 +53,10 @@ const ALLOWED_ATTR = [
   "data-type", "data-checked", "data-placeholder",
   // EPIC-053.1: Block Editor 커스텀 노드(FigureImage/Gallery/Embed/LinkCard) 렌더링용
   "data-featured", "data-provider",
+  // EPIC-079-PHASE-2 후속 핫픽스: Instagram 공식 blockquote+embed.js 위젯
+  // 마크업(src/lib/instagramEmbed.ts) — 이 세 속성이 없으면 embed.js가
+  // blockquote를 인식하지 못해 그대로 fallback 링크만 남는다.
+  "data-instgrm-permalink", "data-instgrm-version", "data-instgrm-captioned",
 ];
 
 export function sanitizeHtml(html: string): string {

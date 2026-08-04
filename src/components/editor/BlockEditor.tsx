@@ -18,6 +18,7 @@ import {
   emptyDoc,
 } from "@/lib/blockEditorCore";
 import { Lightbox, type LightboxImage } from "./Lightbox";
+import { processInstagramEmbeds } from "@/lib/instagramEmbed";
 
 // EPIC-053.1: Block Editor 확장.
 // - 정본 저장 형식을 HTML에서 Tiptap JSON(ProseMirror doc)으로 전환 —
@@ -305,6 +306,10 @@ const EMBED_DEFAULT_HEIGHT: Record<EmbedProvider, number> = {
   spotify: 152,
   googleMaps: 350,
   instagram: 550,
+  twitter: 550,
+  naverBlog: 600,
+  naverMap: 400,
+  raw: 400,
 };
 
 function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
@@ -320,6 +325,10 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     instagram: "Instagram",
     spotify: "Spotify",
     googleMaps: "Google Maps",
+    twitter: "X (Twitter)",
+    naverBlog: "네이버 블로그",
+    naverMap: "네이버 지도",
+    raw: "임베드",
   };
 
   return (
@@ -342,19 +351,24 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
         className="w-full text-sm border border-gray-200 rounded px-2 py-1 mb-2"
       />
       <EmbedPreview provider={provider} url={url} height={height} />
-      <div className="flex items-center gap-2 mt-2">
-        <label className="text-xs text-gray-500 shrink-0">
-          높이(px, 보이는 영역)
-        </label>
-        <input
-          type="number"
-          min={100}
-          max={1200}
-          value={height ?? EMBED_DEFAULT_HEIGHT[provider]}
-          onChange={(e) => updateAttributes({ height: Number(e.target.value) || null })}
-          className="w-24 text-xs border border-gray-200 rounded px-2 py-1"
-        />
-      </div>
+      {/* EPIC-079-PHASE-2 후속 핫픽스: instagram은 이제 iframe이 아니라
+          embed.js 위젯이 자체적으로 크기를 정하는 blockquote라, 높이 입력이
+          아무 효과가 없어 숨긴다. */}
+      {provider !== "instagram" && (
+        <div className="flex items-center gap-2 mt-2">
+          <label className="text-xs text-gray-500 shrink-0">
+            높이(px, 보이는 영역)
+          </label>
+          <input
+            type="number"
+            min={100}
+            max={1200}
+            value={height ?? EMBED_DEFAULT_HEIGHT[provider]}
+            onChange={(e) => updateAttributes({ height: Number(e.target.value) || null })}
+            className="w-24 text-xs border border-gray-200 rounded px-2 py-1"
+          />
+        </div>
+      )}
       <input
         type="text"
         value={caption}
@@ -389,6 +403,13 @@ function EmbedPreview({
     );
   }
 
+  // EPIC-079-PHASE-2 후속 핫픽스: instagram.com의 /embed/* 엔드포인트가
+  // X-Frame-Options: DENY라 iframe으로는 절대 못 띄운다(항상 "차단됨"
+  // 아이콘만 나오던 원인) — 공식 blockquote+embed.js 위젯으로 대체.
+  if (provider === "instagram") {
+    return <InstagramEmbedPreview permalink={src} />;
+  }
+
   return (
     <iframe
       src={src}
@@ -397,9 +418,41 @@ function EmbedPreview({
       style={{ border: 0 }}
       loading="lazy"
       allow={provider === "spotify" ? "encrypted-media" : undefined}
-      scrolling={provider === "instagram" ? "no" : undefined}
       className="rounded"
     />
+  );
+}
+
+function InstagramEmbedPreview({ permalink }: { permalink: string }) {
+  // embed.js가 blockquote DOM을 자기 방식대로 통째로 갈아치우므로, url이
+  // 바뀔 때마다 React가 새 DOM 노드를 만들도록 key로 강제한다(같은 노드를
+  // 재사용하면 이전 embed.js 처리 결과가 그대로 남아있을 수 있음).
+  useEffect(() => {
+    processInstagramEmbeds();
+  }, [permalink]);
+
+  return (
+    <blockquote
+      key={permalink}
+      className="instagram-media"
+      data-instgrm-permalink={permalink}
+      data-instgrm-version="14"
+      data-instgrm-captioned=""
+      style={{
+        background: "#FFF",
+        border: 0,
+        borderRadius: 3,
+        margin: 1,
+        maxWidth: 540,
+        minWidth: 326,
+        padding: 0,
+        width: "99%",
+      }}
+    >
+      <a href={permalink} target="_blank" rel="noopener noreferrer">
+        Instagram 게시물 보기
+      </a>
+    </blockquote>
   );
 }
 
@@ -627,7 +680,17 @@ function Toolbar({
         </ToolbarButton>
         {embedMenuOpen && (
           <div className="absolute z-20 top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-md text-sm min-w-[140px]">
-            {(["youtube", "vimeo", "instagram", "spotify", "googleMaps"] as EmbedProvider[]).map((p) => (
+            {(
+              [
+                "youtube",
+                "vimeo",
+                "instagram",
+                "spotify",
+                "googleMaps",
+                "twitter",
+                "naverBlog",
+              ] as EmbedProvider[]
+            ).map((p) => (
               <button
                 key={p}
                 type="button"
@@ -639,6 +702,8 @@ function Toolbar({
                 {p === "instagram" && "Instagram"}
                 {p === "spotify" && "Spotify"}
                 {p === "googleMaps" && "Google Maps"}
+                {p === "twitter" && "X (Twitter)"}
+                {p === "naverBlog" && "네이버 블로그"}
               </button>
             ))}
           </div>

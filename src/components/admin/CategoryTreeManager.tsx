@@ -56,6 +56,13 @@ type CategoryNavRow = {
 };
 
 const STORAGE_BUCKET = "public-assets";
+// EPIC-079-PHASE-4 후속: "미분류 페이지"를 별도 패널이 아니라 이 트리 안의
+// 진짜 노드(부모 없는 루트 하나 아래에 전부 자식으로)로 편입시켜, 드래그로
+// 실제 메뉴 위치로 옮기는 것과 추가/수정/페이지 수정/관리/삭제를 별도 구현
+// 없이 기존 CategoryRow/DnD 메커니즘 그대로 재사용한다. key로 고정 식별해
+// 여러 번 로드해도 이 버킷 행을 중복 생성하지 않는다. is_active=false라
+// 실제 사이트 상단 탭에는 노출되지 않는다(관리자 화면에서만 보임).
+const UNASSIGNED_BUCKET_KEY = "__unassigned_pages__";
 
 const inputClass =
   "w-full rounded-md border border-gray-300 px-2 py-1 text-sm";
@@ -128,18 +135,69 @@ export function CategoryTreeManager({
 
   const sensors = useSensors(useSensor(PointerSensor));
 
+  const NAV_SELECT_FIELDS =
+    "id, key, title, href, parent_id, target_type, sort_order, is_active, topic, thumbnail_url, description, is_public";
+
+  // EPIC-079-PHASE-4 후속: page_builder에 있지만 어떤 site_navigations
+  // 행에도 매칭 안 된 페이지들을 "미분류 페이지" 버킷 아래 실제 행으로
+  // 만들어 넣는다 — 이후로는 평범한 트리 노드라 드래그로 옮기거나 기존
+  // 추가/수정/페이지 수정/관리/삭제 버튼을 그대로 쓸 수 있다. 되돌릴
+  // 새 행이 하나도 없으면 아무 것도 하지 않는다(버킷 자체도 안 만듦).
+  async function ensureUnassignedPagesInTree(existingRows: CategoryNavRow[]): Promise<boolean> {
+    const { data: pagesData } = await supabase
+      .from("page_builder")
+      .select("id, slug, title, description");
+    if (!pagesData) return false;
+
+    const linkedSlugs = new Set(
+      existingRows.filter((r) => r.href).map((r) => hrefToSlug(r.href!)),
+    );
+    const unassigned = (
+      pagesData as { id: string; slug: string; title: string; description: string | null }[]
+    ).filter((p) => !linkedSlugs.has(p.slug));
+    if (unassigned.length === 0) return false;
+
+    let bucketId = existingRows.find((r) => r.key === UNASSIGNED_BUCKET_KEY)?.id;
+    if (!bucketId) {
+      const { data: inserted, error: bucketError } = await supabase
+        .from("site_navigations")
+        .insert({
+          key: UNASSIGNED_BUCKET_KEY,
+          title: "미분류 페이지",
+          parent_id: null,
+          target_type: "tab",
+          is_active: false,
+          sort_order: 9999,
+        })
+        .select("id")
+        .single();
+      if (bucketError || !inserted) return false;
+      bucketId = inserted.id as string;
+    }
+
+    const siblingCount = existingRows.filter((r) => r.parent_id === bucketId).length;
+    const { error: insertError } = await supabase.from("site_navigations").insert(
+      unassigned.map((p, i) => ({
+        parent_id: bucketId,
+        title: p.title,
+        href: `/${p.slug}`,
+        description: p.description,
+        target_type: "tab" as TargetTypeLiteral,
+        is_active: false,
+        sort_order: siblingCount + i,
+      })),
+    );
+    return !insertError;
+  }
+
   async function load() {
     setFetching(true);
     const [navResult, pagesResult] = await Promise.all([
-      supabase
-        .from("site_navigations")
-        .select(
-          "id, key, title, href, parent_id, target_type, sort_order, is_active, topic, thumbnail_url, description, is_public",
-        )
-        .order("sort_order", { ascending: true }),
+      supabase.from("site_navigations").select(NAV_SELECT_FIELDS).order("sort_order", { ascending: true }),
       supabase.from("page_builder").select("id, slug"),
     ]);
-    const { data, error: fetchError } = navResult;
+    let { data } = navResult;
+    const { error: fetchError } = navResult;
 
     if (pagesResult.data) {
       setPageIdBySlug(
@@ -154,6 +212,16 @@ export function CategoryTreeManager({
       setFetching(false);
       return;
     }
+
+    const migrated = await ensureUnassignedPagesInTree((data ?? []) as CategoryNavRow[]);
+    if (migrated) {
+      const refreshed = await supabase
+        .from("site_navigations")
+        .select(NAV_SELECT_FIELDS)
+        .order("sort_order", { ascending: true });
+      if (refreshed.data) data = refreshed.data;
+    }
+
     setError(null);
     setRows((data ?? []) as CategoryNavRow[]);
     setFetching(false);
@@ -185,13 +253,17 @@ export function CategoryTreeManager({
   const scopedRows = rows.filter(belongsToThisTree);
 
   async function persistRows(
-    updates: { id: string; parent_id: string | null; sort_order: number }[],
+    updates: { id: string; parent_id: string | null; sort_order: number; is_active?: boolean }[],
   ) {
     const results = await Promise.all(
       updates.map((u) =>
         supabase
           .from("site_navigations")
-          .update({ parent_id: u.parent_id, sort_order: u.sort_order })
+          .update({
+            parent_id: u.parent_id,
+            sort_order: u.sort_order,
+            ...(u.is_active !== undefined ? { is_active: u.is_active } : {}),
+          })
           .eq("id", u.id),
       ),
     );
@@ -239,8 +311,21 @@ export function CategoryTreeManager({
     const insertAt = overIsContainer ? destSiblings.length : destIndex;
     destSiblings.splice(insertAt, 0, { ...activeRow, parent_id: destParentId });
 
-    const updates: { id: string; parent_id: string | null; sort_order: number }[] =
-      destSiblings.map((r, i) => ({ id: r.id, parent_id: destParentId, sort_order: i }));
+    // EPIC-079-PHASE-4 후속: "미분류 페이지" 버킷 밖으로 드래그해서 실제
+    // 메뉴 위치에 놓으면, 그 자리로 옮겨진 게 곧 "이제 진짜 메뉴에 넣고
+    // 싶다"는 의도이므로 비활성(is_active=false)이던 상태를 자동으로
+    // 활성화한다 — 버킷 안에서의 이동이나 버킷 자체로의 이동은 그대로 둔다.
+    const unassignedBucketId = rows.find((r) => r.key === UNASSIGNED_BUCKET_KEY)?.id ?? null;
+    const movingOutOfUnassigned =
+      activeRow.parent_id === unassignedBucketId && destParentId !== unassignedBucketId;
+
+    const updates: { id: string; parent_id: string | null; sort_order: number; is_active?: boolean }[] =
+      destSiblings.map((r, i) => ({
+        id: r.id,
+        parent_id: destParentId,
+        sort_order: i,
+        ...(r.id === activeRow.id && movingOutOfUnassigned ? { is_active: true } : {}),
+      }));
 
     if (sourceContainerId !== destContainerId) {
       const sourceSiblings = rows
@@ -257,7 +342,9 @@ export function CategoryTreeManager({
     setRows((prev) =>
       prev.map((r) => {
         const u = updates.find((x) => x.id === r.id);
-        return u ? { ...r, parent_id: u.parent_id, sort_order: u.sort_order } : r;
+        return u
+          ? { ...r, parent_id: u.parent_id, sort_order: u.sort_order, is_active: u.is_active ?? r.is_active }
+          : r;
       }),
     );
 

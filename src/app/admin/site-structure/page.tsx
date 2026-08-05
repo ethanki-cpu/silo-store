@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthProvider";
 import { CategoryTreeManager } from "@/components/admin/CategoryTreeManager";
 import { fetchAllPagesForAdmin, type PageBuilderRow } from "@/lib/pageBuilder";
+import { hrefToSlug } from "@/lib/pageTemplates";
 import {
   fetchNavBranches,
   fetchBoardBranchMap,
@@ -55,11 +56,22 @@ export default function AdminSiteStructurePage() {
   const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
   const [pages, setPages] = useState<PageBuilderRow[]>([]);
   const [boards, setBoards] = useState<UnassignedBoard[]>([]);
+  // EPIC-079-PHASE-4 후속: fetchNavBranches()는 is_active=true인 행만 읽는데
+  // (실제 프론트엔드 노출 여부 기준), CategoryTreeManager가 자동으로 만드는
+  // "미분류 페이지" 버킷 아래 행들은 일부러 is_active=false라 그 목록엔
+  // 안 잡힌다 — 그 상태로 slugToBranchId만 쓰면 이미 트리 안에 들어간
+  // 페이지가 이 "미분류 페이지" 패널에도 중복으로 나타난다. is_active와
+  // 무관하게 site_navigations 전체의 href→slug를 별도로 조회해, "트리
+  // 어딘가에 이미 연결된 페이지"는 활성 여부와 상관없이 전부 걸러낸다.
+  const [allLinkedSlugs, setAllLinkedSlugs] = useState<Set<string>>(new Set());
   const [fetching, setFetching] = useState(true);
 
   async function load() {
     setFetching(true);
-    const navBranches = await fetchNavBranches();
+    const [navBranches, allNavHrefs] = await Promise.all([
+      fetchNavBranches(),
+      supabase.from("site_navigations").select("href"),
+    ]);
     const [branchMap, pageRows] = await Promise.all([
       fetchBoardBranchMap(navBranches),
       fetchAllPagesForAdmin(),
@@ -67,6 +79,13 @@ export default function AdminSiteStructurePage() {
     setBranches(navBranches);
     setBoardBranchMap(branchMap);
     setPages(pageRows ?? []);
+    setAllLinkedSlugs(
+      new Set(
+        ((allNavHrefs.data ?? []) as { href: string | null }[])
+          .filter((r) => r.href)
+          .map((r) => hrefToSlug(r.href!)),
+      ),
+    );
 
     if (session) {
       const res = await fetch("/api/admin/boards", {
@@ -86,8 +105,8 @@ export default function AdminSiteStructurePage() {
   const slugToBranchId = useMemo(() => buildSlugToBranchId(branches), [branches]);
 
   const unassignedPages = useMemo(
-    () => pages.filter((p) => !slugToBranchId.has(p.slug)),
-    [pages, slugToBranchId],
+    () => pages.filter((p) => !slugToBranchId.has(p.slug) && !allLinkedSlugs.has(p.slug)),
+    [pages, slugToBranchId, allLinkedSlugs],
   );
   const unassignedBoards = useMemo(
     () => boards.filter((b) => !boardBranchMap.has(b.id)),
@@ -103,15 +122,20 @@ export default function AdminSiteStructurePage() {
           옮길 수 있어요. 각 항목의 [관리]에서 공개 설정·주제·대표 이미지·소개는
           물론, 연결된 페이지 위젯과 게시판 정보까지 한 번에 편집하세요.
           최상위 항목이 곧 실제 사이트의 상단 탭이에요 — 새 최상위 탭을
-          추가하면 그대로 상단 탭이 하나 늘어나요.
+          추가하면 그대로 상단 탭이 하나 늘어나요. 아직 메뉴에 안 걸린
+          페이지는 트리 맨 아래 &quot;미분류 페이지&quot; 아래에 모여있어요 —
+          거기서 원하는 메뉴 위치로 드래그하면(비활성 상태가 자동으로
+          활성화돼요) 다른 항목과 똑같이 추가/수정/페이지 수정/관리/삭제를
+          쓸 수 있어요.
         </p>
       </div>
 
       <CategoryTreeManager title="사이트 메뉴" session={session} />
 
-      {/* EPIC-077: 어떤 카테고리 href에도 안 걸린 페이지/게시판 — 통합 후에도
-          안 사라지고 여기서 계속 찾아 순서를 바꾸거나 상세 편집으로 들어갈 수
-          있다. */}
+      {/* EPIC-077: 어떤 카테고리 href에도 안 걸린 게시판 — 페이지는 이제
+          CategoryTreeManager가 "미분류 페이지" 버킷으로 자동 흡수하므로
+          여기 아래엔 보통 게시판만 남는다(트리에 아직 없는 페이지가 생기면
+          다음 로드 때 자동으로 버킷에 편입되어 여기서도 사라진다). */}
       <section className="rounded-lg border border-gray-200 p-4">
         <h2 className="text-lg font-semibold mb-3">미분류 페이지 / 게시판</h2>
         {fetching ? (

@@ -581,10 +581,26 @@ function InstagramEmbedPreview({
   return <div ref={containerRef} />;
 }
 
+// 버그 수정(EPIC-079-FINAL-FIX): 이 컴포넌트가 sanitizeHtml()로 정제된
+// HTML(예: 사용자가 붙여넣은 Instagram 공식 embed 코드)을 innerHTML로 DOM에
+// 넣기만 하고, embed.js를 한 번도 호출하지 않았다 — sanitizeHtml이
+// <script> 태그 자체는 항상 제거하므로(Stored XSS 방지), 붙여넣은 코드에
+// 원래 딸려있던 `<script src=".../embed.js">`는 여기서 사라지고, 그
+// 스크립트가 원래 하던 일(blockquote를 실제 iframe으로 변환)을 대신 실행할
+// 사람이 아무도 없었다 — 그 결과 정적 blockquote(스켈레톤 UI)만 남고 실제
+// 임베드가 렌더링되지 않았다. InstagramEmbedPreview(공식 URL 삽입 경로)는
+// 이미 processInstagramEmbeds()를 호출하고 있었는데 이 경로만 빠져있었다.
 function CustomHtmlEmbedPreview({ html }: { html: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (ref.current) ref.current.innerHTML = sanitizeHtml(html);
+    if (!ref.current) return;
+    ref.current.innerHTML = sanitizeHtml(html);
+    // Instagram 공식 코드가 섞여 있으면 embed.js를 강제로 로드/재실행한다
+    // (스크립트가 DOM에 아직 없으면 instagramEmbed.ts가 동적으로 <head>에
+    // 주입한 뒤 로드 완료 시 처리 — window.instgrm이 이미 있으면 즉시 처리).
+    if (html.includes("instagram-media")) {
+      processInstagramEmbeds();
+    }
   }, [html]);
 
   if (!html.trim()) {

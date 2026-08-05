@@ -21,6 +21,15 @@ export function HeroSlideshow({
   wallpaperUrls?: string[];
 }) {
   const [current, setCurrent] = useState(0);
+  // 버그 수정(EPIC-079-FINAL-FIX): 첫 로드 시 이미지가 아직 안 뜬 짧은
+  // 순간(~0.5초) wrapper의 배경색(bg-gray-900, 사실상 검정)이 그대로
+  // 보였다 — 이미지별로 실제 로드가 끝났는지 추적해, 로드 전엔 투명하게
+  // 숨겨뒀다가 로드되는 순간 부드럽게 페이드인시킨다(검정 대신 흰 여백이
+  // 아주 잠깐 보이는 쪽이 훨씬 자연스럽다 — wrapper 배경도 함께 투명화).
+  const [loadedIndices, setLoadedIndices] = useState<Set<number>>(new Set());
+  function markLoaded(idx: number) {
+    setLoadedIndices((prev) => (prev.has(idx) ? prev : new Set(prev).add(idx)));
+  }
 
   useEffect(() => {
     if (slides.length <= 1) return;
@@ -52,7 +61,7 @@ export function HeroSlideshow({
   const showWallpaper = objectFit === "contain" && !!activeWallpaper;
 
   return (
-    <div className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden bg-gray-900">
+    <div className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden bg-transparent">
       {slides.map((slide, idx) => (
         <div
           key={idx}
@@ -74,9 +83,21 @@ export function HeroSlideshow({
             <img
               src={slide.imageUrl}
               alt={slide.title || "사일로 스토어"}
-              className={`w-full h-full ${
-                objectFit === "contain" ? "object-contain" : "object-cover"
-              }`}
+              // 첫 슬라이드(idx 0)는 화면에 즉시 노출되는 LCP 후보라 최우선
+              // 로딩시키고, 나머지는 필요할 때까지 미룬다.
+              loading={idx === 0 ? "eager" : "lazy"}
+              fetchPriority={idx === 0 ? "high" : undefined}
+              // 버그 수정: 브라우저 캐시에 이미 있는 이미지는 React가 onLoad
+              // 리스너를 붙이기 전에 이미 로드가 끝나있어 onLoad가 아예 안
+              // 뜨는 경우가 있다(그러면 opacity-0에 영원히 갇힘) — DOM에
+              // 붙는 시점(callback ref)에 이미 .complete면 즉시 처리한다.
+              ref={(node) => {
+                if (node?.complete) markLoaded(idx);
+              }}
+              onLoad={() => markLoaded(idx)}
+              className={`w-full h-full transition-opacity duration-500 ${
+                loadedIndices.has(idx) ? "opacity-100" : "opacity-0"
+              } ${objectFit === "contain" ? "object-contain" : "object-cover"}`}
             />
           )}
           {(slide.title || slide.description) && (

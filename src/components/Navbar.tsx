@@ -58,6 +58,22 @@ type SidebarIconsValue = {
   triggerMode: "click" | "hover";
 };
 
+// EPIC-079-PHASE-4: /admin/navigation/settings("홈페이지 설정 관리")의
+// "상단 탭 디자인" 섹션이 저장하는 값 — admin/navigation/settings/page.tsx의
+// 동명 타입과 구조가 동일하다(이 저장소의 다른 site_settings 값들처럼 두
+// 파일에 각자 선언, MainLogoValue/SidebarIconsValue와 같은 기존 관례).
+type TopTabStyleEntry = {
+  labelOverride: string;
+  fontFamily: string;
+  fontSizePx: number | null;
+  bold: boolean;
+  color: string;
+  customFonts: CustomFontEntry[];
+};
+type TopTabStyleValue = {
+  tabs: Record<string, TopTabStyleEntry>;
+};
+
 const DEFAULT_LOGO_TEXT = "사일로 스토어";
 const DEFAULT_LOGO_HEIGHT_PX = 64;
 const DEFAULT_LOGO_FONT_SIZE_PX = 16;
@@ -73,6 +89,10 @@ const DEFAULT_TRIGGER_MODE: "click" | "hover" = "click";
 // EPIC-043: main_logo.customFonts의 각 활성 항목에 주입할 @font-face의
 // font-family 이름 접두사 — 항목 id로 구분해 여러 개를 동시에 등록한다.
 const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
+// EPIC-079-PHASE-4: 상단 탭 커스텀 폰트의 @font-face 접두사 — 탭 id도
+// 함께 섞어 탭마다 독립된 font-family 이름을 만든다(다른 탭이 같은 폰트
+// 파일 URL을 써도 이름이 안 겹치게).
+const TOP_TAB_FONT_FAMILY_PREFIX = "SiloTopTabFont";
 
 export function Navbar() {
   const { session, member, loading } = useAuth();
@@ -200,6 +220,28 @@ export function Navbar() {
     };
   }, []);
 
+  // EPIC-079-PHASE-4: 상단 탭 개별 디자인(표시 텍스트/서체/크기/색상) —
+  // /admin/navigation/settings의 "상단 탭 디자인" 섹션이 저장한다. 값이
+  // 없거나 특정 탭에 대한 항목이 없으면 그 탭은 기존처럼 원래 제목/기본
+  // 스타일 그대로 렌더링된다(완전히 optional한 오버레이).
+  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "top_tab_style")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const value = data?.setting_value as Partial<TopTabStyleValue> | null;
+        if (value?.tabs) setTopTabStyle({ tabs: value.tabs });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // EPIC-054D(성능 감사 §12): Navbar는 mounted/navTabs/mainLogo/sidebarIcons
   // 등 여러 독립 state를 갖고 있어 어느 하나만 바뀌어도 전체가 리렌더된다 —
   // navTabs가 최대 ~96개 항목을 갖는 배열이라(§15) find/filter/map을 매
@@ -263,6 +305,42 @@ export function Navbar() {
     color: mainLogo?.textColor || DEFAULT_LOGO_TEXT_COLOR,
   };
 
+  // EPIC-079-PHASE-4: 상단 탭 개별 디자인 파생값들 — 탭 id(NavTab.key)마다
+  // 독립된 className(silo-top-tab-<id>)을 만들고, 그 className에 대한
+  // font-family/size/weight/color 규칙을 <style> 블록 하나로 동적 주입한다.
+  // 인라인 style prop 대신 className+<style> 방식을 쓰는 이유: 인라인
+  // style은 특정도가 가장 높아 hover 시 흰 글씨로 바뀌는 기존 동작
+  // (group-hover/tab:text-white)까지 영구히 덮어써버린다 — 별도 클래스로
+  // 분리해야 "평소엔 커스텀 색, hover 땐 그대로 흰색"을 둘 다 지킬 수 있다.
+  const topTabEntries = topTabStyle?.tabs ?? {};
+  function topTabClassSuffix(tabKey: string) {
+    return tabKey.replace(/[^a-zA-Z0-9_-]/g, "_");
+  }
+  function topTabFontFamilyValue(tabKey: string, entry: TopTabStyleEntry) {
+    const active = entry.customFonts.filter((f) => f.isActive && f.url);
+    if (active.length === 0) return entry.fontFamily || undefined;
+    return active
+      .map((f) => `'${TOP_TAB_FONT_FAMILY_PREFIX}-${topTabClassSuffix(tabKey)}-${f.id}'`)
+      .concat(entry.fontFamily ? [entry.fontFamily] : ["inherit"])
+      .join(", ");
+  }
+  const topTabStyleCss = Object.entries(topTabEntries)
+    .map(([tabId, entry]) => {
+      const rules: string[] = [];
+      const ff = topTabFontFamilyValue(tabId, entry);
+      if (ff) rules.push(`font-family: ${ff} !important;`);
+      if (entry.fontSizePx) rules.push(`font-size: ${entry.fontSizePx}px !important;`);
+      if (entry.bold) rules.push(`font-weight: bold !important;`);
+      if (entry.color) rules.push(`color: ${entry.color} !important;`);
+      if (rules.length === 0) return "";
+      const cls = `silo-top-tab-${topTabClassSuffix(tabId)}`;
+      // hover 시엔 기존 배경(green-800)과의 대비를 위해 커스텀 색상 대신
+      // 항상 흰 글씨를 유지한다 — 서체/크기/굵기는 hover에서도 그대로.
+      return `.${cls} { ${rules.join(" ")} }\n.${cls}:hover { color: #fff !important; }`;
+    })
+    .filter(Boolean)
+    .join("\n");
+
   return (
     <header className="border-b border-gray-200">
       {/* EPIC-043: "적용" 켜진 커스텀 폰트마다 각각 @font-face를 동적 주입 —
@@ -280,6 +358,28 @@ export function Navbar() {
             .join("\n")}
         `}</style>
       )}
+      {/* EPIC-079-PHASE-4: 상단 탭별 커스텀 폰트 @font-face + 탭별 스타일
+          규칙(topTabStyleCss) — 로고 폰트 블록과 동일한 패턴, 탭 id별로
+          독립된 font-family 이름을 쓴다(다른 탭이 같은 폰트 URL을 등록해도
+          서로 안 겹침). */}
+      {Object.entries(topTabEntries).some(([, e]) => e.customFonts.some((f) => f.isActive && f.url)) && (
+        <style>{`
+          ${Object.entries(topTabEntries)
+            .flatMap(([tabId, entry]) =>
+              entry.customFonts
+                .filter((f) => f.isActive && f.url)
+                .map(
+                  (f) => `@font-face {
+              font-family: '${TOP_TAB_FONT_FAMILY_PREFIX}-${topTabClassSuffix(tabId)}-${f.id}';
+              src: url('${f.url}');
+              font-display: swap;
+            }`,
+                ),
+            )
+            .join("\n")}
+        `}</style>
+      )}
+      {topTabStyleCss && <style>{topTabStyleCss}</style>}
       <div className="flex items-center p-4 gap-4">
         {/* EPIC-039: 로고 이미지를 중앙에 두고 좌/우 텍스트를 대칭으로
             배치 — 양옆을 동일한 flex-1 컨테이너로 감싸 텍스트 길이가 달라도
@@ -370,13 +470,19 @@ export function Navbar() {
           해도 모든 하위 그룹의 2차 플라이아웃이 한꺼번에 열려버린다. */}
       <nav className="flex flex-wrap justify-center gap-1 px-4 border-t border-gray-100">
         {navTabs.map((tab) => {
+          // EPIC-079-PHASE-4: "상단 탭 디자인"에서 저장한 표시 텍스트
+          // 오버라이드/커스텀 클래스 — 값이 없으면 완전히 기존과 동일.
+          const tabStyleEntry = topTabEntries[tab.key];
+          const tabLabel = tabStyleEntry?.labelOverride || tab.label;
+          const tabStyleClassName = tabStyleEntry ? `silo-top-tab-${topTabClassSuffix(tab.key)}` : "";
+
           if (tab.type === "link") {
             const className = `${TAB_BUTTON_BASE} ${
               activeTabKey === tab.key ? TAB_BUTTON_ACTIVE : TAB_BUTTON_INACTIVE
-            }`;
+            } ${tabStyleClassName}`;
             return (
               <Link key={tab.key} href={tab.href!} className={className}>
-                {tab.label}
+                {tabLabel}
               </Link>
             );
           }
@@ -389,6 +495,7 @@ export function Navbar() {
           // hover 중(group-hover/tab)에는 사이드바와 동일한 테마 색상
           // (green-800)으로, 그 외엔 route-active 여부만 반영한다.
           const className = [
+            tabStyleClassName,
             TAB_BUTTON_BASE,
             isRouteActive ? "border-gray-800 font-medium" : "border-transparent",
             isRouteActive ? "text-gray-900" : "text-gray-500",
@@ -408,7 +515,7 @@ export function Navbar() {
                   className={className}
                   aria-haspopup={hasChildren ? "true" : undefined}
                 >
-                  {tab.label}
+                  {tabLabel}
                 </Link>
               ) : (
                 <button
@@ -416,7 +523,7 @@ export function Navbar() {
                   className={className}
                   aria-haspopup={hasChildren ? "true" : undefined}
                 >
-                  {tab.label}
+                  {tabLabel}
                 </button>
               )}
 

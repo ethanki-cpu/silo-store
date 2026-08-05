@@ -4,6 +4,8 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **주의 — 동시 세션 흔적 발견**: 이 세션에서 커밋 `55b7f9d`(About Silo 드롭다운 수정 + 상단 탭 디스플레이 인라인 셀렉트 + SQL 실행)가 내가 만들지 않았는데도 로컬 git history에 이미 존재하는 걸 발견했다 — 같은 컴퓨터에서 다른 Claude Code 세션이 동시에 같은 저장소를 작업 중이었던 것으로 보인다. 이번 커밋까지는 파일이 안 겹쳐 문제 없었지만, **다음 세션 시작 시 원격/로컬 상태를 다시 한번 fetch+status로 확인하고, 혹시 두 세션이 계속 동시에 켜져 있다면 사용자에게 의도한 것인지 확인할 것.**
+- **EPIC-079-PHASE-4 후속 2차(완료, 2026-08-05)**: "홈페이지 설정 관리에 상단 탭 디자인(텍스트/폰트/크기) 기능 추가" 요청 — 상세는 CHANGELOG.md 동명 항목 참고. `site_settings.top_tab_style` 신설 + `/admin/navigation/settings`에 편집 섹션 추가 + `Navbar.tsx` 렌더링 반영. `tsc`/`lint` 0 errors, 프론트엔드 렌더링은 Management API로 테스트 값 직접 넣어 확인·원복 완료. **관리자 폼 자체(저장 버튼 클릭)는 로그인 세션을 잃어 미확인 — 다음에 로그인 후 실제로 저장까지 눌러서 확인 필요.**
 - **재확인 필요(Browser pane 도구가 세션 후반 일시 불능이라 못 끝냄)**: (1) `CategoryTreeManager.tsx`에 새로 추가한 최상위 행 인라인 "노출 방식" `<select>`가 클릭으로 실제 target_type을 바꾸고 저장하는지, (2) SQL GRANT 실행 완료된 "글 수정 → 다른 게시판으로 옮기기"가 이제 실제로 성공하는지(저장 후 새 게시판 URL로 리다이렉트되는지까지) — 둘 다 코드/SQL은 완료됐고 tsc/lint만 통과 확인, 클릭 상호작용 재검증이 남음.
 - **EPIC-079-PHASE-4 SQL 실행 완료(2026-08-05, 사용자 제공 Management API 토큰으로 직접 실행)**: `docs/sql/epic-079-phase-4-page-mapping-backfill.sql`(검증 쿼리 결과 미매핑 노드 0건) / `docs/sql/epic-079-phase-4-post-board-move-grant.sql`(board_id GRANT + 트리거) 둘 다 적용 완료. 부수로 About Silo `target_type`이 `'tab'`으로 잘못 저장돼 있어(하위 카테고리가 있는데도 드롭다운이 안 뜨던 원인) `'dropdown'`으로 SQL로 직접 수정 — Browser pane DOM 조회로 드롭다운 패널 렌더링 확인.
 - **EPIC-079-PHASE-4(완료, 2026-08-05)**: "관리자 사이트 구성 트리 통합 + 모든 노드에 페이지 매핑 강제 + 글 수정 폼 동적 페이지 선택 + 상단 탭 디스플레이 전용 컨트롤" 요청 — 상세는 CHANGELOG.md EPIC-079-PHASE-4/후속 참고. `/admin/site-structure`를 3개 트리→1개 통합 트리로 재작성, 모든 노드에 "페이지 수정" 버튼 무조건 노출(href 없으면 온디맨드 생성), 글 수정 폼에 write와 동일한 동적 게시판 선택 드롭다운 추가, 최상위 행에 노출 방식 전용 인라인 셀렉트 추가. `npx tsc --noEmit`/`npm run lint` 0 errors.

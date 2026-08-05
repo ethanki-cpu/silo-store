@@ -137,6 +137,30 @@ type SidebarIconsValue = {
   triggerMode: "click" | "hover";
 };
 
+// EPIC-079-PHASE-4: 상단 탭(site_navigations의 depth 0 행) 하나하나의
+// 표시 텍스트/서체/크기/색상을 개별적으로 커스터마이징한다 — 트리 구조
+// 자체(제목/href 등)는 "사이트 구성 관리"(/admin/site-structure)가
+// 담당하고, 여기서는 순수 디자인(어떻게 보일지)만 별도로 다룬다. tabId는
+// site_navigations 행의 key(있으면)|id — Navbar.tsx의 NavTab.key와 동일한
+// 값이라 프론트엔드에서 그대로 매칭할 수 있다.
+type TopTabStyleEntry = {
+  /** 비어있으면 site_navigations.title을 그대로 쓴다. */
+  labelOverride: string;
+  fontFamily: string;
+  fontSizePx: number | null;
+  bold: boolean;
+  color: string;
+  customFonts: CustomFontEntry[];
+};
+type TopTabStyleValue = {
+  tabs: Record<string, TopTabStyleEntry>;
+};
+type TopNavRow = { id: string; key: string | null; title: string; sort_order: number };
+
+function defaultTopTabStyleEntry(): TopTabStyleEntry {
+  return { labelOverride: "", fontFamily: "", fontSizePx: null, bold: false, color: "", customFonts: [] };
+}
+
 const MAX_WALLPAPERS = 10;
 const DEFAULT_ICON_SIZE_PX = 32;
 // EPIC-076: 사이드바 여닫이 버튼 배경색 기본값 — 기존 하드코딩 bg-green-800(#166534)과 맞춤.
@@ -258,6 +282,8 @@ export default function AdminNavigationSettingsPage() {
   const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
     DEFAULT_SIDEBAR_ICONS,
   );
+  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue>({ tabs: {} });
+  const [topNavRows, setTopNavRows] = useState<TopNavRow[]>([]);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingSlideIdx, setUploadingSlideIdx] = useState<number | null>(
@@ -276,14 +302,26 @@ export default function AdminNavigationSettingsPage() {
 
   useEffect(() => {
     async function load() {
-      const { data, error: fetchError } = await supabase
-        .from("site_settings")
-        .select("setting_key, setting_value")
-        .in("setting_key", [
-          "main_logo",
-          "hero_slideshow",
-          "sidebar_icons",
-        ]);
+      const [{ data, error: fetchError }, navResult] = await Promise.all([
+        supabase
+          .from("site_settings")
+          .select("setting_key, setting_value")
+          .in("setting_key", [
+            "main_logo",
+            "hero_slideshow",
+            "sidebar_icons",
+            "top_tab_style",
+          ]),
+        // EPIC-079-PHASE-4: 상단 탭 디자인 섹션이 편집 대상 목록으로 보여줄
+        // 실제 최상위(depth 0) site_navigations 행 — "사이트 구성 관리"가
+        // 이미 쓰는 것과 동일한 SSoT(제목/순서), 여기서는 읽기 전용으로만 쓴다.
+        supabase
+          .from("site_navigations")
+          .select("id, key, title, sort_order")
+          .is("parent_id", null)
+          .order("sort_order", { ascending: true }),
+      ]);
+      if (navResult.data) setTopNavRows(navResult.data as TopNavRow[]);
 
       if (fetchError) {
         setError(fetchError.message);
@@ -335,6 +373,9 @@ export default function AdminNavigationSettingsPage() {
             leftIconDefaultUrl: raw.leftIconDefaultUrl || raw.leftIconUrl || "",
             rightIconDefaultUrl: raw.rightIconDefaultUrl || raw.rightIconUrl || "",
           });
+        } else if (row.setting_key === "top_tab_style") {
+          const value = row.setting_value as Partial<TopTabStyleValue> | null;
+          setTopTabStyle({ tabs: value?.tabs ?? {} });
         }
       }
       setFetching(false);
@@ -476,6 +517,35 @@ export default function AdminNavigationSettingsPage() {
       ...prev,
       customFonts: prev.customFonts.filter((f) => f.id !== id),
     }));
+  }
+
+  // EPIC-079-PHASE-4: 상단 탭 디자인 — tabId(row.key ?? row.id)별로 독립된
+  // TopTabStyleEntry를 갖는다. 아직 한 번도 편집 안 한 탭은 topTabStyle.tabs에
+  // 키 자체가 없으므로, patch할 때 defaultTopTabStyleEntry()로 채워 넣는다.
+  function updateTabStyle(tabId: string, patch: Partial<TopTabStyleEntry>) {
+    setTopTabStyle((prev) => ({
+      tabs: {
+        ...prev.tabs,
+        [tabId]: { ...defaultTopTabStyleEntry(), ...prev.tabs[tabId], ...patch },
+      },
+    }));
+  }
+
+  function addTabCustomFont(tabId: string) {
+    const entry = topTabStyle.tabs[tabId] ?? defaultTopTabStyleEntry();
+    updateTabStyle(tabId, { customFonts: [...entry.customFonts, makeDefaultCustomFont()] });
+  }
+
+  function updateTabCustomFont(tabId: string, fontId: string, patch: Partial<CustomFontEntry>) {
+    const entry = topTabStyle.tabs[tabId] ?? defaultTopTabStyleEntry();
+    updateTabStyle(tabId, {
+      customFonts: entry.customFonts.map((f) => (f.id === fontId ? { ...f, ...patch } : f)),
+    });
+  }
+
+  function removeTabCustomFont(tabId: string, fontId: string) {
+    const entry = topTabStyle.tabs[tabId] ?? defaultTopTabStyleEntry();
+    updateTabStyle(tabId, { customFonts: entry.customFonts.filter((f) => f.id !== fontId) });
   }
 
   if (fetching) {
@@ -1065,8 +1135,182 @@ export default function AdminNavigationSettingsPage() {
             )}
           </div>
         </section>
+
+        {/* EPIC-079-PHASE-4: 상단 탭 하나하나의 표시 텍스트/서체/크기/색상을
+            여기서 개별 편집한다 — 트리 구조(제목/href/순서/재부모화)는
+            여전히 "사이트 구성 관리"(/admin/site-structure)가 SSoT이고,
+            여기서는 그 위에 얹는 순수 디자인 오버레이만 다룬다(구조를
+            건드리지 않음 — labelOverride가 비어있으면 원래 제목 그대로). */}
+        <section className="rounded-lg border border-gray-200 p-4">
+          <h2 className="text-lg font-semibold mb-1">상단 탭 디자인</h2>
+          <p className="text-sm text-gray-500 mb-3">
+            각 상단 탭의 표시 텍스트·서체·크기·색상을 개별적으로 바꿀 수 있어요.
+            표시 텍스트를 비워두면 &quot;사이트 구성 관리&quot;에서 정한 원래
+            이름이 그대로 쓰여요. 탭 자체를 추가/삭제/순서 변경하려면
+            &quot;사이트 구성 관리&quot; 화면을 이용하세요.
+          </p>
+          {topNavRows.length === 0 ? (
+            <p className="text-sm text-gray-400">아직 등록된 상단 탭이 없어요.</p>
+          ) : (
+            <div className="space-y-3">
+              {topNavRows.map((row) => {
+                const tabId = row.key ?? row.id;
+                const entry = topTabStyle.tabs[tabId] ?? defaultTopTabStyleEntry();
+                return (
+                  <TopTabStyleRow
+                    key={row.id}
+                    originalTitle={row.title}
+                    entry={entry}
+                    onChange={(patch) => updateTabStyle(tabId, patch)}
+                    onAddCustomFont={() => addTabCustomFont(tabId)}
+                    onUpdateCustomFont={(fontId, patch) => updateTabCustomFont(tabId, fontId, patch)}
+                    onRemoveCustomFont={(fontId) => removeTabCustomFont(tabId, fontId)}
+                  />
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-center gap-3 mt-3">
+            <button
+              type="button"
+              onClick={() => handleSave("top_tab_style", topTabStyle)}
+              className={primaryButtonClass}
+            >
+              저장하기
+            </button>
+            {savedKey === "top_tab_style" && (
+              <span className="text-sm text-green-600">저장됐어요.</span>
+            )}
+          </div>
+        </section>
       </div>
     </main>
+  );
+}
+
+// EPIC-079-PHASE-4: 상단 탭 디자인 섹션의 탭 1개짜리 편집 블록 — 메인
+// 로고 섹션의 커스텀 폰트 등록 UI와 동일한 패턴을 재사용한다.
+function TopTabStyleRow({
+  originalTitle,
+  entry,
+  onChange,
+  onAddCustomFont,
+  onUpdateCustomFont,
+  onRemoveCustomFont,
+}: {
+  originalTitle: string;
+  entry: TopTabStyleEntry;
+  onChange: (patch: Partial<TopTabStyleEntry>) => void;
+  onAddCustomFont: () => void;
+  onUpdateCustomFont: (fontId: string, patch: Partial<CustomFontEntry>) => void;
+  onRemoveCustomFont: (fontId: string) => void;
+}) {
+  return (
+    <div className="rounded-md border border-gray-200 p-3 space-y-2">
+      <p className="text-sm font-medium text-gray-700">{originalTitle}</p>
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">표시 텍스트 (비우면 원래 이름 사용)</label>
+        <input
+          className={inputClass}
+          value={entry.labelOverride}
+          onChange={(e) => onChange({ labelOverride: e.target.value })}
+          placeholder={originalTitle}
+        />
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs text-gray-500">커스텀 폰트 파일 (.woff, .woff2, .ttf 등)</label>
+          <button type="button" onClick={onAddCustomFont} className={smallButtonClass}>
+            + 폰트 추가
+          </button>
+        </div>
+        {entry.customFonts.length === 0 ? (
+          <p className="text-xs text-gray-400">아직 추가된 폰트가 없어요.</p>
+        ) : (
+          <div className="space-y-2">
+            {entry.customFonts.map((font) => (
+              <div key={font.id} className="flex items-center gap-2">
+                <input
+                  className={inputClass}
+                  value={font.url}
+                  onChange={(e) => onUpdateCustomFont(font.id, { url: e.target.value })}
+                  placeholder="https://... (Supabase Storage에 올린 폰트 파일의 공개 URL)"
+                />
+                <label className="flex items-center gap-1 text-xs text-gray-600 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={font.isActive}
+                    onChange={(e) => onUpdateCustomFont(font.id, { isActive: e.target.checked })}
+                  />
+                  적용
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onRemoveCustomFont(font.id)}
+                  className="text-xs text-red-600 hover:underline shrink-0"
+                >
+                  삭제
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">텍스트 서체 (직접 입력, 폴백용)</label>
+          <input
+            className={inputClass}
+            value={entry.fontFamily}
+            onChange={(e) => onChange({ fontFamily: e.target.value })}
+            placeholder="예: 'Pretendard', sans-serif"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">텍스트 크기 (px, 비우면 기본값)</label>
+          <input
+            type="number"
+            min={8}
+            max={64}
+            className={inputClass}
+            value={entry.fontSizePx ?? ""}
+            onChange={(e) => onChange({ fontSizePx: e.target.value ? Number(e.target.value) : null })}
+          />
+        </div>
+        <div className="flex items-end pb-2">
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={entry.bold}
+              onChange={(e) => onChange({ bold: e.target.checked })}
+            />
+            굵게 (Bold)
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">텍스트 색상 (비우면 기본 색상)</label>
+        <div className="flex items-center gap-2">
+          {/^#[0-9a-fA-F]{6}$/.test(entry.color) && (
+            <input
+              type="color"
+              value={entry.color}
+              onChange={(e) => onChange({ color: e.target.value })}
+              className="h-9 w-12 rounded border border-gray-300 p-1"
+            />
+          )}
+          <input
+            className={`${inputClass} w-32`}
+            value={entry.color}
+            onChange={(e) => onChange({ color: e.target.value })}
+            placeholder="#166534"
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 2026-08-05 (EPIC-079 후속 — EPIC-075 SQL 실행: 트리 드래그앤드롭 순서 컬럼)
+- **`docs/sql/EPIC-075-tree-sort-order.sql` 라이브 DB 실행**: 사용자 제공 Supabase Management API 토큰으로 직접 실행 — `page_builder`/`boards`에 `sort_order int not null default 0` 컬럼 신설 + 기존 행 전체 백필(`page_builder`는 `created_at` 순, `boards`는 이름 가나다순). 실행 후 재조회로 `page_builder` 150건/`boards` 56건 모두 `sort_order != 0`(전부 백필됨)을 확인. `/admin/pages`·`/admin/boards`의 드래그앤드롭 저장 코드는 EPIC-075 때 이미 작성돼 있었고 이 컬럼 부재로 저장만 실패하던 상태였음 — 이제 정상 동작할 것으로 기대. **사용자가 관리자 로그인 후 두 화면에서 실제로 드래그해 새로고침 후에도 순서가 유지되는지 확인 필요**(에이전트는 로그인 세션 없이 클릭 테스트 불가).
+
 ## 2026-08-05 (EPIC-079-FINAL-FIX 후속 — 외부 이미지/영상 복사-붙여넣기 + 임베드 너비 조절)
 - **다른 웹사이트 이미지/영상 복사-붙여넣기 지원**: 지금까지 파일 바이트가 실제로 클립보드에 담긴 경우(예: 우클릭 "이미지 복사")만 동작했는데, 웹페이지에서 이미지를 선택해 Ctrl+C하거나 링크 자체를 텍스트로 복사하는 흔한 경우는 아무 반응이 없었다 — 두 가지를 보강했다: (1) `FigureImage`의 기존 `<img>` 캡처 규칙(`blockEditorCore.ts`)이 `src`만 읽었는데, 많은 사이트가 지연 로딩으로 `src`에 placeholder(빈 값/`data:` URI)만 넣고 진짜 URL은 `data-src`/`data-original`/`srcset`에 담아두므로 그쪽을 먼저 시도하도록 보강 — 클립보드 HTML에 `<img>` 태그가 있는 복사(대부분의 "이미지 선택 후 Ctrl+C")는 이제 실제 이미지로 정상 삽입된다. (2) 클립보드에 태그 없이 순수 URL 텍스트만 있는 경우(링크만 복사해 붙여넣기)를 위해 `BlockEditor.tsx`의 `handlePaste`에 새 분기 추가 — 이미지 확장자 URL은 바로 이미지로, 인식되는 플랫폼(유튜브/비메오/인스타/스포티파이/X/네이버 등) URL은 바로 임베드로, 직접 재생 가능한 영상 파일(.mp4 등) URL은 raw iframe 임베드로 자동 삽입한다.
   - **구현 메모**: 처음엔 Tiptap의 `editor.chain().insertContent()`로 구현했는데, `useEditor(...)` 설정 객체 안에서 그 반환값인 `editor`를 다시 참조하는 자기순환 때문에 React Compiler가 컴포넌트 전체의 메모이제이션을 포기해버리는 빌드 에러(`react-hooks/preserve-manual-memoization`)가 났다 — `editor` 대신 `handlePaste`가 직접 받는 ProseMirror `view`로 트랜잭션(`view.dispatch(view.state.tr.replaceSelectionWith(node))`)을 만드는 방식으로 우회해 해결.

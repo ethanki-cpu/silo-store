@@ -268,7 +268,10 @@ export default function PostDetailPage() {
         <div className="max-w-2xl mx-auto w-full">
           <PostTags tags={displayTags} />
 
-          <PostBody body={post.body} />
+          <PostBody
+            body={post.body}
+            featuredImageUrl={post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null}
+          />
 
           <PostActions
             likeCount={post.like_count}

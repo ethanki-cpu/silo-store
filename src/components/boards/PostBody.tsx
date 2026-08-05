@@ -1,10 +1,32 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
 import { processInstagramEmbeds } from "@/lib/instagramEmbed";
 import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
+
+// EPIC-079-HOTFIX-3: 대표 이미지가 상세 헤더(PostDetailHeader의 photoUrl)
+// 위쪽에 한 번, 그리고 사용자가 붙여넣은/업로드한 그 이미지가 본문 안에
+// 또 한 번 — 똑같은 사진이 화면에 두 번 나오는 문제 신고 — 대표 이미지로
+// "지정"되는 것 자체는 유지하되(신고에서도 이건 원한 동작이라고 명시),
+// 헤더에 이미 보여준 바로 그 이미지 인스턴스만 본문에서 제외한다(같은
+// URL이 본문에 또 나오면 그건 남긴다 — 사용자가 의도적으로 여러 번 쓴
+// 것일 수 있으므로 첫 매치 하나만 제거).
+function stripDuplicateFeaturedImage(html: string, featuredImageUrl: string | null): string {
+  if (!featuredImageUrl || typeof window === "undefined") return html;
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const img = Array.from(doc.querySelectorAll("img")).find((el) => el.getAttribute("src") === featuredImageUrl);
+    if (!img) return html;
+    // figure/figcaption까지 통째로 제거해야 캡션만 덩그러니 남지 않는다.
+    const figure = img.closest("figure");
+    (figure ?? img).remove();
+    return doc.body.innerHTML;
+  } catch {
+    return html;
+  }
+}
 
 // EPIC-052: Tiptap Block Editor 도입 이전 글(plain text)과 이후 글(HTML)이
 // 같은 posts.body 컬럼에 섞여 있어, 태그 포함 여부로 렌더링 방식을
@@ -15,9 +37,21 @@ import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
 // 동일한 Lightbox를 띄운다 — dangerouslySetInnerHTML로 삽입된 raw HTML도
 // 이벤트 버블링을 타고 올라오므로, 감싼 div에 delegated click 핸들러
 // 하나만 달면 별도 하이드레이션 없이 동작한다.
-export function PostBody({ body }: { body: string }) {
+export function PostBody({
+  body,
+  featuredImageUrl = null,
+}: {
+  body: string;
+  /** 상세 헤더에 이미 보여준 대표 이미지 URL — 지정하면 본문에서 같은
+   * 이미지 한 장(첫 매치)을 제거해 중복 표시를 막는다. */
+  featuredImageUrl?: string | null;
+}) {
   const looksLikeHtml = /<[a-z][\s\S]*>/i.test(body);
   const [lightbox, setLightbox] = useState<{ images: LightboxImage[]; index: number } | null>(null);
+  const dedupedBody = useMemo(
+    () => (looksLikeHtml ? stripDuplicateFeaturedImage(body, featuredImageUrl) : body),
+    [body, looksLikeHtml, featuredImageUrl],
+  );
 
   // EPIC-079-PHASE-2 후속 핫픽스: 본문에 Instagram blockquote가 있으면
   // embed.js를 로드해 실제 임베드로 바꿔치기한다 — dangerouslySetInnerHTML로
@@ -63,7 +97,7 @@ export function PostBody({ body }: { body: string }) {
         <div
           className="prose prose-sm max-w-none mt-8 text-gray-800"
           onClick={handleClick}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(dedupedBody) }}
         />
         {lightbox && (
           <Lightbox images={lightbox.images} startIndex={lightbox.index} onClose={() => setLightbox(null)} />

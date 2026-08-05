@@ -8,7 +8,8 @@ import {
   RANK_LABELS,
 } from "@/lib/serverAuth";
 import { resolveBoardDefinition, isSortOption, type SortOption } from "@/lib/boardLayout";
-import { renderPostHtml, findEmbedThumbnail, type JSONContent } from "@/lib/blockEditorCore";
+import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
+import { resolveFallbackEmbedThumbnail } from "@/lib/embedThumbnail";
 import { fetchBoard } from "@/lib/boardFetch";
 import { slugifyWithFallback } from "@/lib/slugify";
 
@@ -343,10 +344,12 @@ export async function POST(
   const bodyJson = body?.bodyJson as JSONContent | undefined;
   const isDocentPost = Boolean(body?.isDocentPost);
   const orderId = body?.orderId as string | undefined;
-  // EPIC-079-PHASE-5: 대표 이미지를 지정하지 않았고 본문에 유튜브 임베드가
-  // 있으면 그 영상 썸네일로 자동 폴백 — 상세는 findEmbedThumbnail 주석 참고.
+  // EPIC-079-PHASE-5/HOTFIX-3: 대표 이미지를 지정하지 않았고(직접 업로드도,
+  // 이미지/임베드 ★ 지정도 없음) 본문에 임베드가 있으면 그 썸네일로 자동
+  // 폴백 — 상세는 resolveFallbackEmbedThumbnail 주석 참고.
   const featuredImageUrl =
-    (body?.featuredImageUrl as string | null | undefined) ?? (bodyJson ? findEmbedThumbnail(bodyJson) : null);
+    (body?.featuredImageUrl as string | null | undefined) ??
+    (bodyJson ? await resolveFallbackEmbedThumbnail(bodyJson) : null);
   const featuredImagePath = (body?.featuredImagePath as string | null | undefined) ?? null;
   const thumbnailVisible = body?.thumbnailVisible === undefined ? true : Boolean(body.thumbnailVisible);
   const category = (body?.category as string | null | undefined) ?? null;

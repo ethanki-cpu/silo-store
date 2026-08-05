@@ -6,6 +6,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import type { NodeViewProps } from "@tiptap/react";
 import { uploadPostImage, uploadMultipleFiles, STORAGE_BUCKETS } from "@/lib/storage";
+import { supabase } from "@/lib/supabaseClient";
 import {
   coreExtensions,
   FigureImage,
@@ -162,8 +163,10 @@ function FigureImageView({ node, updateAttributes, deleteNode, editor, getPos }:
   function setAsFeatured() {
     const { state, view } = editor;
     const tr = state.tr;
+    // EPIC-079-HOTFIX-3: 대표 이미지는 문서 전체에서 하나뿐이어야 하므로
+    // embed(★로 지정된 유튜브/비메오/인스타그램)의 featured도 함께 끈다.
     state.doc.descendants((n, pos) => {
-      if (n.type.name === "figureImage" && n.attrs.featured) {
+      if ((n.type.name === "figureImage" || n.type.name === "embed") && n.attrs.featured) {
         tr.setNodeAttribute(pos, "featured", false);
       }
     });
@@ -379,8 +382,14 @@ const EMBED_DEFAULT_HEIGHT: Record<EmbedProvider, number> = {
   customHtml: 400,
 };
 
-function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
-  const { provider, url, caption, height, aspectRatio, hideCaption, width, rawHtml } = node.attrs as {
+// EPIC-079-HOTFIX-3: 이 provider만 실제 썸네일 resolve가 가능하다
+// (embedThumbnail.ts 참고 — youtube는 CDN URL 규칙, vimeo는 공개 oEmbed,
+// instagram은 permalink og:image 스크래핑). 나머지(spotify/지도/X 등)는
+// 신뢰할 만한 이미지 썸네일 자체가 없어 버튼을 아예 보여주지 않는다.
+const FEATURABLE_EMBED_PROVIDERS: EmbedProvider[] = ["youtube", "vimeo", "instagram"];
+
+function EmbedView({ node, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
+  const { provider, url, caption, height, aspectRatio, hideCaption, width, rawHtml, featured } = node.attrs as {
     provider: EmbedProvider;
     url: string;
     caption: string;
@@ -389,7 +398,9 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     hideCaption: boolean;
     width: number | null;
     rawHtml: string;
+    featured: boolean;
   };
+  const [resolvingThumbnail, setResolvingThumbnail] = useState(false);
   const labels: Record<EmbedProvider, string> = {
     youtube: "YouTube",
     vimeo: "Vimeo",
@@ -403,13 +414,74 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     customHtml: "HTML 코드",
   };
 
+  // EPIC-079-HOTFIX-3: FigureImageView.setAsFeatured와 동일한 패턴 —
+  // 이미지든 임베드든 대표 이미지는 문서 전체에서 하나뿐이어야 하므로,
+  // 지정 전에 다른 모든 figureImage/embed의 featured를 먼저 끈다.
+  async function setAsFeaturedEmbed() {
+    if (!url) return;
+    setResolvingThumbnail(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/embed-thumbnail?provider=${provider}&url=${encodeURIComponent(url)}`, {
+        headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const data = await res.json();
+      if (!res.ok || !data.thumbnailUrl) {
+        alert(data.error ?? "썸네일을 찾지 못했어요.");
+        return;
+      }
+      const { state, view } = editor;
+      const tr = state.tr;
+      state.doc.descendants((n, pos) => {
+        if (n.type.name === "figureImage" && n.attrs.featured) {
+          tr.setNodeAttribute(pos, "featured", false);
+        }
+        if (n.type.name === "embed" && n.attrs.featured) {
+          tr.setNodeAttribute(pos, "featured", false);
+        }
+      });
+      const pos = typeof getPos === "function" ? getPos() : null;
+      if (pos != null) {
+        tr.setNodeAttribute(pos, "featured", true);
+        tr.setNodeAttribute(pos, "thumbnailUrl", data.thumbnailUrl);
+      }
+      view.dispatch(tr);
+    } catch {
+      alert("썸네일을 찾지 못했어요.");
+    } finally {
+      setResolvingThumbnail(false);
+    }
+  }
+
   return (
     <NodeViewWrapper className="embed-node my-4 border border-gray-200 rounded-md p-3" data-drag-handle>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs uppercase tracking-wide text-gray-400">{labels[provider]} 임베드</span>
-        <button type="button" className="text-xs text-red-500 hover:underline" onClick={() => deleteNode()}>
-          삭제
-        </button>
+        <span className="text-xs uppercase tracking-wide text-gray-400">
+          {labels[provider]} 임베드
+          {featured && (
+            <span className="ml-2 bg-amber-400 text-white text-[10px] px-1.5 py-0.5 rounded normal-case tracking-normal">
+              대표 이미지
+            </span>
+          )}
+        </span>
+        <div className="flex items-center gap-2">
+          {FEATURABLE_EMBED_PROVIDERS.includes(provider) && (
+            <button
+              type="button"
+              title="대표 이미지로 지정"
+              className={`text-xs hover:underline ${featured ? "text-amber-600" : "text-gray-500"}`}
+              onClick={setAsFeaturedEmbed}
+              disabled={resolvingThumbnail}
+            >
+              {resolvingThumbnail ? "찾는 중..." : featured ? "★ 대표 이미지" : "☆ 대표 이미지로 지정"}
+            </button>
+          )}
+          <button type="button" className="text-xs text-red-500 hover:underline" onClick={() => deleteNode()}>
+            삭제
+          </button>
+        </div>
       </div>
       {provider === "customHtml" ? (
         <textarea

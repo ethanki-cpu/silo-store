@@ -209,6 +209,9 @@ export type EmbedAttrs = {
   width: number | null;
   // customHtml 전용 — 사용자가 직접 붙여넣은 임베드 HTML(저장 전 sanitize됨).
   rawHtml: string;
+  // EPIC-079-HOTFIX-3: 이 임베드를 대표 이미지로 지정했는지 + 미리 resolve된 썸네일 URL.
+  featured: boolean;
+  thumbnailUrl: string | null;
 };
 
 export function extractYoutubeId(url: string): string | null {
@@ -464,6 +467,14 @@ export const EmbedBlock = Node.create({
       width: { default: null },
       // EPIC-079-PHASE-4: customHtml 전용 — 사용자가 붙여넣은 원본 임베드 HTML.
       rawHtml: { default: "" },
+      // EPIC-079-HOTFIX-3: figureImage의 featured와 동일한 개념 — 이
+      // 임베드(youtube/vimeo/instagram)를 게시글 대표 이미지로 지정했는지.
+      // thumbnailUrl은 그 시점에 미리 resolve해둔 실제 썸네일 URL(★ 클릭
+      // 시 /api/embed-thumbnail로 조회해 채운다 — provider별 실제 썸네일이
+      // 예측 가능한 CDN 규칙이 아니라 API/스크래핑이 필요해서, 매번 다시
+      // resolve하지 않도록 노드 attrs에 캐시한다).
+      featured: { default: false },
+      thumbnailUrl: { default: null },
     };
   },
 
@@ -791,6 +802,13 @@ export function findFeaturedImage(json: JSONContent | null | undefined): { url: 
       found = { url: node.attrs.src as string, path: (node.attrs.path as string) ?? null };
       return;
     }
+    // EPIC-079-HOTFIX-3: 이미지뿐 아니라 embed(youtube/vimeo/instagram)도
+    // ★로 대표 이미지 지정이 가능하다 — 클릭 시점에 미리 resolve해둔
+    // thumbnailUrl을 그대로 쓴다(EmbedView의 setAsFeaturedEmbed 참고).
+    if (node.type === "embed" && node.attrs?.featured && node.attrs.thumbnailUrl) {
+      found = { url: node.attrs.thumbnailUrl as string, path: null };
+      return;
+    }
     for (const child of node.content ?? []) walk(child);
   }
 
@@ -820,27 +838,33 @@ export function findFirstImage(json: JSONContent | null | undefined): string | n
   return found;
 }
 
-// EPIC-079-PHASE-5: 대표 이미지를 직접 지정/업로드하지 않고 외부 임베드만
-// 넣은 글은 목록 카드/상세 헤더에 썸네일이 아예 안 뜨는 문제 — 저장 시
-// 서버가 이 함수로 본문에서 첫 번째 임베드의 썸네일을 찾아 대표 이미지
-// 폴백으로 쓴다(호출부는 findFeaturedImage/findFirstImage를 먼저 시도한
-// 뒤에만 이 함수를 부른다). YouTube는 영상 ID만 있으면 별도 API 호출 없이
-// 공식 썸네일 CDN URL을 바로 만들 수 있어 지원한다. Instagram/X/Spotify
-// 등은 Meta/X 쪽이 공개 oEmbed에 앱 토큰을 요구하도록 바뀌어(EPIC-079-
-// TIPTAP-FIX-V2 조사 참고 — 이 리포는 서버 쪽 접근 권한 없이 임베드조차
-// 간신히 붙였다) 토큰 없이 안정적으로 썸네일을 가져올 방법이 없어 범위 밖.
-export function findEmbedThumbnail(json: JSONContent | null | undefined): string | null {
+// EPIC-079-HOTFIX-3: findEmbedThumbnail(youtube 전용, 동기)을
+// findFirstEmbedRef(모든 provider의 provider+url을 그대로 반환)로 대체 —
+// 실제 썸네일 resolve(vimeo/instagram은 API 호출/스크래핑이 필요해 비동기)는
+// src/lib/embedThumbnail.ts의 resolveEmbedThumbnailUrl()이 담당한다. 이
+// 파일은 서버/클라이언트 공용 스키마 모듈이라 fetch를 직접 하지 않는다.
+export const EMBED_THUMBNAIL_PROVIDERS = ["youtube", "vimeo", "instagram"] as const;
+
+/** 문서에서 대표 이미지로 지정된(★) 이미지도 임베드도 없을 때, 저장 시
+ * 폴백 썸네일 후보로 쓸 첫 번째 임베드의 provider+url을 찾는다. */
+export function findFirstEmbedRef(
+  json: JSONContent | null | undefined,
+): { provider: (typeof EMBED_THUMBNAIL_PROVIDERS)[number]; url: string } | null {
   if (!json) return null;
-  let found: string | null = null;
+  let found: { provider: (typeof EMBED_THUMBNAIL_PROVIDERS)[number]; url: string } | null = null;
 
   function walk(node: JSONContent) {
     if (found) return;
-    if (node.type === "embed" && node.attrs?.provider === "youtube" && node.attrs.url) {
-      const id = extractYoutubeId(node.attrs.url as string);
-      if (id) {
-        found = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-        return;
-      }
+    if (
+      node.type === "embed" &&
+      node.attrs?.url &&
+      (EMBED_THUMBNAIL_PROVIDERS as readonly string[]).includes(node.attrs?.provider)
+    ) {
+      found = {
+        provider: node.attrs.provider as (typeof EMBED_THUMBNAIL_PROVIDERS)[number],
+        url: node.attrs.url as string,
+      };
+      return;
     }
     for (const child of node.content ?? []) walk(child);
   }

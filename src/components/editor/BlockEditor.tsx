@@ -12,6 +12,9 @@ import {
   EmbedBlock,
   LinkCardBlock,
   embedSrc,
+  clampInstagramWidth,
+  INSTAGRAM_WIDTH_MIN,
+  INSTAGRAM_WIDTH_MAX,
   type JSONContent,
   type EmbedProvider,
   type EmbedAspectRatio,
@@ -20,6 +23,8 @@ import {
 } from "@/lib/blockEditorCore";
 import { Lightbox, type LightboxImage } from "./Lightbox";
 import { processInstagramEmbeds } from "@/lib/instagramEmbed";
+import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { EmbedConfigModal, type EmbedInsertResult } from "./EmbedConfigModal";
 
 // EPIC-053.1: Block Editor 확장.
@@ -312,16 +317,19 @@ const EMBED_DEFAULT_HEIGHT: Record<EmbedProvider, number> = {
   naverBlog: 600,
   naverMap: 400,
   raw: 400,
+  customHtml: 400,
 };
 
 function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
-  const { provider, url, caption, height, aspectRatio, hideCaption } = node.attrs as {
+  const { provider, url, caption, height, aspectRatio, hideCaption, width, rawHtml } = node.attrs as {
     provider: EmbedProvider;
     url: string;
     caption: string;
     height: number | null;
     aspectRatio: EmbedAspectRatio | null;
     hideCaption: boolean;
+    width: number | null;
+    rawHtml: string;
   };
   const labels: Record<EmbedProvider, string> = {
     youtube: "YouTube",
@@ -333,6 +341,7 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     naverBlog: "네이버 블로그",
     naverMap: "네이버 지도",
     raw: "임베드",
+    customHtml: "HTML 코드",
   };
 
   return (
@@ -343,30 +352,66 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
           삭제
         </button>
       </div>
-      <input
-        type="text"
-        value={url}
-        placeholder={
-          provider === "googleMaps"
-            ? "Google Maps 지도 링크(공유 URL)를 입력하세요"
-            : "URL을 입력하세요"
-        }
-        onChange={(e) => updateAttributes({ url: e.target.value })}
-        className="w-full text-sm border border-gray-200 rounded px-2 py-1 mb-2"
+      {provider === "customHtml" ? (
+        <textarea
+          value={rawHtml}
+          placeholder='임베드 코드(HTML)를 붙여넣으세요 — 예: <blockquote>...</blockquote>, <iframe>...'
+          onChange={(e) => updateAttributes({ rawHtml: e.target.value })}
+          rows={5}
+          className="w-full text-xs font-mono border border-gray-200 rounded px-2 py-1 mb-2"
+        />
+      ) : (
+        <input
+          type="text"
+          value={url}
+          placeholder={
+            provider === "googleMaps"
+              ? "Google Maps 지도 링크(공유 URL)를 입력하세요"
+              : "URL을 입력하세요"
+          }
+          onChange={(e) => updateAttributes({ url: e.target.value })}
+          className="w-full text-sm border border-gray-200 rounded px-2 py-1 mb-2"
+        />
+      )}
+      <EmbedPreview
+        provider={provider}
+        url={url}
+        height={height}
+        aspectRatio={aspectRatio}
+        hideCaption={hideCaption}
+        width={width}
+        rawHtml={rawHtml}
       />
-      <EmbedPreview provider={provider} url={url} height={height} aspectRatio={aspectRatio} hideCaption={hideCaption} />
       {/* EPIC-079-PHASE-3: instagram은 캡션 노출 여부를, youtube는 화면
           비율을 삽입 후에도 다시 바꿀 수 있게 한다(모달은 삽입 시점 설정일
           뿐, 이후 편집은 이 NodeView가 담당). */}
       {provider === "instagram" && (
-        <label className="flex items-center gap-2 text-xs text-gray-600 mt-2">
-          <input
-            type="checkbox"
-            checked={hideCaption}
-            onChange={(e) => updateAttributes({ hideCaption: e.target.checked })}
-          />
-          본문(캡션) 숨기기
-        </label>
+        <>
+          <label className="flex items-center gap-2 text-xs text-gray-600 mt-2">
+            <input
+              type="checkbox"
+              checked={hideCaption}
+              onChange={(e) => updateAttributes({ hideCaption: e.target.checked })}
+            />
+            본문(캡션) 숨기기
+          </label>
+          {/* EPIC-079-PHASE-4: 공식 위젯이 실제로 존중하는 값은 너비뿐
+              (높이는 콘텐츠에 맞춰 위젯이 자동으로 정함 — 바로 아래 높이
+              입력이 instagram에서 항상 숨겨지는 이유). */}
+          <div className="flex items-center gap-2 mt-2">
+            <label className="text-xs text-gray-500 shrink-0">
+              너비 ({clampInstagramWidth(width)}px)
+            </label>
+            <input
+              type="range"
+              min={INSTAGRAM_WIDTH_MIN}
+              max={INSTAGRAM_WIDTH_MAX}
+              value={clampInstagramWidth(width)}
+              onChange={(e) => updateAttributes({ width: Number(e.target.value) })}
+              className="flex-1"
+            />
+          </div>
+        </>
       )}
       {provider === "youtube" && (
         <div className="flex items-center gap-2 mt-2">
@@ -386,7 +431,7 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
           아무 효과가 없어 숨긴다. EPIC-079-PHASE-3: youtube가 화면비율
           모드(aspectRatio 지정)일 때도 고정 높이(px) 입력은 무시되므로 함께
           숨긴다(반응형 aspect-ratio wrapper가 대신 크기를 결정). */}
-      {provider !== "instagram" && !(provider === "youtube" && aspectRatio) && (
+      {provider !== "instagram" && provider !== "customHtml" && !(provider === "youtube" && aspectRatio) && (
         <div className="flex items-center gap-2 mt-2">
           <label className="text-xs text-gray-500 shrink-0">
             높이(px, 보이는 영역)
@@ -418,13 +463,18 @@ function EmbedPreview({
   height,
   aspectRatio,
   hideCaption,
+  width,
+  rawHtml,
 }: {
   provider: EmbedProvider;
   url: string;
   height: number | null;
   aspectRatio?: EmbedAspectRatio | null;
   hideCaption?: boolean;
+  width?: number | null;
+  rawHtml?: string;
 }) {
+  if (provider === "customHtml") return <CustomHtmlEmbedPreview html={rawHtml ?? ""} />;
   if (!url) return <p className="text-xs text-gray-400">URL을 입력하면 미리보기가 표시됩니다.</p>;
 
   const src = embedSrc(provider, url);
@@ -443,7 +493,7 @@ function EmbedPreview({
   // X-Frame-Options: DENY라 iframe으로는 절대 못 띄운다(항상 "차단됨"
   // 아이콘만 나오던 원인) — 공식 blockquote+embed.js 위젯으로 대체.
   if (provider === "instagram") {
-    return <InstagramEmbedPreview permalink={src} hideCaption={Boolean(hideCaption)} />;
+    return <InstagramEmbedPreview permalink={src} hideCaption={Boolean(hideCaption)} width={width ?? null} />;
   }
 
   // EPIC-079-PHASE-3: youtube + 화면 비율 지정 시 고정 높이 대신 반응형
@@ -482,38 +532,65 @@ function EmbedPreview({
   );
 }
 
-function InstagramEmbedPreview({ permalink, hideCaption }: { permalink: string; hideCaption: boolean }) {
-  // embed.js가 blockquote DOM을 자기 방식대로 통째로 갈아치우므로, url이
-  // 바뀔 때마다 React가 새 DOM 노드를 만들도록 key로 강제한다(같은 노드를
-  // 재사용하면 이전 embed.js 처리 결과가 그대로 남아있을 수 있음). hideCaption도
-  // key에 포함해, 캡션 토글을 바꾸면 embed.js가 처음부터 다시 처리하도록 한다.
-  useEffect(() => {
-    processInstagramEmbeds();
-  }, [permalink, hideCaption]);
+function InstagramEmbedPreview({
+  permalink,
+  hideCaption,
+  width,
+}: {
+  permalink: string;
+  hideCaption: boolean;
+  width: number | null;
+}) {
+  const w = clampInstagramWidth(width);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  return (
-    <blockquote
-      key={`${permalink}-${hideCaption}`}
-      className="instagram-media"
-      data-instgrm-permalink={permalink}
-      data-instgrm-version="14"
-      {...(hideCaption ? {} : { "data-instgrm-captioned": "" })}
-      style={{
-        background: "#FFF",
-        border: 0,
-        borderRadius: 3,
-        margin: 1,
-        maxWidth: 540,
-        minWidth: 326,
-        padding: 0,
-        width: "99%",
-      }}
-    >
-      <a href={permalink} target="_blank" rel="noopener noreferrer">
-        Instagram 게시물 보기
-      </a>
-    </blockquote>
-  );
+  // 버그 재현/수정(EPIC-079-PHASE-4): 이전엔 key={permalink-hideCaption-width}로
+  // React가 새 <blockquote> DOM 노드를 강제로 만들게 했는데, 그 사이 embed.js가
+  // 이미 그 blockquote를 자기 방식대로 완전히 다른 구조(iframe 등)로 갈아치워
+  // 둔 상태라, React가 "예전에 자기가 만든 그 blockquote"를 부모에서
+  // removeChild하려다 실제 DOM에는 그 노드가 더 이상 없어 `NotFoundError:
+  // Failed to execute 'removeChild'`로 크래시했다(에디터에서 캡션/너비를 바꿀
+  // 때마다 재현됨 — "본문 숨기기 누르면 오류 페이지" 리포트의 원인). 해결:
+  // React는 빈 wrapper div만 선언적으로 관리하고, 그 안의 blockquote는
+  // React JSX 트리에 전혀 등장하지 않는 완전한 명령형(imperative) DOM으로
+  // 직접 만들고 지운다 — React가 diff할 자식이 애초에 없으므로 embed.js가
+  // 그 안을 무엇으로 바꾸든 React의 재조정과 절대 충돌하지 않는다.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.innerHTML = "";
+
+    const blockquote = document.createElement("blockquote");
+    blockquote.className = "instagram-media";
+    blockquote.setAttribute("data-instgrm-permalink", permalink);
+    blockquote.setAttribute("data-instgrm-version", "14");
+    if (!hideCaption) blockquote.setAttribute("data-instgrm-captioned", "");
+    blockquote.style.cssText = `background:#FFF; border:0; border-radius:3px; margin:1px; max-width:${w}px; min-width:${w}px; padding:0; width:99%;`;
+
+    const link = document.createElement("a");
+    link.href = permalink;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Instagram 게시물 보기";
+    blockquote.appendChild(link);
+
+    container.appendChild(blockquote);
+    processInstagramEmbeds();
+  }, [permalink, hideCaption, w]);
+
+  return <div ref={containerRef} />;
+}
+
+function CustomHtmlEmbedPreview({ html }: { html: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.innerHTML = sanitizeHtml(html);
+  }, [html]);
+
+  if (!html.trim()) {
+    return <p className="text-xs text-gray-400">HTML 코드를 입력하면 미리보기가 표시됩니다.</p>;
+  }
+  return <div ref={ref} />;
 }
 
 function LinkCardView({ node, updateAttributes, deleteNode }: NodeViewProps) {
@@ -610,6 +687,8 @@ function Toolbar({
           height: result.height,
           aspectRatio: result.aspectRatio,
           hideCaption: result.hideCaption,
+          width: result.width,
+          rawHtml: result.rawHtml,
         },
       })
       .run();
@@ -809,6 +888,7 @@ export function BlockEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isPreview, setIsPreview] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -818,7 +898,23 @@ export function BlockEditor({
       Placeholder.configure({ placeholder: placeholder ?? "내용을 입력하세요..." }),
       FigureImage.extend({ addNodeView: () => ReactNodeViewRenderer(FigureImageView) }),
       GalleryBlock.extend({ addNodeView: () => ReactNodeViewRenderer(GalleryView) }),
-      EmbedBlock.extend({ addNodeView: () => ReactNodeViewRenderer(EmbedView) }),
+      EmbedBlock.extend({
+        addNodeView: () =>
+          ReactNodeViewRenderer(EmbedView, {
+            // 버그 수정(EPIC-079-PHASE-4): InstagramEmbedPreview를 React
+            // 리렌더와 완전히 분리된 명령형 DOM으로 바꿔도(위 참고)
+            // NotFoundError(removeChild)가 계속 재현됐다 — 진짜 원인은 한 겹
+            // 더 위에 있었다. ProseMirror는 이 노드의 DOM을 자체
+            // MutationObserver로 감시하다가, embed.js가 blockquote를
+            // iframe으로 바꿔치기하는 걸 "사용자가 에디터에서 직접 DOM을
+            // 편집했다"로 오인해 자기 모델에 맞춰 되돌리려 하고, 그 되돌리기
+            // 시도가 React가 이미 관리 중인 DOM과 충돌해 크래시로 이어졌다.
+            // 이 노드는 atom:true라 애초에 사용자가 contentEditable로 내부를
+            // 직접 편집할 일이 없으므로, 이 노드 내부 mutation은 전부
+            // ProseMirror가 무시하도록 명시한다.
+            ignoreMutation: () => true,
+          }),
+      }),
       LinkCardBlock.extend({ addNodeView: () => ReactNodeViewRenderer(LinkCardView) }),
     ],
     [placeholder],
@@ -858,6 +954,16 @@ export function BlockEditor({
       onChange(editor.getJSON(), editor.getHTML());
     },
   }, [extensions]);
+
+  // EPIC-079-PHASE-4: "미리보기" 모드는 dangerouslySetInnerHTML로 정적
+  // 마크업만 넣는다 — instagram 위젯/customHtml raw HTML 둘 다 실제로
+  // 화면에 보이려면 이 시점에 한 번 더 처리해야 한다(PostBody.tsx와 동일
+  // 이유, 순서도 동일하게 rawHtml 주입 먼저 → instagram 위젯 처리).
+  useEffect(() => {
+    if (!isPreview || !previewRef.current) return;
+    processRawHtmlEmbeds(previewRef.current);
+    processInstagramEmbeds();
+  }, [isPreview, editor]);
 
   // 자동 저장 타이머
   useEffect(() => {
@@ -967,6 +1073,7 @@ export function BlockEditor({
 
       {isPreview ? (
         <div
+          ref={previewRef}
           className="prose prose-sm max-w-none px-4 py-3 min-h-[300px] bg-white"
           // 실제 게시글(PostBody)과 동일하게 sanitize된 HTML을 그대로 보여준다 —
           // 별도 미리보기 전용 렌더러를 만들지 않고 editor.getHTML() 결과를 재사용.

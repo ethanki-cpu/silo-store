@@ -220,6 +220,10 @@ export async function GET(
 // Garbage Collection — src/lib/imageGc.ts).
 // EPIC-079-PHASE-2: slug는 URL 안정성을 위해 수정 시 건드리지 않는다(제목이
 // 바뀌어도 기존 링크가 계속 살아있어야 함).
+// EPIC-079-PHASE-4: 글 수정 폼이 "게시될 페이지 선택" 드롭다운으로 다른
+// 게시판을 고를 수 있게 되면서, body.targetBoardSlug가 현재 게시판과 다르면
+// posts.board_id를 그 게시판으로 옮긴다(slug 자체는 그대로 유지 — 새
+// 게시판 안에서 uniqueness가 다시 검사될 뿐).
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ board_slug: string; post_slug: string }> },
@@ -272,9 +276,22 @@ export async function PATCH(
           .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
           .map((t) => t.trim())
       : [];
+  const targetBoardSlug = body?.targetBoardSlug as string | undefined;
 
   if (!title || !bodyJson) {
     return NextResponse.json({ error: "제목과 내용을 모두 입력해주세요." }, { status: 400 });
+  }
+
+  // EPIC-079-PHASE-4: "게시될 페이지 선택"에서 다른 게시판을 골랐으면 이
+  // 글을 그 게시판으로 옮긴다 — 원래 게시판과 같으면(대부분의 경우) 아무
+  // 일도 하지 않는다.
+  let targetBoardId: string | null = null;
+  if (targetBoardSlug && targetBoardSlug !== boardSlug) {
+    const { board: targetBoard, boardError: targetBoardError } = await fetchBoard(targetBoardSlug);
+    if (targetBoardError || !targetBoard) {
+      return NextResponse.json({ error: "옮길 게시판을 찾을 수 없어요." }, { status: 404 });
+    }
+    targetBoardId = (targetBoard as { id: string }).id;
   }
 
   let sanitizedBody: string;
@@ -301,6 +318,7 @@ export async function PATCH(
       is_docent_post: isDocentPost,
       tags,
       updated_at: new Date().toISOString(),
+      ...(targetBoardId ? { board_id: targetBoardId } : {}),
     })
     .eq("id", postId)
     .select()
@@ -310,7 +328,12 @@ export async function PATCH(
   if (updateError) {
     ({ data: updated, error: updateError } = await requester.scopedClient
       .from("posts")
-      .update({ title, body: sanitizedBody, is_docent_post: isDocentPost })
+      .update({
+        title,
+        body: sanitizedBody,
+        is_docent_post: isDocentPost,
+        ...(targetBoardId ? { board_id: targetBoardId } : {}),
+      })
       .eq("id", postId)
       .select()
       .single());

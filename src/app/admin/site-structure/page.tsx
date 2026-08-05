@@ -40,6 +40,15 @@ type UnassignedBoard = {
 // 모달에서 연결된 페이지/게시판까지 한 번에 편집한다(CategoryTreeManager.tsx
 // 참고). site_navigations 트리에 아직 안 걸린 페이지/게시판은 이 화면
 // 하단의 "미분류" 패널에서 계속 찾을 수 있다 — 사라지지 않는다.
+//
+// EPIC-079-PHASE-4: "상단 탭"/"왼쪽 사이드바"/"오른쪽 사이드바" 3개의
+// 별도 CategoryTreeManager 인스턴스(각각 target_type으로 필터링)로 나뉘어
+// 있던 걸 하나로 합쳤다 — 실제 프론트엔드는 site_navigations 하나를
+// parent_id 트리 하나로 읽기 때문에(navConfig.ts), depth 0(최상위) 행이
+// 곧 실제 상단 탭 5개이고 target_type은 각 depth-0 행이 "탭/드롭다운/좌측
+// 사이드바/우측 사이드바" 중 어떻게 렌더링될지를 결정하는 속성일 뿐,
+// 관리자 화면이 별도 컨테이너로 쪼갤 이유가 없었다(오히려 실제 구조를
+// 왜곡해 보여줬다).
 export default function AdminSiteStructurePage() {
   const { session } = useAuth();
   const [branches, setBranches] = useState<NavBranchNode[]>([]);
@@ -93,24 +102,12 @@ export default function AdminSiteStructurePage() {
           드래그해서 순서를 바꾸거나, 다른 항목 위로 드롭해서 하위 항목으로
           옮길 수 있어요. 각 항목의 [관리]에서 공개 설정·주제·대표 이미지·소개는
           물론, 연결된 페이지 위젯과 게시판 정보까지 한 번에 편집하세요.
+          최상위 항목이 곧 실제 사이트의 상단 탭이에요 — 새 최상위 탭을
+          추가하면 그대로 상단 탭이 하나 늘어나요.
         </p>
       </div>
 
-      <CategoryTreeManager
-        title="상단 탭"
-        targetTypes={["tab", "dropdown"]}
-        session={session}
-      />
-      <CategoryTreeManager
-        title="왼쪽 사이드바"
-        targetTypes={["sidebar_left"]}
-        session={session}
-      />
-      <CategoryTreeManager
-        title="오른쪽 사이드바"
-        targetTypes={["sidebar_right"]}
-        session={session}
-      />
+      <CategoryTreeManager title="사이트 메뉴" session={session} />
 
       {/* EPIC-077: 어떤 카테고리 href에도 안 걸린 페이지/게시판 — 통합 후에도
           안 사라지고 여기서 계속 찾아 순서를 바꾸거나 상세 편집으로 들어갈 수

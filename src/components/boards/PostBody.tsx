@@ -4,6 +4,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
 import { processInstagramEmbeds } from "@/lib/instagramEmbed";
+import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
 
 // EPIC-052: Tiptap Block Editor 도입 이전 글(plain text)과 이후 글(HTML)이
 // 같은 posts.body 컬럼에 섞여 있어, 태그 포함 여부로 렌더링 방식을
@@ -22,8 +23,18 @@ export function PostBody({ body }: { body: string }) {
   // embed.js를 로드해 실제 임베드로 바꿔치기한다 — dangerouslySetInnerHTML로
   // 넣은 정적 HTML은 그 자체로는 아무것도 렌더링하지 않는 빈 blockquote일
   // 뿐이라 이 처리가 없으면 아무것도 안 보인다(src/lib/instagramEmbed.ts).
+  // EPIC-079-PHASE-4: customHtml(rawHtml) 임베드를 먼저 실제 DOM에
+  // 주입한 다음(instagramEmbed.ts와 동일하게 dangerouslySetInnerHTML로
+  // 넣은 정적 마크업은 그 자체로 아무것도 렌더링하지 않음) instagram
+  // 위젯을 처리한다 — 순서가 중요: 사용자가 raw HTML로 Instagram 공식
+  // embed 코드를 붙여넣은 경우, 그 blockquote가 DOM에 존재해야
+  // processInstagramEmbeds가 찾아낼 수 있다.
   useEffect(() => {
-    if (looksLikeHtml && body.includes("instagram-media")) {
+    if (!looksLikeHtml) return;
+    if (body.includes('data-provider="customHtml"')) {
+      processRawHtmlEmbeds();
+    }
+    if (body.includes("instagram-media")) {
       processInstagramEmbeds();
     }
   }, [body, looksLikeHtml]);

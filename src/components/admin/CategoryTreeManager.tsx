@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -93,7 +93,16 @@ export function CategoryTreeManager({
   session,
 }: {
   title: string;
-  targetTypes: TargetTypeLiteral[];
+  // EPIC-079-PHASE-4: 이전엔 필수였다 — "상단 탭"/"왼쪽 사이드바"/
+  // "오른쪽 사이드바" 3개 인스턴스를 각각 target_type으로 나눠 렌더링하는
+  // 가짜 그룹핑이었는데, 실제 프론트엔드는 site_navigations 하나를
+  // parent_id로만 구성된 단일 트리로 읽는다(navConfig.ts의 buildNavTree —
+  // depth 0 행이 곧 상단 탭, target_type은 그 행이 "어떻게 렌더링될지"를
+  // 결정하는 depth-0 전용 속성일 뿐 별도 컨테이너가 아니다). 이제
+  // targetTypes를 생략하면 모든 target_type을 하나의 트리로 보여준다 —
+  // depth 0 = 상단 탭 전체, depth 1+ = 그 탭 아래 내용. 특정 하위집합만
+  // 보고 싶은 경우를 위해 지정 옵션 자체는 남겨둔다(현재 실사용처 없음).
+  targetTypes?: TargetTypeLiteral[];
   // EPIC-077: "사이트 구성 관리" 통합 트리에서 "관리" 모달이 연결된 게시판을
   // 직접 선택/변경/해제할 수 있게 하려면 관리자 세션 토큰이 필요(boards는
   // anon 직접 쓰기가 없어 /api/admin/boards를 거친다) — /admin/navigation
@@ -107,6 +116,11 @@ export function CategoryTreeManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [managingId, setManagingId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // EPIC-079-PHASE-4: targetTypes 없이(=단일 통합 트리) "+최상위 추가"를
+  // 누르면 어떤 종류의 새 상단 탭을 만들지 미리 골라야 한다 — 예전엔
+  // targetTypes[0]으로 항상 고정돼 있었지만, 이제 한 화면에서 4종류 전부를
+  // 다루므로 명시적 선택이 필요하다.
+  const [newRootType, setNewRootType] = useState<TargetTypeLiteral>(targetTypes?.[0] ?? "tab");
   // EPIC-077: href → 연결된 page_builder id — 행의 "페이지 수정" 바로가기
   // 버튼용. hrefToSlug(nav.href) === page.slug 완전 일치 규칙(adminTreeGrouping.ts
   // 와 동일)으로 매칭한다.
@@ -151,7 +165,7 @@ export function CategoryTreeManager({
 
   const rootIds = new Set(
     rows
-      .filter((r) => r.parent_id === null && targetTypes.includes(r.target_type))
+      .filter((r) => r.parent_id === null && (!targetTypes || targetTypes.includes(r.target_type)))
       .map((r) => r.id),
   );
 
@@ -334,13 +348,31 @@ export function CategoryTreeManager({
     <section className="rounded-lg border border-gray-200 p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <button
-          type="button"
-          onClick={() => addChild(null, targetTypes[0])}
-          className={smallButtonClass}
-        >
-          + 최상위 추가
-        </button>
+        <div className="flex items-center gap-2">
+          {/* EPIC-079-PHASE-4: targetTypes로 고정된 인스턴스가 아니면(=단일
+              통합 트리) 새 상단 탭의 노출 방식(링크/드롭다운/좌우 사이드바)을
+              먼저 골라야 한다 — Depth 0 추가가 곧 상단 탭 추가이므로. */}
+          {!targetTypes && (
+            <select
+              value={newRootType}
+              onChange={(e) => setNewRootType(e.target.value as TargetTypeLiteral)}
+              className="text-xs rounded-md border border-gray-300 px-2 py-1"
+            >
+              {Object.entries(TARGET_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={() => addChild(null, targetTypes?.[0] ?? newRootType)}
+            className={smallButtonClass}
+          >
+            + 최상위 탭 추가
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -528,7 +560,11 @@ function CategoryRow({
     setSaving(true);
     await onUpdate(row.id, {
       title: draft.title,
-      href: draft.href || null,
+      // EPIC-079-PHASE-4: href를 완전히 비워서 저장할 수 없게 한다 — href가
+      // null이면 이 항목엔 영영 연결된 페이지가 안 생긴다(updateRow의
+      // ensurePageForSlug는 href가 있을 때만 실행됨). 관리자가 href를
+      // 지우면 addChild와 동일한 규칙(/c/{id})으로 되돌린다.
+      href: draft.href.trim() || `/c/${row.id}`,
       sort_order: draft.sortOrder,
       is_active: draft.isActive,
     });
@@ -642,11 +678,7 @@ function CategoryRow({
             >
               수정
             </button>
-            {pageId && (
-              <Link href={`/admin/pages/${pageId}`} className={smallButtonClass}>
-                페이지 수정
-              </Link>
-            )}
+            <EditPageButton row={row} pageId={pageId} onUpdate={onUpdate} />
             <button
               type="button"
               onClick={() => onManage(row.id)}
@@ -665,6 +697,57 @@ function CategoryRow({
         </>
       )}
     </div>
+  );
+}
+
+// EPIC-079-PHASE-4: 노드 종류와 상관없이 "페이지 수정" 버튼을 항상
+// 렌더링한다(이전엔 pageId가 이미 매칭된 행에만 보였음 — "Silo Story"처럼
+// 순수 폴더로 만들어진 노드는 버튼 자체가 없었다). pageId가 아직 없으면
+// (href가 비어있었거나, 마이그레이션 이전 데이터 등) 클릭 시 그 자리에서
+// href를 보정하고(onUpdate) 페이지를 즉시 생성한 뒤(ensurePageForSlug)
+// 이동한다 — "무조건 클릭 가능한 버튼"을 보장하는 실질적인 방법.
+function EditPageButton({
+  row,
+  pageId,
+  onUpdate,
+}: {
+  row: CategoryNavRow;
+  pageId?: string;
+  onUpdate: (id: string, patch: Partial<CategoryNavRow>) => Promise<boolean>;
+}) {
+  const router = useRouter();
+  const [resolving, setResolving] = useState(false);
+
+  async function handleClick() {
+    if (pageId) {
+      router.push(`/admin/pages/${pageId}`);
+      return;
+    }
+
+    setResolving(true);
+    const href = row.href?.trim() || `/c/${row.id}`;
+    // onUpdate(부모의 updateRow)도 href가 채워지면 내부적으로
+    // ensurePageForSlug를 부르지만 그건 "카테고리 저장 자체를 막지 않도록"
+    // 일부러 fire-and-forget(await 안 함)이다 — 여기서는 실제로 페이지가
+    // 만들어질 때까지 기다렸다가 이동해야 하므로 직접 await한다(경쟁 상태
+    // 버그: onUpdate가 끝난 직후 바로 조회하면 아직 ensurePageForSlug의
+    // insert가 커밋되기 전이라 못 찾는 경우가 있었다).
+    await onUpdate(row.id, { href });
+    const slug = hrefToSlug(href);
+    await ensurePageForSlug(slug, row.title, row.description);
+    const { data } = await supabase
+      .from("page_builder")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+    setResolving(false);
+    if (data?.id) router.push(`/admin/pages/${data.id}`);
+  }
+
+  return (
+    <button type="button" onClick={handleClick} disabled={resolving} className={smallButtonClass}>
+      {resolving ? "여는 중..." : "페이지 수정"}
+    </button>
   );
 }
 

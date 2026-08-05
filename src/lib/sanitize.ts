@@ -59,6 +59,9 @@ const ALLOWED_ATTR = [
   "data-instgrm-permalink", "data-instgrm-version", "data-instgrm-captioned",
   // EPIC-079-PHASE-3: youtube 화면비율/instagram 캡션 숨김 설정 round-trip용.
   "data-aspect-ratio", "data-hide-caption",
+  // EPIC-079-PHASE-4: instagram 위젯 너비 / 사용자 정의 HTML 임베드 원본
+  // (src/lib/rawHtmlEmbed.ts가 이 속성을 읽어 실제 화면에 주입) round-trip용.
+  "data-embed-width", "data-raw-html", "data-raw-html-embed",
 ];
 
 export function sanitizeHtml(html: string): string {

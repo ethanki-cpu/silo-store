@@ -169,11 +169,23 @@ export type EmbedProvider =
   | "twitter"
   | "naverBlog"
   | "naverMap"
-  | "raw";
+  | "raw"
+  | "customHtml";
 // EPIC-079-PHASE-3: 플랫폼별 렌더링 커스터마이징 — youtube는 화면 비율,
 // instagram은 캡션(본문) 노출 여부를 이 두 속성으로 조절한다. 둘 다
 // optional/기본값 있음 — 값이 없으면 기존과 동일하게 동작(하위 호환).
+// EPIC-079-PHASE-4: instagram 위젯의 너비(width)와, URL 자동 인식이 안
+// 되거나 아이콘/캡션 노출 등 공식 위젯이 지원하지 않는 세부 제어가 필요한
+// 경우를 위한 "HTML 코드 직접 삽입"(customHtml, rawHtml) 두 속성을 추가.
 export type EmbedAspectRatio = "16:9" | "9:16";
+// Instagram 공식 위젯이 실제로 존중하는 안전 범위 — 이 범위 밖 값은
+// 위젯이 무시하거나 레이아웃이 깨질 수 있어(공식 문서 기준) clamp한다.
+export const INSTAGRAM_WIDTH_MIN = 326;
+export const INSTAGRAM_WIDTH_MAX = 540;
+export function clampInstagramWidth(width: number | null): number {
+  if (!width) return INSTAGRAM_WIDTH_MAX;
+  return Math.min(Math.max(width, INSTAGRAM_WIDTH_MIN), INSTAGRAM_WIDTH_MAX);
+}
 export type EmbedAttrs = {
   provider: EmbedProvider;
   url: string;
@@ -181,6 +193,10 @@ export type EmbedAttrs = {
   height: number | null;
   aspectRatio: EmbedAspectRatio | null;
   hideCaption: boolean;
+  // instagram 전용 — 위젯 너비(px, 326~540). null이면 기본값(540).
+  width: number | null;
+  // customHtml 전용 — 사용자가 직접 붙여넣은 임베드 HTML(저장 전 sanitize됨).
+  rawHtml: string;
 };
 
 export function extractYoutubeId(url: string): string | null {
@@ -311,6 +327,10 @@ export function embedSrc(provider: EmbedProvider, url: string): string | null {
       // 완성된 embed URL(사용자가 "퍼가기"로 받은 iframe의 src)을 그대로
       // url에 담아두므로 여기서는 그 값을 그대로 돌려주기만 한다.
       return url || null;
+    case "customHtml":
+      // rawHtml을 그대로 DOM에 주입하는 별도 경로를 쓴다(renderHTML 참고) —
+      // iframe src 개념이 없어 항상 null.
+      return null;
     default:
       return null;
   }
@@ -373,6 +393,7 @@ const DEFAULT_EMBED_HEIGHT: Record<EmbedProvider, number> = {
   naverBlog: 600,
   naverMap: 400,
   raw: 400,
+  customHtml: 400,
 };
 
 export const EmbedBlock = Node.create({
@@ -395,6 +416,10 @@ export const EmbedBlock = Node.create({
       // EPIC-079-PHASE-3: instagram 전용 — true면 공식 위젯의 본문(캡션)을
       // 숨긴다(data-instgrm-captioned 속성을 아예 빼서 표현).
       hideCaption: { default: false },
+      // EPIC-079-PHASE-4: instagram 전용 — 위젯 너비(px). null이면 기본(540).
+      width: { default: null },
+      // EPIC-079-PHASE-4: customHtml 전용 — 사용자가 붙여넣은 원본 임베드 HTML.
+      rawHtml: { default: "" },
     };
   },
 
@@ -431,6 +456,11 @@ export const EmbedBlock = Node.create({
             // EPIC-079-PHASE-3: 저장된 wrapper div의 data-* 속성에서 복원.
             aspectRatio: (div.getAttribute("data-aspect-ratio") as EmbedAspectRatio | null) ?? null,
             hideCaption: div.getAttribute("data-hide-caption") === "true",
+            width: (() => {
+              const w = div.getAttribute("data-embed-width");
+              return w ? Number(w) : null;
+            })(),
+            rawHtml: div.getAttribute("data-raw-html") ?? "",
           };
         },
       },
@@ -474,11 +504,21 @@ export const EmbedBlock = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { provider, url, caption, height, aspectRatio, hideCaption } = HTMLAttributes as EmbedAttrs;
+    const { provider, url, caption, height, aspectRatio, hideCaption, width, rawHtml } =
+      HTMLAttributes as EmbedAttrs;
     const src = embedSrc(provider, url);
     const h = String(height ?? DEFAULT_EMBED_HEIGHT[provider]);
+    const igWidth = clampInstagramWidth(width);
 
-    const inner: unknown[] = !src
+    const inner: unknown[] = provider === "customHtml"
+      ? // EPIC-079-PHASE-4: 사용자가 직접 붙여넣은 임베드 HTML(rawHtml, 저장
+        // 전 sanitize됨)을 그대로 담을 빈 placeholder만 만들고, 실제 주입은
+        // 이 노드가 실제로 보이는 화면(PostBody/BlockEditor 미리보기)에서
+        // src/lib/rawHtmlEmbed.ts가 data-raw-html 속성을 읽어 처리한다 —
+        // renderHTML의 DOMOutputSpec은 문자열 children을 항상 escape하므로
+        // (raw HTML을 그대로 넣을 방법이 없음) 이 우회가 필요하다.
+        ["div", { "data-raw-html-embed": "" }]
+      : !src
       ? [
           "a",
           { href: url, target: "_blank", rel: "noopener noreferrer", class: "link-card" },
@@ -502,8 +542,9 @@ export const EmbedBlock = Node.create({
             "data-instgrm-permalink": src,
             "data-instgrm-version": "14",
             ...(hideCaption ? {} : { "data-instgrm-captioned": "" }),
-            style:
-              "background:#FFF; border:0; border-radius:3px; margin:1px; max-width:540px; min-width:326px; padding:0; width:99%;",
+            // EPIC-079-PHASE-4: 이전엔 항상 326~540px 범위 style이었는데,
+            // 이제 사용자가 그 범위 안에서 고른 정확한 너비(igWidth)로 고정.
+            style: `background:#FFF; border:0; border-radius:3px; margin:1px; max-width:${igWidth}px; min-width:${igWidth}px; padding:0; width:99%;`,
           },
           [
             "a",
@@ -548,6 +589,8 @@ export const EmbedBlock = Node.create({
         class: "embed",
         ...(aspectRatio ? { "data-aspect-ratio": aspectRatio } : {}),
         ...(hideCaption ? { "data-hide-caption": "true" } : {}),
+        ...(provider === "instagram" && width ? { "data-embed-width": String(igWidth) } : {}),
+        ...(provider === "customHtml" ? { "data-raw-html": rawHtml } : {}),
       }),
       inner,
       ...(caption ? [["p", { class: "embed-caption" }, caption]] : []),

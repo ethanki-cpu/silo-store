@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PostForm, type ConfirmedOrder, type PostFormSubmitPayload } from "@/components/boards/PostForm";
+import { BoardPageSelect } from "@/components/boards/BoardPageSelect";
+import { useBoardOptions, useSelectedBoardTypeAndCategory } from "@/lib/useBoardOptions";
 
 // EPIC-079-PHASE-2: URL이 board id(UUID) 대신 board slug를 쓰도록
 // 바뀌었다 — boards 테이블 직접 조회도 slug로 바꾼다(API 라우트가 아니라
@@ -20,56 +22,22 @@ import { PostForm, type ConfirmedOrder, type PostFormSubmitPayload } from "@/com
 // 초기값일 뿐이고, 실제 게시 대상은 이 드롭다운의 선택(selectedBoardSlug)이
 // 최종 결정한다 — 게시판 목록/글쓰기 진입점 등 기존 링크는 전부
 // /boards/[board_slug]/write 그대로라 손댈 필요가 없다.
-type BoardOption = {
-  id: string;
-  slug?: string | null;
-  name: string;
-  board_type: string;
-  category: string | null;
-  locked?: boolean;
-};
-
+// EPIC-079-PHASE-4: 이 드롭다운 로직(목록 조회 + board_type/category 파생)을
+// src/lib/useBoardOptions.ts 공용 훅으로 뽑아, 글 수정(edit) 화면도 동일한
+// 로직을 재사용하도록 했다(기존엔 write에만 있고 edit엔 옛 카테고리
+// 드롭다운이 남아있던 불일치를 해소).
 export default function WritePostPage() {
   const { board_slug: initialBoardSlug } = useParams<{ board_slug: string }>();
   const { session, member } = useAuth();
   const router = useRouter();
 
-  const [boards, setBoards] = useState<BoardOption[]>([]);
+  const boards = useBoardOptions(session);
   const [selectedBoardSlug, setSelectedBoardSlug] = useState(initialBoardSlug);
-  const [boardType, setBoardType] = useState<string | null>(null);
-  const [boardCategory, setBoardCategory] = useState<string | null>(null);
+  const { boardType, boardCategory } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
   const [confirmedOrders, setConfirmedOrders] = useState<ConfirmedOrder[]>([]);
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // 글쓰기 화면 마운트 시 DB의 모든 게시판 목록을 가져와 "게시될 페이지
-  // 선택" 드롭다운을 채운다 — 잠긴(locked, 등급 미달) 게시판은 애초에 이
-  // 사용자가 쓸 수 없는 곳이라 선택지에서 제외한다(실제 쓰기 권한은
-  // 서버가 제출 시점에 다시 한번 최종 검증 — 아래 handleSubmit 참고).
-  useEffect(() => {
-    fetch("/api/boards", {
-      headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        const list = (Array.isArray(data) ? data : []) as BoardOption[];
-        setBoards(list.filter((b) => !b.locked));
-      })
-      .catch(() => {});
-  }, [session]);
-
-  useEffect(() => {
-    supabase
-      .from("boards")
-      .select("board_type, category")
-      .eq("slug", selectedBoardSlug)
-      .single()
-      .then(({ data }) => {
-        setBoardType(data?.board_type ?? null);
-        setBoardCategory(data?.category ?? null);
-      });
-  }, [selectedBoardSlug]);
 
   const definition = boardType
     ? resolveBoardDefinition({ board_type: boardType, category: boardCategory })
@@ -159,27 +127,7 @@ export default function WritePostPage() {
       <h1 className="font-serif text-2xl font-bold mb-6">글쓰기</h1>
 
       <div className="mb-4">
-        <label className="block text-sm mb-1">게시될 페이지 선택</label>
-        <select
-          value={selectedBoardSlug}
-          onChange={(e) => setSelectedBoardSlug(e.target.value)}
-          className="w-full rounded-md border border-gray-300 px-3 py-2"
-        >
-          {/* 아직 목록을 못 받아온 사이(로딩 중)에도 현재 게시판이 선택된
-              상태로 보이도록, 목록에 없으면 임시 옵션을 하나 끼워 넣는다 —
-              아래 실제 옵션과 동일하게 slug 우선/id 폴백으로 비교해야
-              "이미 로딩은 끝났는데 계속 불러오는 중으로 보이는" 불일치가
-              없다(예: boards.sort_order 컬럼이 라이브 DB에 없어 /api/boards가
-              rich→legacy 폴백하면 slug가 안 내려와 id로만 비교돼야 함). */}
-          {!boards.some((b) => (b.slug ?? b.id) === selectedBoardSlug) && (
-            <option value={selectedBoardSlug}>불러오는 중...</option>
-          )}
-          {boards.map((b) => (
-            <option key={b.id} value={b.slug ?? b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        <BoardPageSelect boards={boards} value={selectedBoardSlug} onChange={setSelectedBoardSlug} />
       </div>
 
       <PostForm

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-05 (EPIC-079-WRITE-FIX — 한글 제목 글쓰기가 항상 500으로 실패하던 P0 버그 수정)
+- **신고**: "dev.silostore.net에 글이 전혀 안 써진다" — 실제 admin 계정으로 재현해보니 등록 클릭 시 500 응답, 상세: `null value in column "slug" of relation "posts" violates not-null constraint`.
+- **근본 원인**: EPIC-079-PHASE-2가 도입한 `posts.slug`는 라이브 DB에서 **DEFAULT 없는 NOT NULL 컬럼**이다. `generateUniquePostSlug()`는 제목에 라틴 알파벳/숫자가 하나도 없으면(즉 **한글 전용 제목 — 이 사이트 게시글 절대다수**) `slugify()`가 빈 문자열을 반환하므로 `null`을 돌려주고, 호출부는 `...(slug ? { slug } : {})`로 그 키 자체를 insert에서 빼버렸다 — 의도는 "일단 slug 없이 insert하고, 성공 후 반환된 id로 폴백 slug를 다시 UPDATE"였지만, 컬럼이 NOT NULL이라 **그 최초 insert 자체가 즉시 실패**해 UPDATE 단계에 영원히 도달하지 못했다. 즉 한글 제목으로 글을 쓰면 항상 500 — 이 사이트 성격상 사실상 전체 글쓰기가 막혀 있던 셈이다.
+- **수정**: `src/app/api/boards/[board_slug]/posts/route.ts` — DB의 `id` 컬럼 기본값(`gen_random_uuid()`)에 맡기는 대신 라우트에서 `crypto.randomUUID()`로 `id`를 미리 만들고, `generateUniquePostSlug()`가 이 id를 폴백 값으로 받아 **항상 비어있지 않은 slug를 반환**하도록 바꿨다(한글 제목이면 id 앞 8자리). insert 시 `id`/`slug`를 처음부터 함께 넣으므로 NOT NULL 위반이 원천적으로 발생하지 않고, 기존에 있던 "insert 후 id로 slug UPDATE" 2단계 로직은 필요 없어져 제거(왕복 1회 감소 부수 효과).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 로컬 dev 서버에서 관리자 계정으로 한글 전용 제목("한글 제목 글쓰기 버그 재현")으로 실제 글쓰기 → 200 응답 → 상세 페이지(`/boards/general/b7c0c159`, id 앞 8자리 슬러그) 정상 렌더링까지 실제 확인. 재현/검증 과정에서 만든 테스트 게시글 2건 + `points_ledger` 잔여 2건 + 임시 테스트 계정(`write-debug-test`, `auth.users` 포함)은 Management API로 전부 정리 완료.
+
 ## 2026-08-05 (EPIC-079-INSTA-REGEX-FIX — Instagram URL 파서 쿼리 파라미터 방어 강화)
 - **조사 결과**: `extractInstagramPost`/`extractTweetId`(`src/lib/blockEditorCore.ts`)는 애초에 shortcode/트윗ID를 매칭하는 정규식 문자 클래스(`[A-Za-z0-9_-]+`, `\d+`)가 `?`/`#`을 포함하지 않아 `?utm_source=...` 같은 쿼리 파라미터 앞에서 이미 자연히 멈췄다(직접 재현 테스트로 확인 — 신고된 증상이 현재 코드에서는 재현되지 않음). 다만 이 정확성이 정규식 문자 클래스에 암묵적으로만 의존하고 있어 앞으로 다른 문자가 섞인 ID 형식이 추가되면 다시 깨질 수 있는 구조였다.
 - **강화**: `new URL()`로 호스트명(`instagram.com`/`twitter.com`/`x.com`인지)을 명시적으로 검증한 뒤 `pathname`만 매칭에 사용하도록 재작성 — 쿼리/해시가 어떤 문자를 담고 있든 pathname에는 애초에 나타나지 않으므로 원천적으로 영향을 받지 않는다. 스킴이 없는 입력(`"instagram.com/p/xyz"`처럼 프로토콜 없이 붙여넣는 경우, `new URL()`이 던짐)은 기존 도메인 포함 정규식으로 폴백해 하위 호환 유지. 동시에 이전엔 없던 **도메인 검증**도 새로 추가됨(`https://example.com/p/xyz/` 같은 무관한 도메인이 우연히 매칭되던 잠재적 오탐 가능성 제거).

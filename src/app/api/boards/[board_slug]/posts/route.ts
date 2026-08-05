@@ -272,16 +272,25 @@ export async function GET(
 
 // EPIC-079-PHASE-2: 새 글의 slug를 제목에서 생성한다 — 같은 게시판 안에서만
 // UNIQUE면 되므로(docs/sql/epic-079-phase-2-slug.sql의 (board_id, slug)
-// 복합 UNIQUE 인덱스), 충돌 시 -2, -3 ... 접미사를 붙여 재시도한다. 한글
-// 제목처럼 slugify 결과가 빈 문자열이면 id 없이는 만들 수 없으므로, insert
-// 성공 후 반환된 실제 id로 폴백 slug를 다시 한번 계산해 UPDATE한다.
+// 복합 UNIQUE 인덱스), 충돌 시 -2, -3 ... 접미사를 붙여 재시도한다.
+//
+// EPIC-079-WRITE-FIX: 한글 제목처럼 slugify 결과가 빈 문자열이 되는 경우,
+// 예전엔 여기서 null을 반환하고 "insert 성공 후 반환된 id로 폴백 slug를
+// 다시 계산해 UPDATE"하는 2단계 방식이었다 — 그런데 `posts.slug`가 라이브
+// DB에서 DEFAULT 없는 NOT NULL 컬럼이라, slug 없이 하는 첫 INSERT 자체가
+// `null value in column "slug" violates not-null constraint`로 즉시
+// 실패해서 그 UPDATE 단계에 영영 도달하지 못했다 — 한글 제목(이 사이트
+// 게시글 대부분)으로 글을 쓰면 항상 500이 나던 원인. 호출부가 INSERT 전에
+// 미리 만들어둔 id(fallbackId)를 넘겨받아, 처음부터 항상 비어있지 않은
+// slug를 반환하도록 바꿔 이 문제를 근본적으로 없앤다(2단계 INSERT→UPDATE
+// 자체가 불필요해짐).
 async function generateUniquePostSlug(
   client: typeof supabase,
   boardId: string,
   title: string,
-): Promise<string | null> {
-  const base = slugifyWithFallback(title, "");
-  if (!base) return null; // 호출부가 insert 후 id 기반 폴백을 처리한다.
+  fallbackId: string,
+): Promise<string> {
+  const base = slugifyWithFallback(title, fallbackId);
 
   let candidate = base;
   let suffix = 1;
@@ -401,11 +410,16 @@ export async function POST(
     validatedOrderId = order.id;
   }
 
-  const slug = await generateUniquePostSlug(requester.scopedClient, boardId, title);
+  // EPIC-079-WRITE-FIX: id를 미리 만들어(DB 기본값에 맡기지 않고) slug
+  // 계산의 폴백 값으로 넘긴다 — posts.slug가 NOT NULL(기본값 없음)이라
+  // insert 시점에 항상 비어있지 않은 slug가 있어야 한다(아래 주석 참고).
+  const postId = crypto.randomUUID();
+  const slug = await generateUniquePostSlug(requester.scopedClient, boardId, title, postId);
 
   let { data: post, error: insertError } = await requester.scopedClient
     .from("posts")
     .insert({
+      id: postId,
       board_id: boardId,
       author_id: requester.member.id,
       title,
@@ -419,7 +433,7 @@ export async function POST(
       visibility: "public",
       order_id: validatedOrderId,
       tags,
-      ...(slug ? { slug } : {}),
+      slug,
     })
     .select()
     .single();
@@ -433,6 +447,7 @@ export async function POST(
     ({ data: post, error: insertError } = await requester.scopedClient
       .from("posts")
       .insert({
+        id: postId,
         board_id: boardId,
         author_id: requester.member.id,
         title,
@@ -441,7 +456,7 @@ export async function POST(
         visibility: "public",
         order_id: validatedOrderId,
         tags,
-        ...(slug ? { slug } : {}),
+        slug,
       })
       .select()
       .single());
@@ -451,6 +466,7 @@ export async function POST(
     ({ data: post, error: insertError } = await requester.scopedClient
       .from("posts")
       .insert({
+        id: postId,
         board_id: boardId,
         author_id: requester.member.id,
         title,
@@ -458,7 +474,7 @@ export async function POST(
         is_docent_post: isDocentPost,
         visibility: "public",
         order_id: validatedOrderId,
-        ...(slug ? { slug } : {}),
+        slug,
       })
       .select()
       .single());
@@ -469,20 +485,6 @@ export async function POST(
       { error: "글 작성에 실패했어요.", detail: insertError?.message },
       { status: 500 },
     );
-  }
-
-  // 제목이 slugify로 빈 문자열이 됐던 경우(한글 제목 등) — 이제 실제 id를
-  // 알았으니 id 앞 8자리로 slug를 채운다(docs/sql/epic-079-phase-2-slug.sql
-  // 백필 로직과 동일한 폴백 규칙).
-  if (!slug && post.id) {
-    const fallbackSlug = (post.id as string).slice(0, 8);
-    const { data: updated } = await requester.scopedClient
-      .from("posts")
-      .update({ slug: fallbackSlug })
-      .eq("id", post.id)
-      .select()
-      .single();
-    if (updated) post = updated;
   }
 
   await requester.scopedClient.from("points_ledger").insert({

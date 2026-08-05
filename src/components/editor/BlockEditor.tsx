@@ -12,6 +12,7 @@ import {
   EmbedBlock,
   LinkCardBlock,
   embedSrc,
+  detectProvider,
   clampInstagramWidth,
   INSTAGRAM_WIDTH_MIN,
   INSTAGRAM_WIDTH_MAX,
@@ -35,6 +36,12 @@ import { EmbedConfigModal, type EmbedInsertResult } from "./EmbedConfigModal";
 //   가능한 NodeView로 승격.
 // - Gallery/Embed(Youtube/Vimeo/Instagram/Spotify/Maps)/LinkCard 블록 삽입.
 // - Preview 모드(실제 게시글과 동일한 sanitize된 HTML을 그대로 렌더링).
+
+// EPIC-079-FINAL-FIX: 다른 웹사이트에서 이미지/영상 "링크 텍스트"만 복사해
+// 붙여넣었을 때(파일 바이트도, <img>/<iframe> 태그도 없는 순수 URL) 자동
+// 인식용 — 이미지/영상 파일 확장자 URL을 판별한다.
+const IMAGE_URL_RE = /\.(png|jpe?g|gif|webp|avif|svg)(\?\S*)?$/i;
+const VIDEO_URL_RE = /\.(mp4|webm|mov|m3u8)(\?\S*)?$/i;
 
 // ============================================================
 // Toolbar Button
@@ -432,18 +439,36 @@ function EmbedView({ node, updateAttributes, deleteNode }: NodeViewProps) {
           모드(aspectRatio 지정)일 때도 고정 높이(px) 입력은 무시되므로 함께
           숨긴다(반응형 aspect-ratio wrapper가 대신 크기를 결정). */}
       {provider !== "instagram" && provider !== "customHtml" && !(provider === "youtube" && aspectRatio) && (
-        <div className="flex items-center gap-2 mt-2">
-          <label className="text-xs text-gray-500 shrink-0">
-            높이(px, 보이는 영역)
-          </label>
-          <input
-            type="number"
-            min={100}
-            max={1200}
-            value={height ?? EMBED_DEFAULT_HEIGHT[provider]}
-            onChange={(e) => updateAttributes({ height: Number(e.target.value) || null })}
-            className="w-24 text-xs border border-gray-200 rounded px-2 py-1"
-          />
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
+          {/* EPIC-079-FINAL-FIX: 이전엔 높이만 조절 가능하고 너비는 항상
+              컨테이너 100%로 고정돼 있었다("사이즈가 변경이 안 된다"는
+              신고의 실제 원인) — 너비도 픽셀 단위로 직접 지정할 수 있게
+              추가(비우면 기존처럼 100%). */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 shrink-0">너비(px, 비우면 100%)</label>
+            <input
+              type="number"
+              min={100}
+              max={1600}
+              value={width ?? ""}
+              placeholder="100%"
+              onChange={(e) => updateAttributes({ width: e.target.value ? Number(e.target.value) : null })}
+              className="w-24 text-xs border border-gray-200 rounded px-2 py-1"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 shrink-0">
+              높이(px, 보이는 영역)
+            </label>
+            <input
+              type="number"
+              min={100}
+              max={1200}
+              value={height ?? EMBED_DEFAULT_HEIGHT[provider]}
+              onChange={(e) => updateAttributes({ height: Number(e.target.value) || null })}
+              className="w-24 text-xs border border-gray-200 rounded px-2 py-1"
+            />
+          </div>
         </div>
       )}
       <input
@@ -522,9 +547,9 @@ function EmbedPreview({
   return (
     <iframe
       src={src}
-      width="100%"
+      width={width ? `${width}px` : "100%"}
       height={height ?? EMBED_DEFAULT_HEIGHT[provider]}
-      style={{ border: 0 }}
+      style={{ border: 0, maxWidth: "100%" }}
       loading="lazy"
       allow={provider === "spotify" ? "encrypted-media" : undefined}
       className="rounded"
@@ -954,15 +979,68 @@ export function BlockEditor({
         }
         return false;
       },
-      handlePaste: (_view, event) => {
+      handlePaste: (view, event) => {
         const clipboardData = event.clipboardData;
-        if (clipboardData?.files.length) {
+        if (!clipboardData) return false;
+
+        if (clipboardData.files.length) {
           const files = Array.from(clipboardData.files).filter((f) => f.type.startsWith("image/"));
           if (files.length > 0) {
             handleImageFiles(files);
             return true;
           }
         }
+
+        // EPIC-079-FINAL-FIX: 다른 웹사이트 이미지를 "복사"했는데 파일
+        // 바이트가 아니라 <img src="..."> 마크업으로만 오는 경우는 이미
+        // FigureImage의 parseHTML 규칙(스키마 레벨, blockEditorCore.ts)이
+        // 기본 붙여넣기 경로에서 알아서 처리한다 — 여기서 별도 처리 불필요.
+        // 반면 사람이 유튜브/인스타 링크나 이미지 URL을 "텍스트로" 복사해
+        // 붙여넣는 경우는 클립보드에 <img>/<iframe> 태그 자체가 없어 그
+        // 스키마 규칙이 못 잡는다 — 순수 URL 텍스트만 있을 때 이걸 감지해
+        // 자동으로 이미지/임베드로 바꿔준다. 여기서는 (React Compiler가
+        // useEditor(...) 설정 객체 안에서 그 결과물인 editor 변수를 다시
+        // 참조하는 자기순환을 못 다뤄 최적화를 통째로 포기하는 문제가 있어)
+        // editor 대신 handlePaste가 직접 받는 ProseMirror view로 트랜잭션을
+        // 만든다 — Tiptap 훅과 완전히 무관한 경로라 안전하다.
+        const text = clipboardData.getData("text/plain").trim();
+        const isPlainUrl = /^https?:\/\/\S+$/i.test(text);
+        if (!isPlainUrl) return false;
+
+        function insertAtomNode(type: "figureImage" | "embed", attrs: Record<string, unknown>) {
+          const nodeType = view.state.schema.nodes[type];
+          if (!nodeType) return false;
+          const node = nodeType.create(attrs);
+          view.dispatch(view.state.tr.replaceSelectionWith(node));
+          view.focus();
+          return true;
+        }
+
+        if (IMAGE_URL_RE.test(text)) {
+          return insertAtomNode("figureImage", { src: text, path: null, alt: "", caption: "", featured: false });
+        }
+
+        const embedDefaults = {
+          caption: "",
+          height: null,
+          aspectRatio: null,
+          hideCaption: false,
+          width: null,
+          rawHtml: "",
+        };
+
+        const provider = detectProvider(text);
+        if (provider) {
+          return insertAtomNode("embed", { ...embedDefaults, provider, url: text });
+        }
+
+        // 유튜브/비메오 등으로 인식은 안 되지만 직접 재생 가능한 영상
+        // 파일(.mp4 등) URL이면 raw iframe 임베드로 넣는다(브라우저가
+        // 프레임 안에서 네이티브 비디오 플레이어를 보여준다).
+        if (VIDEO_URL_RE.test(text)) {
+          return insertAtomNode("embed", { ...embedDefaults, provider: "raw", url: text });
+        }
+
         return false;
       },
     },

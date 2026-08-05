@@ -82,12 +82,24 @@ export const FigureImage = Node.create({
           };
         },
       },
-      // 레거시 호환: EPIC-052/053에서 저장된 순수 <img>도 이미지 1장으로 인식.
+      // 레거시 호환 + EPIC-079-FINAL-FIX(외부 사이트 이미지 복사-붙여넣기):
+      // 순수 <img>도 이미지 1장으로 인식한다. 많은 사이트가 지연 로딩을
+      // 써서 실제 src 대신 빈 값/placeholder(1x1 gif, data: URI 등)를
+      // src에 넣어두고 진짜 URL은 data-src/data-original/srcset에 담아
+      // 두므로, src가 비어있거나 data: URI(placeholder로 흔함)면 그쪽을
+      // 먼저 시도한다 — 그래야 클립보드로 복사해온 이미지가 깨진 링크
+      // 대신 실제로 보인다.
       {
         tag: "img[src]:not(figure img)",
         getAttrs: (el) => {
           const img = el as HTMLImageElement;
-          return { src: img.getAttribute("src"), alt: img.getAttribute("alt") ?? "" };
+          const rawSrc = img.getAttribute("src") ?? "";
+          const dataSrc = img.getAttribute("data-src") || img.getAttribute("data-original");
+          const srcsetFirst = img.getAttribute("srcset")?.split(",")[0]?.trim().split(/\s+/)[0];
+          const looksLikePlaceholder = !rawSrc || rawSrc.startsWith("data:");
+          const src = (looksLikePlaceholder && (dataSrc || srcsetFirst)) || dataSrc || rawSrc || srcsetFirst;
+          if (!src) return false;
+          return { src, alt: img.getAttribute("alt") ?? "" };
         },
       },
     ];
@@ -509,6 +521,11 @@ export const EmbedBlock = Node.create({
     const src = embedSrc(provider, url);
     const h = String(height ?? DEFAULT_EMBED_HEIGHT[provider]);
     const igWidth = clampInstagramWidth(width);
+    // EPIC-079-FINAL-FIX: instagram 전용이던 너비 조절을 일반화 — raw/
+    // googleMaps/naverMap/naverBlog/twitter처럼 컨테이너보다 좁게(또는
+    // 정확한 픽셀로) 보여주고 싶은 iframe 임베드 전부에 적용한다. null이면
+    // 기존처럼 컨테이너 100%.
+    const embedWidthStyle = width ? `${width}px` : "100%";
 
     const inner: unknown[] = provider === "customHtml"
       ? // EPIC-079-PHASE-4: 사용자가 직접 붙여넣은 임베드 HTML(rawHtml, 저장
@@ -525,7 +542,7 @@ export const EmbedBlock = Node.create({
           url || "링크",
         ]
       : provider === "spotify"
-      ? ["iframe", { src, width: "100%", height: h, frameborder: "0", allow: "encrypted-media", loading: "lazy" }]
+      ? ["iframe", { src, width: embedWidthStyle, height: h, frameborder: "0", allow: "encrypted-media", loading: "lazy" }]
       : provider === "instagram"
       ? // EPIC-079-PHASE-2 후속 핫픽스: instagram.com이 /embed/*를
         // X-Frame-Options: DENY로 막아 직접 iframe이 항상 "차단됨"으로
@@ -578,7 +595,7 @@ export const EmbedBlock = Node.create({
         ]
       : [
           "iframe",
-          { src, width: "100%", height: h, frameborder: "0", allowfullscreen: "true", loading: "lazy" },
+          { src, width: embedWidthStyle, height: h, frameborder: "0", allowfullscreen: "true", loading: "lazy" },
         ];
 
     return renderSpec([
@@ -589,7 +606,7 @@ export const EmbedBlock = Node.create({
         class: "embed",
         ...(aspectRatio ? { "data-aspect-ratio": aspectRatio } : {}),
         ...(hideCaption ? { "data-hide-caption": "true" } : {}),
-        ...(provider === "instagram" && width ? { "data-embed-width": String(igWidth) } : {}),
+        ...(width ? { "data-embed-width": String(provider === "instagram" ? igWidth : width) } : {}),
         ...(provider === "customHtml" ? { "data-raw-html": rawHtml } : {}),
       }),
       inner,

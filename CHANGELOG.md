@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-05 (EPIC-079-INSTA-REGEX-FIX — Instagram URL 파서 쿼리 파라미터 방어 강화)
+- **조사 결과**: `extractInstagramPost`/`extractTweetId`(`src/lib/blockEditorCore.ts`)는 애초에 shortcode/트윗ID를 매칭하는 정규식 문자 클래스(`[A-Za-z0-9_-]+`, `\d+`)가 `?`/`#`을 포함하지 않아 `?utm_source=...` 같은 쿼리 파라미터 앞에서 이미 자연히 멈췄다(직접 재현 테스트로 확인 — 신고된 증상이 현재 코드에서는 재현되지 않음). 다만 이 정확성이 정규식 문자 클래스에 암묵적으로만 의존하고 있어 앞으로 다른 문자가 섞인 ID 형식이 추가되면 다시 깨질 수 있는 구조였다.
+- **강화**: `new URL()`로 호스트명(`instagram.com`/`twitter.com`/`x.com`인지)을 명시적으로 검증한 뒤 `pathname`만 매칭에 사용하도록 재작성 — 쿼리/해시가 어떤 문자를 담고 있든 pathname에는 애초에 나타나지 않으므로 원천적으로 영향을 받지 않는다. 스킴이 없는 입력(`"instagram.com/p/xyz"`처럼 프로토콜 없이 붙여넣는 경우, `new URL()`이 던짐)은 기존 도메인 포함 정규식으로 폴백해 하위 호환 유지. 동시에 이전엔 없던 **도메인 검증**도 새로 추가됨(`https://example.com/p/xyz/` 같은 무관한 도메인이 우연히 매칭되던 잠재적 오탐 가능성 제거).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. `tsx`로 실제 프로덕션 모듈(`blockEditorCore.ts`)을 직접 import해 `extractInstagramPost`/`detectProvider`/`embedSrc`/`extractTweetId`를 쿼리 파라미터 포함 URL로 실행 — permalink가 쿼리 없이 정확히 생성됨(`.../p/CO8WLnjpl4k/`)과 무관 도메인 거부까지 실제 함수 호출로 확인(로그인 세션이 필요한 에디터 UI 클릭 테스트는 이번에도 불가 — 로직 자체는 순수 함수라 직접 호출 검증으로 충분).
+- Spotify/네이버 지도/구글 지도 파서는 ID를 추출하지 않고 도메인 존재 여부만 정규식으로 확인(`test()`)하므로 쿼리 파라미터의 영향을 받지 않음 — 별도 수정 불필요함을 코드 리뷰로 확인.
+
 ## 2026-08-05 (EPIC-079 후속 — EPIC-075 SQL 실행: 트리 드래그앤드롭 순서 컬럼)
 - **`docs/sql/EPIC-075-tree-sort-order.sql` 라이브 DB 실행**: 사용자 제공 Supabase Management API 토큰으로 직접 실행 — `page_builder`/`boards`에 `sort_order int not null default 0` 컬럼 신설 + 기존 행 전체 백필(`page_builder`는 `created_at` 순, `boards`는 이름 가나다순). 실행 후 재조회로 `page_builder` 150건/`boards` 56건 모두 `sort_order != 0`(전부 백필됨)을 확인. `/admin/pages`·`/admin/boards`의 드래그앤드롭 저장 코드는 EPIC-075 때 이미 작성돼 있었고 이 컬럼 부재로 저장만 실패하던 상태였음 — 이제 정상 동작할 것으로 기대. **사용자가 관리자 로그인 후 두 화면에서 실제로 드래그해 새로고침 후에도 순서가 유지되는지 확인 필요**(에이전트는 로그인 세션 없이 클릭 테스트 불가).
 

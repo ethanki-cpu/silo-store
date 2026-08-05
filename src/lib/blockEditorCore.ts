@@ -228,17 +228,49 @@ export function extractVimeoId(url: string): string | null {
   return match ? match[1] : null;
 }
 
+// EPIC-079-INSTA-REGEX-FIX: `?utm_source=...` 같은 쿼리 파라미터가 붙은
+// URL(Instagram 공유 버튼이 항상 이 형태로 링크를 만들어준다)을 붙여넣으면
+// 임베드가 깨진다는 신고 조사 — extractInstagramPost/extractTweetId
+// 자체는 문자 클래스([A-Za-z0-9_-]+)가 `?`/`#`을 포함하지 않아 쿼리
+// 파라미터 앞에서 자연히 멈추므로 이미 안전했지만, "경로 문자열만 본다"는
+// 의도를 정규식 문자 클래스에 암묵적으로 의존하는 대신 URL API로 명시적으로
+// 표현해 더 견고하게 만든다(쿼리/해시가 어떤 문자를 담고 있든 pathname만
+// 보므로 원천적으로 영향받지 않는다). `new URL()`이 던지는 상대/스킴 없는
+// 입력(예: "instagram.com/p/xyz" — 프로토콜 없이 붙여넣는 경우)은 기존
+// 정규식 방식으로 폴백한다.
+// hostnameTest에 매치하는 호스트일 때만 pathname을 반환한다(쿼리 파라미터에
+// 어떤 문자가 들어있든 pathname에는 애초에 안 나타나므로 안전) — new URL()이
+// 던지는 상대/스킴 없는 입력(예: "instagram.com/p/xyz")은 null을 반환해
+// 호출부가 기존 도메인 포함 정규식으로 폴백하게 한다.
+function extractPathnameForHost(url: string, hostnameTest: RegExp): string | null {
+  try {
+    const u = new URL(url);
+    return hostnameTest.test(u.hostname) ? u.pathname : null;
+  } catch {
+    return null;
+  }
+}
+
 /** instagram.com/{p|reel|tv}/{shortcode} 형태에서 종류+shortcode를 추출한다. */
 export function extractInstagramPost(url: string): { kind: "p" | "reel" | "tv"; id: string } | null {
-  const match = url.match(/instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
+  const pathname = extractPathnameForHost(url, /(^|\.)instagram\.com$/i);
+  const match = (pathname ?? url).match(/instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]+)|^\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
   if (!match) return null;
-  return { kind: match[1] as "p" | "reel" | "tv", id: match[2] };
+  const kind = (match[1] ?? match[3]) as "p" | "reel" | "tv";
+  const id = match[2] ?? match[4];
+  return { kind, id };
 }
 
 /** twitter.com/x.com/{user}/status/{id} 형태에서 트윗 ID를 추출한다. */
 export function extractTweetId(url: string): string | null {
-  const m = url.match(/(?:twitter|x)\.com\/[^/?#]+\/status(?:es)?\/(\d+)/);
-  return m ? m[1] : null;
+  const pathname = extractPathnameForHost(url, /(^|\.)(twitter|x)\.com$/i);
+  if (pathname) {
+    const m = pathname.match(/\/[^/]+\/status(?:es)?\/(\d+)/);
+    if (m) return m[1];
+  }
+  // extractPathnameForHost가 실패한(스킴 없는) 입력을 위한 도메인 포함 폴백.
+  const fallback = url.match(/(?:twitter|x)\.com\/[^/?#]+\/status(?:es)?\/(\d+)/);
+  return fallback ? fallback[1] : null;
 }
 
 /**

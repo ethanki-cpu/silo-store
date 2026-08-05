@@ -584,16 +584,21 @@ export const EmbedBlock = Node.create({
         // EPIC-079-PHASE-3: hideCaption이 true면 공식 위젯이 본문(캡션)을
         // 숨기도록 data-instgrm-captioned 속성 자체를 뺀다(Instagram embed.js가
         // 이 속성의 유무로만 캡션 노출을 결정 — 별도 URL 파라미터 없음).
+        // EPIC-079-HOTFIX: Instagram 공식 embed.js가 실제로 배포하는 마크업
+        // (box-shadow + width:calc(100% - 2px) 이중 선언 트릭 — 구형 브라우저는
+        // 앞 선언을, 최신 브라우저는 마지막 calc() 선언을 쓰게 하는 표준 CSS
+        // fallback 패턴)과 더 가깝게 style을 맞춰 embed.js가 처리한 뒤의 실제
+        // 렌더링이 공식 위젯과 최대한 동일해지도록 함 — max-width만 여전히
+        // Phase-4의 사용자 지정 너비(igWidth)를 따르고, min-width는 Instagram
+        // 위젯이 실제로 지원하는 최소값(326px)으로 고정.
         [
           "blockquote",
           {
             class: "instagram-media",
             "data-instgrm-permalink": src,
             "data-instgrm-version": "14",
-            ...(hideCaption ? {} : { "data-instgrm-captioned": "" }),
-            // EPIC-079-PHASE-4: 이전엔 항상 326~540px 범위 style이었는데,
-            // 이제 사용자가 그 범위 안에서 고른 정확한 너비(igWidth)로 고정.
-            style: `background:#FFF; border:0; border-radius:3px; margin:1px; max-width:${igWidth}px; min-width:${igWidth}px; padding:0; width:99%;`,
+            ...(hideCaption ? {} : { "data-instgrm-captioned": "true" }),
+            style: `background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin:1px; max-width:${igWidth}px; min-width:326px; padding:0; width:99.375%; width:-webkit-calc(100% - 2px); width:calc(100% - 2px);`,
           },
           [
             "a",

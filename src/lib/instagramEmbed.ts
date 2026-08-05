@@ -78,6 +78,13 @@ function buildFallbackLink(permalink: string): HTMLAnchorElement {
   a.textContent = "Instagram에서 게시물 보기 ↗";
   a.style.cssText =
     "display:inline-block;padding:10px 16px;border:1px solid #dbdbdb;border-radius:8px;color:#385185;text-decoration:none;font-size:14px;";
+  // EPIC-079-HOTFIX: 아래 processInstagramEmbeds()의 "이미 폴백 링크가
+  // 있으면 추가하지 않고 지우기만 한다"는 중복 방지 체크가 이 함수로 만든
+  // 진짜 폴백 링크만 인식하도록 하는 마커 — href만으로 판별하면
+  // BlockEditor.tsx가 blockquote 안에 넣어둔 "Instagram 게시물 보기"
+  // 사전 링크(embed.js가 로드되기 전까지 잠깐 보이는 장식용 앵커, href가
+  // 똑같이 permalink)까지 "이미 폴백이 있다"고 오판해버린다.
+  a.dataset.igFallback = "true";
   return a;
 }
 
@@ -101,12 +108,22 @@ export function processInstagramEmbeds(): void {
 
         const permalink = extractPermalink(el);
         // embed.js가 같은 blockquote를 두 번 이상 처리 시도해(재렌더링 등)
-        // 실패 잔여물이 여러 개 남는 경우가 있다 — 부모 안에 이미 같은
-        // permalink로 만든 폴백 링크가 있으면 하나 더 추가하지 않고 그냥
-        // 제거만 한다(중복 버튼 방지).
+        // 실패 잔여물이 여러 개 남는 경우가 있다 — 부모 안에 이미 이 함수가
+        // 만든 폴백 링크(data-ig-fallback)가 있으면 하나 더 추가하지 않고
+        // 그냥 제거만 한다(중복 버튼 방지).
+        // EPIC-079-HOTFIX: 이전엔 href만으로 판별했는데, BlockEditor.tsx의
+        // InstagramEmbedPreview가 blockquote 안에 넣어두는 "Instagram
+        // 게시물 보기" 사전 링크(embed.js가 아직 처리 전일 때 보이는 장식용
+        // 앵커, href가 똑같이 permalink)까지 "폴백이 이미 있다"고 오판해
+        // 실제로 embed.js가 성공적으로 만든 <iframe>까지 이 타임아웃에서
+        // 그냥 지워버리는(교체 없이 el.remove()) 진짜 버그였다 — 실제
+        // MutationObserver로 재현/확인함(정상 성공한 임베드가 6초 뒤 통째로
+        // 사라짐). data-ig-fallback 마커로 "진짜 폴백 링크"만 인식한다.
         const parent = el.parentElement;
         const alreadyHasFallback = parent
-          ? Array.from(parent.querySelectorAll<HTMLAnchorElement>("a")).some((a) => a.href === permalink)
+          ? Array.from(parent.querySelectorAll<HTMLAnchorElement>("a[data-ig-fallback='true']")).some(
+              (a) => a.href === permalink,
+            )
           : false;
 
         if (alreadyHasFallback) {

@@ -576,7 +576,38 @@ function InstagramEmbedPreview({
   width: number | null;
 }) {
   const w = clampInstagramWidth(width);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // EPIC-079-HOTFIX: 이전엔 `useRef`+`useEffect`로 컨테이너를 얻었는데,
+  // Tiptap의 ReactNodeViewRenderer가 NodeView마다 별도 React 렌더 트리를
+  // 관리하는 탓에(에디터 메인 트리와 커밋/effect 타이밍이 분리됨) 이 ref가
+  // 위 useEffect가 실행되는 시점에 아직 채워지지 않는 경우가 실제로
+  // 있었다 — 그 결과 blockquote가 영원히 만들어지지 않고 빈 wrapper div만
+  // 남는 버그가 재현됨(콘솔 에러 없이 조용히 실패해 눈에 띄지 않았음). ref
+  // 자체는 그대로 useRef로 두고(mutation이 허용되는 escape hatch), 콜백
+  // ref가 실행되는 순간(=DOM 커밋 완료 시점)을 별도 state로 신호만 보내
+  // effect가 "노드가 준비된 다음"에만 실행되도록 한다(React Compiler는
+  // useState 반환값을 직접 mutate하는 걸 금지하므로 container 자체를
+  // state로 들고 있을 수 없다 — mountTick은 트리거 용도일 뿐 읽지 않는다).
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [mountTick, setMountTick] = useState(0);
+  const setContainer = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    setMountTick((t) => t + 1);
+  }, []);
+
+  // EPIC-079-HOTFIX: MutationObserver로 직접 재현/확인한 진짜 원인 —
+  // 삽입 직후(또는 자동저장처럼 부모가 리렌더될 때마다) 이 effect가 같은
+  // permalink/hideCaption/width로 여러 번 실행된다. 그중 한 번이 성공적으로
+  // 처리(embed.js가 blockquote를 실제 <iframe>으로 변환)한 *뒤에* 또 한 번
+  // 더 실행되면, `container.innerHTML = ""`가 방금 embed.js가 만든 iframe을
+  // 무조건 지워버리고 새 빈 blockquote로 되돌린 채 effect가 끝나(대개 그 뒤
+  // 재실행이 더는 없어) 최종적으로 빈 wrapper만 남았다 — 콘솔 에러 없이
+  // 조용히 실패해 원인 파악이 어려웠다. "같은 설정으로 이미 무언가 그려져
+  // 있으면 다시 지우지 않는다"는 멱등성 가드가 필요한데, 그 판정을 React
+  // ref(컴포넌트 인스턴스에 묶임)가 아니라 **DOM 노드 자신의 dataset**에
+  // 저장한다 — 컨테이너가 통째로 새로 만들어지는 경우(진짜 리마운트)에는
+  // 새 노드의 dataset이 비어있으니 정상적으로 다시 그리고, 같은 노드에
+  // 대한 반복 실행만 걸러낸다.
+  const IG_KEY_ATTR = "igKey";
 
   // 버그 재현/수정(EPIC-079-PHASE-4): 이전엔 key={permalink-hideCaption-width}로
   // React가 새 <blockquote> DOM 노드를 강제로 만들게 했는데, 그 사이 embed.js가
@@ -592,14 +623,23 @@ function InstagramEmbedPreview({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
+    const key = `${permalink}|${hideCaption}|${w}`;
+    if (container.dataset[IG_KEY_ATTR] === key) {
+      return;
+    }
+    container.dataset[IG_KEY_ATTR] = key;
     container.innerHTML = "";
 
     const blockquote = document.createElement("blockquote");
     blockquote.className = "instagram-media";
     blockquote.setAttribute("data-instgrm-permalink", permalink);
     blockquote.setAttribute("data-instgrm-version", "14");
-    if (!hideCaption) blockquote.setAttribute("data-instgrm-captioned", "");
-    blockquote.style.cssText = `background:#FFF; border:0; border-radius:3px; margin:1px; max-width:${w}px; min-width:${w}px; padding:0; width:99%;`;
+    if (!hideCaption) blockquote.setAttribute("data-instgrm-captioned", "true");
+    // EPIC-079-HOTFIX: renderHTML(blockEditorCore.ts)의 실제 저장 마크업과
+    // 동일한 스타일로 맞춰 에디터 미리보기와 실제 게시글이 항상 같아 보이게
+    // 한다(Instagram 공식 embed.js 마크업의 box-shadow + calc() width 트릭).
+    blockquote.style.cssText = `background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin:1px; max-width:${w}px; min-width:326px; padding:0; width:99.375%; width:-webkit-calc(100% - 2px); width:calc(100% - 2px);`;
 
     const link = document.createElement("a");
     link.href = permalink;
@@ -610,9 +650,9 @@ function InstagramEmbedPreview({
 
     container.appendChild(blockquote);
     processInstagramEmbeds();
-  }, [permalink, hideCaption, w]);
+  }, [mountTick, permalink, hideCaption, w]);
 
-  return <div ref={containerRef} />;
+  return <div ref={setContainer} />;
 }
 
 // 버그 수정(EPIC-079-FINAL-FIX): 이 컴포넌트가 sanitizeHtml()로 정제된

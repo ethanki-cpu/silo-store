@@ -4,6 +4,9 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-079-HOTFIX(완료, 2026-08-05)**: "Tiptap Instagram Card Native Integration" 지시로 재현 테스트하다 발견한 훨씬 심각한 버그 — 정상 렌더링된 Instagram 임베드가 6초 뒤 통째로 사라지는 문제를 근본 수정. 상세는 CHANGELOG.md 동명 항목 참고. `src/lib/instagramEmbed.ts`의 폴백 중복 체크가 우리 자신의 장식용 사전 링크를 "이미 있는 폴백"으로 오인해 `el.remove()`(대체 없이 삭제)를 실행하던 게 원인 — `data-ig-fallback` 마커로 구분해 해결. `tsc`/`lint`/`build` 통과, 로컬 프로덕션 빌드에서 MutationObserver로 수정 전/후 실제 타임라인 비교 확인. **dev.silostore.net 배포 후 정상 응답하는 실제 Instagram 게시물로 최종 재확인 권장**(로컬 샌드박스는 iframe이 끝까지 안 뜨고 폴백으로 귀결됨 — 별개의 기존 알려진 한계, Instagram 서버 쪽 문제로 추정).
+
+## 다음 작업
 - **EPIC-079-PHASE-5(완료, 2026-08-05)**: "Editor UX Polish, Fallback Thumbnails & Admin Site Management Fixes" 요청(4개 그룹) — 상세는 CHANGELOG.md 동명 항목 참고. `tsc`/`lint`/`build` 전부 통과, 로컬 dev 서버에서 툴바 라벨/드롭다운 트리 계층/게시판 추가(POST 200)/URL 정리 필요 배지까지 실제 확인. **다음 세션에서 확인 필요**: (1) 관리자 화면 게시판/페이지 "삭제" 버튼의 `confirm()` 다이얼로그 클릭까지 실제 재현(이번 세션은 코드 리뷰로만 안전성 판단 — boards[id] DELETE의 이미 검증된 패턴을 그대로 재사용하는 대칭 구현), (2) 대표 이미지 없이 유튜브 임베드만 있는 글을 실제로 저장해 대표 이미지가 자동으로 채워지는지, (3) 전체 dual-nav/조잡한 URL 구조 개편은 이번에 범위 밖으로 남겨둠(기존 P0 기술부채, PROJECT_DASHBOARD.md 참고) — "URL 정리 필요" 배지로 가시성만 확보.
 - **EPIC-079-WRITE-FIX(완료, 2026-08-05)**: "dev.silostore.net에 글이 전혀 안 써진다" 신고 — 상세는 CHANGELOG.md 동명 항목 참고. 한글 전용 제목이면 `posts.slug`(NOT NULL, 기본값 없음)가 null이 되어 INSERT 자체가 즉시 500으로 실패하던 P0 버그. `id`를 라우트에서 미리 생성해 slug 폴백에 쓰도록 수정해 근본 해결. `tsc`/`lint` 0 errors, 로컬 dev 서버에서 한글 제목으로 실제 글쓰기 성공까지 확인, 테스트 데이터/계정 전부 정리 완료. **배포(develop/main push) 후 dev.silostore.net에서 실제 사용자가 한글 제목으로 다시 확인 권장.**
 - **EPIC-079-INSTA-REGEX-FIX(완료, 2026-08-05)**: "쿼리 파라미터 붙은 Instagram URL 임베드 파싱 실패" 신고 조사 — 상세는 CHANGELOG.md 동명 항목 참고. 실제로는 기존 정규식이 이미 쿼리 파라미터 앞에서 멈췄지만(재현 안 됨), `new URL()` 기반 호스트명 검증 + pathname 매칭으로 재작성해 더 견고하게 만들고 부수로 무관 도메인 오탐 가능성도 제거. `tsc`/`lint` 0 errors, `tsx`로 실제 모듈을 직접 import해 함수 호출 검증 완료. **로그인 세션이 있는 다음 세션에서 실제 에디터 UI로 쿼리 파라미터 붙은 Instagram/X URL을 붙여넣어 최종 확인 권장**(순수 함수 로직 검증은 완료, UI 클릭 경로는 미확인).

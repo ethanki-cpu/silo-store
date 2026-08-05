@@ -8,7 +8,7 @@ import {
   RANK_LABELS,
 } from "@/lib/serverAuth";
 import { resolveBoardDefinition, isSortOption, type SortOption } from "@/lib/boardLayout";
-import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
+import { renderPostHtml, findEmbedThumbnail, type JSONContent } from "@/lib/blockEditorCore";
 import { fetchBoard } from "@/lib/boardFetch";
 import { slugifyWithFallback } from "@/lib/slugify";
 
@@ -343,7 +343,10 @@ export async function POST(
   const bodyJson = body?.bodyJson as JSONContent | undefined;
   const isDocentPost = Boolean(body?.isDocentPost);
   const orderId = body?.orderId as string | undefined;
-  const featuredImageUrl = (body?.featuredImageUrl as string | null | undefined) ?? null;
+  // EPIC-079-PHASE-5: 대표 이미지를 지정하지 않았고 본문에 유튜브 임베드가
+  // 있으면 그 영상 썸네일로 자동 폴백 — 상세는 findEmbedThumbnail 주석 참고.
+  const featuredImageUrl =
+    (body?.featuredImageUrl as string | null | undefined) ?? (bodyJson ? findEmbedThumbnail(bodyJson) : null);
   const featuredImagePath = (body?.featuredImagePath as string | null | undefined) ?? null;
   const thumbnailVisible = body?.thumbnailVisible === undefined ? true : Boolean(body.thumbnailVisible);
   const category = (body?.category as string | null | undefined) ?? null;

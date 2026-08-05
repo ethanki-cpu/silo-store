@@ -50,7 +50,7 @@ export default function EditPostPage() {
   // EPIC-079-PHASE-4: "게시될 페이지 선택" — write와 동일한 공용 훅. 초기값은
   // URL의 boardSlug(=지금 글이 속한 게시판)이고, 사용자가 다른 게시판을
   // 고르면 저장 시 그 게시판으로 옮겨진다(handleSubmit의 targetBoardSlug).
-  const boards = useBoardOptions(session);
+  const { tree: boardTree, loading: boardsLoading, error: boardsError } = useBoardOptions(session);
   const [selectedBoardSlug, setSelectedBoardSlug] = useState(boardSlug);
   const { boardType, boardCategory } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
   const definition = boardType
@@ -186,7 +186,13 @@ export default function EditPostPage() {
       <h1 className="font-serif text-2xl font-bold mb-6">글 수정</h1>
 
       <div className="mb-4">
-        <BoardPageSelect boards={boards} value={selectedBoardSlug} onChange={setSelectedBoardSlug} />
+        <BoardPageSelect
+          tree={boardTree}
+          loading={boardsLoading}
+          error={boardsError}
+          value={selectedBoardSlug}
+          onChange={setSelectedBoardSlug}
+        />
       </div>
 
       <PostForm

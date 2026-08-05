@@ -52,12 +52,18 @@ function ToolbarButton({
   active,
   disabled,
   title,
+  label,
   children,
 }: {
   onClick: () => void;
   active?: boolean;
   disabled?: boolean;
   title: string;
+  // EPIC-079-PHASE-5: title은 hover해야만 보이는 네이티브 툴팁이라, 아이콘만
+  // 보고는 기능을 추측하기 어렵다는 피드백 — 항상 보이는 작은 텍스트
+  // 라벨이 필요한 버튼에만 이 prop을 넘긴다(전체 툴바에 다 붙이면 좁은
+  // 화면에서 줄바꿈이 심해져, "외부자료/이미지/갤러리" 3개로 범위를 좁힘).
+  label?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -69,9 +75,12 @@ function ToolbarButton({
       aria-label={title}
       className={`p-1.5 rounded text-sm transition-colors ${
         active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-      } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+      } ${disabled ? "opacity-40 cursor-not-allowed" : ""} ${
+        label ? "flex flex-col items-center gap-0.5 px-2" : ""
+      }`}
     >
       {children}
+      {label && <span className="text-[10px] leading-none whitespace-nowrap">{label}</span>}
     </button>
   );
 }
@@ -835,7 +844,7 @@ function Toolbar({
         🔗
       </ToolbarButton>
 
-      <ToolbarButton title="이미지 업로드 (여러 장 가능)" onClick={() => fileInputRef.current?.click()}>
+      <ToolbarButton title="이미지 업로드 (여러 장 가능)" label="이미지 업로드" onClick={() => fileInputRef.current?.click()}>
         🖼
       </ToolbarButton>
       <input
@@ -851,7 +860,7 @@ function Toolbar({
         }}
       />
 
-      <ToolbarButton title="갤러리 삽입 (여러 장 → 그리드)" onClick={() => galleryInputRef.current?.click()}>
+      <ToolbarButton title="갤러리 삽입 (여러 장 → 그리드)" label="갤러리 삽입" onClick={() => galleryInputRef.current?.click()}>
         🖼🖼
       </ToolbarButton>
       <input
@@ -867,7 +876,7 @@ function Toolbar({
         }}
       />
 
-      <ToolbarButton title="임베드 삽입" onClick={() => setEmbedModalOpen(true)}>
+      <ToolbarButton title="외부자료 삽입 (유튜브/인스타/스포티파이/X/지도 등)" label="외부자료 삽입" onClick={() => setEmbedModalOpen(true)}>
         ▶
       </ToolbarButton>
       {embedModalOpen && (

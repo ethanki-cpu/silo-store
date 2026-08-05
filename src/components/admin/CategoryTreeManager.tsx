@@ -734,6 +734,19 @@ function CategoryRow({
           {row.href && (
             <span className="text-xs text-gray-400">{row.href}</span>
           )}
+          {/* EPIC-079-PHASE-5: `/c/{uuid}` — 새 항목 생성 시 ensurePageForSlug를
+              바로 실행시키려고 임시로 채워두는 placeholder href(위 createRow
+              참고)를 관리자가 실제 slug로 바꾸지 않고 방치한 경우, 사이트
+              메뉴에 조잡한 UUID URL이 그대로 노출된다 — 방치되기 쉬우니
+              트리에서 바로 눈에 띄도록 경고 배지를 붙인다. */}
+          {row.href && /^\/c\/[0-9a-f-]{36}$/i.test(row.href) && (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700"
+              title="임시 URL이에요 — [관리]에서 사람이 읽기 쉬운 URL로 바꿔주세요"
+            >
+              URL 정리 필요
+            </span>
+          )}
           {!row.is_active && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
               비활성

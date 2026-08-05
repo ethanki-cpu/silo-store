@@ -815,6 +815,35 @@ export function findFirstImage(json: JSONContent | null | undefined): string | n
   return found;
 }
 
+// EPIC-079-PHASE-5: 대표 이미지를 직접 지정/업로드하지 않고 외부 임베드만
+// 넣은 글은 목록 카드/상세 헤더에 썸네일이 아예 안 뜨는 문제 — 저장 시
+// 서버가 이 함수로 본문에서 첫 번째 임베드의 썸네일을 찾아 대표 이미지
+// 폴백으로 쓴다(호출부는 findFeaturedImage/findFirstImage를 먼저 시도한
+// 뒤에만 이 함수를 부른다). YouTube는 영상 ID만 있으면 별도 API 호출 없이
+// 공식 썸네일 CDN URL을 바로 만들 수 있어 지원한다. Instagram/X/Spotify
+// 등은 Meta/X 쪽이 공개 oEmbed에 앱 토큰을 요구하도록 바뀌어(EPIC-079-
+// TIPTAP-FIX-V2 조사 참고 — 이 리포는 서버 쪽 접근 권한 없이 임베드조차
+// 간신히 붙였다) 토큰 없이 안정적으로 썸네일을 가져올 방법이 없어 범위 밖.
+export function findEmbedThumbnail(json: JSONContent | null | undefined): string | null {
+  if (!json) return null;
+  let found: string | null = null;
+
+  function walk(node: JSONContent) {
+    if (found) return;
+    if (node.type === "embed" && node.attrs?.provider === "youtube" && node.attrs.url) {
+      const id = extractYoutubeId(node.attrs.url as string);
+      if (id) {
+        found = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+        return;
+      }
+    }
+    for (const child of node.content ?? []) walk(child);
+  }
+
+  walk(json);
+  return found;
+}
+
 /**
  * EPIC-079: 문서에 실제 내용(텍스트 또는 미디어 블록)이 있는지 판정한다.
  * PostForm.tsx가 예전엔 이 판정을 editor의 onChange가 넘겨주는 HTML

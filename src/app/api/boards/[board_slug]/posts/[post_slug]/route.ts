@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { getRequestMember, getTier, canReadBoard, RANK_LABELS } from "@/lib/serverAuth";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
-import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
+import { renderPostHtml, findEmbedThumbnail, type JSONContent } from "@/lib/blockEditorCore";
 import { enqueueOrphanedImages, enqueueAllImages } from "@/lib/imageGc";
 import { fetchBoard } from "@/lib/boardFetch";
 
@@ -266,7 +266,13 @@ export async function PATCH(
   const title = body?.title as string | undefined;
   const bodyJson = body?.bodyJson as JSONContent | undefined;
   const isDocentPost = Boolean(body?.isDocentPost);
-  const featuredImageUrl = (body?.featuredImageUrl as string | null | undefined) ?? null;
+  // EPIC-079-PHASE-5: 사용자가 대표 이미지를 아예 지정하지 않았고(직접
+  // 업로드도, 본문 이미지 ★ 지정도 없음) 본문에 유튜브 임베드가 있으면
+  // 그 영상 썸네일을 대표 이미지로 폴백한다 — findFeaturedImage/
+  // findFirstImage(클라이언트, PostForm.tsx)가 이미지 계열은 먼저 채워주므로
+  // 여기 도달하는 건 "이미지는 하나도 없고 임베드만 있는" 글뿐이다.
+  const featuredImageUrl =
+    (body?.featuredImageUrl as string | null | undefined) ?? (bodyJson ? findEmbedThumbnail(bodyJson) : null);
   const featuredImagePath = (body?.featuredImagePath as string | null | undefined) ?? null;
   const thumbnailVisible = body?.thumbnailVisible === undefined ? true : Boolean(body.thumbnailVisible);
   const category = (body?.category as string | null | undefined) ?? null;

@@ -142,7 +142,7 @@ export default function AdminSiteStructurePage() {
           <p className="text-gray-500 text-sm">불러오는 중...</p>
         ) : (
           <div className="space-y-6">
-            <UnassignedPagesPanel pages={unassignedPages} onChanged={load} />
+            <UnassignedPagesPanel pages={unassignedPages} session={session} onChanged={load} />
             <UnassignedBoardsPanel
               boards={unassignedBoards}
               session={session}
@@ -157,12 +157,15 @@ export default function AdminSiteStructurePage() {
 
 function UnassignedPagesPanel({
   pages,
+  session,
   onChanged,
 }: {
   pages: PageBuilderRow[];
+  session: ReturnType<typeof useAuth>["session"];
   onChanged: () => void;
 }) {
   const [items, setItems] = useState(pages);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   useEffect(() => setItems(pages), [pages]);
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -179,6 +182,25 @@ function UnassignedPagesPanel({
         supabase.from("page_builder").update({ sort_order: index }).eq("id", id),
       ),
     );
+    onChanged();
+  }
+
+  // EPIC-079-PHASE-5: 이전엔 "수정" 링크만 있고 삭제 자체가 불가능했다
+  // (버튼이 아예 없었음 — 이게 "삭제가 안 된다"는 신고의 실제 원인).
+  async function handleDelete(page: PageBuilderRow) {
+    if (!session) return;
+    if (!confirm(`"${page.title}" 페이지를 삭제할까요? 이 페이지의 위젯도 함께 삭제돼요.`)) return;
+    setDeletingId(page.id);
+    const res = await fetch(`/api/admin/pages/${page.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    setDeletingId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "삭제에 실패했어요.");
+      return;
+    }
     onChanged();
   }
 
@@ -203,6 +225,14 @@ function UnassignedPagesPanel({
                   >
                     수정
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(page)}
+                    disabled={deletingId === page.id}
+                    className="rounded-md border border-red-200 text-red-600 px-2 py-1 text-xs hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {deletingId === page.id ? "삭제 중..." : "삭제"}
+                  </button>
                 </SortableRow>
               ))}
             </ul>
@@ -223,6 +253,11 @@ function UnassignedBoardsPanel({
   onChanged: () => void;
 }) {
   const [items, setItems] = useState(boards);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
   useEffect(() => setItems(boards), [boards]);
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -250,17 +285,60 @@ function UnassignedBoardsPanel({
     onChanged();
   }
 
+  // EPIC-079-PHASE-5: 이 패널은 그동안 드래그 재정렬 + "수정" 링크만 있고
+  // 추가/삭제가 아예 안 됐다 — 백엔드 API(/api/admin/boards POST/DELETE,
+  // EPIC-066/077)는 이미 있었으니 여기 UI만 연결하면 된다.
+  async function handleCreate() {
+    if (!session || !newName.trim() || !newCategory.trim()) return;
+    setCreating(true);
+    setCreateError(null);
+    const res = await fetch("/api/admin/boards", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ name: newName.trim(), category: newCategory.trim() }),
+    });
+    const data = await res.json();
+    setCreating(false);
+    if (!res.ok) {
+      setCreateError(data.error ?? "게시판 생성에 실패했어요.");
+      return;
+    }
+    setNewName("");
+    setNewCategory("");
+    onChanged();
+  }
+
+  async function handleDelete(board: UnassignedBoard) {
+    if (!session) return;
+    if (!confirm(`"${board.name}" 게시판을 삭제할까요?`)) return;
+    setDeletingId(board.id);
+    const res = await fetch(`/api/admin/boards/${board.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    setDeletingId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "삭제에 실패했어요.");
+      return;
+    }
+    onChanged();
+  }
+
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-700 mb-2">
         미분류 게시판 ({items.length})
       </h3>
       {items.length === 0 ? (
-        <p className="text-xs text-gray-400">없음</p>
+        <p className="text-xs text-gray-400 mb-2">없음</p>
       ) : (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <SortableContext items={items.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-            <ul className="space-y-1.5">
+            <ul className="space-y-1.5 mb-2">
               {items.map((board) => (
                 <SortableRow key={board.id} id={board.id}>
                   <span className="text-sm font-medium text-gray-900">📄 {board.name}</span>
@@ -271,12 +349,46 @@ function UnassignedBoardsPanel({
                   >
                     수정
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(board)}
+                    disabled={deletingId === board.id}
+                    className="rounded-md border border-red-200 text-red-600 px-2 py-1 text-xs hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {deletingId === board.id ? "삭제 중..." : "삭제"}
+                  </button>
                 </SortableRow>
               ))}
             </ul>
           </SortableContext>
         </DndContext>
       )}
+
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-gray-300 p-2">
+        <input
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="게시판 이름"
+          className="flex-1 min-w-[8rem] rounded-md border border-gray-300 px-2 py-1 text-sm"
+        />
+        <input
+          type="text"
+          value={newCategory}
+          onChange={(e) => setNewCategory(e.target.value)}
+          placeholder="카테고리(내부 슬러그)"
+          className="flex-1 min-w-[8rem] rounded-md border border-gray-300 px-2 py-1 text-sm"
+        />
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={creating || !newName.trim() || !newCategory.trim()}
+          className="rounded-md bg-gray-800 text-white px-3 py-1 text-xs disabled:opacity-50"
+        >
+          {creating ? "추가 중..." : "게시판 추가"}
+        </button>
+        {createError && <p className="w-full text-xs text-red-500">{createError}</p>}
+      </div>
     </div>
   );
 }

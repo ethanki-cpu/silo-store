@@ -347,7 +347,18 @@ export function PostForm({
         <p className="text-xs text-gray-400">💾 {new Date(autoSavedAt).toLocaleString()}에 자동 저장됨</p>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {/* EPIC-079-PHASE-5: 폼이 길어(에디터+대표이미지+태그) 실패 메시지가
+          스크롤 밖에 있으면 아무 일도 안 일어난 것처럼 보인다는 피드백 —
+          스크롤 위치와 무관하게 항상 보이는 고정 위치 토스트로 강화. */}
+      {error && (
+        <div
+          role="alert"
+          className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm shadow-lg"
+        >
+          <p className="font-medium text-red-700">저장에 실패했어요</p>
+          <p className="mt-1 text-red-600">{error}</p>
+        </div>
+      )}
 
       <button
         type="submit"

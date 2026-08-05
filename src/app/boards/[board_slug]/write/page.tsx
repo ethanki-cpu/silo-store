@@ -31,7 +31,7 @@ export default function WritePostPage() {
   const { session, member } = useAuth();
   const router = useRouter();
 
-  const boards = useBoardOptions(session);
+  const { tree: boardTree, loading: boardsLoading, error: boardsError } = useBoardOptions(session);
   const [selectedBoardSlug, setSelectedBoardSlug] = useState(initialBoardSlug);
   const { boardType, boardCategory } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
   const [confirmedOrders, setConfirmedOrders] = useState<ConfirmedOrder[]>([]);
@@ -127,7 +127,13 @@ export default function WritePostPage() {
       <h1 className="font-serif text-2xl font-bold mb-6">글쓰기</h1>
 
       <div className="mb-4">
-        <BoardPageSelect boards={boards} value={selectedBoardSlug} onChange={setSelectedBoardSlug} />
+        <BoardPageSelect
+          tree={boardTree}
+          loading={boardsLoading}
+          error={boardsError}
+          value={selectedBoardSlug}
+          onChange={setSelectedBoardSlug}
+        />
       </div>
 
       <PostForm

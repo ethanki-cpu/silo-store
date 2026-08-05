@@ -662,6 +662,26 @@ function CategoryRow({
               #{row.topic}
             </span>
           )}
+          {/* EPIC-079-PHASE-4: 최상위(=상단 탭) 노드는 노출 방식(링크/드롭다운/
+              좌우 사이드바)이 "관리" 모달 안에 파묻혀 있어 바로 바꾸기 번거로웠다
+              — 행에서 곧바로 고를 수 있는 전용 컨트롤을 추가한다. 하위 노드는
+              상위(루트)의 target_type을 그대로 물려받으므로(트리 인스턴스가
+              루트 target_type으로 범위를 나누던 이전 구조의 흔적) 여기서는
+              편집 불가 — CategoryDetailModal과 동일한 규칙. */}
+          {row.parent_id === null && (
+            <select
+              value={row.target_type}
+              onChange={(e) => onUpdate(row.id, { target_type: e.target.value as TargetTypeLiteral })}
+              className="text-xs rounded-md border border-gray-300 px-1.5 py-1"
+              title="이 상단 탭의 노출 방식"
+            >
+              {Object.entries(TARGET_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
 
           <div className="ml-auto flex gap-1">
             <button

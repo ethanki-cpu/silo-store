@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent, type Editor, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
+import type { EditorView } from "@tiptap/pm/view";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import type { NodeViewProps } from "@tiptap/react";
@@ -42,6 +43,48 @@ import { EmbedConfigModal, type EmbedInsertResult } from "./EmbedConfigModal";
 // 인식용 — 이미지/영상 파일 확장자 URL을 판별한다.
 const IMAGE_URL_RE = /\.(png|jpe?g|gif|webp|avif|svg)(\?\S*)?$/i;
 const VIDEO_URL_RE = /\.(mp4|webm|mov|m3u8)(\?\S*)?$/i;
+
+// EPIC-079-HOTFIX-2: "다른 웹사이트에서 이미지를 복사해 붙여넣으면(파일
+// 바이트로) 안 된다"는 신고 조사 — 실제로는 조용히 아무것도 안 됐다(에러도
+// 없음). 원인: `useEditor({ immediatelyRender: false, ... editorProps })`에서
+// `editor`는 첫 렌더에 null이었다가 마운트 후에야 실제 Editor 인스턴스로
+// 바뀌는데, `editorProps.handlePaste`/`handleDrop` 안에서 `editor`에 의존하는
+// `handleImageFiles`(useCallback)를 호출하면 그 클로저가 **최초 렌더 시점의
+// stale한 editor=null**을 계속 참조한다(`useEditor`가 `[extensions]`
+// 의존성이 안 바뀌는 한 이 콜백들을 다시 만들지 않으므로 영원히 갱신 안 됨).
+// `handleImageFiles`는 `if (!editor) return;`으로 조용히 아무 일도 안 하고
+// 끝나버려 사용자에게는 "복사한 이미지를 붙여넣었는데 반응이 없다"로만
+// 보였다 — 순수 URL 텍스트 붙여넣기 분기(바로 아래)가 이미 같은 이유로
+// `editor` 대신 콜백이 직접 받는 `view` 파라미터를 쓰도록 되어 있었는데,
+// 이미지 파일 분기만 그 패턴을 안 따르고 있었다. 이 함수는 컴포넌트
+// 클로저에 전혀 의존하지 않는 모듈 스코프 함수로 만들어 그 문제 자체를
+// 원천 차단한다 — 매번 호출 시점의 살아있는 `view`를 직접 받는다.
+async function uploadAndInsertImages(view: EditorView, files: File[]) {
+  for (const file of files) {
+    try {
+      const result = await uploadPostImage(file, "editor");
+      if (result.error) {
+        console.error("이미지 업로드 실패:", result.error);
+        continue;
+      }
+      const nodeType = view.state.schema.nodes.figureImage;
+      if (!nodeType) continue;
+      const node = nodeType.create({
+        src: result.url,
+        path: result.path,
+        alt: file.name,
+        caption: "",
+        featured: false,
+      });
+      // handleImageFiles(toolbar/드롭 업로드)와 동일하게 항상 문서 끝에
+      // 삽입한다 — 커서 위치에 그대로 넣으면 직전에 삽입한 atom 블록을
+      // 통째로 교체해버리는 기존에 확인된 버그(EPIC-079 주석 참고)가 있다.
+      view.dispatch(view.state.tr.insert(view.state.doc.content.size, node));
+    } catch (err) {
+      console.error("이미지 업로드 오류:", err);
+    }
+  }
+}
 
 // ============================================================
 // Toolbar Button
@@ -1018,11 +1061,11 @@ export function BlockEditor({
       attributes: {
         class: "prose prose-sm max-w-none min-h-[300px] px-4 py-3 focus:outline-none",
       },
-      handleDrop: (_view, event, _slice, moved) => {
+      handleDrop: (view, event, _slice, moved) => {
         if (!moved && event.dataTransfer?.files.length) {
           const files = Array.from(event.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
           if (files.length > 0) {
-            handleImageFiles(files);
+            uploadAndInsertImages(view, files);
             return true;
           }
         }
@@ -1035,7 +1078,7 @@ export function BlockEditor({
         if (clipboardData.files.length) {
           const files = Array.from(clipboardData.files).filter((f) => f.type.startsWith("image/"));
           if (files.length > 0) {
-            handleImageFiles(files);
+            uploadAndInsertImages(view, files);
             return true;
           }
         }

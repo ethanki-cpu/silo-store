@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-06 (EPIC-079-HOTFIX-2 — 외부 이미지 "파일로" 복사-붙여넣기가 조용히 아무 일도 안 하던 버그 수정)
+- **신고**: "글쓰기 할 때 다른 외부 웹사이트에서 이미지를 복사해서 붙여넣기 하면 안 되는데, 이미지 링크를 복사해야 되네" — 즉 URL 텍스트를 복사해 붙여넣는 건 되는데, 이미지 자체(파일 바이트)를 복사해 붙여넣으면 아무 반응이 없었다.
+- **재현/진단**: 실제 이미지 파일 blob을 담은 `paste` 이벤트를 에디터에 직접 디스패치해 확인 — 에러 하나 없이 조용히 아무것도 삽입되지 않음. 디버그 로그를 임시로 넣어 추적한 결과 `handleImageFiles` 내부의 `if (!editor) return;`에서 매번 `editor`가 `false`(null)로 조용히 종료되고 있었다.
+- **근본 원인**: `useEditor({ immediatelyRender: false, ... })`는 첫 렌더에서 `editor`가 `null`이었다가 마운트 후에야 실제 Editor 인스턴스로 바뀐다. `editorProps.handlePaste`/`handleDrop`은 `useEditor`가 `[extensions]` 의존성이 안 바뀌는 한 다시 만들지 않는 콜백인데, 그 안에서 `editor`에 의존하는 `handleImageFiles`(useCallback)를 호출하면 그 클로저가 **최초 렌더 시점의 stale한 `editor=null`을 영원히** 참조한다 — 순수 URL 텍스트 붙여넣기 분기는 이미 이 문제를 피하려고 `editor` 대신 콜백이 직접 받는 살아있는 `view` 파라미터를 쓰도록 되어 있었는데(EPIC-079-FINAL-FIX 주석에 이 문제가 이미 언급돼 있었음), 이미지 파일 붙여넣기/드래그드롭 분기만 그 패턴을 놓치고 있었다.
+- **수정**: `src/components/editor/BlockEditor.tsx`에 컴포넌트 클로저에 전혀 의존하지 않는 모듈 스코프 함수 `uploadAndInsertImages(view, files)`를 신설 — 매번 호출 시점의 살아있는 `view`를 직접 받아 업로드 후 `view.dispatch(...)`로 직접 삽입한다. `handlePaste`(파일 blob 분기)와 `handleDrop`(드래그드롭) 둘 다 이 함수로 교체. 툴바 업로드 버튼/갤러리는 `useEditor` 밖에서 일반 React prop으로 전달되는 별개 경로라 이 stale-closure 문제와 무관함을 확인, 손대지 않음.
+- **검증**: `npx tsc --noEmit`/`npm run lint`(0 errors)/`npm run build` 전부 통과. 로컬 dev 서버 + **프로덕션 빌드**(로그인 계정) 양쪽에서 실제 이미지 파일(blob)을 담은 paste 이벤트를 디스패치해, 수정 전엔 아무 일도 안 일어나던 것이 수정 후 실제로 Supabase Storage(`post-images` 버킷)에 업로드되고 그 URL로 에디터에 이미지가 삽입되는 것까지 직접 확인. 테스트 계정/데이터 정리 완료.
+
 ## 2026-08-05 (EPIC-079-HOTFIX — Instagram 임베드가 6초 뒤 통째로 사라지던 진짜 원인 발견 및 수정)
 - **작업 지시 배경**: "Tiptap Instagram Card Native Integration" — Instagram이 iframe 직접 임베드를 X-Frame-Options: DENY로 차단하므로 공식 blockquote+embed.js 카드 방식으로 렌더링해야 한다는 지시. 조사해보니 이 방식 자체는 EPIC-079-PHASE-2 후속 핫픽스에서 이미 구현돼 있었다(`blockEditorCore.ts`의 `embed` 노드가 `provider==="instagram"`일 때 정확히 이 구조로 렌더링) — 그런데 실제로 에디터에서 인스타그램 URL을 삽입해 재현 테스트를 해보니, **성공적으로 렌더링된 임베드조차 6초 뒤 흔적도 없이 사라지는** 훨씬 심각한 별도 버그를 발견해 이번에 근본 수정했다.
 - **재현/진단**: MutationObserver로 실제 DOM 변화를 초 단위로 추적한 결과 — 삽입 직후 blockquote가 embed.js에 의해 `<iframe>`으로 정상 전환되는 것까지는 성공(수 ms 이내)하지만, 정확히 6000ms(`instagramEmbed.ts`의 `FALLBACK_TIMEOUT_MS`) 뒤 그 iframe과 원본 blockquote가 **둘 다 흔적 없이 제거**됨을 확인.

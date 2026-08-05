@@ -4,6 +4,7 @@
 - 없음 (대기 중 — 다음 지시 대기)
 
 ## 다음 작업
+- **EPIC-079-HOTFIX-2(완료, 2026-08-06)**: "외부 웹사이트 이미지를 파일로 복사-붙여넣기 하면 안 되고 링크를 복사해야만 된다" 신고 — 상세는 CHANGELOG.md 동명 항목 참고. `useEditor`의 `handlePaste`/`handleDrop`이 stale한 `editor=null` 클로저를 영원히 참조해 `handleImageFiles`가 조용히 아무 일도 안 하던 게 원인 — 모듈 스코프 `uploadAndInsertImages(view, files)`로 교체해 근본 해결. `tsc`/`lint`/`build` 통과, dev+프로덕션 빌드 양쪽에서 실제 이미지 blob paste → Storage 업로드 → 삽입까지 확인.
 - **EPIC-079-HOTFIX(완료, 2026-08-05)**: "Tiptap Instagram Card Native Integration" 지시로 재현 테스트하다 발견한 훨씬 심각한 버그 — 정상 렌더링된 Instagram 임베드가 6초 뒤 통째로 사라지는 문제를 근본 수정. 상세는 CHANGELOG.md 동명 항목 참고. `src/lib/instagramEmbed.ts`의 폴백 중복 체크가 우리 자신의 장식용 사전 링크를 "이미 있는 폴백"으로 오인해 `el.remove()`(대체 없이 삭제)를 실행하던 게 원인 — `data-ig-fallback` 마커로 구분해 해결. `tsc`/`lint`/`build` 통과, 로컬 프로덕션 빌드에서 MutationObserver로 수정 전/후 실제 타임라인 비교 확인. **dev.silostore.net 배포 후 정상 응답하는 실제 Instagram 게시물로 최종 재확인 권장**(로컬 샌드박스는 iframe이 끝까지 안 뜨고 폴백으로 귀결됨 — 별개의 기존 알려진 한계, Instagram 서버 쪽 문제로 추정).
 
 ## 다음 작업

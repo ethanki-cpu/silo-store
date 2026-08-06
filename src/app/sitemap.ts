@@ -2,12 +2,6 @@ import type { MetadataRoute } from "next";
 import fs from "node:fs";
 import path from "node:path";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  HERITAGE_GRANDMA_NAMES,
-  HERITAGE_GRANDPA_NAMES,
-  SALON_TOPIC_BOARD_NAMES,
-  SALON_WEEKDAY_CLUB_NAMES,
-} from "@/lib/navConfig";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -58,17 +52,6 @@ function collectStaticRoutes(dir: string, segments: string[] = []): string[] {
   return routes;
 }
 
-// 이름 목록이 하드코딩된 동적 라우트(heritage/community) — navConfig.ts의
-// 기존 배열을 그대로 재사용해 열거한다(새 데이터 중복 없음).
-function collectNamedRoutes(): string[] {
-  return [
-    ...HERITAGE_GRANDMA_NAMES.map((name) => `/heritage/grandma/${encodeURIComponent(name)}`),
-    ...HERITAGE_GRANDPA_NAMES.map((name) => `/heritage/grandpa/${encodeURIComponent(name)}`),
-    ...SALON_TOPIC_BOARD_NAMES.map((name) => `/community/club/${encodeURIComponent(name)}`),
-    ...SALON_WEEKDAY_CLUB_NAMES.map((name) => `/community/club/${encodeURIComponent(name)}`),
-  ];
-}
-
 // DB에서 조회해야 하는 동적 라우트 — 테이블 하나가 실패해도 나머지는
 // 그대로 포함되도록 개별적으로 방어한다(사이트맵 전체가 깨지지 않게).
 async function collectDynamicRoutes(): Promise<string[]> {
@@ -97,10 +80,9 @@ async function collectDynamicRoutes(): Promise<string[]> {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes = collectStaticRoutes(APP_DIR);
-  const namedRoutes = collectNamedRoutes();
   const dynamicRoutes = await collectDynamicRoutes();
 
-  const all = [...new Set([...staticRoutes, ...namedRoutes, ...dynamicRoutes])];
+  const all = [...new Set([...staticRoutes, ...dynamicRoutes])];
 
   return all.map((route) => ({
     url: `${SITE_URL}${route === "/" ? "" : route}`,

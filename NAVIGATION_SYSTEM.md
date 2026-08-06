@@ -10,15 +10,16 @@
 > 그쪽으로 링크만 하고 있었다. 이 문서는 그 상세 문서를 대체하지 않으며,
 > `PROJECT_BLUEPRINT.md`에 있던 내용만 옮겼다.
 
-## Top Tabs (구 PROJECT_BLUEPRINT.md §1, §7)
+## Top Tabs (구 PROJECT_BLUEPRINT.md §1, §7; EPIC-080 라벨/탭 개수 갱신)
 
-**상단 네비게이션(EPIC-018 이후)**: 사일로상점/살롱데상/공간 문의/마이페이지 4개 탭, 화면
-중앙 정렬.
+**상단 네비게이션**: About Silo/사일로상점/살롱데상/스튜디오(구 "공간 문의", EPIC-019에서 개명)/
+마이 페이지, 라이브 DB 기준 5개 탭, 화면 중앙 정렬.
 
-`Navbar.tsx`가 상단에 이 4개 진입점(화면 중앙 정렬) + 계정 영역(로그인 상태 표시, 마이페이지
-링크, 로그아웃)을 렌더링한다. `NAV_TABS`(`navConfig.ts`)를 그대로 순회하며 각 탭의
+`Navbar.tsx`가 상단에 이 진입점들(화면 중앙 정렬) + 계정 영역(로그인 상태 표시, 마이페이지
+링크, 로그아웃)을 렌더링한다. `fetchNavTabs()`(`navConfig.ts`, 라이브 `site_navigations` 조회 —
+실패 시에만 코드 폴백 `FALLBACK_NAV_TABS` 사용)가 돌려주는 탭 목록을 그대로 순회하며 각 탭의
 `type`(`sidebar-left`/`sidebar-right`/`dropdown`/`link`)에 따라 상호작용 방식만 분기하고,
-라벨/링크/그룹은 하드코딩하지 않는다(EPIC-018).
+라벨/링크/그룹은 하드코딩하지 않는다(EPIC-018/EPIC-023).
 
 ## Left Sidebar / Right Sidebar (구 PROJECT_BLUEPRINT.md §7)
 

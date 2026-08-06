@@ -52,30 +52,3 @@ export function useHubBoardId(slug: string) {
 
   return { boardId, loading };
 }
-
-// EPIC-055: 이름별 동적 라우트(예: /heritage/grandma/[name],
-// /community/club/[name])가 boards.name(DB 표시 이름)으로 실제 board row를
-// 찾을 때 쓰는 훅 — 위 useHubBoardId와 조회(fetchBoards)는 공유하고 매칭
-// 기준만 다르다(slug 대신 정확한 name 일치).
-export function useBoardIdByName(name: string) {
-  const { session, loading: authLoading } = useAuth();
-  const [boardId, setBoardId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    let cancelled = false;
-    fetchBoards(session).then((boards) => {
-      if (cancelled) return;
-      const match = boards.find((b) => b.name === name);
-      setBoardId(match?.id ?? null);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [name, session, authLoading]);
-
-  return { boardId, loading };
-}

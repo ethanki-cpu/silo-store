@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-06 (EPIC-084-REVISED 후속 — R2 이미지 업로드 완전 해결, 실기 검증 완료)
+- **`.env.local` 실제 값 확인 과정에서 두 번째 버그 발견**: 사용자가 R2 자격증명 5종을 입력했는데, `R2_BUCKET_NAME`과 `R2_PUBLIC_URL`이 한 줄(`R2_BUCKET_NAME/R2_PUBLIC_URL=https://...`)에 잘못 합쳐져 있어 실제로는 `R2_BUCKET_NAME`이 빈 값이었다 — 두 줄로 분리하고 `R2_PUBLIC_URL`에는 이미 입력된 값을 그대로 유지, `R2_BUCKET_NAME`은 사용자가 채워 넣음(`silo-media-storage`).
+- **세 번째 문제 — R2 버킷에 CORS 정책 없음**: 자격증명을 다 채운 뒤에도 `POST /api/media/presigned`는 200이었지만 브라우저의 실제 R2 PUT이 CORS 프리플라이트 실패로 막혔다(`No 'Access-Control-Allow-Origin' header`) — presigned URL 발급 자체는 서버가 하지만, 실제 PUT은 브라우저가 R2 도메인에 직접 요청하므로 R2 버킷 쪽에 CORS 정책이 없으면 이 요청 자체가 브라우저에서 차단된다. 사용자가 Cloudflare 대시보드에서 R2 버킷(`silo-media-storage`) CORS 정책을 추가(`AllowedOrigins: localhost:3000/dev.silostore.net/silostore.net`, `AllowedMethods: PUT/GET`).
+- **실기 검증**: 로컬 dev 서버 + 실제 admin 세션(가짜 File 객체를 합성해 파일 선택기 이벤트를 직접 발생시키는 방식)으로 `POST /api/media/presigned`(200) → R2 PUT(200, CORS 통과) → `POST /api/media`(200, media_library insert) → `GET <public R2 URL>`(200, 실제 이미지 바이트 반환)까지 전체 파이프라인 왕복 확인 완료. 테스트로 만든 `media_library` 행 2건은 Management API로 정리, R2에 남은 68바이트 테스트 오브젝트 2개는 무시 가능한 수준이라 그대로 둠.
+- **결론**: EPIC-084-REVISED가 "코드 버그 아님"으로 규명했던 이미지 업로드 문제는 실제로 (1) 이 컴퓨터의 R2 자격증명 누락, (2) 자격증명 입력 시 오타로 두 변수가 한 줄에 합쳐짐, (3) R2 버킷 CORS 정책 부재 — 3단계 환경설정 문제가 겹쳐 있었던 것으로 최종 확인. 코드 변경 없음(전부 인프라/설정 문제).
+
 ## 2026-08-06 (EPIC-084-REVISED — [Stage 2] Universal Navigation, Contextual Write Flow, 3-Column Category Selector, & Editor UX Overhaul)
 - **배경**: EPIC-084에서 놓친 요구사항과 새로 발견된 치명적 UX 버그(이미지 업로드 무반응, 게시판 선택 UUID 노출)를 정확히 재작업하라는 긴급 지시. 11개 세부 항목 전부 처리.
 - **[CRITICAL] 이미지 업로드 "먹통" 버그(1.3) — 원인 규명**: 실제로 재현 테스트한 결과 툴바 버튼→파일 선택기→`onImageUpload` 호출 경로 자체는 정상 동작했다(가짜 File 객체를 합성해 `change` 이벤트를 강제 발생시켜 확인) — 진짜 원인은 `POST /api/media/presigned`가 500을 반환하는 것이었고, 그 이유는 **이 로컬 머신의 `.env.local`에 R2 자격증명(`R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET_NAME`/`R2_PUBLIC_URL`)이 전혀 없었기 때문**이다(`.env.local`은 gitignore 대상이라 컴퓨터마다 따로 설정해야 함 — Multi-Device Sync 상 알려진 함정, CLAUDE.md 참고). 코드 결함이 아니라 이 머신의 환경변수 누락이 원인이므로, 사용자가 R2 자격증명을 다시 입력해야 실제 업로드가 동작한다(NEXT_TASK.md 기록). **다만 실패해도 화면에 아무 표시가 없어 "먹통"으로 보이던 것은 진짜 UX 결함이라 함께 고쳤다**: `BlockEditor.tsx`의 `handleImageFiles`/`uploadAndInsertImages`/`uploadAndInsertExternalImages`에 실패 시 `alert()`로 원인을 노출.

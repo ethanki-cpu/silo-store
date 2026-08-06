@@ -4,7 +4,7 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-07-30 (EPIC-074B 기준).
+> 최종 확인: 2026-08-06 (EPIC-081 기준).
 
 =====================================
 
@@ -26,6 +26,11 @@ Stage 2부터는
 
 콘텐츠 구축이 핵심이 된다.
 
+**(EPIC-081, 2026-08-06)** Stage 2는 이제 "Community-Led Growth" 5단계 성장 Flow(흥미
+유입 → 유지/아카이빙 → 유대감 → 지식 구매 → 소속감/멤버십 락인)로 구체화된다 — 상세는
+[PROJECT_VISION.md](../PROJECT_VISION.md) §Community-Led Growth Flow, 이를 뒷받침하는
+기술 전략은 [PROJECT_ARCHITECTURE.md](../PROJECT_ARCHITECTURE.md) §Stage 2 기술 전략 참고.
+
 전체 배경은 [PROJECT_VISION.md](../PROJECT_VISION.md) 참고(2026-07-30 EPIC-073 문서 재구성 때 `docs/VISION.md`에서 이동).
 
 =====================================
@@ -34,8 +39,8 @@ Stage 2부터는
 
 | Stage | Status |
 |---|---|
-| Stage 1 | 95% |
-| Stage 2 | Ready |
+| Stage 1 | 완료(핵심 조건 충족, EPIC-081) — 잔여 세부 항목은 지속 개선으로 재분류 |
+| Stage 2 | In Progress (EPIC-081, 2026-08-06 공식 진입) |
 | Stage 3 | Waiting |
 | Stage 4 | Waiting |
 | Stage 5 | Waiting |
@@ -49,13 +54,18 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-078(사이드바 아이콘 기본/호버 듀얼 미디어 업로드 + 순수 크로스페이드 전환 — EPIC-076 CSS 애니메이션 전면 제거) — EPIC-077("사이트 구성 관리" 통합 CMS 개편)도 그 직전에 완료.
+EPIC-081(Community-Led Growth Vision & Architecture Alignment — Stage 2 공식 진입 선언 +
+CEO의 성장 Flow/CTO의 기술 전략을 PROJECT_VISION.md/PROJECT_ARCHITECTURE.md에 명문화,
+문서 전용) — EPIC-080(Navigation Dual-Structure Unification, 코드/문서 완료·DB 반영 대기)도
+그 직전에 완료.
 
 =====================================
 
 ## Next EPIC
 
-미정 — 다음 지시 대기
+미정 — 다음 지시 대기. `PROJECT_ARCHITECTURE.md` §Stage 2 기술 전략에 기록된 항목
+(Universal Content Editor 확장, R2 Direct Upload, Frictionless Archiving, Event
+Telemetry, Paywall Routing)이 실제 구현 후보.
 
 =====================================
 
@@ -72,7 +82,7 @@ Silo Store
 
 ## Current Stage
 
-Stage 1 — Foundation
+Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입 — 상세는 [docs/STAGES.md](STAGES.md))
 
 =====================================
 
@@ -105,16 +115,16 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 
 최근 완료 10개(최신순, 상세는 [docs/EPIC.md](EPIC.md)):
 
-1. EPIC-053(merge) — 오랫동안 미병합이던 Block Editor 브랜치를 `develop`에 정식 병합
-2. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필
-3. EPIC-067 — Page Builder Integration Phase 1(핵심 도메인 12개 페이지, 병존형 패턴)
-4. EPIC-066 — Board Widget 실데이터 렌더링 완성 + Board Management System(관리자 CRUD)
-5. EPIC-065 — JSON 기반 Page Builder → No-Code Visual Widget Builder(위젯 23종)
-6. EPIC-064A — 모든 Route에 관리자 전용 "페이지 수정" 버튼 부착(126개 slug)
-7. EPIC-063 — Navigation System Completion(Page-first Architecture)
-8. EPIC-062 — Page Architecture — Navigation → Page → Module → Board
-9. EPIC-061 — Fallback 제거 — 8개 Hub 전부 Page Builder만 사용
-10. EPIC-060 — Page Builder CMS 시스템 신설(Page→Module→Board→Post)
+1. EPIC-081 — Community-Led Growth Vision & Architecture Alignment(Stage 2 공식 진입 선언, 문서 전용)
+2. EPIC-080 — Navigation Dual-Structure Unification(코드/문서 완료, 라이브 DB 반영은 사용자 조치 대기)
+3. EPIC-079-시리즈(PHASE-1~5, HOTFIX~HOTFIX-3, TIPTAP-FIX-V2, FINAL-FIX 등) — Tiptap Editor/Post CRUD 안정화, 임베드(Youtube/Vimeo/Instagram/X/네이버) 확장, 인스타그램 스타일 갤러리 캐러셀, 대표 이미지/본문 분리 — 상세 요약은 CHANGELOG.md에 있으나 `docs/EPIC.md` 개별 항목은 아직 소급 작성 전(P2, 아래 Technical Debt 참고)
+4. EPIC-053(merge) — 오랫동안 미병합이던 Block Editor 브랜치를 `develop`에 정식 병합
+5. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필
+6. EPIC-067 — Page Builder Integration Phase 1(핵심 도메인 12개 페이지, 병존형 패턴)
+7. EPIC-066 — Board Widget 실데이터 렌더링 완성 + Board Management System(관리자 CRUD)
+8. EPIC-065 — JSON 기반 Page Builder → No-Code Visual Widget Builder(위젯 23종)
+9. EPIC-064A — 모든 Route에 관리자 전용 "페이지 수정" 버튼 부착(126개 slug)
+10. EPIC-063 — Navigation System Completion(Page-first Architecture)
 
 =====================================
 
@@ -127,19 +137,21 @@ Hub 페이지(`/docent`, `/community/topics`, `/heritage`, `/gallery`, `/archive
 `shop-reviews` 두 orphan 페이지(기존 gallery 단독 위젯이 백필 가드에 걸려 hero/quote가
 안 채워짐)를 마저 보강한다.
 
-**차순위**: dual-nav 구조 정리 — EPIC-068이 membership/gallery/heritage/archive/
-community-topics 등 여러 곳에서 "만든 페이지 경로 ≠ 실제 nav href" 구체 사례를 다수
-발견(NEXT_TASK.md 참고).
+**차순위**: ~~dual-nav 구조 정리~~ **(EPIC-080, 2026-08-06 완료 — 위 Known Issues P0 참고)**.
+Stage 2 진입(EPIC-081)에 따라 다음 차순위는 `PROJECT_ARCHITECTURE.md` §Stage 2 기술 전략에
+기록된 항목(Universal Content Editor 확장, R2 Direct Upload, Frictionless Archiving,
+Event Telemetry, Paywall Routing) 중 하나를 사용자와 논의해 착수하는 것.
 
 =====================================
 
 ## Known Issues
 
 **P0**
-- Navigation 이중 구조: `src/lib/navConfig.ts`의 `FALLBACK_NAV_TABS`와 라이브
-  `site_navigations`가 서로 다른 nav 트리로 공존(EPIC-054D 발견). EPIC-063 감사에서
-  라이브 `site_navigations` 콘텐츠 자체는 정상 연결돼 있음을 재확인했지만, 두 트리를
-  일원화하는 근본 결정은 아직 내려지지 않았다.
+- ~~Navigation 이중 구조~~ **(EPIC-080, 2026-08-06 코드/문서 완료)**: `FALLBACK_NAV_TABS`를
+  라이브 `site_navigations`와 동기화, dual-nav 혼선으로 남은 그림자 정적 페이지 17개
+  삭제+리다이렉트 완료. **라이브 DB 반영만 남음** — `docs/sql/EPIC-080-nav-unification.sql`을
+  Supabase SQL Editor에서 실행해야 할머니/할아버지 nav href 정정과 그림자 nav 항목 17개
+  삭제가 실제로 반영된다(`NEXT_TASK.md` "진행 중" 참고).
 
 **P1**
 - EPIC-067 Phase 2 잔여: 정적 placeholder 8개(`salon/docent-tour`, `salon/drinks`,
@@ -186,14 +198,18 @@ community-topics 등 여러 곳에서 "만든 페이지 경로 ≠ 실제 nav hr
 
 ## Next Milestone
 
-**Stage 1(Foundation) 완료** — 남은 항목(docs/STAGES.md §Stage 1 참고):
-1. Navigation 이중 구조 통합(P0)
-2. 페이지별 SEO metadata
-3. Responsive 레이아웃
-4. Accessibility 전체 감사 마무리
-5. EPIC-067 Phase 2 잔여(정적 8개 + 마이페이지 12개 탭)
-6. `docs/sql/epic-053-1.sql` 실행(Block Editor Storage Bucket+Policy/GC 완전 반영)
+**(EPIC-081, 2026-08-06) Stage 2(Content Platform) 공식 진입 완료.** Stage 1의 핵심 완료
+조건(Navigation 이중 구조 통합 포함, EPIC-080)은 충족되었다 — 아래는 Stage 1을 닫는 게이트가
+아니라 Stage 2와 병행하는 지속 개선 항목으로 재분류:
+1. 페이지별 SEO metadata
+2. Responsive 레이아웃
+3. Accessibility 전체 감사 마무리
+4. EPIC-067 Phase 2 잔여(정적 8개 + 마이페이지 12개 탭)
+5. `docs/sql/epic-053-1.sql` 실행(Block Editor Storage Bucket+Policy/GC 완전 반영)
+6. `docs/sql/EPIC-080-nav-unification.sql` 실행(Navigation 이중 구조 통합의 라이브 DB 반영)
 
-이 항목들이 마무리되면 Stage 2(Content Platform) 착수를 사용자와 논의한다.
+**Stage 2 다음 마일스톤**: `PROJECT_ARCHITECTURE.md` §Stage 2 기술 전략(Universal Content
+Editor 확장, R2 Direct Upload, Frictionless Archiving, Event Telemetry, Paywall Routing)
+중 우선순위를 사용자와 논의해 다음 EPIC으로 착수.
 
 =====================================

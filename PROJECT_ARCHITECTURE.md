@@ -182,6 +182,57 @@ silo-store/
 - **`src/app/robots.ts`**: `sitemap.ts`와 동일한 제외 기준(admin/api/mypage/me/settings/login/signup)으로 `Disallow`, `Sitemap:` 지시어로 위 sitemap을 가리킴.
 - **Canonical URL**: `metadataBase`만 있고 페이지별 명시적 `alternates.canonical`은 없음(70개 페이지 전체에 metadata를 붙이는 더 큰 작업이 선행돼야 함, P2).
 
+## Stage 2 기술 전략 (EPIC-081, 2026-08-06 — ⚠️ 계획 단계, 아직 미구현)
+
+> 아래 4개 전략은 [`PROJECT_VISION.md`](PROJECT_VISION.md) §Community-Led Growth Flow를
+> 기술적으로 뒷받침하기 위해 CTO가 수립한 방향이다 — 이 절은 **아직 구현되지 않은 계획**을
+> 기록한 것이며, 위 1~8절(현재 구현된 아키텍처)과 섞이지 않도록 의도적으로 분리했다. 실제
+> 착수 시점의 EPIC이 여기 적힌 계획을 구현하면서 이 절을 "구현됨" 상태로 갱신하고 필요하면
+> 위 해당 절(2. 기술 스택, 4. 주요 기능 등)로 옮길 것.
+
+### Data Decoupling & R2 Storage
+
+현재 `src/lib/blockEditorCore.ts`(Tiptap ProseMirror JSON, EPIC-053.1)가 게시글 본문을
+JSON Block 구조로 저장하고 있고, 미디어는 Supabase Storage(`src/lib/storage.ts`의
+`STORAGE_BUCKETS` — `post-images`/`gallery`/`attachments` 버킷, `supabase.storage.from()`
+직접 호출)에 업로드된다. 이 JSON Block 구조 자체는 이미 존재하지만, 지금은 게시판 글쓰기
+전용(`PostForm`/`BlockEditor`)이다 — Stage 2 전략은 이를 **Universal Content Editor**로
+확장해 마이페이지 컬렉션 등 다른 콘텐츠 도메인에서도 동일한 JSON Block 스키마를 재사용하는
+것과, 미디어 업로드 파이프라인을 Supabase Storage에서 **Cloudflare R2 Direct Upload**로
+옮기는 것 두 가지를 함께 가리킨다. R2 전환의 구체적 동기(비용/대역폭/CDN 등)와 마이그레이션
+범위(신규 업로드만 R2로 전환할지, 기존 Supabase Storage 자산까지 이관할지)는 아직 결정되지
+않았다 — 착수 전 결정 필요.
+
+### Frictionless Archiving
+
+JSON 블록 단위로 살롱데상의 콘텐츠를 마이페이지 컬렉션(`member_collections`, EPIC-022/029)
+으로 원클릭 저장하는 "스크랩" 브릿지를 설계한다 — `PROJECT_VISION.md` Flow의 2단계
+(유지/아카이빙)를 실제로 작동시키는 기능이다. 현재 `member_collections`는 있지만 살롱데상
+게시글에서 곧바로 컬렉션으로 저장하는 브릿지 UI/API는 없다(마이페이지에서 직접 등록하는
+경로만 존재). 위 Universal Content Editor의 JSON Block 구조를 그대로 복사/참조하는 방식이
+될 가능성이 높다 — 원본 게시글이 수정/삭제돼도 스크랩된 블록은 독립적으로 남아야 하는지
+(스냅샷) 아니면 항상 원본을 참조해야 하는지(라이브 링크)는 설계 시 결정 필요.
+
+### Event Telemetry
+
+유입(1단계)부터 멤버십 결제(5단계)까지의 전환율을 분석할 수 있도록 프론트엔드 이벤트
+후킹(Event Hooking) 기반을 마련한다. 현재 이 저장소에는 어떤 형태의 클라이언트 이벤트
+트래킹도 없다(Analytics 도구 미도입, `docs/STAGES.md` Stage 8 "Analytics" 항목과는 별개로
+— Stage 8은 사이트 전반 성숙 단계의 범용 analytics이고, 이 항목은 Community-Led Growth
+Flow 5단계 전환율에 특화된 최소 계측이다). 어떤 이벤트를 어디에 훅킹할지(예: 게시글 열람,
+스크랩 클릭, 도슨트 구매, 멤버십 결제)와 수집 방식(자체 테이블 vs 외부 SaaS)은 아직
+결정되지 않았다.
+
+### Paywall Routing
+
+`src/lib/serverAuth.ts`(`getRequestMember`/`getTier`)와 `membership_tiers`를 이미 활용해
+가격/열람 권한을 서버에서 계산하는 원칙은 §6(인증 구조)에 문서화된 기존 패턴이다 — 이
+전략은 그 원칙을 "렌더러 분기 처리(Gating)"로 명시적으로 확장한다는 뜻이다: 즉 같은
+콘텐츠 화면이라도 회원 등급에 따라 다른 렌더러/컴포넌트를 분기해 보여줄 수 있는 원칙을
+프로젝트 표준으로 정립한다(현재는 필드별 잠금/해제가 대부분이고, 컴포넌트 자체를 등급별로
+분기하는 패턴은 아직 표준화되지 않았다). 새 콘텐츠 도메인(예: 마이페이지 아카이브 공개
+범위, 스크랩 콘텐츠 열람)에 Paywall이 필요해질 때 이 원칙을 먼저 참고할 것.
+
 ## 미확인 사항 (구 PROJECT_BLUEPRINT.md "TODO / 확인 필요" 중 아키텍처 관련 항목)
 
 추측하지 않고 남겨둔 항목. 코드/DB 조회만으로는 확정할 수 없거나, 이 문서에 상세를 옮기지 않기로 한 내용.

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-06 (EPIC-081 — [Stage 2] Community-Led Growth Vision & Architecture Alignment)
+- **배경**: "Stage 2 진입을 공식 선언하고, CEO의 Community-Led Growth Flow와 CTO의 기술 전략을 핵심 설계 문서에 융합하라"는 요청. **문서 전용 — 코드/DB 변경 없음.**
+- **`docs/STAGES.md`/`docs/PROJECT_DASHBOARD.md`**: Stage 2 공식 진입을 선언 — Roadmap 표(Stage 1 완료/Stage 2 In Progress), Current Stage, Current/Next EPIC 블록을 갱신. Stage 1 완료 조건 중 "Navigation 이중 구조 통합"은 EPIC-080으로 충족됨을 표기, SEO metadata/반응형/접근성 등 나머지 세부 항목은 Stage 1을 닫는 게이트가 아니라 Stage 2와 병행하는 지속 개선 항목으로 재분류. Known Issues P0(Navigation 이중 구조)도 EPIC-080 반영해 갱신.
+- **`PROJECT_VISION.md`**: "Community-Led Growth Flow" 섹션 신설 — 흥미 유입(살롱데상 topical/모임 게시판) → 유지/아카이빙(마이페이지 스크랩) → 유대감(About Silo) → 지식 구매(사일로상점 도슨트/물품) → 소속감/멤버십 락인(살롱데상 참여→결제) 5단계를 Stage 2의 핵심 전략으로 명문화. 각 단계를 기존 사이트 영역에 매핑(새 영역 신설이 아니라 기존 영역이 이 역할을 하도록 채우는 것이 Stage 2의 일임을 명시), 2단계↔5단계가 서로 강화하는 순환 구조임을 기록.
+- **`PROJECT_ARCHITECTURE.md`**: "Stage 2 기술 전략" 절 신설(⚠️ 계획 단계로 명확히 표기, 기존 "구현된 아키텍처" 절과 분리) — (1) Data Decoupling & R2 Storage: 현재 Tiptap JSON Block(`blockEditorCore.ts`)+Supabase Storage 구조를 Universal Content Editor로 확장하고 미디어 파이프라인을 Cloudflare R2 Direct Upload로 이전하는 전략, (2) Frictionless Archiving: JSON 블록 단위로 살롱데상 콘텐츠를 마이페이지 컬렉션(`member_collections`)에 원클릭 저장하는 브릿지 설계, (3) Event Telemetry: 유입→결제 전환율 분석을 위한 프론트엔드 이벤트 후킹 기반(현재 어떤 트래킹도 없음을 명시), (4) Paywall Routing: 기존 `serverAuth.ts`+`membership_tiers` 서버 계산 원칙을 "렌더러 분기 처리(Gating)"로 명시적으로 확장하는 표준 원칙.
+- **`docs/STAGES.md` STAGE 2 섹션**: Domain 목록(Silo Store/Online Docent/Heritage/Salon des Cent)이 Growth Flow의 어느 단계를 지지하는지 대응 관계를 기록.
+- **`docs/EPIC.md`**: EPIC-080/EPIC-081 요약 추가.
+- **검증**: 문서 전용 변경이라 `tsc`/`lint`/`build` 대상 코드 변경 없음 — 마크다운 내부 링크(`PROJECT_VISION.md`↔`PROJECT_ARCHITECTURE.md`↔`docs/STAGES.md`↔`docs/PROJECT_DASHBOARD.md` 상호 참조)만 육안 검토.
+
 ## 2026-08-06 (EPIC-080 — [Stage 2] Navigation Dual-Structure Unification, 기술 부채 청산)
 - **배경/조사**: Management API로 라이브 `site_navigations`(153행)을 직접 조회해 실제 구조를 확인한 결과, 이전 세션들이 문서화한 dual-nav 문제 대부분(커뮤니티 주제별/요일별 게시판, 갤러리, 멤버십 5개)은 **이미 라이브 DB 자체가 올바른 flat/salon 구조로 정리돼 있었고**, 진짜 문제는 (1) `navConfig.ts`의 `FALLBACK_NAV_TABS`(DB 조회 실패 시에만 쓰이는 코드 폴백)가 EPIC-044 이후 라이브와 전혀 다른 이름별 동적 라우트(`/heritage/grandma/[name]` 등 67개, `/community/club/[name]`)로 재작성된 채 방치돼 있었던 것, (2) 그 과거 혼선 과정에서 실제로는 아무도 링크하지 않는 그림자 정적 페이지 17개가 파일로 남아있던 것 두 가지였다. 사용자에게 두 가지 진짜 결정 포인트(헤리티지 이름별 라우트 처리 방식, 그림자 페이지 정리 방식)를 확인받고 진행.
 - **`src/lib/navConfig.ts`**: `HERITAGE_GRANDMA_NAMES`/`HERITAGE_GRANDPA_NAMES`/`SALON_TOPIC_BOARD_NAMES`/`SALON_WEEKDAY_CLUB_NAMES`/`toDynamicNavItems`(이름별 동적 라우트 생성기)를 전부 제거하고, `FALLBACK_NAV_TABS`를 라이브 DB 트리를 그대로 미러링하도록 전면 재작성 — 헤리티지는 이름별 67개 항목 대신 실제 목적지 링크 1개씩(`/heritage/grandmas`·`/heritage/grandpas`), 주제별/요일별 클럽은 라이브와 동일한 고정 flat slug(`/community-topics-*`, `/community-weekday-*`)로 교체. 멤버십/갤러리/아카이브/사일로 보물들/온라인 도슨트 그룹도 라이브 값과 정확히 일치하도록 함께 동기화. 이후 후속 커밋에서 `mypage` 탭이 라이브에서 13개 "My X" 하위 항목을 가진 dropdown인 것도 의도된 구조임을 사용자에게 확인받아 `FALLBACK_NAV_TABS`/`CLAUDE.md`를 함께 갱신.

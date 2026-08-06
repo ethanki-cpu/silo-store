@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-06 (EPIC-081 — [Stage 2] Community-Led Growth Vision & Architecture Alignment)
+- **배경**: "Stage 2 진입을 공식 선언하고, CEO의 Community-Led Growth Flow와 CTO의 기술 전략을 핵심 설계 문서에 융합하라"는 요청. **문서 전용 — 코드/DB 변경 없음.**
+- **`docs/STAGES.md`/`docs/PROJECT_DASHBOARD.md`**: Stage 2 공식 진입을 선언 — Roadmap 표(Stage 1 완료/Stage 2 In Progress), Current Stage, Current/Next EPIC 블록을 갱신. Stage 1 완료 조건 중 "Navigation 이중 구조 통합"은 EPIC-080으로 충족됨을 표기, SEO metadata/반응형/접근성 등 나머지 세부 항목은 Stage 1을 닫는 게이트가 아니라 Stage 2와 병행하는 지속 개선 항목으로 재분류. Known Issues P0(Navigation 이중 구조)도 EPIC-080 반영해 갱신.
+- **`PROJECT_VISION.md`**: "Community-Led Growth Flow" 섹션 신설 — 흥미 유입(살롱데상 topical/모임 게시판) → 유지/아카이빙(마이페이지 스크랩) → 유대감(About Silo) → 지식 구매(사일로상점 도슨트/물품) → 소속감/멤버십 락인(살롱데상 참여→결제) 5단계를 Stage 2의 핵심 전략으로 명문화. 각 단계를 기존 사이트 영역에 매핑(새 영역 신설이 아니라 기존 영역이 이 역할을 하도록 채우는 것이 Stage 2의 일임을 명시), 2단계↔5단계가 서로 강화하는 순환 구조임을 기록.
+- **`PROJECT_ARCHITECTURE.md`**: "Stage 2 기술 전략" 절 신설(⚠️ 계획 단계로 명확히 표기, 기존 "구현된 아키텍처" 절과 분리) — (1) Data Decoupling & R2 Storage: 현재 Tiptap JSON Block(`blockEditorCore.ts`)+Supabase Storage 구조를 Universal Content Editor로 확장하고 미디어 파이프라인을 Cloudflare R2 Direct Upload로 이전하는 전략, (2) Frictionless Archiving: JSON 블록 단위로 살롱데상 콘텐츠를 마이페이지 컬렉션(`member_collections`)에 원클릭 저장하는 브릿지 설계, (3) Event Telemetry: 유입→결제 전환율 분석을 위한 프론트엔드 이벤트 후킹 기반(현재 어떤 트래킹도 없음을 명시), (4) Paywall Routing: 기존 `serverAuth.ts`+`membership_tiers` 서버 계산 원칙을 "렌더러 분기 처리(Gating)"로 명시적으로 확장하는 표준 원칙.
+- **`docs/STAGES.md` STAGE 2 섹션**: Domain 목록(Silo Store/Online Docent/Heritage/Salon des Cent)이 Growth Flow의 어느 단계를 지지하는지 대응 관계를 기록.
+- **`docs/EPIC.md`**: EPIC-080/EPIC-081 요약 추가.
+- **검증**: 문서 전용 변경이라 `tsc`/`lint`/`build` 대상 코드 변경 없음 — 마크다운 내부 링크(`PROJECT_VISION.md`↔`PROJECT_ARCHITECTURE.md`↔`docs/STAGES.md`↔`docs/PROJECT_DASHBOARD.md` 상호 참조)만 육안 검토.
+
 ## 2026-08-06 (EPIC-079-HOTFIX-3 — 대표 이미지 본문 중복 표시 제거 + 임베드도 대표 이미지로 지정 가능)
 - **요청 1 — 대표 이미지 중복 표시**: "외부 이미지를 붙여넣으면 대표 이미지로 정해지는 건 좋은데, 그게 본문에도 그대로 남아 상세 페이지에서 (헤더 + 본문) 같은 사진이 두 번 보인다" — `PostBody.tsx`에 `featuredImageUrl` prop을 추가해, 상세 헤더에 이미 보여준 바로 그 이미지 인스턴스(첫 매치 하나, `<figure>`째로)만 본문 렌더링 직전에 `DOMParser`로 제거하도록 함(`stripDuplicateFeaturedImage`). 대표 이미지 "지정" 자체(에디터의 ★ 표시, `thumbnailVisible` 토글)는 그대로 유지 — 순수하게 화면에 두 번 나오는 것만 제거. 저장되는 `posts.body`/`body_json`은 변경 없음(원본 이미지는 그대로 남아 수정 화면에서 정상적으로 다시 불러와짐), 렌더링 시점에만 걸러낸다.
 - **요청 2 — 임베드도 대표 이미지로 지정 가능**: "Instagram/YouTube/Vimeo로 넣은 자료도 대표 이미지(썸네일)로 지정할 수 있게 감지해달라" — `embed` 노드에 `featured`/`thumbnailUrl` 속성 신설, `EmbedView`에 이미지의 ★ 버튼과 동일한 위치·동작의 "☆ 대표 이미지로 지정" 버튼 추가(youtube/vimeo/instagram만 — spotify/지도/X 등은 신뢰할 만한 썸네일 자체가 없어 버튼을 안 보여줌). 클릭 시 `/api/embed-thumbnail`(신설)을 호출해 실제 썸네일을 조회한 뒤 그 임베드에 `featured:true`로 지정하고, 문서의 다른 모든 이미지/임베드의 featured는 자동으로 해제한다(대표 이미지는 항상 하나). 이미지 쪽 ★ 버튼(`FigureImageView.setAsFeatured`)도 대칭으로 embed의 featured를 함께 해제하도록 갱신.

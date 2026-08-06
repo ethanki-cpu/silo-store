@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { BoardPost } from "@/lib/boardLayout";
 import { PostTags } from "@/components/boards/PostTags";
 import { formatPostMeta } from "@/lib/postMeta";
+import { ScrapButton } from "@/components/common/ScrapButton";
 
 // EPIC-056: Board Module 목록 ⑦ Gallery Module — 이미지 카드 + Masonry/Grid
 // (CSS columns 기반). src/components/boards/BoardRenderer.tsx 안에 갇혀
@@ -47,31 +48,36 @@ export function GalleryModule({
       {posts.map((post) => {
         const imageUrl = post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null;
         return (
-        <Link
-          key={post.id}
-          href={`/boards/${boardId}/${post.slug ?? post.id}`}
-          className="block mb-4 break-inside-avoid group"
-        >
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imageUrl}
-              alt={post.title ?? ""}
-              className="w-full object-cover"
-            />
-          ) : (
-            <div className="w-full aspect-square bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-300 text-xs">
-              이미지 없음
-            </div>
-          )}
-          <p className="text-sm font-medium text-gray-900 mt-2 group-hover:underline">
-            {post.title}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            {formatPostMeta(post, { showLikes, showComments, showViewCount })}
-          </p>
-          <PostTags tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]} />
-        </Link>
+        <div key={post.id} className="relative mb-4 break-inside-avoid group">
+          {/* EPIC-085: ScrapButton은 자체 클릭 핸들러(preventDefault/
+              stopPropagation)를 갖고 있지만, <a> 안에 <button>을 중첩하는
+              건 유효하지 않은 HTML이라 카드 Link 바깥의 형제 요소로
+              절대위치시켜 이미지 코너에 겹쳐 보이게 한다. */}
+          <div className="absolute right-2 top-2 z-10">
+            <ScrapButton postId={post.id} size="sm" />
+          </div>
+          <Link href={`/boards/${boardId}/${post.slug ?? post.id}`} className="block">
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={imageUrl}
+                alt={post.title ?? ""}
+                className="w-full object-cover"
+              />
+            ) : (
+              <div className="w-full aspect-square bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-300 text-xs">
+                이미지 없음
+              </div>
+            )}
+            <p className="text-sm font-medium text-gray-900 mt-2 group-hover:underline">
+              {post.title}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {formatPostMeta(post, { showLikes, showComments, showViewCount })}
+            </p>
+            <PostTags tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]} />
+          </Link>
+        </div>
         );
       })}
       </div>

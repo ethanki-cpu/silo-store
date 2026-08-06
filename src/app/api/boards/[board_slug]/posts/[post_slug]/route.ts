@@ -136,10 +136,12 @@ export async function GET(
 
   const postId = normalizedPost.id;
 
-  // EPIC-070: 서로 독립적인 5개 쿼리(조회수 증가/글 번호/댓글/좋아요 여부/
-  // 북마크 여부)를 병렬화 — 전부 postId/boardId/normalizedPost만 있으면
-  // 되고 서로의 결과를 필요로 하지 않는다.
-  const [, { count: postNumber }, { data: comments }, likedByMe, bookmarkedByMe] =
+  // EPIC-070: 서로 독립적인 4개 쿼리(조회수 증가/글 번호/댓글/좋아요 여부)를
+  // 병렬화 — 전부 postId/boardId/normalizedPost만 있으면 되고 서로의 결과를
+  // 필요로 하지 않는다. EPIC-085: 북마크 여부는 이제 이 응답에 안 담는다 —
+  // ScrapButton(user_scraps)이 자기 상태를 스스로 GET /api/scraps/[postId]로
+  // 조회하는 자기완결형 컴포넌트로 바뀌어서다(post_bookmarks는 죽은 기능이라 삭제).
+  const [, { count: postNumber }, { data: comments }, likedByMe] =
     await Promise.all([
       // 조회수 증가 — view_count 컬럼이 없으면(마이그레이션 전) 조용히 무시.
       usedRichFields
@@ -165,17 +167,6 @@ export async function GET(
       requester && definition.likes
         ? requester.scopedClient
             .from("likes")
-            .select("id")
-            .eq("post_id", postId)
-            .eq("member_id", requester.member.id)
-            .maybeSingle()
-            .then(({ data }) => !!data)
-        : Promise.resolve(false),
-      // post_bookmarks가 라이브 DB에 아직 없을 수 있어(마이그레이션 전) 에러는
-      // 무시하고 기본값 false로 둔다.
-      requester && definition.bookmarks
-        ? requester.scopedClient
-            .from("post_bookmarks")
             .select("id")
             .eq("post_id", postId)
             .eq("member_id", requester.member.id)
@@ -211,7 +202,6 @@ export async function GET(
       author_name: nameById.get(c.author_id) ?? "알 수 없음",
     })),
     likedByMe,
-    bookmarkedByMe,
   });
 }
 

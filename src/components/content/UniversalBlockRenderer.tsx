@@ -1,0 +1,96 @@
+"use client";
+
+import { useEffect, useState, type MouseEvent } from "react";
+import { sanitizeHtml } from "@/lib/sanitize";
+import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
+import { processInstagramEmbeds } from "@/lib/instagramEmbed";
+import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
+import { processGalleryCarousels } from "@/lib/galleryCarousel";
+import { useCustomFonts } from "@/lib/useCustomFonts";
+
+// EPIC-085: Tiptap JSON 블록(posts.body_json)이 저장 시점(renderPostHtml,
+// blockEditorCore.ts)에 변환된 HTML(posts.body)을 순수 읽기 전용으로
+// 렌더링하는 공용 컴포넌트 — 지금까지 이 로직이 PostBody.tsx 안에만 있어
+// 게시글 상세 화면 하나에서만 재사용 가능했다. 에디터 편집용 툴바/노드뷰
+// 핸들러는 여기 전혀 없다(순수 읽기 뷰) — BlockEditor.tsx의 편집 NodeView와
+// 완전히 분리된 코드 경로.
+//
+// 이 컴포넌트가 다루는 노드 타입(전부 blockEditorCore.ts의 renderHTML +
+// globals.css가 이미 정의해둔 마크업/클래스를 그대로 재사용):
+// - Text/Heading: 커스텀 폰트(@font-face, useCustomFonts)/색상(TextStyle+Color,
+//   style="color:...")/정렬(TextAlign, style="text-align:...")/인용구(blockquote)
+// - FigureImage: 에디터에서 드래그로 조절한 width가 style="width:...px"로 그대로 반영
+// - Gallery: CSS scroll-snap 캐러셀(processGalleryCarousels가 화살표/점 보강)
+// - Table: 반응형 가로 스크롤(globals.css `table{display:block;overflow-x:auto}`)
+// - SourceAttribution: target="_blank" rel="noopener noreferrer" 출처 배지
+// - Embed: YouTube/Vimeo/Maps/Spotify/Instagram — 반응형 iframe/aspect-ratio wrapper
+export function UniversalBlockRenderer({
+  body,
+  className = "prose prose-sm max-w-none text-gray-800",
+  plainTextClassName = "text-gray-800 leading-relaxed whitespace-pre-wrap text-[15px]",
+}: {
+  /** posts.body — 이미 renderPostHtml()로 sanitize된 HTML 문자열(레거시
+   * plain-text 글은 태그가 없어 아래에서 그대로 줄바꿈만 살려 보여준다). */
+  body: string;
+  className?: string;
+  /** Tiptap 이전(plain text) 글 렌더링용 클래스 — 호출부가 className과
+   * 다른 여백/타이포그래피를 원하면 별도로 지정할 수 있다. */
+  plainTextClassName?: string;
+}) {
+  // 에디터 툴바(BlockEditor.tsx)와 동일한 훅 — 같은 <style id="custom-fonts-style">
+  // 태그를 공유해 본문에 쓰인 커스텀 폰트를 항상 최신 목록으로 주입한다.
+  useCustomFonts();
+  const looksLikeHtml = /<[a-z][\s\S]*>/i.test(body);
+  const [lightbox, setLightbox] = useState<{ images: LightboxImage[]; index: number } | null>(null);
+
+  // dangerouslySetInnerHTML로 넣은 정적 마크업(Instagram blockquote, raw HTML
+  // 임베드 placeholder, 갤러리 캐러셀)은 그 자체로는 아무 동작도 하지
+  // 않으므로 — 실제 화면에 보일 때마다 여기서 활성화한다.
+  useEffect(() => {
+    if (!looksLikeHtml) return;
+    if (body.includes('data-provider="customHtml"')) {
+      processRawHtmlEmbeds();
+    }
+    if (body.includes("instagram-media")) {
+      processInstagramEmbeds();
+    }
+    if (body.includes("gallery-carousel")) {
+      processGalleryCarousels();
+    }
+  }, [body, looksLikeHtml]);
+
+  function handleClick(e: MouseEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement;
+    const img = target.closest("img");
+    if (!img) return;
+
+    const gallery = img.closest(".gallery");
+    const scope = gallery ?? img.closest("figure") ?? img.parentElement;
+    const imgs = Array.from((gallery ?? scope)?.querySelectorAll("img") ?? [img]);
+
+    const images: LightboxImage[] = imgs.map((el) => ({
+      src: el.getAttribute("src") ?? "",
+      alt: el.getAttribute("alt") ?? "",
+      caption: el.closest("figure")?.querySelector("figcaption")?.textContent ?? "",
+    }));
+    const index = Math.max(0, imgs.indexOf(img));
+    setLightbox({ images, index });
+  }
+
+  if (looksLikeHtml) {
+    return (
+      <>
+        <div
+          className={className}
+          onClick={handleClick}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }}
+        />
+        {lightbox && (
+          <Lightbox images={lightbox.images} startIndex={lightbox.index} onClose={() => setLightbox(null)} />
+        )}
+      </>
+    );
+  }
+
+  return <p className={plainTextClassName}>{body}</p>;
+}

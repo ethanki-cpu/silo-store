@@ -1,7 +1,8 @@
 # NEXT_TASK
 
 ## 진행 중
-- **EPIC-084 — 브랜치 `feature/EPIC-084`, 아직 develop/main에 병합 전**: "[Stage 2] Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up" 요청 — 상세는 CHANGELOG.md 동명 항목 참고. `tsc`/`lint`/`build` 전부 통과. **로그인 세션이 없어 다음은 실제 클릭으로 미확인**: (1) 전역 "글쓰기" 버튼 → `/write?boardId=`가 실제로 해당 게시판을 기본 선택하는지, (2) 갤러리 위젯 글쓰기 버튼, (3) 외부 사이트에서 여러 이미지를 드래그 선택해 복사 → 에디터에 붙여넣기 → R2 재호스팅까지 실제로 되는지(`/api/media/fetch-external`은 로컬 curl 등으로도 미검증 — 로그인 토큰 필요), (4) "사이트 구성 관리"에서 미분류 페이지 삭제가 이제 실제로 안 되살아나는지. 다음 세션에서 관리자로 로그인해 확인 필요.
+- **EPIC-085 — 브랜치 `feature/EPIC-085`, 아직 develop/main에 병합 전**: "[Stage 2] Universal Block Renderer, Frictionless Archiving (Scraping System), & Dynamic OG/SEO Engine" 요청 — 상세는 CHANGELOG.md 동명 항목 참고. `docs/sql/EPIC-085-user-scraps.sql`은 Management API로 즉시 실행 완료(라이브 반영됨). `tsc`/`lint`/`build` 전부 통과. **로그인 세션이 없어 다음은 실제 클릭으로 미확인**: (1) `ScrapButton` 토글(낙관적 UI가 실제 서버 응답과 맞는지)과 비로그인 유저 로그인 유도 모달, (2) `/mypage/archive`에서 스크랩한 글이 카테고리별로 정확히 묶여 보이는지, (3) 실제 SNS(카카오톡/트위터 등)에 게시글 링크를 공유했을 때 동적 OG 카드(제목/설명/이미지)가 정확히 뜨는지 — Open Graph 디버거로도 확인 필요(로컬 개발 서버 URL은 외부에서 접근 불가라 배포 후 확인). **후속 과제(P2, NEXT_TASK)**: `public/`에 실제 사이트 대표 OG 이미지 에셋이 없어 본문에 이미지가 하나도 없는 글은 `og:image` 자체가 생략됨 — 기본 OG 이미지 파일을 준비해 `extractPostMetadata.ts`의 fallback으로 연결하면 좋음.
+- **EPIC-084(완료, 2026-08-06 — main/develop에 이미 fast-forward 병합됨)**: "[Stage 2] Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up" 요청 — 상세는 CHANGELOG.md 동명 항목 참고.
 - **EPIC-083(완료, 2026-08-06 — main/develop에 이미 fast-forward 병합됨)**: "[Stage 2] Universal Editor Extension" 요청 — 상세는 CHANGELOG.md 동명 항목 참고. `custom_fonts` SQL은 Management API로 즉시 실행 완료(라이브 반영됨).
 
 ## 다음 작업

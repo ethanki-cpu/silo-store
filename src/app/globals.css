@@ -175,11 +175,18 @@ body {
 
 /* EPIC-083: 에디터/게시글 표(Table) — 리사이즈 핸들 없이 고정폭 표만
    지원한다(blockEditorCore.ts coreExtensions의 Table.configure({resizable:
-   false}) 참고). */
+   false}) 참고).
+   EPIC-085: 컬럼이 많은 표가 좁은 화면(모바일)에서 페이지 전체를 가로로
+   밀어내던 문제 — table을 block으로 바꾸고 overflow-x:auto를 줘 표 자체만
+   가로 스크롤되게 한다(내부 레이아웃은 여전히 table-layout이라 셀 정렬은
+   그대로 유지됨, 흔히 쓰는 반응형 표 트릭). */
 table {
+  display: block;
+  overflow-x: auto;
   border-collapse: collapse;
   width: 100%;
   margin: 1rem 0;
+  -webkit-overflow-scrolling: touch;
 }
 table th,
 table td {
@@ -194,5 +201,18 @@ table th {
 }
 table .selectedCell {
   background: rgba(59, 130, 246, 0.1);
+}
+
+/* EPIC-085: 임베드(YouTube/Vimeo/Maps/Spotify 등) — 화면비율 wrapper가
+   있는 경우(youtube+aspectRatio)는 이미 반응형이지만, 그 외 고정
+   width/height iframe(blockEditorCore.ts renderHTML 기본 분기)은 좁은
+   화면에서 컨테이너를 뚫고 가로로 넘쳐 페이지 자체가 밀리던 문제가 있었다
+   — 최대 너비만 뷰포트/컨테이너로 제한한다(높이는 그대로 유지, 진짜
+   화면비율 반응형은 aspectRatio가 지정된 경우만 지원). */
+.embed {
+  max-width: 100%;
+}
+.embed iframe {
+  max-width: 100%;
 }
 

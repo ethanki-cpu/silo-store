@@ -1,5 +1,6 @@
 export type MyPageTabId =
   | "collections"
+  | "archive"
   | "wishlist"
   | "follow"
   | "salon"
@@ -14,8 +15,13 @@ export type MyPageTabId =
 
 // EPIC-052: "Personal Hub" 확장 — 버킷리스트 탭 추가, 나머지 탭은 그대로
 // 유지(라우트 세그먼트/URL 불변).
+// EPIC-085: "아카이브 / 내 스크랩" 탭 추가 — ScrapButton(user_scraps)으로
+// 스크랩한 게시글을 모아보는 화면. "나의 컬렉션"(member_collections, 자유
+// 입력 스크랩북)과는 다른 개념 — 이쪽은 실제 posts를 원클릭으로 저장한
+// 목록이라 나의 컬렉션 바로 다음(콘텐츠 저장 계열끼리 인접) 순서로 둔다.
 export const MYPAGE_TABS: { id: MyPageTabId; label: string }[] = [
   { id: "collections", label: "나의 컬렉션" },
+  { id: "archive", label: "아카이브 / 내 스크랩" },
   { id: "wishlist", label: "나의 위시리스트" },
   { id: "follow", label: "팔로우" },
   { id: "salon", label: "나의 살롱" },

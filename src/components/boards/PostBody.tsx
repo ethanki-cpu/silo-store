@@ -5,6 +5,7 @@ import { sanitizeHtml } from "@/lib/sanitize";
 import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
 import { processInstagramEmbeds } from "@/lib/instagramEmbed";
 import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
+import { processGalleryCarousels } from "@/lib/galleryCarousel";
 
 // EPIC-079-HOTFIX-3: 대표 이미지가 상세 헤더(PostDetailHeader의 photoUrl)
 // 위쪽에 한 번, 그리고 사용자가 붙여넣은/업로드한 그 이미지가 본문 안에
@@ -70,6 +71,9 @@ export function PostBody({
     }
     if (body.includes("instagram-media")) {
       processInstagramEmbeds();
+    }
+    if (body.includes("gallery-carousel")) {
+      processGalleryCarousels();
     }
   }, [body, looksLikeHtml]);
 

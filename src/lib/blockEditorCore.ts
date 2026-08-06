@@ -27,6 +27,15 @@ import { sanitizeHtml } from "./sanitize";
 
 export type { JSONContent };
 
+// EPIC-079-PHASE-5: 갤러리(GalleryConfigModal)와 순수 URL 붙여넣기 자동
+// 인식(BlockEditor handlePaste) 양쪽에서 "이 URL이 이미지냐 영상이냐"를
+// 같은 기준으로 판정하도록 단일 소스로 둔다.
+export const IMAGE_URL_RE = /\.(png|jpe?g|gif|webp|avif|svg)(\?\S*)?$/i;
+export const VIDEO_URL_RE = /\.(mp4|webm|mov|m3u8)(\?\S*)?$/i;
+export function detectMediaType(url: string): GalleryMediaType {
+  return VIDEO_URL_RE.test(url) ? "video" : "image";
+}
+
 // Tiptap의 renderHTML은 중첩 배열(DOMOutputSpec, ProseMirror의 toDOM 규격)을
 // 반환해야 하는데 그 타입이 @tiptap/core 공개 API로 export되어 있지 않아
 // 리터럴을 직접 그 타입으로 좁힐 수 없다 — 이 얇은 헬퍼로 한 곳에서만
@@ -48,6 +57,9 @@ export type FigureImageAttrs = {
   alt: string;
   caption: string;
   featured: boolean;
+  // EPIC-079-PHASE-5: 클릭→드래그로 조절한 너비(px). null이면 기존처럼
+  // max-width:100%(컨테이너에 맞춤)로 렌더링한다(하위 호환).
+  width: number | null;
 };
 
 export const FigureImage = Node.create({
@@ -63,6 +75,7 @@ export const FigureImage = Node.create({
       alt: { default: "" },
       caption: { default: "" },
       featured: { default: false },
+      width: { default: null },
     };
   },
 
@@ -74,11 +87,14 @@ export const FigureImage = Node.create({
           const figure = el as HTMLElement;
           const img = figure.querySelector("img");
           const figcaption = figure.querySelector("figcaption");
+          const widthStyle = img?.style.width || null;
+          const widthMatch = widthStyle ? widthStyle.match(/^(\d+(?:\.\d+)?)px$/) : null;
           return {
             src: img?.getAttribute("src") ?? null,
             alt: img?.getAttribute("alt") ?? "",
             caption: figcaption?.textContent ?? "",
             featured: figure.getAttribute("data-featured") === "true",
+            width: widthMatch ? Number(widthMatch[1]) : null,
           };
         },
       },
@@ -106,21 +122,34 @@ export const FigureImage = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { src, alt, caption, featured } = HTMLAttributes as FigureImageAttrs;
+    const { src, alt, caption, featured, width } = HTMLAttributes as FigureImageAttrs;
     return renderSpec([
       "figure",
       mergeAttributes({ "data-type": "figure-image", "data-featured": String(!!featured) }),
-      ["img", { src, alt: alt || "", loading: "lazy" }],
+      ["img", { src, alt: alt || "", loading: "lazy", ...(width ? { style: `width:${width}px;max-width:100%;height:auto` } : {}) }],
       ...(caption ? [["figcaption", {}, caption]] : []),
     ]);
   },
 });
 
 // ============================================================
-// Gallery — 여러 장 이미지(그리드) + Lightbox 렌더링 대상.
+// Gallery — 인스타그램 스타일 가로 스와이프 캐러셀(EPIC-079-PHASE-5) +
+// Lightbox 렌더링 대상. 이미지뿐 아니라 외부 호스팅 영상(mp4 등) URL도
+// 담을 수 있다(type 필드로 구분).
 // ============================================================
 
-export type GalleryImageAttrs = { src: string; path: string | null; alt: string; caption: string };
+export type GalleryMediaType = "image" | "video";
+
+export type GalleryImageAttrs = {
+  src: string;
+  path: string | null;
+  alt: string;
+  caption: string;
+  // EPIC-079-PHASE-5: 이미지가 아니라 영상(외부 mp4 등)이면 "video".
+  // 기존 저장 데이터(이 필드가 없던 시절)는 항상 이미지였으므로 undefined시
+  // "image"로 취급한다(아래 renderHTML/NodeView 둘 다 동일하게 처리).
+  type?: GalleryMediaType;
+};
 
 export const GalleryBlock = Node.create({
   name: "gallery",
@@ -131,6 +160,8 @@ export const GalleryBlock = Node.create({
   addAttributes() {
     return {
       images: { default: [] as GalleryImageAttrs[] },
+      // EPIC-079-PHASE-5 이전(그리드 레이아웃) 저장 데이터 하위 호환용 —
+      // 캐러셀 렌더링에는 더 이상 쓰이지 않지만, 기존 값을 버리지 않는다.
       columns: { default: 3 },
     };
   },
@@ -141,20 +172,44 @@ export const GalleryBlock = Node.create({
 
   renderHTML({ HTMLAttributes }) {
     const images = (HTMLAttributes.images as GalleryImageAttrs[]) ?? [];
-    const columns = (HTMLAttributes.columns as number) ?? 3;
+    const multi = images.length > 1;
     return renderSpec([
       "div",
-      mergeAttributes({
-        "data-type": "gallery",
-        class: "gallery",
-        style: `display:grid;grid-template-columns:repeat(${columns},1fr);gap:8px`,
-      }),
-      ...images.map((img) => [
-        "figure",
-        {},
-        ["img", { src: img.src, alt: img.alt || "", loading: "lazy" }],
-        ...(img.caption ? [["figcaption", {}, img.caption]] : []),
-      ]),
+      mergeAttributes({ "data-type": "gallery", class: "gallery gallery-carousel" }),
+      [
+        "div",
+        { class: "gallery-track" },
+        ...images.map((img, i) => [
+          "div",
+          { class: "gallery-slide", "data-index": String(i) },
+          (img.type ?? "image") === "video"
+            ? [
+                "video",
+                {
+                  src: img.src,
+                  class: "gallery-media",
+                  muted: "true",
+                  loop: "true",
+                  playsinline: "true",
+                  autoplay: "true",
+                  controls: "true",
+                },
+              ]
+            : ["img", { src: img.src, alt: img.alt || "", loading: "lazy", class: "gallery-media" }],
+          ...(img.caption ? [["p", { class: "gallery-caption" }, img.caption]] : []),
+        ]),
+      ],
+      ...(multi
+        ? ([
+            ["button", { type: "button", class: "gallery-prev", "aria-label": "이전 슬라이드" }, "‹"],
+            ["button", { type: "button", class: "gallery-next", "aria-label": "다음 슬라이드" }, "›"],
+            [
+              "div",
+              { class: "gallery-dots" },
+              ...images.map((_, i) => ["span", { class: `gallery-dot${i === 0 ? " active" : ""}`, "data-index": String(i) }]),
+            ],
+          ] as unknown[])
+        : []),
     ]);
   },
 });

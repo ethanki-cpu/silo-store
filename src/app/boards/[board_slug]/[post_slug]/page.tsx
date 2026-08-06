@@ -249,7 +249,6 @@ export default function PostDetailPage() {
           title={post.title}
           authorId={post.author_id}
           authorName={post.author_name}
-          photoUrl={post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null}
           likeCount={post.like_count}
           viewCount={post.view_count}
           commentCount={comments.length}
@@ -268,10 +267,7 @@ export default function PostDetailPage() {
         <div className="max-w-2xl mx-auto w-full">
           <PostTags tags={displayTags} />
 
-          <PostBody
-            body={post.body}
-            featuredImageUrl={post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null}
-          />
+          <PostBody body={post.body} />
 
           <PostActions
             likeCount={post.like_count}

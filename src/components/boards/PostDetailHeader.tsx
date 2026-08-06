@@ -2,9 +2,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 // EPIC-046/047: Editorial Magazine 게시글 헤더 — 좌측 글 번호/작성일, 가운데
-// 큰 제목, 우측 Author/작성자(프로필 링크). 대표 이미지가 있으면 헤더
-// 아래 Full Width로 표시한다(reading-width 제한 없이 페이지 폭 전체).
-// 좋아요/조회/댓글 수는 Board Engine(EPIC-047) 공통 통계 라인으로 표시.
+// 큰 제목, 우측 Author/작성자(프로필 링크). 좋아요/조회/댓글 수는 Board
+// Engine(EPIC-047) 공통 통계 라인으로 표시.
+// EPIC-079-PHASE-5: 대표 이미지를 이 헤더 아래 Full Width 배너로 보여주던
+// 동작을 제거했다 — 대표 이미지는 목록/카드 썸네일 전용이지 게시물 자체의
+// 내용에 영향을 주면 안 된다는 신고(같은 사진이 배너+본문 두 번 보이는
+// 것처럼 느껴짐)에 따라, 상세 화면에서는 본문(PostBody)에 사용자가 실제로
+// 넣은 이미지만 보인다.
 export function PostDetailHeader({
   postNumber,
   createdAt,
@@ -12,7 +16,6 @@ export function PostDetailHeader({
   title,
   authorId,
   authorName,
-  photoUrl,
   likeCount,
   viewCount,
   commentCount,
@@ -30,7 +33,6 @@ export function PostDetailHeader({
   title: string;
   authorId: string;
   authorName: string;
-  photoUrl?: string | null;
   likeCount: number;
   viewCount: number | null;
   commentCount: number;
@@ -114,15 +116,6 @@ export function PostDetailHeader({
           )}
         </div>
       </div>
-
-      {photoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={photoUrl}
-          alt={title}
-          className="w-full aspect-[21/9] object-cover mt-8"
-        />
-      )}
     </div>
   );
 }

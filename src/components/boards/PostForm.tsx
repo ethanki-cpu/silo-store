@@ -290,7 +290,7 @@ export function PostForm({
               checked={thumbnailVisible}
               onChange={(e) => setThumbnailVisible(e.target.checked)}
             />
-            목록/상세에서 이 대표 이미지를 썸네일로 보여주기
+            목록에서 이 대표 이미지를 썸네일로 보여주기
           </label>
         )}
       </div>

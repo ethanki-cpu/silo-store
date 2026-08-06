@@ -18,6 +18,8 @@ import {
   clampInstagramWidth,
   INSTAGRAM_WIDTH_MIN,
   INSTAGRAM_WIDTH_MAX,
+  IMAGE_URL_RE,
+  VIDEO_URL_RE,
   type JSONContent,
   type EmbedProvider,
   type EmbedAspectRatio,
@@ -27,8 +29,10 @@ import {
 import { Lightbox, type LightboxImage } from "./Lightbox";
 import { processInstagramEmbeds } from "@/lib/instagramEmbed";
 import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
+import { processGalleryCarousels } from "@/lib/galleryCarousel";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { EmbedConfigModal, type EmbedInsertResult } from "./EmbedConfigModal";
+import { GalleryConfigModal } from "./GalleryConfigModal";
 
 // EPIC-053.1: Block Editor 확장.
 // - 정본 저장 형식을 HTML에서 Tiptap JSON(ProseMirror doc)으로 전환 —
@@ -38,12 +42,6 @@ import { EmbedConfigModal, type EmbedInsertResult } from "./EmbedConfigModal";
 //   가능한 NodeView로 승격.
 // - Gallery/Embed(Youtube/Vimeo/Instagram/Spotify/Maps)/LinkCard 블록 삽입.
 // - Preview 모드(실제 게시글과 동일한 sanitize된 HTML을 그대로 렌더링).
-
-// EPIC-079-FINAL-FIX: 다른 웹사이트에서 이미지/영상 "링크 텍스트"만 복사해
-// 붙여넣었을 때(파일 바이트도, <img>/<iframe> 태그도 없는 순수 URL) 자동
-// 인식용 — 이미지/영상 파일 확장자 URL을 판별한다.
-const IMAGE_URL_RE = /\.(png|jpe?g|gif|webp|avif|svg)(\?\S*)?$/i;
-const VIDEO_URL_RE = /\.(mp4|webm|mov|m3u8)(\?\S*)?$/i;
 
 // EPIC-079-HOTFIX-2: "다른 웹사이트에서 이미지를 복사해 붙여넣으면(파일
 // 바이트로) 안 된다"는 신고 조사 — 실제로는 조용히 아무것도 안 됐다(에러도
@@ -134,13 +132,41 @@ function ToolbarButton({
 // ============================================================
 
 function FigureImageView({ node, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
-  const { src, alt, caption, featured } = node.attrs as {
+  const { src, alt, caption, featured, width } = node.attrs as {
     src: string;
     alt: string;
     caption: string;
     featured: boolean;
+    width: number | null;
   };
   const [openLightbox, setOpenLightbox] = useState(false);
+  // EPIC-079-PHASE-5: 클릭→드래그 크기 조절 — 핸들을 누르는 순간부터
+  // 놓을 때까지는 로컬 state(liveWidth)만 갱신해 화면을 부드럽게 따라오게
+  // 하고, 놓는 순간(pointerup) 한 번만 updateAttributes로 실제 문서에
+  // 반영한다(드래그 중 매 픽셀마다 ProseMirror 트랜잭션을 만들면 무겁다).
+  const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  function onResizeHandlePointerDown(e: React.PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = imgRef.current?.getBoundingClientRect().width ?? width ?? 300;
+
+    function onMove(ev: PointerEvent) {
+      const next = Math.max(80, Math.round(startWidth + (ev.clientX - startX)));
+      setLiveWidth(next);
+    }
+    function onUp(ev: PointerEvent) {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const next = Math.max(80, Math.round(startWidth + (ev.clientX - startX)));
+      updateAttributes({ width: next });
+      setLiveWidth(null);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
 
   function move(direction: -1 | 1) {
     const pos = typeof getPos === "function" ? getPos() : null;
@@ -177,14 +203,27 @@ function FigureImageView({ node, updateAttributes, deleteNode, editor, getPos }:
 
   return (
     <NodeViewWrapper className="figure-image-node my-4" data-drag-handle>
-      <figure className="group relative inline-block max-w-full">
+      <figure
+        className="group relative inline-block max-w-full"
+        style={{ width: liveWidth ?? width ?? undefined }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          ref={imgRef}
           src={src}
           alt={alt}
           loading="lazy"
           onClick={() => setOpenLightbox(true)}
           className={`max-w-full rounded-md cursor-zoom-in ${featured ? "ring-2 ring-amber-400" : ""}`}
+          style={{ width: liveWidth ?? width ?? undefined, height: "auto" }}
+        />
+        {/* EPIC-079-PHASE-5: 이미지를 클릭한 뒤(선택) 이 핸들을 눌러 오른쪽
+            아래로 드래그하면 너비를 조절할 수 있다 — hover 시에만 보여
+            평소 읽기 화면을 가리지 않는다. */}
+        <div
+          onPointerDown={onResizeHandlePointerDown}
+          title="드래그해서 크기 조절"
+          className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-sm bg-gray-900/70 opacity-0 group-hover:opacity-100 transition-opacity cursor-nwse-resize"
         />
         {featured && (
           <span className="absolute top-2 left-2 bg-amber-400 text-white text-xs px-2 py-0.5 rounded">
@@ -243,11 +282,17 @@ function FigureImageView({ node, updateAttributes, deleteNode, editor, getPos }:
 // Gallery NodeView
 // ============================================================
 
+// EPIC-079-PHASE-5: 그리드 편집 UI를 버리고 실제 게시글과 동일한 인스타그램
+// 스타일 캐러셀(가로 스와이프 + 화살표 + 점 인디케이터)을 편집 화면에서도
+// 그대로 보여준다 — 에디터와 실제 게시글이 항상 같아 보이게 하기 위해
+// globals.css의 같은 클래스(gallery-carousel 등)를 재사용한다.
 function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
   const images = (node.attrs.images as GalleryImageAttrs[]) ?? [];
-  const columns = (node.attrs.columns as number) ?? 3;
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [urlModalOpen, setUrlModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   function setImages(next: GalleryImageAttrs[]) {
     updateAttributes({ images: next });
@@ -270,10 +315,48 @@ function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     const uploaded = await uploadMultipleFiles(Array.from(files), STORAGE_BUCKETS.GALLERY, "gallery");
     const added: GalleryImageAttrs[] = uploaded
       .filter((r) => !r.error)
-      .map((r) => ({ src: r.url, path: r.path, alt: "", caption: "" }));
+      .map((r) => ({ src: r.url, path: r.path, alt: "", caption: "", type: "image" }));
     setImages([...images, ...added]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
+
+  function scrollToIndex(i: number) {
+    const track = trackRef.current;
+    const slide = track?.children[i] as HTMLElement | undefined;
+    slide?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }
+
+  // 손가락/마우스로 직접 스와이프했을 때도 화살표·점 인디케이터가 실제
+  // 보이는 슬라이드를 따라가도록 — src/lib/galleryCarousel.ts(실제 게시글
+  // 화면)와 동일한 "트랙 중앙에 가장 가까운 슬라이드" 판정을 쓴다.
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    let raf = 0;
+    function onScroll() {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const trackEl = trackRef.current;
+        if (!trackEl) return;
+        const rect = trackEl.getBoundingClientRect();
+        const center = rect.left + rect.width / 2;
+        let closest = 0;
+        let closestDist = Infinity;
+        Array.from(trackEl.children).forEach((child, i) => {
+          const childRect = (child as HTMLElement).getBoundingClientRect();
+          const dist = Math.abs(childRect.left + childRect.width / 2 - center);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closest = i;
+          }
+        });
+        setActiveIndex(closest);
+      });
+    }
+    track.addEventListener("scroll", onScroll);
+    return () => track.removeEventListener("scroll", onScroll);
+  }, [images.length]);
 
   const lightboxImages: LightboxImage[] = images.map((img) => ({ src: img.src, alt: img.alt, caption: img.caption }));
 
@@ -281,28 +364,17 @@ function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     <NodeViewWrapper className="gallery-node my-4" data-drag-handle>
       <div className="border border-dashed border-gray-300 rounded-md p-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-gray-400">갤러리 ({images.length}장)</span>
+          <span className="text-xs text-gray-400">갤러리 ({images.length}개)</span>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">
-              열
-              <select
-                value={columns}
-                onChange={(e) => updateAttributes({ columns: Number(e.target.value) })}
-                className="ml-1 border border-gray-200 rounded text-xs"
-              >
-                {[2, 3, 4].map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <button type="button" className="text-xs text-blue-600 hover:underline" onClick={() => setUrlModalOpen(true)}>
+              + URL/파일 추가
+            </button>
             <button
               type="button"
               className="text-xs text-blue-600 hover:underline"
               onClick={() => fileInputRef.current?.click()}
             >
-              + 이미지 추가
+              + 이미지 업로드
             </button>
             <button type="button" className="text-xs text-red-500 hover:underline" onClick={() => deleteNode()}>
               갤러리 삭제
@@ -317,49 +389,105 @@ function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
           className="hidden"
           onChange={(e) => handleAddFiles(e.target.files)}
         />
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
-          {images.map((img, i) => (
-            <div key={img.path ?? img.src} className="relative group">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={img.src}
-                alt={img.alt}
-                loading="lazy"
-                onClick={() => setLightboxIndex(i)}
-                className="w-full aspect-square object-cover rounded cursor-zoom-in"
-              />
-              <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100">
-                <button type="button" className="bg-white/90 rounded px-1 text-[10px]" onClick={() => moveAt(i, -1)}>
-                  ←
-                </button>
-                <button type="button" className="bg-white/90 rounded px-1 text-[10px]" onClick={() => moveAt(i, 1)}>
-                  →
+
+        {images.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-6">
+            아직 미디어가 없어요 — 위 버튼으로 URL을 붙여넣거나 파일을 업로드하세요.
+          </p>
+        ) : (
+          <div className="gallery-carousel">
+            <div ref={trackRef} className="gallery-track">
+              {images.map((img, i) => (
+                <div key={`${img.path ?? img.src}-${i}`} className="gallery-slide group">
+                  {img.type === "video" ? (
+                    <video src={img.src} className="gallery-media" muted loop playsInline autoPlay controls />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={img.src}
+                      alt={img.alt}
+                      loading="lazy"
+                      onClick={() => setLightboxIndex(i)}
+                      className="gallery-media cursor-zoom-in"
+                    />
+                  )}
+                  {img.caption && <p className="gallery-caption">{img.caption}</p>}
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button type="button" className="bg-white/90 rounded px-1.5 text-xs" onClick={() => moveAt(i, -1)}>
+                      ←
+                    </button>
+                    <button type="button" className="bg-white/90 rounded px-1.5 text-xs" onClick={() => moveAt(i, 1)}>
+                      →
+                    </button>
+                    <button
+                      type="button"
+                      className="bg-white/90 rounded px-1.5 text-xs text-red-600"
+                      onClick={() => removeAt(i)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={img.caption}
+                    placeholder="캡션"
+                    onChange={(e) => {
+                      const next = [...images];
+                      next[i] = { ...next[i], caption: e.target.value };
+                      setImages(next);
+                    }}
+                    className="absolute left-2 right-2 bottom-1 text-[11px] text-white bg-black/30 rounded px-1.5 py-0.5 border-0 focus:outline-none placeholder:text-white/60 opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </div>
+              ))}
+            </div>
+            {images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="gallery-prev"
+                  aria-label="이전 슬라이드"
+                  onClick={() => scrollToIndex(Math.max(0, activeIndex - 1))}
+                >
+                  ‹
                 </button>
                 <button
                   type="button"
-                  className="bg-white/90 rounded px-1 text-[10px] text-red-600"
-                  onClick={() => removeAt(i)}
+                  className="gallery-next"
+                  aria-label="다음 슬라이드"
+                  onClick={() => scrollToIndex(Math.min(images.length - 1, activeIndex + 1))}
                 >
-                  ✕
+                  ›
                 </button>
-              </div>
-              <input
-                type="text"
-                value={img.caption}
-                placeholder="캡션"
-                onChange={(e) => {
-                  const next = [...images];
-                  next[i] = { ...next[i], caption: e.target.value };
-                  setImages(next);
-                }}
-                className="text-[11px] text-gray-500 w-full text-center mt-0.5 border-0 focus:outline-none bg-transparent"
-              />
-            </div>
-          ))}
-        </div>
+                <div className="gallery-dots">
+                  {images.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`gallery-dot ${i === activeIndex ? "active" : ""}`}
+                      onClick={() => {
+                        setActiveIndex(i);
+                        scrollToIndex(i);
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
       {lightboxIndex !== null && (
         <Lightbox images={lightboxImages} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+      )}
+      {urlModalOpen && (
+        <GalleryConfigModal
+          initialItems={images}
+          onClose={() => setUrlModalOpen(false)}
+          onInsert={(items) => {
+            setImages(items);
+            setUrlModalOpen(false);
+          }}
+        />
       )}
     </NodeViewWrapper>
   );
@@ -851,7 +979,6 @@ function LinkCardView({ node, updateAttributes, deleteNode }: NodeViewProps) {
 type ToolbarProps = {
   editor: Editor;
   onImageUpload: (files: File[]) => Promise<void>;
-  onGalleryUpload: (files: File[]) => Promise<void>;
   onAutoSave?: () => void;
   isSaving?: boolean;
   onTogglePreview: () => void;
@@ -861,15 +988,26 @@ type ToolbarProps = {
 function Toolbar({
   editor,
   onImageUpload,
-  onGalleryUpload,
   onAutoSave,
   isSaving,
   onTogglePreview,
   isPreview,
 }: ToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [embedModalOpen, setEmbedModalOpen] = useState(false);
+  const [galleryModalOpen, setGalleryModalOpen] = useState(false);
+
+  // EPIC-079-PHASE-5: GalleryConfigModal이 돌려주는 최종 아이템 목록을 그대로
+  // 새 gallery 노드로 삽입한다 — insertEmbedWithConfig와 동일한 패턴(항상
+  // 문서 끝에 삽입, 위 EPIC-079 주석 참고).
+  function insertGallery(items: GalleryImageAttrs[]) {
+    if (items.length === 0) return;
+    editor
+      .chain()
+      .focus("end")
+      .insertContent({ type: "gallery", attrs: { images: items, columns: 3 } })
+      .run();
+  }
 
   // EPIC-079: focus("end") 없이 focus()만 쓰면, 직전에 삽입한 atom 블록(이미지/
   // 임베드/갤러리/링크카드는 전부 group:"block", atom:true) 바로 뒤에 selection이
@@ -1015,21 +1153,22 @@ function Toolbar({
         }}
       />
 
-      <ToolbarButton title="갤러리 삽입 (여러 장 → 그리드)" label="갤러리 삽입" onClick={() => galleryInputRef.current?.click()}>
+      <ToolbarButton
+        title="갤러리 삽입 (여러 장의 이미지/영상 URL → 스와이프 슬라이더)"
+        label="갤러리 삽입"
+        onClick={() => setGalleryModalOpen(true)}
+      >
         🖼🖼
       </ToolbarButton>
-      <input
-        ref={galleryInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={async (e) => {
-          const files = Array.from(e.target.files ?? []);
-          if (files.length > 0) await onGalleryUpload(files);
-          if (galleryInputRef.current) galleryInputRef.current.value = "";
-        }}
-      />
+      {galleryModalOpen && (
+        <GalleryConfigModal
+          onClose={() => setGalleryModalOpen(false)}
+          onInsert={(items) => {
+            insertGallery(items);
+            setGalleryModalOpen(false);
+          }}
+        />
+      )}
 
       <ToolbarButton title="외부자료 삽입 (유튜브/인스타/스포티파이/X/지도 등)" label="외부자료 삽입" onClick={() => setEmbedModalOpen(true)}>
         ▶
@@ -1221,6 +1360,7 @@ export function BlockEditor({
     if (!isPreview || !previewRef.current) return;
     processRawHtmlEmbeds(previewRef.current);
     processInstagramEmbeds();
+    processGalleryCarousels(previewRef.current);
   }, [isPreview, editor]);
 
   // 자동 저장 타이머
@@ -1267,19 +1407,6 @@ export function BlockEditor({
     [editor],
   );
 
-  const handleGalleryUpload = useCallback(
-    async (files: File[]) => {
-      if (!editor) return;
-      const uploaded = await uploadMultipleFiles(files, STORAGE_BUCKETS.GALLERY, "gallery");
-      const images: GalleryImageAttrs[] = uploaded
-        .filter((r) => !r.error)
-        .map((r) => ({ src: r.url, path: r.path, alt: "", caption: "" }));
-      if (images.length === 0) return;
-      editor.chain().focus("end").insertContent({ type: "gallery", attrs: { images, columns: 3 } }).run();
-    },
-    [editor],
-  );
-
   const handleManualSave = useCallback(() => {
     if (!editor || !onAutoSave) return;
     const json = editor.getJSON();
@@ -1322,7 +1449,6 @@ export function BlockEditor({
       <Toolbar
         editor={editor}
         onImageUpload={handleImageFiles}
-        onGalleryUpload={handleGalleryUpload}
         onAutoSave={onAutoSave ? handleManualSave : undefined}
         isSaving={isSaving}
         onTogglePreview={() => setIsPreview((v) => !v)}

@@ -30,6 +30,8 @@ const ALLOWED_TAGS = [
   "img", "figure", "figcaption",
   "video", "audio", "source",
   "object", "param",
+  // EPIC-079-PHASE-5: 갤러리 캐러셀의 이전/다음 버튼.
+  "button",
   // EPIC-053: 임베드
   "iframe",
   // EPIC-053: 테이블 (향후 확장)
@@ -41,7 +43,7 @@ const ALLOWED_ATTR = [
   "href", "target", "rel",
   // EPIC-053: 이미지/미디어
   "src", "alt", "width", "height", "style", "class",
-  "controls", "autoplay", "loop", "muted",
+  "controls", "autoplay", "loop", "muted", "playsinline",
   "data", "type", // object/param
   // EPIC-053: iframe (유튜브/밈오/맵스/스포티파이/인스타그램)
   "src", "width", "height", "frameborder", "allowfullscreen",
@@ -62,6 +64,8 @@ const ALLOWED_ATTR = [
   // EPIC-079-PHASE-4: instagram 위젯 너비 / 사용자 정의 HTML 임베드 원본
   // (src/lib/rawHtmlEmbed.ts가 이 속성을 읽어 실제 화면에 주입) round-trip용.
   "data-embed-width", "data-raw-html", "data-raw-html-embed",
+  // EPIC-079-PHASE-5: 갤러리 캐러셀 슬라이드/점 인덱스, 버튼 접근성 라벨.
+  "data-index", "aria-label",
 ];
 
 export function sanitizeHtml(html: string): string {

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-06 (EPIC-082 후속 — R2_ACCOUNT_ID 오설정 발견/수정 + 실제 업로드 왕복 검증 완료)
+- **사용자가 로그인**(`dev.silostore.net`, Google OAuth) → 그 세션 토큰으로 로컬 dev 서버의 `/api/media/presigned`를 호출해 실기 테스트 진행.
+- **버그 발견**: `.env.local`의 `R2_ACCOUNT_ID`에 실제 Cloudflare 계정 ID(32자리 16진수)가 아니라 API 토큰처럼 보이는 값(`cfat_...`)이 들어 있었다 — R2 엔드포인트 호스트명에 밑줄(`_`)이 섞여 `silo-media-storage.cfat_...r2.cloudflarestorage.com`이 되고, 이는 유효한 DNS 호스트명이 아니라 TLS 연결 자체가 실패했다(`ERR_SSL_VERSION_OR_CIPHER_MISMATCH`). 사용자가 올바른 Account ID를 제공해 `.env.local` 수정, dev 서버 재시작.
+- **검증**: 수정 후 presigned URL의 호스트명이 정상 형태로 바뀐 것 확인. Browser pane에서의 실제 PUT은 샌드박스의 미승인 서드파티 도메인 네트워크 제약(`Failed to fetch`)으로 막혀, 동일 로직을 재현하는 Node 스크립트 + `curl`로 서버 사이드에서 분리 검증: presigned PUT → 200, 곧바로 `R2_PUBLIC_URL`로 GET → 200 + 업로드한 내용 그대로 반환 확인(왕복 완전 확인). 테스트로 만든 R2 객체는 `ListObjectsV2`+`DeleteObjects`로 정리 완료.
+- **⚠️ Vercel 배포 환경 별도 이슈 발견(미해결)**: 같은 세션으로 `dev.silostore.net`에서 직접 `/api/media/presigned`를 호출하면 500(R2 환경 변수가 설정되지 않았어요)이 난다 — `.env.local`은 로컬 전용이라 Vercel 프로젝트 환경변수에 R2 5종이 아직 등록되지 않은 것으로 확인. 로컬 파이프라인은 정상이나, 배포 환경은 사용자가 Vercel 대시보드에서 별도로 등록해야 동작한다(NEXT_TASK.md 기록).
+
 ## 2026-08-06 (EPIC-082 — [Stage 2] Universal Media Library Schema & Cloudflare R2 Direct Upload Pipeline)
 - **배경**: Stage 2 "Data and Media Separation" 전략(EPIC-081 §Stage 2 기술 전략)의 첫 구현 — Supabase Storage 연동을 탈피해 DB에는 메타데이터만, 실제 바이너리는 Cloudflare R2에 저장하는 구조를 만든다. **지시대로 백엔드 API/DB Schema/TypeScript 타입만 다루고 UI/에디터 컴포넌트는 전혀 건드리지 않았다** — 실제 배선은 다음 EPIC(083) 범위.
 - **`docs/sql/EPIC-082-media-library.sql`(신설)**: 중앙 집권형 `media_library` 테이블(id/user_id/file_url/file_name/mime_type/size_bytes/width/height/duration/alt_text/created_at) + RLS(SELECT는 전체 공개, INSERT/UPDATE/DELETE는 본인 또는 `members.is_admin`만). **⚠️ DB 미반영** — 이번에도 Claude Code auto mode 분류기가 Management API를 통한 프로덕션 DB 직접 쓰기를 차단해 라이브에는 아직 적용되지 않았다. EPIC-080 때와 동일하게 사용자가 Supabase SQL Editor에서 직접 실행 필요.

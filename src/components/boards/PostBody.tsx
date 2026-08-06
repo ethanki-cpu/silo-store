@@ -6,6 +6,7 @@ import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
 import { processInstagramEmbeds } from "@/lib/instagramEmbed";
 import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
 import { processGalleryCarousels } from "@/lib/galleryCarousel";
+import { useCustomFonts } from "@/lib/useCustomFonts";
 
 // EPIC-079-HOTFIX-3: 대표 이미지가 상세 헤더(PostDetailHeader의 photoUrl)
 // 위쪽에 한 번, 그리고 사용자가 붙여넣은/업로드한 그 이미지가 본문 안에
@@ -47,6 +48,11 @@ export function PostBody({
    * 이미지 한 장(첫 매치)을 제거해 중복 표시를 막는다. */
   featuredImageUrl?: string | null;
 }) {
+  // EPIC-083: 글 상세 페이지에서도 본문에 커스텀 폰트(font-family)가 쓰였을
+  // 수 있으므로 @font-face를 주입한다(에디터 Toolbar와 동일한 훅 — 같은
+  // <style id="custom-fonts-style"> 태그를 공유해 중복 없이 항상 최신
+  // 목록을 반영).
+  useCustomFonts();
   const looksLikeHtml = /<[a-z][\s\S]*>/i.test(body);
   const [lightbox, setLightbox] = useState<{ images: LightboxImage[]; index: number } | null>(null);
   const dedupedBody = useMemo(

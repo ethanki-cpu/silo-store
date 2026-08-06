@@ -20,6 +20,14 @@ import type { PresignedUploadRequest, PresignedUploadResponse } from "@/lib/medi
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
 const ALLOWED_MIME_PREFIXES = ["image/", "video/", "audio/"];
+// EPIC-083: Admin 커스텀 폰트 업로드(.woff2/.woff/.ttf/.otf)도 이 presigned
+// 파이프라인을 그대로 탄다. 브라우저/OS별 폰트 파일의 File.type 인식이
+// 일관되지 않아(예: Windows에서 .ttf가 "application/octet-stream" 또는
+// 빈 문자열로 오는 경우가 흔함 — MIME 레지스트리에 등록 안 된 확장자는
+// 브라우저가 추측을 포기함) MIME 프리픽스만으로는 걸러낼 수 없다 — 이
+// 확장자 목록에 매치할 때만 별도로 허용한다(이미지/영상/오디오처럼
+// MIME 신뢰만으로 통과시키지 않고, 실제 확장자를 함께 확인).
+const ALLOWED_FONT_EXTENSIONS = ["woff2", "woff", "ttf", "otf"];
 const PRESIGNED_URL_TTL_SECONDS = 300; // 5분
 
 function sanitizeExtension(fileName: string): string {
@@ -28,6 +36,11 @@ function sanitizeExtension(fileName: string): string {
   // 서버가 생성한 타임스탬프+UUID로 대체(경로 조작/충돌 방지, storage.ts와
   // 동일한 접근).
   return /^[a-zA-Z0-9]{1,10}$/.test(ext) ? ext.toLowerCase() : "";
+}
+
+function isAllowedUpload(fileType: string, ext: string): boolean {
+  if (ALLOWED_MIME_PREFIXES.some((prefix) => fileType.startsWith(prefix))) return true;
+  return ALLOWED_FONT_EXTENSIONS.includes(ext) && (fileType.startsWith("font/") || fileType === "application/octet-stream" || fileType === "application/font-woff" || fileType === "application/x-font-ttf" || fileType === "application/vnd.ms-fontobject" || fileType === "");
 }
 
 function getR2Client(): S3Client {
@@ -76,7 +89,10 @@ export async function POST(request: NextRequest) {
   if (!fileName || typeof fileName !== "string") {
     return NextResponse.json({ error: "fileName이 필요해요." }, { status: 400 });
   }
-  if (!fileType || typeof fileType !== "string") {
+  // 폰트 파일은 OS/브라우저가 File.type을 못 채워 빈 문자열로 오는 경우가
+  // 흔하다(위 isAllowedUpload 주석 참고) — 필드 자체는 있어야 하되(타입
+  // 검증), 값이 빈 문자열인 것 자체는 여기서 막지 않는다.
+  if (typeof fileType !== "string") {
     return NextResponse.json({ error: "fileType이 필요해요." }, { status: 400 });
   }
   if (typeof fileSize !== "number" || fileSize <= 0) {
@@ -88,11 +104,12 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  if (!ALLOWED_MIME_PREFIXES.some((prefix) => fileType.startsWith(prefix))) {
+
+  const ext = sanitizeExtension(fileName);
+  if (!isAllowedUpload(fileType, ext)) {
     return NextResponse.json({ error: "지원하지 않는 파일 형식이에요." }, { status: 400 });
   }
 
-  const ext = sanitizeExtension(fileName);
   const uniqueKey = `media/${requester.userId}/${Date.now()}-${crypto.randomUUID()}${ext ? `.${ext}` : ""}`;
 
   let uploadUrl: string;

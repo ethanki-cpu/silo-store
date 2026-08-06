@@ -66,6 +66,10 @@ const ALLOWED_ATTR = [
   "data-embed-width", "data-raw-html", "data-raw-html-embed",
   // EPIC-079-PHASE-5: 갤러리 캐러셀 슬라이드/점 인덱스, 버튼 접근성 라벨.
   "data-index", "aria-label",
+  // EPIC-083: 표(Table) 셀 병합.
+  "colspan", "rowspan",
+  // EPIC-083: 출처(SourceAttribution) 라운드트립용.
+  "data-source-url", "data-source-name",
 ];
 
 export function sanitizeHtml(html: string): string {

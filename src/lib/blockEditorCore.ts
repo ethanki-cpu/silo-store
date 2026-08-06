@@ -20,6 +20,11 @@ import TextAlign from "@tiptap/extension-text-align";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import { Color } from "@tiptap/extension-color";
+import { FontFamily } from "@tiptap/extension-font-family";
+import { Table } from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { generateHTML } from "@tiptap/html";
@@ -60,6 +65,9 @@ export type FigureImageAttrs = {
   // EPIC-079-PHASE-5: 클릭→드래그로 조절한 너비(px). null이면 기존처럼
   // max-width:100%(컨테이너에 맞춤)로 렌더링한다(하위 호환).
   width: number | null;
+  // EPIC-083: GalleryImageAttrs.mediaId와 동일한 이유/의미(media_library
+  // 참조, 부가 정보) — 기존 Supabase Storage 업로드 데이터는 없음(하위 호환).
+  mediaId?: string | null;
 };
 
 export const FigureImage = Node.create({
@@ -76,6 +84,7 @@ export const FigureImage = Node.create({
       caption: { default: "" },
       featured: { default: false },
       width: { default: null },
+      mediaId: { default: null },
     };
   },
 
@@ -149,6 +158,12 @@ export type GalleryImageAttrs = {
   // 기존 저장 데이터(이 필드가 없던 시절)는 항상 이미지였으므로 undefined시
   // "image"로 취급한다(아래 renderHTML/NodeView 둘 다 동일하게 처리).
   type?: GalleryMediaType;
+  // EPIC-083: R2 Direct Upload(EPIC-082 media_library)로 올린 항목이면 그
+  // media_library.id를 함께 보관한다 — src(URL)는 여전히 렌더링에 쓰는
+  // 정본이고, mediaId는 media-architecture.md가 말하는 점진적 전환의
+  // "있으면 참조, 없으면 기존 src 그대로"를 위한 부가 정보일 뿐이다(하위
+  // 호환: 기존 Supabase Storage 업로드 데이터는 이 필드가 없다).
+  mediaId?: string | null;
 };
 
 export const GalleryBlock = Node.create({
@@ -760,6 +775,73 @@ export const LinkCardBlock = Node.create({
 });
 
 // ============================================================
+// SourceAttribution — EPIC-083: 퍼온 글의 원문 출처를 밝히는 카드.
+// LinkCard와 달리 og:title/description을 흉내내지 않고, "출처: X" 한 줄
+// 뱃지 형태로만 표시한다(용도가 다름 — LinkCard는 콘텐츠 미리보기,
+// SourceAttribution은 저작권/출처 고지).
+// ============================================================
+
+export type SourceAttributionAttrs = { url: string; sourceName: string };
+
+export const SourceAttributionBlock = Node.create({
+  name: "sourceAttribution",
+  group: "block",
+  atom: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      url: { default: "" },
+      sourceName: { default: "" },
+    };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: "div[data-type='source-attribution']",
+        // url/sourceName은 HTML 속성으로 직접 저장되지 않고 data-source-url/
+        // data-source-name(라운드트립 전용) + 자식 <a> 텍스트로만 표현되므로
+        // (EmbedBlock과 동일한 이유) 기본 Tiptap 파서로는 복원되지 않는다.
+        getAttrs: (el) => {
+          const div = el as HTMLElement;
+          const link = div.querySelector("a.source-attribution-link");
+          return {
+            url: div.getAttribute("data-source-url") ?? link?.getAttribute("href") ?? "",
+            sourceName: div.getAttribute("data-source-name") ?? "",
+          };
+        },
+      },
+    ];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const { url, sourceName } = HTMLAttributes as SourceAttributionAttrs;
+    const label = sourceName || url;
+    return renderSpec([
+      "div",
+      mergeAttributes({
+        "data-type": "source-attribution",
+        "data-source-url": url,
+        "data-source-name": sourceName,
+        class: "source-attribution",
+      }),
+      [
+        "a",
+        {
+          href: url,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          class: "source-attribution-link",
+        },
+        ["span", { class: "source-attribution-icon" }, "🔗"],
+        ["span", {}, `출처: ${label}`],
+      ],
+    ]);
+  },
+});
+
+// ============================================================
 // 공유 확장 목록 — 서버(generateHTML)와 클라이언트(BlockEditor)가
 // 동일 스키마를 쓰도록 단일 소스로 관리한다. BlockEditor.tsx는 이 배열에
 // NodeView만 추가로 붙인다(스키마 자체는 여기서 바뀌지 않음).
@@ -783,12 +865,21 @@ export function coreExtensions() {
     TextStyle,
     Highlight.configure({ multicolor: true }),
     Color,
+    FontFamily,
+    // EPIC-083: 리사이즈 핸들(colgroup/col + resize 드래그)은 sanitize.ts의
+    // 허용 태그를 늘리고 클라이언트 전용 상호작용을 추가해야 해 범위를
+    // 넘어선다 — 행/열 추가·삭제만 지원하는 고정폭 표로 시작한다.
+    Table.configure({ resizable: false }),
+    TableRow,
+    TableHeader,
+    TableCell,
     TaskList,
     TaskItem.configure({ nested: true }),
     FigureImage,
     GalleryBlock,
     EmbedBlock,
     LinkCardBlock,
+    SourceAttributionBlock,
   ];
 }
 
@@ -948,7 +1039,7 @@ export function isEmptyDoc(json: JSONContent | null | undefined): boolean {
       empty = false;
       return;
     }
-    if (["figureImage", "gallery", "embed", "linkCard"].includes(node.type ?? "")) {
+    if (["figureImage", "gallery", "embed", "linkCard", "sourceAttribution"].includes(node.type ?? "")) {
       empty = false;
       return;
     }

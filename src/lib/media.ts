@@ -85,3 +85,42 @@ export type UniversalMediaBlockAttrs = {
   caption: string;
   featured: boolean;
 };
+
+/** POST /api/media 요청 바디 — R2 PUT 업로드 성공 후 media_library에 메타데이터 행을 만든다. */
+export type CreateMediaAssetRequest = {
+  fileUrl: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  width?: number | null;
+  height?: number | null;
+  duration?: number | null;
+  altText?: string | null;
+};
+
+// EPIC-083: custom_fonts 테이블 한 행 — Admin이 업로드한 폰트.
+export type CustomFont = {
+  id: string;
+  fontName: string;
+  fontUrl: string;
+  fileFormat: string;
+  createdAt: string;
+};
+
+export type CustomFontRow = {
+  id: string;
+  font_name: string;
+  font_url: string;
+  file_format: string;
+  created_at: string;
+};
+
+export function customFontFromRow(row: CustomFontRow): CustomFont {
+  return {
+    id: row.id,
+    fontName: row.font_name,
+    fontUrl: row.font_url,
+    fileFormat: row.file_format,
+    createdAt: row.created_at,
+  };
+}

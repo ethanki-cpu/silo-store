@@ -18,6 +18,7 @@ const ADMIN_NAV = [
   { href: "/admin/navigation/settings", label: "홈페이지 설정 관리" },
   { href: "/admin/posts", label: "전체 글 관리" },
   { href: "/admin/projects/new", label: "스튜디오 포트폴리오 등록" },
+  { href: "/admin/fonts", label: "커스텀 폰트 관리" },
 ];
 
 export default function AdminLayout({

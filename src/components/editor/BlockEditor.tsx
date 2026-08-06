@@ -5,14 +5,16 @@ import type { EditorView } from "@tiptap/pm/view";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import type { NodeViewProps } from "@tiptap/react";
-import { uploadPostImage, uploadMultipleFiles, STORAGE_BUCKETS } from "@/lib/storage";
+import { uploadToR2Media, uploadMultipleToR2Media } from "@/lib/r2Upload";
 import { supabase } from "@/lib/supabaseClient";
+import { useCustomFonts } from "@/lib/useCustomFonts";
 import {
   coreExtensions,
   FigureImage,
   GalleryBlock,
   EmbedBlock,
   LinkCardBlock,
+  SourceAttributionBlock,
   embedSrc,
   detectProvider,
   clampInstagramWidth,
@@ -24,6 +26,7 @@ import {
   type EmbedProvider,
   type EmbedAspectRatio,
   type GalleryImageAttrs,
+  type SourceAttributionAttrs,
   emptyDoc,
 } from "@/lib/blockEditorCore";
 import { Lightbox, type LightboxImage } from "./Lightbox";
@@ -33,6 +36,7 @@ import { processGalleryCarousels } from "@/lib/galleryCarousel";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { EmbedConfigModal, type EmbedInsertResult } from "./EmbedConfigModal";
 import { GalleryConfigModal } from "./GalleryConfigModal";
+import { SourceAttributionModal } from "./SourceAttributionModal";
 
 // EPIC-053.1: Block Editor 확장.
 // - 정본 저장 형식을 HTML에서 Tiptap JSON(ProseMirror doc)으로 전환 —
@@ -58,19 +62,24 @@ import { GalleryConfigModal } from "./GalleryConfigModal";
 // 이미지 파일 분기만 그 패턴을 안 따르고 있었다. 이 함수는 컴포넌트
 // 클로저에 전혀 의존하지 않는 모듈 스코프 함수로 만들어 그 문제 자체를
 // 원천 차단한다 — 매번 호출 시점의 살아있는 `view`를 직접 받는다.
+// EPIC-083: 붙여넣기/드래그로 넣는 이미지도 EPIC-082 R2 Direct Upload
+// 파이프라인(media_library)을 쓰도록 전환 — Supabase Storage 업로드
+// (uploadPostImage)는 기존에 이미 저장된 게시글을 렌더링하는 데는 계속
+// 쓰이지만(하위 호환), 새 업로드는 전부 R2로 간다.
 async function uploadAndInsertImages(view: EditorView, files: File[]) {
   for (const file of files) {
     try {
-      const result = await uploadPostImage(file, "editor");
-      if (result.error) {
-        console.error("이미지 업로드 실패:", result.error);
+      const { asset, error } = await uploadToR2Media(file, file.name);
+      if (error || !asset) {
+        console.error("이미지 업로드 실패:", error);
         continue;
       }
       const nodeType = view.state.schema.nodes.figureImage;
       if (!nodeType) continue;
       const node = nodeType.create({
-        src: result.url,
-        path: result.path,
+        src: asset.fileUrl,
+        path: null,
+        mediaId: asset.id,
         alt: file.name,
         caption: "",
         featured: false,
@@ -310,12 +319,25 @@ function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     setImages(next);
   }
 
+  // EPIC-083: 갤러리 파일 업로드도 R2 Direct Upload(media_library)로 전환 —
+  // 이미지뿐 아니라 영상(mp4 등)도 함께 선택할 수 있으므로 mimeType으로
+  // GalleryImageAttrs.type을 판정한다(URL 붙여넣기 경로는 확장자 기반
+  // detectMediaType을 그대로 쓴다, GalleryConfigModal 참고).
   async function handleAddFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const uploaded = await uploadMultipleFiles(Array.from(files), STORAGE_BUCKETS.GALLERY, "gallery");
+    const fileList = Array.from(files);
+    const uploaded = await uploadMultipleToR2Media(fileList);
     const added: GalleryImageAttrs[] = uploaded
-      .filter((r) => !r.error)
-      .map((r) => ({ src: r.url, path: r.path, alt: "", caption: "", type: "image" }));
+      .map((r, i) => ({ result: r, file: fileList[i] }))
+      .filter(({ result }) => !result.error && result.asset)
+      .map(({ result, file }) => ({
+        src: result.asset!.fileUrl,
+        path: null,
+        mediaId: result.asset!.id,
+        alt: "",
+        caption: "",
+        type: file.type.startsWith("video/") ? "video" : "image",
+      }));
     setImages([...images, ...added]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -384,7 +406,7 @@ function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           multiple
           className="hidden"
           onChange={(e) => handleAddFiles(e.target.files)}
@@ -973,6 +995,52 @@ function LinkCardView({ node, updateAttributes, deleteNode }: NodeViewProps) {
 }
 
 // ============================================================
+// SourceAttribution NodeView — EPIC-083.
+// ============================================================
+
+function SourceAttributionView({ node, updateAttributes, deleteNode }: NodeViewProps) {
+  const { url, sourceName } = node.attrs as SourceAttributionAttrs;
+  const [editing, setEditing] = useState(false);
+
+  return (
+    <NodeViewWrapper className="my-4" data-drag-handle>
+      <div className="source-attribution">
+        <a href={url} target="_blank" rel="noopener noreferrer" className="source-attribution-link">
+          <span className="source-attribution-icon">🔗</span>
+          <span>출처: {sourceName || url || "URL 없음"}</span>
+        </a>
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <button type="button" className="text-xs text-blue-600 hover:underline" onClick={() => setEditing((v) => !v)}>
+          {editing ? "닫기" : "수정"}
+        </button>
+        <button type="button" className="text-xs text-red-500 hover:underline" onClick={() => deleteNode()}>
+          삭제
+        </button>
+      </div>
+      {editing && (
+        <div className="mt-2 border border-gray-200 rounded-md p-2 flex flex-col gap-1.5">
+          <input
+            type="text"
+            value={url}
+            placeholder="https://..."
+            onChange={(e) => updateAttributes({ url: e.target.value })}
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+          />
+          <input
+            type="text"
+            value={sourceName}
+            placeholder="출처명 (선택)"
+            onChange={(e) => updateAttributes({ sourceName: e.target.value })}
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+          />
+        </div>
+      )}
+    </NodeViewWrapper>
+  );
+}
+
+// ============================================================
 // Toolbar
 // ============================================================
 
@@ -996,6 +1064,17 @@ function Toolbar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [embedModalOpen, setEmbedModalOpen] = useState(false);
   const [galleryModalOpen, setGalleryModalOpen] = useState(false);
+  const [sourceModalOpen, setSourceModalOpen] = useState(false);
+  const [tableMenuOpen, setTableMenuOpen] = useState(false);
+  const { fonts: customFonts } = useCustomFonts();
+
+  function insertSourceAttribution(attrs: SourceAttributionAttrs) {
+    editor
+      .chain()
+      .focus("end")
+      .insertContent({ type: "sourceAttribution", attrs })
+      .run();
+  }
 
   // EPIC-079-PHASE-5: GalleryConfigModal이 돌려주는 최종 아이템 목록을 그대로
   // 새 gallery 노드로 삽입한다 — insertEmbedWithConfig와 동일한 패턴(항상
@@ -1121,6 +1200,68 @@ function Toolbar({
 
       <div className="w-px h-6 bg-gray-300 mx-1" />
 
+      {/* EPIC-083: 글씨 색상 — 기본 색상 칩 + 임의 색상 선택(네이티브
+          <input type="color">, 별도 모달 없이도 "팔레트 모달 또는 기본
+          색상 칩" 요구사항을 만족). */}
+      <div className="flex items-center gap-0.5">
+        {["#111827", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"].map((hex) => (
+          <button
+            key={hex}
+            type="button"
+            title={hex}
+            onClick={() => editor.chain().focus().setColor(hex).run()}
+            className={`w-5 h-5 rounded-full border ${
+              editor.isActive("textStyle", { color: hex }) ? "ring-2 ring-offset-1 ring-gray-500" : "border-gray-300"
+            }`}
+            style={{ backgroundColor: hex }}
+          />
+        ))}
+        <input
+          type="color"
+          title="임의 색상"
+          onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+          className="w-5 h-5 p-0 border-0 bg-transparent cursor-pointer"
+        />
+        <ToolbarButton title="색상 초기화" onClick={() => editor.chain().focus().unsetColor().run()}>
+          <span className="line-through text-xs">A</span>
+        </ToolbarButton>
+      </div>
+
+      <div className="w-px h-6 bg-gray-300 mx-1" />
+
+      {/* EPIC-083: 폰트 패밀리 — 기본 폰트 + Admin이 업로드한 custom_fonts가
+          실시간(useCustomFonts) 반영된다. */}
+      <select
+        title="글꼴"
+        onChange={(e) => {
+          const value = e.target.value;
+          if (!value) {
+            editor.chain().focus().unsetFontFamily().run();
+          } else {
+            editor.chain().focus().setFontFamily(value).run();
+          }
+        }}
+        className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white max-w-[110px]"
+        defaultValue=""
+      >
+        <option value="">기본 글꼴</option>
+        <option value="Arial, Helvetica, sans-serif">Arial</option>
+        <option value="Georgia, serif">Georgia</option>
+        <option value="'Times New Roman', serif">Times New Roman</option>
+        <option value="'Courier New', monospace">Courier New</option>
+        {customFonts.length > 0 && (
+          <optgroup label="커스텀 폰트">
+            {customFonts.map((font) => (
+              <option key={font.id} value={`'${font.fontName}'`}>
+                {font.fontName}
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </select>
+
+      <div className="w-px h-6 bg-gray-300 mx-1" />
+
       <ToolbarButton
         title="링크"
         onClick={() => {
@@ -1187,6 +1328,94 @@ function Toolbar({
         🔗card
       </ToolbarButton>
 
+      {/* EPIC-083: 표 삽입/수정 — 삽입 버튼 하나 + 커서가 표 안에 있을 때만
+          쓸 수 있는 행/열 추가·삭제 드롭다운. */}
+      <div className="relative">
+        <ToolbarButton
+          title="표 삽입/수정"
+          label="표"
+          active={tableMenuOpen}
+          onClick={() => setTableMenuOpen((v) => !v)}
+        >
+          ▦
+        </ToolbarButton>
+        {tableMenuOpen && (
+          <div
+            className="absolute z-20 top-full mt-1 left-0 bg-white border border-gray-200 rounded-md shadow-lg py-1 w-40"
+            onMouseLeave={() => setTableMenuOpen(false)}
+          >
+            <button
+              type="button"
+              className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50"
+              onClick={() => {
+                editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+                setTableMenuOpen(false);
+              }}
+            >
+              표 삽입 (3×3)
+            </button>
+            <div className="border-t border-gray-100 my-1" />
+            <button
+              type="button"
+              disabled={!editor.can().addRowAfter()}
+              className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 disabled:opacity-30"
+              onClick={() => editor.chain().focus().addRowAfter().run()}
+            >
+              행 추가
+            </button>
+            <button
+              type="button"
+              disabled={!editor.can().deleteRow()}
+              className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 disabled:opacity-30"
+              onClick={() => editor.chain().focus().deleteRow().run()}
+            >
+              행 삭제
+            </button>
+            <button
+              type="button"
+              disabled={!editor.can().addColumnAfter()}
+              className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 disabled:opacity-30"
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
+            >
+              열 추가
+            </button>
+            <button
+              type="button"
+              disabled={!editor.can().deleteColumn()}
+              className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 disabled:opacity-30"
+              onClick={() => editor.chain().focus().deleteColumn().run()}
+            >
+              열 삭제
+            </button>
+            <div className="border-t border-gray-100 my-1" />
+            <button
+              type="button"
+              disabled={!editor.can().deleteTable()}
+              className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 disabled:opacity-30 text-red-600"
+              onClick={() => {
+                editor.chain().focus().deleteTable().run();
+                setTableMenuOpen(false);
+              }}
+            >
+              표 삭제
+            </button>
+          </div>
+        )}
+      </div>
+
+      <ToolbarButton title="출처 입력 (퍼온 글의 원문 표시)" label="출처 입력" onClick={() => setSourceModalOpen(true)}>
+        🔖
+      </ToolbarButton>
+      {sourceModalOpen && (
+        <SourceAttributionModal
+          onClose={() => setSourceModalOpen(false)}
+          onInsert={(attrs) => {
+            insertSourceAttribution(attrs);
+            setSourceModalOpen(false);
+          }}
+        />
+      )}
+
       <div className="flex-1" />
 
       <ToolbarButton title="미리보기" onClick={onTogglePreview} active={isPreview}>
@@ -1238,7 +1467,7 @@ export function BlockEditor({
 
   const extensions = useMemo(
     () => [
-      ...coreExtensions().filter((ext) => !["figureImage", "gallery", "embed", "linkCard"].includes((ext as { name?: string }).name ?? "")),
+      ...coreExtensions().filter((ext) => !["figureImage", "gallery", "embed", "linkCard", "sourceAttribution"].includes((ext as { name?: string }).name ?? "")),
       Placeholder.configure({ placeholder: placeholder ?? "내용을 입력하세요..." }),
       FigureImage.extend({ addNodeView: () => ReactNodeViewRenderer(FigureImageView) }),
       GalleryBlock.extend({ addNodeView: () => ReactNodeViewRenderer(GalleryView) }),
@@ -1260,6 +1489,7 @@ export function BlockEditor({
           }),
       }),
       LinkCardBlock.extend({ addNodeView: () => ReactNodeViewRenderer(LinkCardView) }),
+      SourceAttributionBlock.extend({ addNodeView: () => ReactNodeViewRenderer(SourceAttributionView) }),
     ],
     [placeholder],
   );
@@ -1386,9 +1616,9 @@ export function BlockEditor({
       if (!editor) return;
       for (const file of files) {
         try {
-          const result = await uploadPostImage(file, "editor");
-          if (result.error) {
-            console.error("이미지 업로드 실패:", result.error);
+          const { asset, error } = await uploadToR2Media(file, file.name);
+          if (error || !asset) {
+            console.error("이미지 업로드 실패:", error);
             continue;
           }
           editor
@@ -1396,7 +1626,7 @@ export function BlockEditor({
             .focus("end")
             .insertContent({
               type: "figureImage",
-              attrs: { src: result.url, path: result.path, alt: file.name, caption: "", featured: false },
+              attrs: { src: asset.fileUrl, path: null, mediaId: asset.id, alt: file.name, caption: "", featured: false },
             })
             .run();
         } catch (err) {

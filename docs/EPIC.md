@@ -1,6 +1,7 @@
 # EPIC LIST
 
 ## 완료
+- EPIC-082 : [Stage 2] Universal Media Library Schema & Cloudflare R2 Direct Upload Pipeline — Stage 2 "Data and Media Separation" 전략의 첫 구현. `docs/sql/EPIC-082-media-library.sql`에 중앙 집권형 `media_library` 테이블(id/user_id/file_url/file_name/mime_type/size_bytes/width/height/duration/alt_text) + RLS(전체 공개 조회, 본인/관리자만 쓰기) 정의. `src/app/api/media/presigned/route.ts`가 `@aws-sdk/client-s3`+`@aws-sdk/s3-request-presigner`로 Cloudflare R2(S3 호환 API)용 5분짜리 pre-signed PUT URL을 발급(로그인 필요, 100MB 상한, image/video/audio만 허용) — 파일 바이트는 서버를 거치지 않고 브라우저가 R2에 직접 업로드한다. `src/lib/media.ts`에 `MediaAsset`/`PresignedUploadRequest`/`PresignedUploadResponse`/`UniversalMediaBlockAttrs`(다음 EPIC에서 Tiptap 노드가 참조할 목표 스펙, 아직 미연결) 타입 정의, `docs/media-architecture.md`에 전체 파이프라인 데이터 계약 문서화. 지시대로 UI/에디터 컴포넌트(`blockEditorCore.ts` 등)는 전혀 수정하지 않음 — 실제 배선은 EPIC-083. `tsc`/`lint`/`build` 전부 통과. **DB 미반영**(auto mode 분류기가 프로덕션 DB 쓰기 차단, 사용자가 SQL Editor에서 직접 실행 필요), 실제 R2 업로드 왕복은 로그인 세션 없어 미확인. 상세는 CHANGELOG.md EPIC-082 참고.
 - EPIC-001 : 사용자 인증
 - EPIC-002 : 멤버십 시스템
 - EPIC-003 : 상점

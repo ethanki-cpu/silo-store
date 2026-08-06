@@ -862,8 +862,17 @@ create table site_categories (
 );
 
 -- ⚠️ 아래 두 Seed 블록은 기존 navConfig.ts(EPIC-019 기준)와 여러 화면에
--- 하드코딩돼 있던 카테고리 목록을 그대로 옮긴 것 — 라이브 DB에는 아직
--- 미적용. Supabase SQL Editor에서 직접 실행할 것.
+-- 하드코딩돼 있던 카테고리 목록을 그대로 옮긴 것 — 이 블록 자체는 라이브
+-- DB에 한 번도 적용된 적 없다(EPIC-080 조사로 재확인, 2026-08-06). 라이브
+-- site_navigations는 이후 여러 EPIC(관리자 CMS로 직접 구성)을 거치며 이
+-- 시드와는 완전히 다른, 훨씬 큰 트리(153행, EPIC-080 조사 시점)로 갈라져
+-- 나갔다 — 이 파일 전체의 "점-찍은-시점 스냅샷일 뿐, 라이브와 드리프트됨"
+-- 경고(파일 상단)가 이 블록에는 특히 강하게 적용된다. 아래 값을 실제
+-- 라이브 상태의 근거로 삼지 말 것 — 필요하면 Management API로 직접
+-- 재조회할 것. EPIC-080에서 확인/수정한 라이브 상태 diff는
+-- docs/sql/EPIC-080-nav-unification.sql 참고(할머니/할아버지 href 정정 +
+-- 그림자 중복 nav 항목 17개 삭제 — 아래 g3_i1/g3_i2 두 줄만 그 수정
+-- 방향에 맞춰 갱신해뒀다).
 
 -- site_navigations 시드: 기존 NAV_TABS(사일로상점/살롱데상/스튜디오/마이페이지) 그대로 이식
 with
@@ -897,8 +906,10 @@ g3 as (
   insert into site_navigations (parent_id, title, target_type, sort_order)
   select id, '사일로 Heritage', 'sidebar_left', 3 from tab_silostore returning id
 ),
-g3_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'할머니','/shop/heritage/grandma','sidebar_left',1 from g3 returning id),
-g3_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'할아버지','/shop/heritage/grandpa','sidebar_left',2 from g3 returning id),
+-- EPIC-080: "준비 중" 정적 placeholder(/shop/heritage/grandma·grandpa,
+-- 삭제되고 301 리다이렉트됨) 대신 실제 게시판에 연결된 Page Builder 페이지로.
+g3_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'할머니','/heritage/grandmas','sidebar_left',1 from g3 returning id),
+g3_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'할아버지','/heritage/grandpas','sidebar_left',2 from g3 returning id),
 
 tab_salon as (
   insert into site_navigations (key, title, target_type, sort_order)

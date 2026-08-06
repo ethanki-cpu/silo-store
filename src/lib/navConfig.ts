@@ -50,54 +50,26 @@ type SiteNavRow = {
   target_type: DbTargetType;
 };
 
-// EPIC-044: 헤리티지(할머니/할아버지)·클럽·주제별 게시판 등 이름이
-// 무한히 늘어나는 카테고리는 사람 수만큼 페이지를 만들지 않고, 이름을
-// URL 파라미터로 넘기는 동적 라우트(/heritage/grandma/[name],
-// /heritage/grandpa/[name], /community/club/[name])로 소화한다. 아래는 그
-// 동적 라우트로 링크를 거는 사이드바 항목을 만드는 헬퍼.
-// EPIC-055: 이 동적 라우트들은 실데이터 없는 뼈대였던 UniversalBoard 대신
-// Universal Board System(BoardModule + PageTemplate)에 실제로 연결됐다 —
-// 상세는 각 page.tsx 참고.
-function toDynamicNavItems(basePath: string, names: string[]): NavItem[] {
-  return names.map((name) => ({
-    label: name,
-    href: `${basePath}/${encodeURIComponent(name)}`,
-  }));
-}
-
-// EPIC-054D: sitemap.ts가 /heritage/*, /community/club/* 동적 라우트를
-// 전부 열거할 수 있도록 export — DB 조회 없이 하드코딩된 이름 목록이라
-// 사이트맵도 같은 목록을 그대로 재사용하면 된다(새 배열 중복 정의 없음).
-export const HERITAGE_GRANDMA_NAMES = [
-  "Agatha", "Amanda", "Angie", "Anne", "Alyssa", "Becky", "Beth", "Betty",
-  "Brenda", "Claire", "Christine", "Cindy", "Deborah", "Donna", "Edna",
-  "Elaine", "Elena", "Francis", "Ingrid", "Isabelle", "Janette", "Janice",
-  "Jean", "Joanne", "Joyce", "Judy", "Julie", "Karen", "Kristen", "Leslie",
-  "Letty", "Loraine", "Nancy", "Marie", "Martha", "Maxine", "Melinda",
-  "Pamela", "Patricia", "Phyllis", "Priscilla", "Rita", "Samantha",
-  "Shannon", "Shella", "Selina", "Sue", "Susan", "Tammy", "Teresa", "Tracy",
-];
-
-export const HERITAGE_GRANDPA_NAMES = [
-  "Arthur", "Ben", "Derek", "Eddy", "Frank", "Gerry", "James", "John",
-  "Manny", "Philip", "Randy", "Robert", "Steven", "Theo", "Timothy", "Tom",
-  "Tuco",
-];
-
-export const SALON_TOPIC_BOARD_NAMES = [
-  "경제", "예술", "세계역사", "과학", "코메디", "문학", "건강", "정치",
-  "영화", "심리", "스포츠", "인간 집사들", "따듯한 세상 클럽",
-];
-
-export const SALON_WEEKDAY_CLUB_NAMES = [
-  "월요반란", "책 낭송", "행간의 조각가", "놀아보자 영어", "비포 선라이즈 소셜",
-  "무슨일이든 일어날수있어", "연극이 끝나고 난 뒤",
-];
+// EPIC-080: 이전엔(EPIC-044) 헤리티지(할머니/할아버지)·주제별 게시판·요일별
+// 클럽처럼 이름이 늘어나는 카테고리를 이름 하나하나가 URL 파라미터가 되는
+// 동적 라우트(/heritage/grandma/[name], /community/club/[name])로 소화하고,
+// 그 이름 목록을 이 파일에 하드코딩해 sitemap.ts와 공유했다. 그런데 실제
+// 라이브 site_navigations(SSoT)는 그 구조를 쓴 적이 없다 — 헤리티지는
+// 이름별 페이지 대신 게시판 하나(grandmas/grandpas)로 통합된 링크 1개씩만,
+// 주제별/요일별 게시판은 이름별 동적 세그먼트가 아니라 항목마다 고정
+// slug(`/community-topics-<slug>` 등, Page Builder catch-all로 서빙)를 쓴다
+// — 코드와 DB가 서로 다른 두 개의 nav 트리로 공존하던 것이 이 프로젝트의
+// P0 기술부채("Navigation Dual-Structure")였다. `/heritage/grandma/[name]`·
+// `/heritage/grandpa/[name]`·`/community/club/[name]` 동적 라우트와 이름
+// 목록은 삭제했고(아무도 실제로 링크하지 않던 죽은 라우트), 아래
+// FALLBACK_NAV_TABS는 이제 라이브 DB 트리를 그대로 미러링한다 — DB가
+// 응답 못 할 때만 잠깐 보이는 스냅샷이므로 100% 실시간 동기화가 필수는
+// 아니지만, 최소한 "코드에만 있고 DB엔 없는 라우트"는 없어야 한다.
+export const FALLBACK_NAV_TABS_SYNCED_AT = "2026-08-06";
 
 // site_navigations를 DB에서 아직 읽지 못했을 때(최초 로딩 중, 네트워크 실패 등)
-// 화면에 아무 탭도 뜨지 않는 것을 막기 위한 폴백. EPIC-023 이전 하드코딩값과
-// 동일하며, DB 마이그레이션 전/후 UX가 끊기지 않도록 하는 임시 스냅샷일 뿐
-// SSoT는 아니다 — 실제 데이터는 항상 site_navigations 테이블.
+// 화면에 아무 탭도 뜨지 않는 것을 막기 위한 폴백. SSoT는 항상
+// site_navigations 테이블 — 이 배열은 그 트리의 스냅샷일 뿐이다.
 const FALLBACK_NAV_TABS: NavTab[] = [
   {
     key: "silostore",
@@ -106,20 +78,43 @@ const FALLBACK_NAV_TABS: NavTab[] = [
     groups: [
       {
         groupLabel: "사일로 보물들",
+        href: "/treasures",
         items: [
           { label: "보물 목록", href: "/shop" },
-          { label: "분양 후기", href: "/boards" },
+          { label: "입양신청서 라이브러리", href: "/shop-adoption-library" },
+          { label: "분양 후기", href: "/shop/reviews" },
+          { label: "After Adoption", href: "/shop-reviews" },
         ],
       },
       {
-        groupLabel: "사일로 헤리티지 · 할머니",
-        href: "/heritage/grandmas",
-        items: toDynamicNavItems("/heritage/grandma", HERITAGE_GRANDMA_NAMES),
+        groupLabel: "온라인 도슨트",
+        href: "/docent",
+        items: [
+          { label: "1350~1600 르네상스", href: "/docent/renaissance" },
+          { label: "1600~1750 바로크", href: "/docent/baroque" },
+          { label: "1715~1780 로코코", href: "/docent/rococo" },
+          { label: "1750~1850 신고전주의", href: "/docent/neoclassicism" },
+          { label: "1795~1837 리전시", href: "/docent/regency" },
+          { label: "1837~1901 빅토리아", href: "/docent/victoria" },
+          { label: "1890~1920 아르누보", href: "/docent/art-nouveau" },
+          { label: "1920~1940 아르데코", href: "/docent/art-deco" },
+          { label: "1940~1960 비트 세대", href: "/docent/beat-generation" },
+          { label: "1960~1980 반문화", href: "/docent/counterculture" },
+          { label: "1960~1980 디지털", href: "/docent/digital" },
+        ],
       },
       {
-        groupLabel: "사일로 헤리티지 · 할아버지",
-        href: "/heritage/grandpas",
-        items: toDynamicNavItems("/heritage/grandpa", HERITAGE_GRANDPA_NAMES),
+        // EPIC-080: 이름별(50+17개) 동적 라우트를 만드는 대신 그 이름들이
+        // 결국 공유하던 실제 게시판(grandmas/grandpas) 링크 하나씩으로
+        // 통합 — /heritage/grandmas·/heritage/grandpas는 Page Builder
+        // 페이지(hero+quote+board+gallery, 각각 grandmas/grandpas
+        // 게시판에 연결됨)로 실제 게시글이 쌓이는 진짜 목적지다.
+        groupLabel: "사일로 유산 Heritage",
+        href: "/heritage",
+        items: [
+          { label: "할머니", href: "/heritage/grandmas" },
+          { label: "할아버지", href: "/heritage/grandpas" },
+        ],
       },
     ],
   },
@@ -132,19 +127,79 @@ const FALLBACK_NAV_TABS: NavTab[] = [
         groupLabel: "Community",
         href: "/community",
         items: [
-          { label: "출석체크", href: "/attendance" },
-          { label: "자유게시판", href: "/boards" },
+          { label: "출석체크 / 예술가의 달력", href: "/attendance" },
+          { label: "자유게시판", href: "/community/general" },
+          { label: "설문 [우리들 맴]", href: "/polls" },
+          { label: "공연 / 전시회 소개", href: "/community/events" },
+          { label: "이벤트 공지", href: "/salon/event-notices" },
+          { label: "Q&A", href: "/community/qna" },
         ],
       },
       {
-        groupLabel: "주제별 소통게시판",
+        // EPIC-080: 주제/요일 이름을 URL 파라미터로 넘기는 동적 라우트
+        // 대신, 라이브 DB와 동일하게 항목마다 고정 slug를 쓴다(Page
+        // Builder catch-all이 서빙 — src/app/[...slug]/page.tsx).
+        groupLabel: "주제별 클럽 게시판",
         href: "/community/topics",
-        items: toDynamicNavItems("/community/club", SALON_TOPIC_BOARD_NAMES),
+        items: [
+          { label: "예술 Art", href: "/community-topics-art" },
+          { label: "심리 Psychology", href: "/community-topics-psychology" },
+          { label: "문학 Literature", href: "/community-topics-literature" },
+          { label: "세계역사 World History", href: "/community-topics-world-history" },
+          { label: "과학 Science", href: "/community-topics-science" },
+          { label: "정치 Politics", href: "/community-topics-politics" },
+          { label: "경제 Economy", href: "/community-topics-economy" },
+          { label: "건강 Health", href: "/community-topics-health" },
+          { label: "스포츠 Sports", href: "/community-topics-sports" },
+          { label: "코메디 Comedy", href: "/community-topics-comedy" },
+          { label: "인간집사들 Human Butlers", href: "/community-topics-pet-owners" },
+          { label: "따뜻한 세상 Warm World", href: "/community-topics-warm-world" },
+        ],
       },
       {
-        groupLabel: "요일별 클럽",
+        groupLabel: "요일별 클럽 모임",
         href: "/community/weekday",
-        items: toDynamicNavItems("/community/club", SALON_WEEKDAY_CLUB_NAMES),
+        items: [
+          { label: "Mon 월요 반란클럽", href: "/community-weekday-monday" },
+          { label: "Tue 낭송 북클럽", href: "/community-weekday-book" },
+          { label: "Wed 행간의 조각가들 - 북클럽", href: "/community-weekday-between-lines" },
+          { label: "Thurs 영어로 놀자 클럽", href: "/community-weekday-english-play" },
+          { label: "Fri 비포 선라이즈 클럽", href: "/community-weekday-before-sunrise" },
+          { label: "Sat '무슨일이든 가능' 클럽", href: "/community-weekday-anything-can-happen" },
+          { label: "Sun '연극이 끝나고 난 뒤' 클럽", href: "/community-weekday-after-the-play" },
+        ],
+      },
+      {
+        groupLabel: "멤버십 Membership",
+        href: "/membership",
+        items: [
+          { label: "나의 보물 이야기", href: "/salon/my-treasure-story" },
+          { label: "마음일기", href: "/salon/mind-diary" },
+          { label: "나의 아티스트 소개", href: "/salon/artist-intro" },
+          { label: "월별 모임 [패트론의 살롱]", href: "/salon/monthly-events" },
+          { label: "패트론 게시판", href: "/membership/patron" },
+          { label: "한문장 소설 프로젝트", href: "/salon/one-sentence-novel" },
+          { label: "비밀의 방 도슨트", href: "/salon/secret-room" },
+        ],
+      },
+      {
+        groupLabel: "갤러리 Gallery",
+        href: "/gallery",
+        items: [
+          { label: "시상식", href: "/salon/gallery/awards" },
+          { label: "공연들", href: "/salon/gallery/performances" },
+          { label: "파티", href: "/salon/gallery/parties" },
+          { label: "운명의 방문자들", href: "/salon/gallery/visitors" },
+          { label: "패트론들", href: "/salon/gallery/patrons" },
+        ],
+      },
+      {
+        groupLabel: "아카이브 Archive",
+        href: "/archive",
+        items: [
+          { label: "소개지", href: "/downloads" },
+          { label: "포스터", href: "/downloads" },
+        ],
       },
     ],
   },

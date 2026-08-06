@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { PostForm, type PostFormSubmitPayload } from "@/components/boards/PostForm";
-import { BoardPageSelect } from "@/components/boards/BoardPageSelect";
+import { CategoryBoardPicker } from "@/components/common/CategoryBoardPicker";
 import { useBoardOptions, useSelectedBoardTypeAndCategory } from "@/lib/useBoardOptions";
 import type { JSONContent } from "@/lib/blockEditorCore";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
@@ -50,7 +50,12 @@ export default function EditPostPage() {
   // EPIC-079-PHASE-4: "게시될 페이지 선택" — write와 동일한 공용 훅. 초기값은
   // URL의 boardSlug(=지금 글이 속한 게시판)이고, 사용자가 다른 게시판을
   // 고르면 저장 시 그 게시판으로 옮겨진다(handleSubmit의 targetBoardSlug).
-  const { tree: boardTree, loading: boardsLoading, error: boardsError } = useBoardOptions(session);
+  const {
+    boards: boardOptions,
+    branches: boardBranches,
+    boardBranchMap,
+    loading: boardsLoading,
+  } = useBoardOptions(session);
   const [selectedBoardSlug, setSelectedBoardSlug] = useState(boardSlug);
   const { boardType, boardCategory } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
   const definition = boardType
@@ -186,10 +191,12 @@ export default function EditPostPage() {
       <h1 className="font-serif text-2xl font-bold mb-6">글 수정</h1>
 
       <div className="mb-4">
-        <BoardPageSelect
-          tree={boardTree}
+        <label className="block text-sm mb-1">게시될 페이지 선택</label>
+        <CategoryBoardPicker
+          branches={boardBranches}
+          boardBranchMap={boardBranchMap}
+          boards={boardOptions}
           loading={boardsLoading}
-          error={boardsError}
           value={selectedBoardSlug}
           onChange={setSelectedBoardSlug}
         />

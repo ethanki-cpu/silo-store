@@ -484,11 +484,13 @@ export function Navbar() {
           const tabLabel = tabStyleEntry?.labelOverride || tab.label;
           const tabStyleClassName = tabStyleEntry ? `silo-top-tab-${topTabClassSuffix(tab.key)}` : "";
 
-          // EPIC-084: 전역 "글쓰기" 버튼 — "마이 페이지" 탭 바로 왼쪽에
-          // 노출한다(요구사항: 모든 페이지에 노출, 마이페이지 왼쪽). 이 탭
-          // 순서가 항상 고정은 아니지만(§1 문서 기준 DOM 순서일 뿐 site_navigations
-          // sort_order로 바뀔 수 있음) key === "mypage"인 탭 바로 앞에
-          // 끼워 넣는 것이 "마이 페이지 왼쪽"이라는 요구를 가장 안정적으로
+          // EPIC-084-REVISED: 전역 "글쓰기" 버튼 — "마이 페이지" 탭 바로
+          // 오른쪽에 노출한다(요구사항 갱신: 기존 EPIC-084는 왼쪽에 뒀었는데
+          // "마이 페이지 오른쪽"으로 정정됨 — 최종 순서 About Silo | 사일로
+          // 상점 | 살롱데상 | 스튜디오 | 마이 페이지 | 글쓰기). 이 탭 순서가
+          // 항상 고정은 아니지만(§1 문서 기준 DOM 순서일 뿐 site_navigations
+          // sort_order로 바뀔 수 있음) key === "mypage"인 탭 바로 뒤에
+          // 끼워 넣는 것이 "마이 페이지 오른쪽"이라는 요구를 가장 안정적으로
           // 만족한다.
           const writeButtonEl =
             tab.key === "mypage" ? (
@@ -507,10 +509,10 @@ export function Navbar() {
             } ${tabStyleClassName}`;
             return (
               <Fragment key={tab.key}>
-                {writeButtonEl}
                 <Link href={tab.href!} className={className}>
                   {tabLabel}
                 </Link>
+                {writeButtonEl}
               </Fragment>
             );
           }
@@ -532,7 +534,6 @@ export function Navbar() {
 
           return (
             <Fragment key={tab.key}>
-              {writeButtonEl}
               <div className="relative group/tab">
               {/* EPIC-058: href가 있는 드롭다운 트리거(예: 스튜디오 →
                   /studio)는 클릭하면 Hub Page로 이동한다 — 펼침(hover)은
@@ -678,6 +679,7 @@ export function Navbar() {
                 </div>
               )}
               </div>
+              {writeButtonEl}
             </Fragment>
           );
         })}

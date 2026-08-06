@@ -143,18 +143,33 @@ export function CategoryTreeManager({
   // 만들어 넣는다 — 이후로는 평범한 트리 노드라 드래그로 옮기거나 기존
   // 추가/수정/페이지 수정/관리/삭제 버튼을 그대로 쓸 수 있다. 되돌릴
   // 새 행이 하나도 없으면 아무 것도 하지 않는다(버킷 자체도 안 만듦).
+  // EPIC-084-REVISED: "사이트 메뉴 URL 정돈" 요청 조사 중 발견 — 이 함수가
+  // page_builder의 모든 미연결 행을 무조건 흡수해왔는데, EPIC-064A가
+  // PageEditButton을 전체 라우트에 기계적으로 부착하면서 실제로는
+  // PageBuilderRenderer를 호출하지 않는 client-fetch 페이지(예: /boards,
+  // /login, /settings)에도 빈 page_builder draft가 같이 생겨, 위젯이 하나도
+  // 없는 이 "가짜" 페이지들까지 "미분류 페이지"로 뒤섞여 보였다(실사용 시
+  // 53개까지 쌓인 것 확인, docs/sql/EPIC-084-REVISED-cleanup-empty-unassigned-pages.sql로
+  // 기존에 쌓인 빈 항목 정리 완료). 위젯이 하나도 없는 페이지는 애초에
+  // "미분류 콘텐츠"가 아니라 편집 버튼용 빈 placeholder일 뿐이므로 이 트리에
+  // 흡수하지 않는다.
   async function ensureUnassignedPagesInTree(existingRows: CategoryNavRow[]): Promise<boolean> {
-    const { data: pagesData } = await supabase
-      .from("page_builder")
-      .select("id, slug, title, description");
+    const [{ data: pagesData }, { data: moduleRows }] = await Promise.all([
+      supabase.from("page_builder").select("id, slug, title, description"),
+      supabase.from("page_modules").select("page_id"),
+    ]);
     if (!pagesData) return false;
+
+    const pageIdsWithWidgets = new Set(
+      ((moduleRows ?? []) as { page_id: string }[]).map((m) => m.page_id),
+    );
 
     const linkedSlugs = new Set(
       existingRows.filter((r) => r.href).map((r) => hrefToSlug(r.href!)),
     );
     const unassigned = (
       pagesData as { id: string; slug: string; title: string; description: string | null }[]
-    ).filter((p) => !linkedSlugs.has(p.slug));
+    ).filter((p) => !linkedSlugs.has(p.slug) && pageIdsWithWidgets.has(p.id));
     if (unassigned.length === 0) return false;
 
     let bucketId = existingRows.find((r) => r.key === UNASSIGNED_BUCKET_KEY)?.id;

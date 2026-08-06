@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import { fetchNavBranches, fetchBoardBranchMap, buildAdminTree, type AdminTreeRow } from "@/lib/adminTreeGrouping";
+import {
+  fetchNavBranches,
+  fetchBoardBranchMap,
+  buildAdminTree,
+  type AdminTreeRow,
+  type NavBranchNode,
+} from "@/lib/adminTreeGrouping";
 
 // EPIC-079-PHASE-4: 글쓰기(write)가 쓰던 "게시될 페이지 선택" 동적
 // 드롭다운 로직을 글 수정(edit)에서도 그대로 재사용할 수 있도록 공용
@@ -20,11 +26,13 @@ export type BoardOption = {
 };
 
 // EPIC-079-PHASE-5: 이전엔 fetch 실패를 `.catch(() => {})`로 조용히
-// 삼켜버려 boards가 영원히 빈 배열로 남고, BoardPageSelect는 "현재 값이
-// 목록에 없으면 불러오는 중..."이라는 잘못된 추론으로 그 상태를 표시했다
-// (진짜 로딩 상태가 아니라 "매칭 실패"였다 — 잠긴 게시판처럼 목록에서
-// 아예 빠지는 값이면 영원히 그 문구에 갇힌다). 실제 loading/error를
-// state로 노출해 호출부가 정확히 구분할 수 있게 한다.
+// 삼켜버려 boards가 영원히 빈 배열로 남았다(진짜 로딩 상태가 아니라
+// "매칭 실패"였는데 구분이 안 됐음). 실제 loading/error를 state로 노출해
+// 호출부가 정확히 구분할 수 있게 한다.
+// EPIC-084-REVISED: 호출부가 단일 <select>(BoardPageSelect, 삭제됨) 대신
+// 3열 Miller Columns 선택기(CategoryBoardPicker)를 쓰도록 바뀌면서, 이
+// 훅도 그 선택기가 필요로 하는 원본 branches/boardBranchMap을 함께
+// 노출한다(중복 조회 방지).
 //
 // 동시에 "사이트 구성 관리"와 같은 순서/들여쓰기(task 7)를 위해
 // adminTreeGrouping.ts(EPIC-072B, 실제 site_navigations 트리가 SSoT)를
@@ -32,11 +40,18 @@ export type BoardOption = {
 export function useBoardOptions(session: Session | null | undefined): {
   boards: BoardOption[];
   tree: AdminTreeRow<BoardOption>[];
+  // EPIC-084-REVISED: 3열 Miller Columns 선택기(CategoryBoardPicker)가
+  // 이 훅이 이미 조회해둔 원본 branches/boardBranchMap을 그대로 재사용할
+  // 수 있도록 노출한다(같은 조회를 또 하지 않기 위함).
+  branches: NavBranchNode[];
+  boardBranchMap: Map<string, string>;
   loading: boolean;
   error: string | null;
 } {
   const [boards, setBoards] = useState<BoardOption[]>([]);
   const [tree, setTree] = useState<AdminTreeRow<BoardOption>[]>([]);
+  const [branches, setBranches] = useState<NavBranchNode[]>([]);
+  const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,15 +69,17 @@ export function useBoardOptions(session: Session | null | undefined): {
       }),
       fetchNavBranches(),
     ])
-      .then(async ([data, branches]) => {
+      .then(async ([data, fetchedBranches]) => {
         if (cancelled) return;
         const list = (Array.isArray(data) ? data : []) as BoardOption[];
         const unlocked = list.filter((b) => !b.locked);
-        const branchMap = await fetchBoardBranchMap(branches);
-        const builtTree = buildAdminTree(unlocked, (b) => branchMap.get(b.id) ?? null, branches, "all");
+        const branchMap = await fetchBoardBranchMap(fetchedBranches);
+        const builtTree = buildAdminTree(unlocked, (b) => branchMap.get(b.id) ?? null, fetchedBranches, "all");
         if (cancelled) return;
         setBoards(unlocked);
         setTree(builtTree);
+        setBranches(fetchedBranches);
+        setBoardBranchMap(branchMap);
         setLoading(false);
       })
       .catch(() => {
@@ -76,7 +93,7 @@ export function useBoardOptions(session: Session | null | undefined): {
     };
   }, [session]);
 
-  return { boards, tree, loading, error };
+  return { boards, tree, branches, boardBranchMap, loading, error };
 }
 
 /** 선택된 게시판 slug가 바뀔 때마다 그 게시판의 board_type/category를 다시 조회한다. */

@@ -178,19 +178,37 @@ export const GalleryBlock = Node.create({
       // EPIC-079-PHASE-5 이전(그리드 레이아웃) 저장 데이터 하위 호환용 —
       // 캐러셀 렌더링에는 더 이상 쓰이지 않지만, 기존 값을 버리지 않는다.
       columns: { default: 3 },
+      // EPIC-084-REVISED: FigureImage와 동일한 클릭→드래그 리사이즈를
+      // 갤러리 전체(캐러셀 박스)에도 지원 — null이면 기존처럼 컨테이너
+      // 100%(max-width:100%)로 렌더링(하위 호환).
+      width: { default: null as number | null },
     };
   },
 
   parseHTML() {
-    return [{ tag: "div[data-type='gallery']" }];
+    return [
+      {
+        tag: "div[data-type='gallery']",
+        getAttrs: (el) => {
+          const div = el as HTMLElement;
+          const match = /width:\s*(\d+(?:\.\d+)?)px/.exec(div.style.cssText);
+          return { width: match ? Number(match[1]) : null };
+        },
+      },
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
     const images = (HTMLAttributes.images as GalleryImageAttrs[]) ?? [];
+    const width = HTMLAttributes.width as number | null;
     const multi = images.length > 1;
     return renderSpec([
       "div",
-      mergeAttributes({ "data-type": "gallery", class: "gallery gallery-carousel" }),
+      mergeAttributes({
+        "data-type": "gallery",
+        class: "gallery gallery-carousel",
+        ...(width ? { style: `width:${width}px;max-width:100%;` } : {}),
+      }),
       [
         "div",
         { class: "gallery-track" },
@@ -852,6 +870,14 @@ export function coreExtensions() {
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
       codeBlock: false,
+      // EPIC-084-REVISED: 최근 Tiptap 버전의 StarterKit은 link/underline을
+      // 기본 번들에 포함한다 — 아래에서 별도로 Link.configure()/Underline을
+      // 또 추가하고 있어 "Duplicate extension names found: ['link',
+      // 'underline']" 경고가 떴다(마지막에 등록된 쪽이 이기긴 하지만 순서에
+      // 의존하는 정의되지 않은 동작이라 위험). StarterKit 쪽은 끄고 아래
+      // 커스텀 설정(Link의 openOnClick:false 등)만 유효하게 한다.
+      link: false,
+      underline: false,
     }),
     Link.configure({
       openOnClick: false,

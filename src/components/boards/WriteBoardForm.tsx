@@ -7,20 +7,27 @@ import { supabase } from "@/lib/supabaseClient";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PostForm, type ConfirmedOrder, type PostFormSubmitPayload } from "@/components/boards/PostForm";
-import { BoardPageSelect } from "@/components/boards/BoardPageSelect";
+import { CategoryBoardPicker } from "@/components/common/CategoryBoardPicker";
 import { useBoardOptions, useSelectedBoardTypeAndCategory } from "@/lib/useBoardOptions";
 
 // EPIC-084: /boards/[board_slug]/write(경로로 게시판을 지정) 하나뿐이던
 // 글쓰기 화면 로직을 그대로 뽑아, 게시판이 URL 경로가 아니라 아직 없을 수도
 // 있는(홈페이지 등에서 눌렀을 때) Contextual Write 진입점(/write?boardId=)에서도
 // 재사용한다. 동작은 기존 /boards/[board_slug]/write와 100% 동일 — 다만
-// initialBoardSlug가 빈 문자열이면 BoardPageSelect가 "선택 안 됨" 상태로
+// initialBoardSlug가 빈 문자열이면 CategoryBoardPicker가 "선택 안 됨" 상태로
 // 시작해 사용자가 직접 게시판을 골라야 한다.
+// EPIC-084-REVISED: 단일 <select>(UUID 노출 가능성 + 긴 들여쓰기 나열)를
+// 3열 Miller Columns 선택기(CategoryBoardPicker)로 교체.
 export function WriteBoardForm({ initialBoardSlug }: { initialBoardSlug: string }) {
   const { session, member } = useAuth();
   const router = useRouter();
 
-  const { tree: boardTree, loading: boardsLoading, error: boardsError } = useBoardOptions(session);
+  const {
+    boards: boardOptions,
+    branches: boardBranches,
+    boardBranchMap,
+    loading: boardsLoading,
+  } = useBoardOptions(session);
   const [selectedBoardSlug, setSelectedBoardSlug] = useState(initialBoardSlug);
   const { boardType, boardCategory } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
   const [confirmedOrders, setConfirmedOrders] = useState<ConfirmedOrder[]>([]);
@@ -118,12 +125,14 @@ export function WriteBoardForm({ initialBoardSlug }: { initialBoardSlug: string 
         <h1 className="font-serif text-2xl font-bold mb-6">글쓰기</h1>
 
         <div className="mb-4">
-          <BoardPageSelect
-            tree={boardTree}
-            loading={boardsLoading}
-            error={boardsError}
+          <label className="block text-sm mb-1">게시될 페이지 선택</label>
+          <CategoryBoardPicker
+            branches={boardBranches}
+            boardBranchMap={boardBranchMap}
+            boards={boardOptions}
             value={selectedBoardSlug}
             onChange={setSelectedBoardSlug}
+            loading={boardsLoading}
           />
         </div>
 

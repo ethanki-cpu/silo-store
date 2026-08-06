@@ -67,11 +67,21 @@ import { SourceAttributionModal } from "./SourceAttributionModal";
 // (uploadPostImage)는 기존에 이미 저장된 게시글을 렌더링하는 데는 계속
 // 쓰이지만(하위 호환), 새 업로드는 전부 R2로 간다.
 async function uploadAndInsertImages(view: EditorView, files: File[]) {
+  // EPIC-084-REVISED: 예전엔 "커서 위치에 넣으면 직전에 삽입한 atom
+  // 블록을 replaceSelectionWith가 통째로 교체해버린다"(EPIC-079)는 이유로
+  // 항상 문서 맨 끝에 넣었다 — 하지만 그 버그의 진짜 원인은
+  // replaceSelectionWith(선택 영역을 새 노드로 "교체")를 루프 안에서 쓴
+  // 것이었지, "커서 위치에 넣는 것" 자체가 문제는 아니었다. insert(pos, node)
+  // (교체가 아니라 그 위치에 "삽입")로 바꾸고, 매 반복마다 insertPos를
+  // 방금 삽입한 노드 크기만큼 전진시키면 같은 버그 없이 원래 커서 위치부터
+  // 순서대로 삽입할 수 있다.
+  let insertPos = view.state.selection.to;
   for (const file of files) {
     try {
       const { asset, error } = await uploadToR2Media(file, file.name);
       if (error || !asset) {
         console.error("이미지 업로드 실패:", error);
+        alert(error ?? "이미지 업로드에 실패했어요.");
         continue;
       }
       const nodeType = view.state.schema.nodes.figureImage;
@@ -84,12 +94,11 @@ async function uploadAndInsertImages(view: EditorView, files: File[]) {
         caption: "",
         featured: false,
       });
-      // handleImageFiles(toolbar/드롭 업로드)와 동일하게 항상 문서 끝에
-      // 삽입한다 — 커서 위치에 그대로 넣으면 직전에 삽입한 atom 블록을
-      // 통째로 교체해버리는 기존에 확인된 버그(EPIC-079 주석 참고)가 있다.
-      view.dispatch(view.state.tr.insert(view.state.doc.content.size, node));
+      view.dispatch(view.state.tr.insert(insertPos, node));
+      insertPos += node.nodeSize;
     } catch (err) {
       console.error("이미지 업로드 오류:", err);
+      alert("이미지 업로드 중 오류가 발생했어요.");
     }
   }
 }
@@ -112,6 +121,9 @@ function extractExternalImageSrcs(html: string): string[] {
 }
 
 async function uploadAndInsertExternalImages(view: EditorView, urls: string[]) {
+  // EPIC-084-REVISED: uploadAndInsertImages와 동일한 이유로 문서 끝
+  // 고정 삽입 대신 커서 위치(선택 영역)부터 순서대로 삽입한다.
+  let insertPos = view.state.selection.to;
   for (const url of urls) {
     try {
       const { asset, error } = await uploadExternalUrlToR2Media(url);
@@ -129,7 +141,8 @@ async function uploadAndInsertExternalImages(view: EditorView, urls: string[]) {
         caption: "",
         featured: false,
       });
-      view.dispatch(view.state.tr.insert(view.state.doc.content.size, node));
+      view.dispatch(view.state.tr.insert(insertPos, node));
+      insertPos += node.nodeSize;
     } catch (err) {
       console.error("외부 이미지 재호스팅 오류:", err);
     }
@@ -175,6 +188,57 @@ function ToolbarButton({
       {children}
       {label && <span className="text-[10px] leading-none whitespace-nowrap">{label}</span>}
     </button>
+  );
+}
+
+// ============================================================
+// 공용 드래그 리사이즈 훅 — FigureImageView가 먼저 쓰던 "핸들 누르는 동안은
+// 로컬 state(liveWidth)만 갱신하고, 놓는 순간 한 번만 updateAttributes로
+// 커밋"하는 패턴을 갤러리/임베드 NodeView에도 그대로 재사용한다.
+// EPIC-084-REVISED: "이미지, HTML 블록, Embed 카드 등 모든 미디어 요소"
+// 리사이즈 요구사항 — FigureImage 자체는 그대로 두고(이미 동작), Gallery/
+// Embed(HTML 코드 임베드 포함, 둘 다 같은 embed 노드)에 이 훅으로 동일한
+// 코너 핸들을 추가한다.
+// ============================================================
+
+function useDragResizeWidth(
+  currentWidth: number | null,
+  onCommit: (width: number) => void,
+  minWidth = 120,
+) {
+  const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  function onResizeHandlePointerDown(e: React.PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = boxRef.current?.getBoundingClientRect().width ?? currentWidth ?? 400;
+
+    function onMove(ev: PointerEvent) {
+      setLiveWidth(Math.max(minWidth, Math.round(startWidth + (ev.clientX - startX))));
+    }
+    function onUp(ev: PointerEvent) {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const next = Math.max(minWidth, Math.round(startWidth + (ev.clientX - startX)));
+      onCommit(next);
+      setLiveWidth(null);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  return { liveWidth, boxRef, onResizeHandlePointerDown };
+}
+
+function ResizeHandle({ onPointerDown }: { onPointerDown: (e: React.PointerEvent) => void }) {
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      title="드래그해서 크기 조절"
+      className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-sm bg-gray-900/70 opacity-0 group-hover/resize:opacity-100 transition-opacity cursor-nwse-resize"
+    />
   );
 }
 
@@ -339,11 +403,15 @@ function FigureImageView({ node, updateAttributes, deleteNode, editor, getPos }:
 // globals.css의 같은 클래스(gallery-carousel 등)를 재사용한다.
 function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
   const images = (node.attrs.images as GalleryImageAttrs[]) ?? [];
+  const width = (node.attrs.width as number | null) ?? null;
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [urlModalOpen, setUrlModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const { liveWidth, boxRef, onResizeHandlePointerDown } = useDragResizeWidth(width, (w) =>
+    updateAttributes({ width: w }),
+  );
 
   function setImages(next: GalleryImageAttrs[]) {
     updateAttributes({ images: next });
@@ -426,7 +494,11 @@ function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="gallery-node my-4" data-drag-handle>
-      <div className="border border-dashed border-gray-300 rounded-md p-3">
+      <div
+        ref={boxRef}
+        className="relative group/resize border border-dashed border-gray-300 rounded-md p-3"
+        style={{ width: liveWidth ?? width ?? undefined, maxWidth: "100%" }}
+      >
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-gray-400">갤러리 ({images.length}개)</span>
           <div className="flex items-center gap-2">
@@ -539,6 +611,7 @@ function GalleryView({ node, updateAttributes, deleteNode }: NodeViewProps) {
             )}
           </div>
         )}
+        <ResizeHandle onPointerDown={onResizeHandlePointerDown} />
       </div>
       {lightboxIndex !== null && (
         <Lightbox images={lightboxImages} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
@@ -593,6 +666,11 @@ function EmbedView({ node, updateAttributes, deleteNode, editor, getPos }: NodeV
     featured: boolean;
   };
   const [resolvingThumbnail, setResolvingThumbnail] = useState(false);
+  // EPIC-084-REVISED: 임베드 카드(HTML 코드 임베드 포함, provider==="customHtml"도
+  // 이 노드다)도 FigureImage/Gallery와 동일한 코너 드래그 리사이즈를 지원한다.
+  const { liveWidth, boxRef, onResizeHandlePointerDown } = useDragResizeWidth(width, (w) =>
+    updateAttributes({ width: w }),
+  );
   const labels: Record<EmbedProvider, string> = {
     youtube: "YouTube",
     vimeo: "Vimeo",
@@ -696,15 +774,22 @@ function EmbedView({ node, updateAttributes, deleteNode, editor, getPos }: NodeV
           className="w-full text-sm border border-gray-200 rounded px-2 py-1 mb-2"
         />
       )}
-      <EmbedPreview
-        provider={provider}
-        url={url}
-        height={height}
-        aspectRatio={aspectRatio}
-        hideCaption={hideCaption}
-        width={width}
-        rawHtml={rawHtml}
-      />
+      <div
+        ref={boxRef}
+        className="relative group/resize inline-block max-w-full"
+        style={{ width: liveWidth ?? width ?? undefined }}
+      >
+        <EmbedPreview
+          provider={provider}
+          url={url}
+          height={height}
+          aspectRatio={aspectRatio}
+          hideCaption={hideCaption}
+          width={liveWidth ?? width}
+          rawHtml={rawHtml}
+        />
+        <ResizeHandle onPointerDown={onResizeHandlePointerDown} />
+      </div>
       {/* EPIC-079-PHASE-3: instagram은 캡션 노출 여부를, youtube는 화면
           비율을 삽입 후에도 다시 바꿀 수 있게 한다(모달은 삽입 시점 설정일
           뿐, 이후 편집은 이 NodeView가 담당). */}
@@ -1110,63 +1195,51 @@ function Toolbar({
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
   const { fonts: customFonts } = useCustomFonts();
 
+  // EPIC-084-REVISED: 항상 문서 끝(.focus("end"))에 삽입하던 걸 "커서
+  // 위치"로 바꾸되, EPIC-079가 확인한 함정(.focus()+insertContent 반복 시
+  // 직전에 삽입한 atom 블록이 NodeSelection으로 남아 다음 삽입이 그 블록을
+  // "교체"해버림)은 피해야 한다 — `insertContentAt(pos, content)`는 현재
+  // selection이 무엇이든 상관없이 명시적 위치에 "삽입"만 하므로 이 문제
+  // 자체가 없다.
+  function insertAtCursor(content: { type: string; attrs: Record<string, unknown> }) {
+    const pos = editor.state.selection.to;
+    editor.chain().focus().insertContentAt(pos, content).run();
+  }
+
   function insertSourceAttribution(attrs: SourceAttributionAttrs) {
-    editor
-      .chain()
-      .focus("end")
-      .insertContent({ type: "sourceAttribution", attrs })
-      .run();
+    insertAtCursor({ type: "sourceAttribution", attrs });
   }
 
   // EPIC-079-PHASE-5: GalleryConfigModal이 돌려주는 최종 아이템 목록을 그대로
-  // 새 gallery 노드로 삽입한다 — insertEmbedWithConfig와 동일한 패턴(항상
-  // 문서 끝에 삽입, 위 EPIC-079 주석 참고).
+  // 새 gallery 노드로 삽입한다.
   function insertGallery(items: GalleryImageAttrs[]) {
     if (items.length === 0) return;
-    editor
-      .chain()
-      .focus("end")
-      .insertContent({ type: "gallery", attrs: { images: items, columns: 3 } })
-      .run();
+    insertAtCursor({ type: "gallery", attrs: { images: items, columns: 3, width: null } });
   }
 
-  // EPIC-079: focus("end") 없이 focus()만 쓰면, 직전에 삽입한 atom 블록(이미지/
-  // 임베드/갤러리/링크카드는 전부 group:"block", atom:true) 바로 뒤에 selection이
-  // NodeSelection으로 남는 경우가 있어(빈 문단 사이에서 ProseMirror가 텍스트
-  // 위치를 못 찾고 그 블록 자체를 선택) 다음 insertContent가 새로 추가되는 게
-  // 아니라 그 블록을 통째로 "교체"해버렸다(연속으로 이미지+임베드를 넣으면
-  // 이미지가 사라지는 버그로 재현 확인) — 항상 문서 끝에서 삽입하도록 고정.
   // EPIC-079-PHASE-3: window.prompt() 기반 단일 URL 입력을 EmbedConfigModal로
   // 교체 — 플랫폼별 옵션(비율/캡션/사이즈)까지 한 번에 받아 삽입한다.
   function insertEmbedWithConfig(result: EmbedInsertResult) {
-    editor
-      .chain()
-      .focus("end")
-      .insertContent({
-        type: "embed",
-        attrs: {
-          provider: result.provider,
-          url: result.url,
-          caption: "",
-          height: result.height,
-          aspectRatio: result.aspectRatio,
-          hideCaption: result.hideCaption,
-          width: result.width,
-          rawHtml: result.rawHtml,
-        },
-      })
-      .run();
+    insertAtCursor({
+      type: "embed",
+      attrs: {
+        provider: result.provider,
+        url: result.url,
+        caption: "",
+        height: result.height,
+        aspectRatio: result.aspectRatio,
+        hideCaption: result.hideCaption,
+        width: result.width,
+        rawHtml: result.rawHtml,
+      },
+    });
   }
 
   function insertLinkCard() {
     const url = window.prompt("링크 URL을 입력하세요");
     if (!url) return;
     const title = window.prompt("카드에 표시할 제목 (선택)") ?? "";
-    editor
-      .chain()
-      .focus("end")
-      .insertContent({ type: "linkCard", attrs: { url, title, description: "" } })
-      .run();
+    insertAtCursor({ type: "linkCard", attrs: { url, title, description: "" } });
   }
 
   return (
@@ -1608,7 +1681,12 @@ export function BlockEditor({
         }
 
         if (IMAGE_URL_RE.test(text)) {
-          return insertAtomNode("figureImage", { src: text, path: null, alt: "", caption: "", featured: false });
+          // EPIC-084-REVISED: "이미지 주소 복사"(우클릭 → 이미지 주소 복사)로
+          // 붙여넣은 순수 텍스트 URL도 그대로 hotlink하지 않고, HTML
+          // 다중붙여넣기 경로(uploadAndInsertExternalImages)와 동일하게
+          // R2로 재호스팅한다 — "업로드되어 렌더링"이라는 요구사항 그대로.
+          uploadAndInsertExternalImages(view, [text]);
+          return true;
         }
 
         const embedDefaults = {
@@ -1672,23 +1750,42 @@ export function BlockEditor({
   const handleImageFiles = useCallback(
     async (files: File[]) => {
       if (!editor) return;
+      // EPIC-084-REVISED: 항상 문서 맨 끝(.focus("end"))에 삽입하던 것을
+      // "지금 커서가 있는 위치"에 삽입하도록 변경. 다만 EPIC-079가 이미
+      // 확인한 함정이 있다 — `.focus()`만 쓰고 insertContent를 반복 호출하면,
+      // 방금 삽입한 atom 블록(이미지/임베드 등) 바로 뒤에서 selection이
+      // NodeSelection(그 블록 자체를 선택한 상태)으로 남는 경우가 있어 다음
+      // insertContent가 "추가"가 아니라 그 블록을 "교체"해버린다(여러 장을
+      // 한 번에 선택했을 때 앞엣것들이 사라지는 버그로 재현됨). 그래서
+      // 최초 위치만 커서에서 가져오고, 이후에는 insertContentAt으로 정확한
+      // 위치를 직접 계산해 순서대로 삽입한다(선택 상태에 의존하지 않음).
+      let insertPos = editor.state.selection.to;
       for (const file of files) {
         try {
           const { asset, error } = await uploadToR2Media(file, file.name);
           if (error || !asset) {
+            // 실패해도 console.error만 남기고 화면엔 아무 표시가 없어
+            // "버튼 눌러도 반응 없음"으로 보이던 버그 — 사용자에게 실제
+            // 원인(대부분 R2 환경변수 미설정/로그인 만료)을 알 수 있게
+            // alert로 노출한다(이 에디터의 기존 에러 표시 관례).
             console.error("이미지 업로드 실패:", error);
+            alert(error ?? "이미지 업로드에 실패했어요.");
             continue;
           }
-          editor
-            .chain()
-            .focus("end")
-            .insertContent({
-              type: "figureImage",
-              attrs: { src: asset.fileUrl, path: null, mediaId: asset.id, alt: file.name, caption: "", featured: false },
-            })
-            .run();
+          const attrs = {
+            src: asset.fileUrl,
+            path: null,
+            mediaId: asset.id,
+            alt: file.name,
+            caption: "",
+            featured: false,
+          };
+          editor.chain().focus().insertContentAt(insertPos, { type: "figureImage", attrs }).run();
+          const nodeType = editor.schema.nodes.figureImage;
+          insertPos += nodeType.create(attrs).nodeSize;
         } catch (err) {
           console.error("이미지 업로드 오류:", err);
+          alert("이미지 업로드 중 오류가 발생했어요.");
         }
       }
     },

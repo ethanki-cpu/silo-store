@@ -37,14 +37,16 @@ import {
   fetchBoardBranchMap,
   type NavBranchNode,
 } from "@/lib/adminTreeGrouping";
+import { CategoryBoardPicker } from "@/components/common/CategoryBoardPicker";
 
 type BoardOption = { id: string; name: string };
 // EPIC-084: 위젯의 "게시판 선택" 드롭다운이 게시판 수십 개를 이름 알파벳
 // 순서도 아닌 임의 순서로 flat하게 나열해 원하는 게시판을 찾기 힘들다는
 // 요청 — adminTreeGrouping.ts(EPIC-072B, "사이트 구성 관리" 트리 뷰가 이미
-// 쓰던 site_navigations 기반 브랜치 매칭)를 그대로 재사용해 게시판을
-// "실제로 게시되는 페이지/카테고리"별 <optgroup>으로 묶는다.
-type BoardOptionGroup = { label: string; boards: BoardOption[] };
+// 쓰던 site_navigations 기반 브랜치 매칭)를 그대로 재사용한다.
+// EPIC-084-REVISED: <optgroup> 단일 select(UUID 폴백 노출 가능성 포함)를
+// 3열 Miller Columns 선택기(CategoryBoardPicker)로 교체 — navBranches/
+// boardBranchMap을 그대로 넘긴다.
 
 // EPIC-060/EPIC-065: Page Builder 편집 화면 — Visual Widget Builder.
 // 운영자는 "+ 위젯 추가"(WidgetPalette) → 위젯 클릭(설정 펼침, settings는
@@ -137,35 +139,6 @@ export default function AdminPageEditorPage() {
   }, []);
 
   // EPIC-084: branchId(또는 미분류) → "브랜치 경로 - 게시판들" 그룹으로 묶는다.
-  // 브랜치 경로는 루트부터 그 브랜치까지 title을 " > "로 이어붙여 만든다 —
-  // 같은 이름의 하위 카테고리가 다른 상위 탭에도 있을 수 있어(예: 게시판)
-  // 전체 경로를 보여줘야 헷갈리지 않는다.
-  const boardGroups: BoardOptionGroup[] = (() => {
-    const branchById = new Map(navBranches.map((b) => [b.id, b]));
-    function pathOf(branchId: string): string {
-      const parts: string[] = [];
-      let current: NavBranchNode | undefined = branchById.get(branchId);
-      while (current) {
-        parts.unshift(current.title);
-        current = current.parentId ? branchById.get(current.parentId) : undefined;
-      }
-      return parts.join(" > ");
-    }
-
-    const byGroupLabel = new Map<string, BoardOption[]>();
-    const order: string[] = [];
-    for (const board of boards) {
-      const branchId = boardBranchMap.get(board.id);
-      const label = branchId ? pathOf(branchId) : "기타 / 미분류";
-      if (!byGroupLabel.has(label)) {
-        byGroupLabel.set(label, []);
-        order.push(label);
-      }
-      byGroupLabel.get(label)!.push(board);
-    }
-    return order.map((label) => ({ label, boards: byGroupLabel.get(label)! }));
-  })();
-
   async function handleSavePage() {
     if (!page) return;
     setSaving(true);
@@ -473,7 +446,8 @@ export default function AdminPageEditorPage() {
                         key={module.id}
                         module={module}
                         boards={boards}
-                        boardGroups={boardGroups}
+                        navBranches={navBranches}
+                        boardBranchMap={boardBranchMap}
                         editing={editingId === module.id}
                         devMode={devMode}
                         draftBoardId={draftBoardId}
@@ -523,7 +497,8 @@ export default function AdminPageEditorPage() {
 function WidgetRow({
   module,
   boards,
-  boardGroups,
+  navBranches,
+  boardBranchMap,
   editing,
   devMode,
   draftBoardId,
@@ -544,7 +519,8 @@ function WidgetRow({
 }: {
   module: PageModuleRow;
   boards: BoardOption[];
-  boardGroups: BoardOptionGroup[];
+  navBranches: NavBranchNode[];
+  boardBranchMap: Map<string, string>;
   editing: boolean;
   devMode: boolean;
   draftBoardId: string;
@@ -639,23 +615,25 @@ function WidgetRow({
         <div className="mt-3 space-y-3 border-t border-gray-100 pt-3">
           {needsBoard && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">게시판 선택</label>
-              <select
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-gray-600">게시판 선택</label>
+                {draftBoardId && (
+                  <button
+                    type="button"
+                    onClick={() => onDraftBoardIdChange("")}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    연결 해제
+                  </button>
+                )}
+              </div>
+              <CategoryBoardPicker
+                branches={navBranches}
+                boardBranchMap={boardBranchMap}
+                boards={boards}
                 value={draftBoardId}
-                onChange={(e) => onDraftBoardIdChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              >
-                <option value="">(연결 안 함)</option>
-                {boardGroups.map((group) => (
-                  <optgroup key={group.label} label={group.label}>
-                    {group.boards.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+                onChange={onDraftBoardIdChange}
+              />
             </div>
           )}
 

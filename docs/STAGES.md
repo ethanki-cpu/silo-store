@@ -204,13 +204,14 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-085
-[Stage 2] Universal Block Renderer, Frictionless Archiving (Scraping System), &
-Dynamic OG/SEO Engine — `UniversalBlockRenderer.tsx` 공용 읽기 전용 렌더러,
-`user_scraps`+`ScrapButton` 원클릭 스크랩(죽어있던 `post_bookmarks` 대체) + `/mypage/archive`
-아카이브 탭, `extractPostMetadata.ts`+`generateMetadata` 동적 OG/SEO(브랜치
-`feature/EPIC-085`, 아직 병합 전). EPIC-084(Contextual Write/에디터 미디어/라우팅
-버그 수정)는 그 직전에 완료·병합됨.
+EPIC-084-REVISED
+[Stage 2] Universal Navigation, Contextual Write Flow, 3-Column Category
+Selector, & Editor UX Overhaul — 이미지 업로드 500 에러의 실제 원인이 이 머신
+`.env.local`의 R2 자격증명 누락임을 실측 규명(⚠️ 사용자 조치 필요), UUID
+노출되던 게시판 단일 select를 3열 Miller Columns로 전면 교체, 에디터 커서
+위치 삽입/리사이즈 확장/외부 URL 재호스팅 통일, "미분류 페이지" 버킷
+53→23개 정리 + 재발 방지(main/develop에 병합 완료). EPIC-085(Universal Block
+Renderer, Frictionless Archiving, Dynamic OG/SEO)도 그 직전에 완료·병합됨.
 
 **NEXT EPIC**
 

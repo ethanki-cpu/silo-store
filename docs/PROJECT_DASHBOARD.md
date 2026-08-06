@@ -54,12 +54,14 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-085([Stage 2] Universal Block Renderer, Frictionless Archiving (Scraping
-System), & Dynamic OG/SEO Engine — `UniversalBlockRenderer.tsx` 공용 렌더러,
-`user_scraps`+`ScrapButton` 원클릭 스크랩(죽어있던 `post_bookmarks` 대체),
-`/mypage/archive` 아카이브 탭, `extractPostMetadata.ts`+`generateMetadata`
-동적 OG/SEO) — 브랜치 `feature/EPIC-085`, 아직 병합 전. EPIC-084(Contextual
-Write/에디터 미디어/라우팅 버그 수정)도 그 직전에 완료·병합됨.
+EPIC-084-REVISED([Stage 2] Universal Navigation, Contextual Write Flow, 3-Column
+Category Selector, & Editor UX Overhaul — 이미지 업로드 500 에러의 실제 원인이
+이 머신 `.env.local`의 R2 자격증명 누락임을 실측 규명(⚠️ 사용자 조치 필요,
+NEXT_TASK.md), UUID 노출되던 게시판 단일 select를 3열 Miller Columns
+`CategoryBoardPicker`로 전면 교체, 에디터 커서 위치 삽입/갤러리·임베드
+리사이즈/외부 URL 재호스팅 통일, "미분류 페이지" 버킷 53→23개 정리 +
+재발 방지) — main/develop에 병합 완료. EPIC-085(Universal Block Renderer,
+Frictionless Archiving, Dynamic OG/SEO)도 그 직전에 완료·병합됨.
 
 =====================================
 
@@ -117,12 +119,13 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 
 최근 완료 10개(최신순, 상세는 [docs/EPIC.md](EPIC.md)):
 
-1. EPIC-085 — Universal Block Renderer, Frictionless Archiving (Scraping System), & Dynamic OG/SEO Engine(브랜치, 병합 전)
-2. EPIC-084 — Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up(main/develop 병합 완료)
-3. EPIC-083 — Universal Editor Extension(Table/Color/FontFamily/SourceAttribution, main/develop 병합 완료)
-4. EPIC-082 — Universal Media Library Schema & R2 Direct Upload Pipeline
-5. EPIC-081 — Community-Led Growth Vision & Architecture Alignment(Stage 2 공식 진입 선언, 문서 전용)
-6. EPIC-080 — Navigation Dual-Structure Unification(코드/문서/DB 전부 완료)
+1. EPIC-084-REVISED — Universal Navigation, Contextual Write Flow, 3-Column Category Selector, & Editor UX Overhaul(main/develop 병합 완료)
+2. EPIC-085 — Universal Block Renderer, Frictionless Archiving (Scraping System), & Dynamic OG/SEO Engine(main/develop 병합 완료)
+3. EPIC-084 — Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up(main/develop 병합 완료)
+4. EPIC-083 — Universal Editor Extension(Table/Color/FontFamily/SourceAttribution, main/develop 병합 완료)
+5. EPIC-082 — Universal Media Library Schema & R2 Direct Upload Pipeline
+6. EPIC-081 — Community-Led Growth Vision & Architecture Alignment(Stage 2 공식 진입 선언, 문서 전용)
+7. EPIC-080 — Navigation Dual-Structure Unification(코드/문서/DB 전부 완료)
 7. EPIC-079-시리즈(PHASE-1~5, HOTFIX~HOTFIX-3, TIPTAP-FIX-V2, FINAL-FIX 등) — Tiptap Editor/Post CRUD 안정화, 임베드(Youtube/Vimeo/Instagram/X/네이버) 확장, 인스타그램 스타일 갤러리 캐러셀, 대표 이미지/본문 분리 — 상세 요약은 CHANGELOG.md에 있으나 `docs/EPIC.md` 개별 항목은 아직 소급 작성 전(P2, 아래 Technical Debt 참고)
 4. EPIC-053(merge) — 오랫동안 미병합이던 Block Editor 브랜치를 `develop`에 정식 병합
 5. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필

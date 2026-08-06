@@ -287,6 +287,18 @@ export function PostDetailClient() {
           )}
 
           <BoardPostListPanel boardId={boardSlug} currentPostId={postSlug} />
+
+          {/* EPIC-084-REVISED: 상단에만 있던 "목록으로"를 하단에도 추가 —
+              긴 글을 끝까지 읽은 뒤 다시 위로 스크롤하지 않고도 목록으로
+              돌아갈 수 있게 한다. */}
+          <div className="mt-6">
+            <Link
+              href={`/boards/${boardSlug}`}
+              className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
+            >
+              ← 목록으로
+            </Link>
+          </div>
         </div>
       </div>
       </main>

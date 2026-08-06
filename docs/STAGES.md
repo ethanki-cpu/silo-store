@@ -9,9 +9,8 @@
 > 여러 EPIC이 모여 하나의 Stage를 이루지만, **EPIC 번호는 Stage와 무관하게 계속 증가한다.**
 >
 > 2026-07-30 (EPIC-073): CTO Roadmap 기준으로 문서 전면 재작성.
-> 2026-08-06 (EPIC-081): Stage 2 공식 진입 선언. Stage 1 완료 조건 대부분 충족(EPIC-080이
-> Navigation 이중 구조 통합의 코드/문서 부분을 완료, DB 반영만 사용자 조치 대기 —
-> `NEXT_TASK.md` 참고) — 남은 세부 항목(SEO metadata, 반응형 레이아웃, 접근성 전체 감사)은
+> 2026-08-06 (EPIC-081): Stage 2 공식 진입 선언. Stage 1 완료 조건 충족(EPIC-080이
+> Navigation 이중 구조 통합을 코드/문서/DB 전부 완료) — 남은 세부 항목(SEO metadata, 반응형 레이아웃, 접근성 전체 감사)은
 > Stage 1을 "닫는" 조건이 아니라 지속 개선 항목으로 재분류하고 Stage 2와 병행 진행한다.
 > Stage 2의 구체적 전략(Community-Led Growth Flow, 기술적 뒷받침)은
 > [`PROJECT_VISION.md`](../PROJECT_VISION.md) §Community-Led Growth Flow와
@@ -50,10 +49,10 @@
 - Widget 추가/삭제
 - Widget ↔ Board 연결
 - 개발자 도움 없이 운영 가능
-- ~~Navigation 이중 구조 통합~~ **(EPIC-080, 2026-08-06)** — `navConfig.ts`의
+- ~~Navigation 이중 구조 통합~~ **(EPIC-080, 2026-08-06 코드/문서/DB 전부 완료)** — `navConfig.ts`의
   `FALLBACK_NAV_TABS`를 라이브 `site_navigations`와 동기화, dual-nav 혼선으로 남은
-  그림자 정적 페이지 17개 삭제+리다이렉트. 코드/문서는 완료, 라이브 DB 반영은
-  `docs/sql/EPIC-080-nav-unification.sql` 실행 대기(사용자 조치 필요, `NEXT_TASK.md` 참고).
+  그림자 정적 페이지 17개 삭제+리다이렉트, 라이브 DB 반영(사용자가 Supabase SQL Editor에서
+  직접 실행)까지 전부 완료.
 
 > **Stage 1 → Stage 2 전환(EPIC-081, 2026-08-06)**: 위 완료 조건의 핵심(관리자 자율 운영,
 > Navigation 일원화)은 충족되어 Stage 2에 공식 진입한다. SEO metadata/반응형 레이아웃/

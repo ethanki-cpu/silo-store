@@ -56,7 +56,7 @@ Stage 2부터는
 
 EPIC-081(Community-Led Growth Vision & Architecture Alignment — Stage 2 공식 진입 선언 +
 CEO의 성장 Flow/CTO의 기술 전략을 PROJECT_VISION.md/PROJECT_ARCHITECTURE.md에 명문화,
-문서 전용) — EPIC-080(Navigation Dual-Structure Unification, 코드/문서 완료·DB 반영 대기)도
+문서 전용) — EPIC-080(Navigation Dual-Structure Unification, 코드/문서/DB 전부 완료)도
 그 직전에 완료.
 
 =====================================
@@ -116,7 +116,7 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 최근 완료 10개(최신순, 상세는 [docs/EPIC.md](EPIC.md)):
 
 1. EPIC-081 — Community-Led Growth Vision & Architecture Alignment(Stage 2 공식 진입 선언, 문서 전용)
-2. EPIC-080 — Navigation Dual-Structure Unification(코드/문서 완료, 라이브 DB 반영은 사용자 조치 대기)
+2. EPIC-080 — Navigation Dual-Structure Unification(코드/문서/DB 전부 완료)
 3. EPIC-079-시리즈(PHASE-1~5, HOTFIX~HOTFIX-3, TIPTAP-FIX-V2, FINAL-FIX 등) — Tiptap Editor/Post CRUD 안정화, 임베드(Youtube/Vimeo/Instagram/X/네이버) 확장, 인스타그램 스타일 갤러리 캐러셀, 대표 이미지/본문 분리 — 상세 요약은 CHANGELOG.md에 있으나 `docs/EPIC.md` 개별 항목은 아직 소급 작성 전(P2, 아래 Technical Debt 참고)
 4. EPIC-053(merge) — 오랫동안 미병합이던 Block Editor 브랜치를 `develop`에 정식 병합
 5. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필
@@ -146,12 +146,14 @@ Event Telemetry, Paywall Routing) 중 하나를 사용자와 논의해 착수하
 
 ## Known Issues
 
-**P0**
-- ~~Navigation 이중 구조~~ **(EPIC-080, 2026-08-06 코드/문서 완료)**: `FALLBACK_NAV_TABS`를
+**해결됨**
+- ~~Navigation 이중 구조~~ **(EPIC-080, 2026-08-06 코드/문서/DB 전부 완료)**: `FALLBACK_NAV_TABS`를
   라이브 `site_navigations`와 동기화, dual-nav 혼선으로 남은 그림자 정적 페이지 17개
-  삭제+리다이렉트 완료. **라이브 DB 반영만 남음** — `docs/sql/EPIC-080-nav-unification.sql`을
-  Supabase SQL Editor에서 실행해야 할머니/할아버지 nav href 정정과 그림자 nav 항목 17개
-  삭제가 실제로 반영된다(`NEXT_TASK.md` "진행 중" 참고).
+  삭제+리다이렉트, 라이브 DB 반영(할머니/할아버지 href 정정 + 그림자 nav 항목 17개 삭제)까지
+  전부 완료(사용자가 Supabase SQL Editor에서 직접 실행, Management API 재조회로 확인).
+
+**P0**
+- (없음)
 
 **P1**
 - EPIC-067 Phase 2 잔여: 정적 placeholder 8개(`salon/docent-tour`, `salon/drinks`,
@@ -159,9 +161,9 @@ Event Telemetry, Paywall Routing) 중 하나를 사용자와 논의해 착수하
 - (해결됨, 2026-07-30) EPIC-068 백필 SQL(`docs/sql/EPIC-068-category-page-templates.sql`)
   실행 완료 — 신규 게시판 30개/71개 페이지 위젯이 라이브 DB에 실제로 반영됨(anon-key
   REST 조회로 확인).
-- Dual-nav 구조 구체 사례 다수 발견(EPIC-068) — membership/gallery 각 5개, heritage
-  grandma/grandpa, archive 소개지/포스터, community-topics/weekday 각 항목까지 "만든
-  페이지 경로 ≠ 실제 nav href" 패턴 확인, 상세는 NEXT_TASK.md 참고.
+- (해결됨, EPIC-080) Dual-nav 구조 구체 사례 다수 발견(EPIC-068) — membership/gallery 각 5개,
+  heritage grandma/grandpa, archive 소개지/포스터, community-topics/weekday 각 항목까지
+  "만든 페이지 경로 ≠ 실제 nav href" 패턴 확인됐던 것은 EPIC-080에서 코드/문서/DB 전부 해소.
 - `/admin/boards`(EPIC-066) 클릭 테스트 미완료(관리자 로그인 필요, 에이전트 정책상 미수행).
 - `boards/page.tsx`(디렉토리)는 `PageModuleRenderer`(compile-time 모듈, EPIC-054C)로
   이미 여러 Board를 배치 중이라 DB 기반 `PageBuilderRenderer`와 함께 쓰려면 별도 설계
@@ -206,7 +208,6 @@ Event Telemetry, Paywall Routing) 중 하나를 사용자와 논의해 착수하
 3. Accessibility 전체 감사 마무리
 4. EPIC-067 Phase 2 잔여(정적 8개 + 마이페이지 12개 탭)
 5. `docs/sql/epic-053-1.sql` 실행(Block Editor Storage Bucket+Policy/GC 완전 반영)
-6. `docs/sql/EPIC-080-nav-unification.sql` 실행(Navigation 이중 구조 통합의 라이브 DB 반영)
 
 **Stage 2 다음 마일스톤**: `PROJECT_ARCHITECTURE.md` §Stage 2 기술 전략(Universal Content
 Editor 확장, R2 Direct Upload, Frictionless Archiving, Event Telemetry, Paywall Routing)

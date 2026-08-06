@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 2026-08-06 (EPIC-080 DB 반영 완료 — 사용자가 Supabase SQL Editor에서 직접 실행)
+- 사용자가 `docs/sql/EPIC-080-nav-unification.sql`을 Supabase SQL Editor에서 직접 실행 — Management API로 재조회해 확인: 할머니/할아버지 nav href가 `/shop/heritage/grandma|grandpa`(삭제된 "준비 중" placeholder)에서 `/heritage/grandmas|grandpas`(실제 게시판 연결 페이지)로 정확히 정정됐고, 그림자 미분류 nav 항목 17건(Archive Brochure/Posters, Community Club Name, Gallery Awards/Parties/Patrons/Performance/Visitors, Heritage Grandma/Grandpa Name(s), Membership Artist Intro/Mind Diary/My Treasures/One Sentence Novel/Secret Room)도 전부 삭제됨(검증 쿼리 0행). EPIC-080이 코드/문서/DB 전부 완료됨 — `docs/PROJECT_DASHBOARD.md`/`docs/STAGES.md`의 "DB 반영 대기" 표기를 "완료"로 갱신.
+
 ## 2026-08-06 (EPIC-081 — [Stage 2] Community-Led Growth Vision & Architecture Alignment)
 - **배경**: "Stage 2 진입을 공식 선언하고, CEO의 Community-Led Growth Flow와 CTO의 기술 전략을 핵심 설계 문서에 융합하라"는 요청. **문서 전용 — 코드/DB 변경 없음.**
 - **`docs/STAGES.md`/`docs/PROJECT_DASHBOARD.md`**: Stage 2 공식 진입을 선언 — Roadmap 표(Stage 1 완료/Stage 2 In Progress), Current Stage, Current/Next EPIC 블록을 갱신. Stage 1 완료 조건 중 "Navigation 이중 구조 통합"은 EPIC-080으로 충족됨을 표기, SEO metadata/반응형/접근성 등 나머지 세부 항목은 Stage 1을 닫는 게이트가 아니라 Stage 2와 병행하는 지속 개선 항목으로 재분류. Known Issues P0(Navigation 이중 구조)도 EPIC-080 반영해 갱신.

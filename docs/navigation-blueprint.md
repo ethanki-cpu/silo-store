@@ -18,12 +18,13 @@
 > 실제 목적지로 301 리다이렉트했다(`next.config.ts`). 상세는 `CHANGELOG.md` EPIC-080 항목,
 > `docs/sql/EPIC-080-nav-unification.sql` 참고.
 >
+> **확인 완료(2026-08-06)**: `/mypage` 최상단 탭이 라이브 DB에서 `target_type='dropdown'`으로
+> 13개 "My X" 하위 항목을 갖고 있는 것은 **의도된 구조**임을 사용자에게 확인받았다 — `FALLBACK_NAV_TABS`도
+> 동일하게 dropdown+13항목으로 맞췄고, `CLAUDE.md`의 "마이페이지 = 단순 링크" 서술도 갱신했다.
+>
 > **남아있는 알려진 이슈(이번 범위 밖, §9 참고)**: (1) 여러 사이드바 항목이 같은 href로 수렴하는
 > 것(소개지/포스터 → 둘 다 `/downloads`) — 실제 콘텐츠 차이가 없어 의도된 것인지 확인 필요.
-> (2) `/mypage` 최상단 탭이 라이브 DB에서 `target_type='dropdown'`으로 13개 "My X" placeholder
-> 하위 항목을 갖고 있는데, 이 프로젝트의 의도된 아키텍처(`CLAUDE.md`)는 "마이페이지는 단순
-> 링크 탭"이다 — 실수로 dropdown이 된 것인지 의도적 변경인지 불명확, 사용자 확인 필요.
-> (3) `site_navigations`에 아직 남아있는 "미분류 페이지" 버킷(약 23개 항목, `is_active=false`)에는
+> (2) `site_navigations`에 아직 남아있는 "미분류 페이지" 버킷(약 23개 항목, `is_active=false`)에는
 > 계정 페이지(로그인/설정 등, 의도적으로 nav 밖)와 상태 불명 스텁이 섞여 있음 — 개별 검토 필요.
 
 ## 1. 구조 개요
@@ -36,12 +37,12 @@ Top-level 탭은 라이브 DB 기준 5개다(`site_navigations`, `parent_id is n
 | `silostore` | 사일로상점 | `sidebar-left` | 좌측 Sidebar (hover/click로 열림) | 없음 (사이드바 오픈 전용) |
 | `salon` | 살롱데상 | `sidebar-right` | 우측 Sidebar (hover/click로 열림) | 없음 (사이드바 오픈 전용) |
 | `space_inquiry` | 스튜디오 | `dropdown` | 플로팅 드롭다운 | 없음 (드롭다운 오픈 전용) |
-| `mypage` | 마이 페이지 My Page | `dropdown`(라이브 상태, §ⓘ 위 경고 (2) 참고) | 플로팅 드롭다운(13개 "My X" 항목) 또는 단순 링크 | `/mypage` |
+| `mypage` | 마이 페이지 My Page | `dropdown` (의도된 구조, 위 "확인 완료" 참고) | 플로팅 드롭다운(13개 "My X" 항목) | `/mypage` |
 
 DOM 순서: About Silo → 사일로상점 → 살롱데상 → 스튜디오 → 마이 페이지 (하나의 `<nav>` 행, **`justify-center`로 화면 중앙 정렬** — EPIC-018).
 로고("사일로 스토어", 좌측)와 계정 영역(우측, §6 참고)은 이 탭 행과 별개의 상단 행이며 기존 위치 그대로 유지된다.
 
-`FALLBACK_NAV_TABS`(코드 폴백, `navConfig.ts`)는 About Silo와 mypage의 13개 하위 항목은 포함하지 않는다 — About Silo는 `/c/<uuid>` 형태의 DB 내부 카테고리 링크라 하드코딩하기에 적합하지 않고(카테고리가 삭제/재생성되면 깨짐), mypage 하위 13개는 CLAUDE.md가 문서화한 의도된 아키텍처(마이페이지 = 단순 링크)와 라이브 상태가 어긋나 있어(위 경고 (2)) 그대로 옮기지 않았다.
+`FALLBACK_NAV_TABS`(코드 폴백, `navConfig.ts`)는 mypage의 13개 하위 항목은 라이브와 동일하게 포함한다. About Silo만 예외 — `/c/<uuid>` 형태의 DB 내부 카테고리 링크라 하드코딩하기에 적합하지 않아(카테고리가 삭제/재생성되면 깨짐) 옮기지 않았다.
 
 > ⚠️ **EPIC-018 (2026-07-26)**: 기존 4번째 탭이었던 `rental`("스튜디오 대관")은 제거되었다. 그 기능(1층/2층 스튜디오 대관 예약)은 URL을 그대로 유지한 채 `space_inquiry` 탭으로 통합되었다(§4 참고). 대신 기존에는 Navbar 우측 "계정 영역"에만 있던 마이페이지 링크가 `mypage`라는 이름의 정식 상단 탭으로 추가되었다 — 계정 영역의 기존 마이페이지 링크(§6)는 그대로 남아있어 두 진입점이 공존한다.
 >
@@ -143,8 +144,7 @@ DOM 순서: About Silo → 사일로상점 → 살롱데상 → 스튜디오 →
 
 ## 5. 마이 페이지 (mypage)
 
-- 라이브 DB 기준 `target_type='dropdown'`, href `/mypage` — 13개 "My X"(My Collections Category, My Wishlist, My Follow, My Salon, My Docent Certificate, My Space, My Exhibition, My Badges, My Comments, My Bucketlist, My Timeline, My Visitors, My Mind Diary) 하위 항목이 딸려 있다.
-- 이 프로젝트의 의도된 아키텍처(`CLAUDE.md` Architecture 절)는 "마이페이지(`link`) — `/mypage` 직접 링크"다 — 라이브 상태가 이 의도와 어긋나 있을 가능성이 있다(위 경고 (2), 이번 EPIC 범위 밖이라 확인만 하고 변경하지 않음).
+- `target_type='dropdown'`, href `/mypage` — 13개 "My X"(My Collections Category, My Wishlist, My Follow, My Salon, My Docent Certificate, My Space, My Exhibition, My Badges, My Comments, My Bucketlist, My Timeline, My Visitors, My Mind Diary) 하위 항목이 딸려 있다. **의도된 구조**(사용자 확인, 2026-08-06) — `FALLBACK_NAV_TABS`도 동일하게 맞췄고 `CLAUDE.md` Architecture 절도 갱신했다.
 - 로그인하지 않은 상태에서 `/mypage`에 접근하면 페이지 자체의 클라이언트 가드가 `/login`으로 리다이렉트한다.
 
 ## 6. Account 영역 (Navbar 상단 우측, 상단 탭 구조 밖)
@@ -270,6 +270,5 @@ export function getActiveNavTabKey(
 - EPIC-016(`/shop/projects*`)은 완전히 구현되었지만 nav에 진입점이 없고, 반대로 `/space-inquiry/styling`은 nav에 연결되어 있지만 정적 페이지다(EPIC-054A) — 같은 개념("공간 스타일링")이 두 개의 분리된 표면으로 존재한다. **(EPIC-051)** Board Definition System의 `Studio → 공간 스타일링` 게시판(`/boards/[id]`)이 `ctas`로 두 표면을 모두 링크(대표 프로젝트→`/shop/projects`, 문의/신청→`/space-inquiry/styling`)해 이어주지만, nav 자체의 이 불일치를 근본적으로 해소한 것은 아니다.
 - EPIC-017(위시리스트)은 전용 페이지 없이 `/shop`, `/shop/[id]`, `/mypage`에 임베드된 `WishlistButton`으로만 존재한다.
 - **(EPIC-018)** "마이페이지"는 상단 탭과 계정 영역 링크 두 곳에 동시에 존재한다 — 의도적인 중복.
-- `/mypage` 탭이 라이브 DB에서 `dropdown`(13개 하위 항목)으로 되어 있는 것이 의도적인지, 실수인지 확인 필요(§5, §1 경고 (2)).
 - `site_navigations`의 "미분류 페이지" 버킷(약 23개, EPIC-080 조사 시점)에 남아있는 나머지 항목(Boards\*/Clubs\*/Rental\*/Studio\*/Shop\* 등)은 개별적으로 "의도적으로 nav 밖에 둔 페이지"인지 "추가로 정리해야 할 그림자 페이지"인지 검토가 안 됐다 — 이번 EPIC은 명백한 dual-nav 패턴(같은 기능이 두 URL로 존재)만 다뤘다.
 - 홈(`/`)은 아직 실제 랜딩 페이지가 아니다.

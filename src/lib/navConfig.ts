@@ -216,10 +216,29 @@ const FALLBACK_NAV_TABS: NavTab[] = [
     ],
   },
   {
+    // EPIC-080: 라이브 DB에서 이 탭이 13개 "My X" 하위 항목을 가진
+    // dropdown인 것을 확인 후, 의도된 구조인지 사용자에게 확인 —
+    // 의도적으로 원한 구조임을 확인받아(2026-08-06) FALLBACK도 동일하게
+    // 맞춘다(이전엔 하위 항목 없는 단순 link 탭이었음).
     key: "mypage",
-    label: "마이페이지",
-    type: "link",
+    label: "마이 페이지 My Page",
+    type: "dropdown",
     href: "/mypage",
+    items: [
+      { label: "My Collections Category", href: "/mypage-collections-category" },
+      { label: "My Wishlist", href: "/mypage-wishlist" },
+      { label: "My Follow", href: "/mypage-follow" },
+      { label: "My Salon", href: "/mypage-salon" },
+      { label: "My Docent Certificate", href: "/mypage-docent-certificate" },
+      { label: "My Space", href: "/mypage-space" },
+      { label: "My Exhibition", href: "/mypage-exhibition" },
+      { label: "My Badges", href: "/mypage-badges" },
+      { label: "My Comments", href: "/mypage-comments" },
+      { label: "My Bucketlist", href: "/mypage-bucketlist" },
+      { label: "My Timeline", href: "/mypage-timeline" },
+      { label: "My Visitors", href: "/mypage-visitors" },
+      { label: "My Mind Diary", href: "/my-mind-diary" },
+    ],
   },
 ];
 

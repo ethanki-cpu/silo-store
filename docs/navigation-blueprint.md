@@ -26,6 +26,12 @@
 > 것(소개지/포스터 → 둘 다 `/downloads`) — 실제 콘텐츠 차이가 없어 의도된 것인지 확인 필요.
 > (2) `site_navigations`에 아직 남아있는 "미분류 페이지" 버킷(약 23개 항목, `is_active=false`)에는
 > 계정 페이지(로그인/설정 등, 의도적으로 nav 밖)와 상태 불명 스텁이 섞여 있음 — 개별 검토 필요.
+>
+> **EPIC-084(2026-08-06)에서 발견/수정한 버그**: 사일로상점/살롱데상 top-level 행은 DB에
+> `href`가 이미 정확히 들어있었는데(`/shop`, `/community`), `navConfig.ts`의 `buildNavTree()`가
+> `sidebar-left`/`sidebar-right` 분기에서만 조립 결과에 `href`를 담지 않아 상단 탭 클릭도
+> 좌/우 사이드바 패널 헤더 클릭도 전부 무반응이었다 — 그 한 줄을 고치고 `LeftSidebar.tsx`/
+> `RightSidebar.tsx`의 패널 헤더도 `tab.href`가 있으면 `<Link>`로 렌더링하도록 함께 수정했다.
 
 ## 1. 구조 개요
 

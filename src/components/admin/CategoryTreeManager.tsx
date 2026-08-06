@@ -411,8 +411,40 @@ export function CategoryTreeManager({
     return true;
   }
 
+  // EPIC-084: "미분류 페이지" 삭제가 안 지워지던 버그 — ensureUnassignedPagesInTree가
+  // 매 load()마다 "아직 어떤 site_navigations 행에도 안 걸린 page_builder
+  // 페이지"를 이 버킷 아래 행으로 되살려 넣는다. 그런데 버킷 노드를
+  // site_navigations 행만 지우면(기존 로직) 원본 page_builder 페이지는
+  // 그대로 남아있으니, deleteRow 끝의 await load()가 돌자마자 곧바로 같은
+  // 링크가 재생성됐다 — 눈에는 "삭제가 안 됨"으로 보였다. 버킷 아래
+  // 노드를 지울 때는 링크가 아니라 그 링크가 가리키는 실제 페이지를
+  // /api/admin/pages(EPIC-079-PHASE-5)로 지워야 재생성 조건 자체가 사라진다.
   async function deleteRow(id: string) {
+    const row = rows.find((r) => r.id === id);
     if (!confirm("이 항목과 하위 항목을 모두 삭제할까요?")) return;
+
+    const unassignedBucketId = rows.find((r) => r.key === UNASSIGNED_BUCKET_KEY)?.id ?? null;
+    if (row && unassignedBucketId && row.parent_id === unassignedBucketId && row.href && session) {
+      const pageId = pageIdBySlug.get(hrefToSlug(row.href));
+      if (pageId) {
+        const res = await fetch(`/api/admin/pages/${pageId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error ?? "페이지 삭제에 실패했어요.");
+          return;
+        }
+        // 페이지 자체가 사라졌으니 이 링크 행도 함께 정리한다(안 지워도
+        // 다음 load()가 href→slug 매칭 실패로 알아서 걸러내지만, 즉시
+        // 반영을 위해 같이 지운다).
+        await supabase.from("site_navigations").delete().eq("id", id);
+        await load();
+        return;
+      }
+    }
+
     const { error: deleteError } = await supabase
       .from("site_navigations")
       .delete()

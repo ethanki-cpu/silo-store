@@ -54,18 +54,19 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-081(Community-Led Growth Vision & Architecture Alignment — Stage 2 공식 진입 선언 +
-CEO의 성장 Flow/CTO의 기술 전략을 PROJECT_VISION.md/PROJECT_ARCHITECTURE.md에 명문화,
-문서 전용) — EPIC-080(Navigation Dual-Structure Unification, 코드/문서/DB 전부 완료)도
-그 직전에 완료.
+EPIC-084([Stage 2] Universal Routing & Contextual Write Flow, Editor Media Control,
+& Admin Clean-up — 전역 Contextual Write 진입점(`/write?boardId=`), 에디터 외부
+다중 이미지 붙여넣기 R2 재호스팅, 상단 탭/사이드바 라우팅 버그(`buildNavTree()`의
+href 누락) 수정, 미분류 페이지 삭제 버그 수정, 위젯 게시판 드롭다운 계층화) —
+브랜치 `feature/EPIC-084`, 아직 병합 전. EPIC-082/083(R2 Direct Upload 파이프라인 +
+에디터 UI 배선, Table/Color/FontFamily/SourceAttribution)도 그 직전에 완료·병합됨.
 
 =====================================
 
 ## Next EPIC
 
 미정 — 다음 지시 대기. `PROJECT_ARCHITECTURE.md` §Stage 2 기술 전략에 기록된 항목
-(Universal Content Editor 확장, R2 Direct Upload, Frictionless Archiving, Event
-Telemetry, Paywall Routing)이 실제 구현 후보.
+(Frictionless Archiving, Event Telemetry, Paywall Routing)이 실제 구현 후보.
 
 =====================================
 
@@ -115,9 +116,12 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 
 최근 완료 10개(최신순, 상세는 [docs/EPIC.md](EPIC.md)):
 
-1. EPIC-081 — Community-Led Growth Vision & Architecture Alignment(Stage 2 공식 진입 선언, 문서 전용)
-2. EPIC-080 — Navigation Dual-Structure Unification(코드/문서/DB 전부 완료)
-3. EPIC-079-시리즈(PHASE-1~5, HOTFIX~HOTFIX-3, TIPTAP-FIX-V2, FINAL-FIX 등) — Tiptap Editor/Post CRUD 안정화, 임베드(Youtube/Vimeo/Instagram/X/네이버) 확장, 인스타그램 스타일 갤러리 캐러셀, 대표 이미지/본문 분리 — 상세 요약은 CHANGELOG.md에 있으나 `docs/EPIC.md` 개별 항목은 아직 소급 작성 전(P2, 아래 Technical Debt 참고)
+1. EPIC-084 — Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up(브랜치, 병합 전)
+2. EPIC-083 — Universal Editor Extension(Table/Color/FontFamily/SourceAttribution, main/develop 병합 완료)
+3. EPIC-082 — Universal Media Library Schema & R2 Direct Upload Pipeline
+4. EPIC-081 — Community-Led Growth Vision & Architecture Alignment(Stage 2 공식 진입 선언, 문서 전용)
+5. EPIC-080 — Navigation Dual-Structure Unification(코드/문서/DB 전부 완료)
+6. EPIC-079-시리즈(PHASE-1~5, HOTFIX~HOTFIX-3, TIPTAP-FIX-V2, FINAL-FIX 등) — Tiptap Editor/Post CRUD 안정화, 임베드(Youtube/Vimeo/Instagram/X/네이버) 확장, 인스타그램 스타일 갤러리 캐러셀, 대표 이미지/본문 분리 — 상세 요약은 CHANGELOG.md에 있으나 `docs/EPIC.md` 개별 항목은 아직 소급 작성 전(P2, 아래 Technical Debt 참고)
 4. EPIC-053(merge) — 오랫동안 미병합이던 Block Editor 브랜치를 `develop`에 정식 병합
 5. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필
 6. EPIC-067 — Page Builder Integration Phase 1(핵심 도메인 12개 페이지, 병존형 패턴)

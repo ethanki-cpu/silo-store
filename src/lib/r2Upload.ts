@@ -142,6 +142,38 @@ export async function uploadMultipleToR2Media(files: File[]): Promise<R2UploadRe
   return results;
 }
 
+/**
+ * 외부 URL의 이미지를 서버가 대신 내려받아 R2에 재호스팅한다(에디터
+ * 클립보드 붙여넣기로 들어온 다른 사이트의 <img src> 처리용,
+ * src/app/api/media/fetch-external/route.ts). 브라우저가 직접 fetch하면
+ * 대부분 CORS에 막혀 바이트를 읽을 수 없어 uploadToR2Media(File)의
+ * presigned PUT 흐름을 쓸 수 없다 — 서버가 대신 내려받는 이 경로가 필요한
+ * 이유.
+ */
+export async function uploadExternalUrlToR2Media(url: string): Promise<R2UploadResult> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) {
+    return { asset: null, error: "로그인이 필요해요." };
+  }
+
+  const res = await fetch("/api/media/fetch-external", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { asset: null, error: data.error ?? "이미지를 가져오지 못했어요." };
+  }
+  const asset: MediaAsset = await res.json();
+  return { asset, error: null };
+}
+
 export type R2FontUploadResult = { fileUrl: string | null; error: string | null };
 
 /**

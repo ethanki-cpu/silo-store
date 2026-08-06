@@ -204,15 +204,16 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-081
-Community-Led Growth Vision & Architecture Alignment — CEO의 Community-Led Growth Flow와
-CTO의 기술 전략(Universal Editor/R2, Frictionless Archiving, Event Telemetry, Paywall
-Routing)을 PROJECT_VISION.md/PROJECT_ARCHITECTURE.md에 명문화(문서 전용, 코드 변경 없음).
+EPIC-084
+[Stage 2] Universal Routing & Contextual Write Flow, Editor Media Control, & Admin
+Clean-up — 전역 Contextual Write 진입점(`/write?boardId=`), 에디터 외부 다중 이미지
+붙여넣기 R2 재호스팅, 상단 탭/사이드바 라우팅 버그 수정, 미분류 페이지 삭제 버그
+수정, 위젯 게시판 드롭다운 계층화(브랜치 `feature/EPIC-084`, 아직 병합 전).
+EPIC-082/083(R2 Direct Upload 파이프라인 전체 + 에디터 UI 배선)은 그 직전에 완료·병합됨.
 
 **NEXT EPIC**
 
 미정 — 다음 지시 대기. `PROJECT_ARCHITECTURE.md` §Stage 2 기술 전략에 기록된 항목
-(Universal Content Editor 확장, R2 Direct Upload, Frictionless Archiving 브릿지, Event
-Telemetry, Paywall Routing 게이팅)이 실제 구현 후보.
+(Frictionless Archiving 브릿지, Event Telemetry, Paywall Routing 게이팅)이 실제 구현 후보.
 
 ---

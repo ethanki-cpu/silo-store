@@ -5,7 +5,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import type { NodeViewProps } from "@tiptap/react";
-import { uploadToR2Media, uploadMultipleToR2Media } from "@/lib/r2Upload";
+import { uploadToR2Media, uploadMultipleToR2Media, uploadExternalUrlToR2Media } from "@/lib/r2Upload";
 import { supabase } from "@/lib/supabaseClient";
 import { useCustomFonts } from "@/lib/useCustomFonts";
 import {
@@ -90,6 +90,48 @@ async function uploadAndInsertImages(view: EditorView, files: File[]) {
       view.dispatch(view.state.tr.insert(view.state.doc.content.size, node));
     } catch (err) {
       console.error("이미지 업로드 오류:", err);
+    }
+  }
+}
+
+// EPIC-084: 다른 웹사이트에서 여러 이미지를 마우스 드래그로 선택해
+// 복사(Ctrl+C)한 뒤 붙여넣으면 클립보드 text/html에 원본 사이트 도메인의
+// <img src="https://...">가 여러 개 들어있다. 기존엔 이 경로를 그냥
+// TipTap의 기본 HTML 붙여넣기 파싱에 맡겼는데(스키마 parseHTML, blockEditorCore.ts),
+// 그러면 그 외부 URL을 그대로 hotlink해버려(원본이 지워지거나 hotlink
+// 차단되면 깨짐) R2 재호스팅 파이프라인을 타지 않는다. http(s):// 절대
+// URL만 대상으로 하고(같은 origin 상대경로/알 수 없는 스킴은 굳이
+// 재호스팅할 이유가 없어 기본 파싱에 맡긴다), data: URI(스크린샷 붙여넣기
+// 등에서 흔함)는 이미 기본 파싱이 그대로 잘 보여주므로 건드리지 않는다.
+function extractExternalImageSrcs(html: string): string[] {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const srcs = Array.from(doc.querySelectorAll("img"))
+    .map((img) => img.getAttribute("src") ?? "")
+    .filter((src) => /^https?:\/\//i.test(src));
+  return Array.from(new Set(srcs));
+}
+
+async function uploadAndInsertExternalImages(view: EditorView, urls: string[]) {
+  for (const url of urls) {
+    try {
+      const { asset, error } = await uploadExternalUrlToR2Media(url);
+      if (error || !asset) {
+        console.error("외부 이미지 재호스팅 실패:", error);
+        continue;
+      }
+      const nodeType = view.state.schema.nodes.figureImage;
+      if (!nodeType) continue;
+      const node = nodeType.create({
+        src: asset.fileUrl,
+        path: null,
+        mediaId: asset.id,
+        alt: asset.fileName,
+        caption: "",
+        featured: false,
+      });
+      view.dispatch(view.state.tr.insert(view.state.doc.content.size, node));
+    } catch (err) {
+      console.error("외부 이미지 재호스팅 오류:", err);
     }
   }
 }
@@ -1520,6 +1562,22 @@ export function BlockEditor({
           const files = Array.from(clipboardData.files).filter((f) => f.type.startsWith("image/"));
           if (files.length > 0) {
             uploadAndInsertImages(view, files);
+            return true;
+          }
+        }
+
+        // EPIC-084: 다른 웹사이트에서 여러 이미지를 드래그 선택해 복사한
+        // 경우 — 클립보드 text/html에 <img src="https://다른사이트/...">가
+        // 여러 개 들어있다. 기본 스키마 파싱(FigureImage.parseHTML)에
+        // 맡기면 그 외부 URL을 그대로 hotlink하므로, 여기서 먼저 가로채
+        // R2로 재호스팅한 뒤 결과 URL로 삽입한다(uploadAndInsertExternalImages).
+        // 절대 http(s) URL이 하나도 없으면(예: 순수 텍스트만 복사, 혹은
+        // data: URI 스크린샷) 기존 경로(기본 파싱/URL 텍스트 감지)로 폴백한다.
+        const html = clipboardData.getData("text/html");
+        if (html) {
+          const externalImageSrcs = extractExternalImageSrcs(html);
+          if (externalImageSrcs.length > 0) {
+            uploadAndInsertExternalImages(view, externalImageSrcs);
             return true;
           }
         }

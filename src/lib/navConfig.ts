@@ -18,7 +18,7 @@ export type NavTab = {
   key: string;
   label: string;
   type: NavTabType;
-  href?: string; // type === "link" | "dropdown"(EPIC-058: 드롭다운 트리거 자체도 Hub Page 링크 가능)
+  href?: string; // type === "link" | "dropdown"(EPIC-058: 드롭다운 트리거 자체도 Hub Page 링크 가능) | "sidebar-left" | "sidebar-right"(EPIC-084: 패널 헤더/상단 탭도 Hub Page 링크 가능)
   items?: NavItem[]; // type === "dropdown"
   groups?: NavGroup[]; // type === "sidebar-left" | "sidebar-right"
 };
@@ -75,6 +75,7 @@ const FALLBACK_NAV_TABS: NavTab[] = [
     key: "silostore",
     label: "사일로상점",
     type: "sidebar-left",
+    href: "/shop",
     groups: [
       {
         groupLabel: "사일로 보물들",
@@ -122,6 +123,7 @@ const FALLBACK_NAV_TABS: NavTab[] = [
     key: "salon",
     label: "살롱데상",
     type: "sidebar-right",
+    href: "/community",
     groups: [
       {
         groupLabel: "Community",
@@ -302,7 +304,19 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
         href: i.href ?? "#",
       })),
     }));
-    return { key: top.key ?? top.id, label: top.title, type, groups };
+    // EPIC-084: top.href가 드롭다운/link 타입처럼 여기서도 누락되고 있었다
+    // — DB(site_navigations)에는 사일로상점(/shop)/살롱데상(/community)
+    // href가 이미 들어있었는데 buildNavTree가 sidebar-left/right 분기에서만
+    // 이 필드를 조립 결과에 담지 않아, 상단 탭 클릭도 사이드바 패널 헤더
+    // 클릭도 전부 무반응이었다(Navbar.tsx/LeftSidebar.tsx/RightSidebar.tsx는
+    // 모두 tab.href 유무로 Link/버튼을 분기하므로 이 한 줄이 원인).
+    return {
+      key: top.key ?? top.id,
+      label: top.title,
+      type,
+      href: top.href ?? undefined,
+      groups,
+    };
   });
 }
 

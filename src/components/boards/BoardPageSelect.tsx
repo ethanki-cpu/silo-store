@@ -43,6 +43,11 @@ export function BoardPageSelect({
         className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50 disabled:text-gray-400"
       >
         {loading && <option value={value}>불러오는 중...</option>}
+        {/* EPIC-084: Contextual Write(/write, boardId 없이 진입)처럼 아직
+            아무 게시판도 선택 안 된 상태(value === "") — 빈 문자열 옵션을
+            명시적으로 넣어 "선택 안 됨"이 브라우저에서 빈 화면 대신 안내
+            문구로 보이게 한다. */}
+        {!loading && !value && <option value="">게시판을 선택하세요</option>}
         {/* 로딩은 끝났는데 현재 값이 목록에 없는 경우(예: 이 사용자에게
             잠긴 게시판) — 선택값 자체는 잃지 않도록 임시 옵션을 끼워 넣되,
             "불러오는 중"이라는 오해를 주지 않는다. */}

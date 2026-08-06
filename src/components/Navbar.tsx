@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
@@ -104,6 +104,14 @@ export function Navbar() {
     pathname,
     searchParams.get("category"),
   );
+
+  // EPIC-084: Contextual Write — 게시판 상세(/boards/[slug](/...)?)에서 전역
+  // "글쓰기" 버튼을 누르면 지금 보고 있던 게시판이 /write?boardId=<slug>로
+  // 자동 전달돼 에디터가 그 게시판을 기본 선택해둔다. 게시판 컨텍스트가
+  // 없는 곳(홈페이지 등)에서는 파라미터 없이 /write로 이동해 사용자가
+  // WriteBoardForm의 "게시될 페이지 선택" 드롭다운에서 직접 고른다.
+  const boardSlugMatch = pathname.match(/^\/boards\/([^/]+)/);
+  const writeHref = boardSlugMatch ? `/write?boardId=${encodeURIComponent(boardSlugMatch[1])}` : "/write";
 
   // 인증 상태(session/member)는 브라우저 localStorage 세션 기준이라 서버는 항상
   // "비로그인"으로 렌더링한다. 클라이언트에서 실제 세션이 채워지기 전까지는
@@ -476,14 +484,34 @@ export function Navbar() {
           const tabLabel = tabStyleEntry?.labelOverride || tab.label;
           const tabStyleClassName = tabStyleEntry ? `silo-top-tab-${topTabClassSuffix(tab.key)}` : "";
 
+          // EPIC-084: 전역 "글쓰기" 버튼 — "마이 페이지" 탭 바로 왼쪽에
+          // 노출한다(요구사항: 모든 페이지에 노출, 마이페이지 왼쪽). 이 탭
+          // 순서가 항상 고정은 아니지만(§1 문서 기준 DOM 순서일 뿐 site_navigations
+          // sort_order로 바뀔 수 있음) key === "mypage"인 탭 바로 앞에
+          // 끼워 넣는 것이 "마이 페이지 왼쪽"이라는 요구를 가장 안정적으로
+          // 만족한다.
+          const writeButtonEl =
+            tab.key === "mypage" ? (
+              <Link
+                key="global-write-button"
+                href={writeHref}
+                className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}
+              >
+                글쓰기
+              </Link>
+            ) : null;
+
           if (tab.type === "link") {
             const className = `${TAB_BUTTON_BASE} ${
               activeTabKey === tab.key ? TAB_BUTTON_ACTIVE : TAB_BUTTON_INACTIVE
             } ${tabStyleClassName}`;
             return (
-              <Link key={tab.key} href={tab.href!} className={className}>
-                {tabLabel}
-              </Link>
+              <Fragment key={tab.key}>
+                {writeButtonEl}
+                <Link href={tab.href!} className={className}>
+                  {tabLabel}
+                </Link>
+              </Fragment>
             );
           }
 
@@ -503,7 +531,9 @@ export function Navbar() {
           ].join(" ");
 
           return (
-            <div key={tab.key} className="relative group/tab">
+            <Fragment key={tab.key}>
+              {writeButtonEl}
+              <div className="relative group/tab">
               {/* EPIC-058: href가 있는 드롭다운 트리거(예: 스튜디오 →
                   /studio)는 클릭하면 Hub Page로 이동한다 — 펼침(hover)은
                   기존 그대로 별도 동작이라 이동 여부와 섞이지 않는다. href가
@@ -647,7 +677,8 @@ export function Navbar() {
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            </Fragment>
           );
         })}
       </nav>

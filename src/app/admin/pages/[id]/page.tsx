@@ -32,8 +32,19 @@ import {
 import { WidgetPalette } from "@/components/admin/WidgetPalette";
 import { WidgetInspectorForm } from "@/components/admin/WidgetInspectorForm";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
+import {
+  fetchNavBranches,
+  fetchBoardBranchMap,
+  type NavBranchNode,
+} from "@/lib/adminTreeGrouping";
 
 type BoardOption = { id: string; name: string };
+// EPIC-084: 위젯의 "게시판 선택" 드롭다운이 게시판 수십 개를 이름 알파벳
+// 순서도 아닌 임의 순서로 flat하게 나열해 원하는 게시판을 찾기 힘들다는
+// 요청 — adminTreeGrouping.ts(EPIC-072B, "사이트 구성 관리" 트리 뷰가 이미
+// 쓰던 site_navigations 기반 브랜치 매칭)를 그대로 재사용해 게시판을
+// "실제로 게시되는 페이지/카테고리"별 <optgroup>으로 묶는다.
+type BoardOptionGroup = { label: string; boards: BoardOption[] };
 
 // EPIC-060/EPIC-065: Page Builder 편집 화면 — Visual Widget Builder.
 // 운영자는 "+ 위젯 추가"(WidgetPalette) → 위젯 클릭(설정 펼침, settings는
@@ -60,6 +71,8 @@ export default function AdminPageEditorPage() {
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [boards, setBoards] = useState<BoardOption[]>([]);
+  const [navBranches, setNavBranches] = useState<NavBranchNode[]>([]);
+  const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -115,6 +128,43 @@ export default function AdminPageEditorPage() {
         }
       });
   }, [session]);
+
+  useEffect(() => {
+    fetchNavBranches().then(async (branches) => {
+      setNavBranches(branches);
+      setBoardBranchMap(await fetchBoardBranchMap(branches));
+    });
+  }, []);
+
+  // EPIC-084: branchId(또는 미분류) → "브랜치 경로 - 게시판들" 그룹으로 묶는다.
+  // 브랜치 경로는 루트부터 그 브랜치까지 title을 " > "로 이어붙여 만든다 —
+  // 같은 이름의 하위 카테고리가 다른 상위 탭에도 있을 수 있어(예: 게시판)
+  // 전체 경로를 보여줘야 헷갈리지 않는다.
+  const boardGroups: BoardOptionGroup[] = (() => {
+    const branchById = new Map(navBranches.map((b) => [b.id, b]));
+    function pathOf(branchId: string): string {
+      const parts: string[] = [];
+      let current: NavBranchNode | undefined = branchById.get(branchId);
+      while (current) {
+        parts.unshift(current.title);
+        current = current.parentId ? branchById.get(current.parentId) : undefined;
+      }
+      return parts.join(" > ");
+    }
+
+    const byGroupLabel = new Map<string, BoardOption[]>();
+    const order: string[] = [];
+    for (const board of boards) {
+      const branchId = boardBranchMap.get(board.id);
+      const label = branchId ? pathOf(branchId) : "기타 / 미분류";
+      if (!byGroupLabel.has(label)) {
+        byGroupLabel.set(label, []);
+        order.push(label);
+      }
+      byGroupLabel.get(label)!.push(board);
+    }
+    return order.map((label) => ({ label, boards: byGroupLabel.get(label)! }));
+  })();
 
   async function handleSavePage() {
     if (!page) return;
@@ -423,6 +473,7 @@ export default function AdminPageEditorPage() {
                         key={module.id}
                         module={module}
                         boards={boards}
+                        boardGroups={boardGroups}
                         editing={editingId === module.id}
                         devMode={devMode}
                         draftBoardId={draftBoardId}
@@ -472,6 +523,7 @@ export default function AdminPageEditorPage() {
 function WidgetRow({
   module,
   boards,
+  boardGroups,
   editing,
   devMode,
   draftBoardId,
@@ -492,6 +544,7 @@ function WidgetRow({
 }: {
   module: PageModuleRow;
   boards: BoardOption[];
+  boardGroups: BoardOptionGroup[];
   editing: boolean;
   devMode: boolean;
   draftBoardId: string;
@@ -593,10 +646,14 @@ function WidgetRow({
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               >
                 <option value="">(연결 안 함)</option>
-                {boards.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
+                {boardGroups.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.boards.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

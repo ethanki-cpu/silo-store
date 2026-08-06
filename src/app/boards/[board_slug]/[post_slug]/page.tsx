@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import type { JSONContent } from "@/lib/blockEditorCore";
@@ -242,6 +243,15 @@ export default function PostDetailPage() {
       <PageEditButton slug="boards-id-postid" />
       <main className="flex-1 bg-white px-6 py-12">
       <div className="max-w-4xl mx-auto w-full">
+        {/* EPIC-084: 이전 카테고리 목록으로 돌아가는 버튼 — 이전엔
+            하단의 BoardPostListPanel(다른 글 미리보기)만 있고 "목록으로"
+            자체는 없었다. */}
+        <Link
+          href={`/boards/${boardSlug}`}
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-4"
+        >
+          ← 목록으로
+        </Link>
         <PostDetailHeader
           postNumber={post.post_number}
           createdAt={post.created_at}

@@ -9,6 +9,10 @@ import { formatPostMeta } from "@/lib/postMeta";
 // EPIC-066: Board Widget 출력 요구 항목(좋아요/댓글/작성자/조회수/태그/
 // 카테고리)을 이미지 아래 캡션 한 줄 + 태그 칩으로 추가 — 이미지 중심
 // 레이아웃 자체는 그대로 유지한다.
+// EPIC-084: BoardModule(전체 게시판 위젯)은 BoardHeader가 이미 글쓰기
+// 버튼을 갖고 있었지만, 갤러리 위젯은 없어 "이 갤러리가 연결된 게시판에
+// 바로 쓰고 싶다"는 요청을 못 들어줬다 — Contextual Write 진입점
+// (/write?boardId=)으로 연결하는 버튼을 우측 상단에 추가한다.
 export function GalleryModule({
   boardId,
   posts,
@@ -16,6 +20,7 @@ export function GalleryModule({
   showLikes,
   showComments,
   showViewCount,
+  showWriteButton = true,
 }: {
   boardId: string;
   posts: BoardPost[];
@@ -24,9 +29,21 @@ export function GalleryModule({
   showLikes?: boolean;
   showComments?: boolean;
   showViewCount?: boolean;
+  showWriteButton?: boolean;
 }) {
   return (
-    <div className="columns-2 sm:columns-3 gap-4 [column-fill:_balance]">
+    <div>
+      {showWriteButton && (
+        <div className="flex justify-end mb-3">
+          <Link
+            href={`/write?boardId=${encodeURIComponent(boardId)}`}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+          >
+            글쓰기
+          </Link>
+        </div>
+      )}
+      <div className="columns-2 sm:columns-3 gap-4 [column-fill:_balance]">
       {posts.map((post) => {
         const imageUrl = post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null;
         return (
@@ -57,6 +74,7 @@ export function GalleryModule({
         </Link>
         );
       })}
+      </div>
     </div>
   );
 }

@@ -130,7 +130,13 @@ export function RightSidebar({
         }`}
       >
         <div className="flex items-center justify-between p-4 border-b border-white/20">
-          <span className="font-semibold">{tab.label}</span>
+          {tab.href ? (
+            <Link href={tab.href} onClick={onClose} className="font-semibold hover:underline">
+              {tab.label}
+            </Link>
+          ) : (
+            <span className="font-semibold">{tab.label}</span>
+          )}
           <button
             type="button"
             onClick={onClose}

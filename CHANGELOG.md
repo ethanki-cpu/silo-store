@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-07 (EPIC-086 — Slide Module 글쓰기 버튼)
+- **배경**: 컴퓨터 A/B 동기화 중 발견 — 이전 컴퓨터에 남아있던 EPIC-084 미커밋 WIP(17개 파일)를 검토한 결과 전부 이미 병합된 EPIC-084/EPIC-084-REVISED/EPIC-085에서 동일하거나 더 개선된 형태로 구현돼 있었으나(예: 외부 이미지 재업로드는 SSRF 방어까지 갖춘 `/api/media/fetch-external`로 대체, "목록으로" 링크는 `PostDetailClient.tsx`에서 상하단 2곳으로 개선), Gallery 위젯(EPIC-084)에만 있고 Slide 위젯에는 없던 "글쓰기" 버튼 하나만 순수 누락으로 확인돼 이번에 반영. WIP의 나머지(4모서리 이미지 리사이즈 등)는 EPIC-085 문서가 "점검 결과 기존 구현이 이미 정상 동작해 추가 구현 불필요"로 명시적으로 보류한 항목이라 재도입하지 않음.
+- **`src/components/modules/SlideModule.tsx`**: `GalleryModule`과 동일한 패턴으로 `boardId`(optional) prop 추가 — 있으면 우측 상단에 "글쓰기"(`/write?boardId=`) 버튼 노출, 없으면(HubRenderer/SlideRenderer처럼 여러 게시판을 한꺼번에 모아 보여주는 자리) 기존처럼 버튼 없음(하위 호환).
+- **`src/components/modules/DbFeedModules.tsx`**: `DbSlideModule`이 이미 갖고 있던 `boardId`를 `SlideModule`로 전달.
+- **검증**: `npx tsc --noEmit`(0 errors), `npm run lint`(0 errors, 기존 경고만), 로컬 dev 서버(비로그인)에서 홈페이지 Slide 위젯에 "글쓰기" 버튼이 렌더링되는 것과 콘솔 에러 없음을 Browser pane으로 확인.
+
 ## 2026-08-06 (EPIC-084-REVISED 후속 — R2 이미지 업로드 완전 해결, 실기 검증 완료)
 - **`.env.local` 실제 값 확인 과정에서 두 번째 버그 발견**: 사용자가 R2 자격증명 5종을 입력했는데, `R2_BUCKET_NAME`과 `R2_PUBLIC_URL`이 한 줄(`R2_BUCKET_NAME/R2_PUBLIC_URL=https://...`)에 잘못 합쳐져 있어 실제로는 `R2_BUCKET_NAME`이 빈 값이었다 — 두 줄로 분리하고 `R2_PUBLIC_URL`에는 이미 입력된 값을 그대로 유지, `R2_BUCKET_NAME`은 사용자가 채워 넣음(`silo-media-storage`).
 - **세 번째 문제 — R2 버킷에 CORS 정책 없음**: 자격증명을 다 채운 뒤에도 `POST /api/media/presigned`는 200이었지만 브라우저의 실제 R2 PUT이 CORS 프리플라이트 실패로 막혔다(`No 'Access-Control-Allow-Origin' header`) — presigned URL 발급 자체는 서버가 하지만, 실제 PUT은 브라우저가 R2 도메인에 직접 요청하므로 R2 버킷 쪽에 CORS 정책이 없으면 이 요청 자체가 브라우저에서 차단된다. 사용자가 Cloudflare 대시보드에서 R2 버킷(`silo-media-storage`) CORS 정책을 추가(`AllowedOrigins: localhost:3000/dev.silostore.net/silostore.net`, `AllowedMethods: PUT/GET`).

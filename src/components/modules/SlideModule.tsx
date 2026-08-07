@@ -7,18 +7,35 @@ import { PostTags } from "@/components/boards/PostTags";
 // 컴포넌트를 그대로 뽑아낸 것(마크업/동작 변경 없음) — HubView(hub
 // 게시판)와 온라인 도슨트/사일로 유산 등 여러 페이지가 이 모듈 하나를
 // 재사용한다.
+// EPIC-086: GalleryModule(EPIC-084)과 동일한 이유 — 특정 게시판 하나에
+// 연결된 위젯(DbSlideModule)에서는 우측 상단에 Contextual Write
+// (/write?boardId=) 버튼을 보여준다. HubRenderer/SlideRenderer처럼 여러
+// 게시판을 한꺼번에 모아 보여주는 자리는 boardId를 안 넘기므로 버튼이
+// 뜨지 않는다(하위 호환, opt-in).
 export function SlideModule({
   title,
   items,
+  boardId,
 }: {
   title: string;
   items: HubFeed["latest"];
+  boardId?: string;
 }) {
   return (
     <section className="mb-10">
-      <h2 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
-        {title}
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs uppercase tracking-wide text-gray-400">
+          {title}
+        </h2>
+        {boardId && (
+          <Link
+            href={`/write?boardId=${encodeURIComponent(boardId)}`}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50"
+          >
+            글쓰기
+          </Link>
+        )}
+      </div>
       {items.length === 0 ? (
         <p className="text-sm text-gray-400">아직 글이 없어요.</p>
       ) : (

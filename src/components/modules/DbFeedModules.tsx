@@ -47,7 +47,7 @@ export function DbSlideModule({
     tags: p.tags ?? [],
   }));
 
-  return <SlideModule title={title ?? board?.name ?? "최신 글"} items={items} />;
+  return <SlideModule title={title ?? board?.name ?? "최신 글"} items={items} boardId={boardId} />;
 }
 
 export function DbGalleryModule({ boardId }: { boardId: string | null }) {

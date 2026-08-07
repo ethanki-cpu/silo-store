@@ -23,7 +23,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { ensurePageForSlug, hrefToSlug } from "@/lib/pageTemplates";
 import { WIDGET_DEFAULT_SETTINGS } from "@/lib/pageBuilder";
 import { fetchNavBranches, fetchBoardBranchMap } from "@/lib/adminTreeGrouping";
-import { RENDER_TYPE_OPTIONS } from "@/components/admin/BoardForm";
+import { RENDER_TYPE_OPTIONS, RANK_OPTIONS } from "@/components/admin/BoardForm";
 
 // EPIC-035: 티스토리 스타일 드래그앤드롭 카테고리(site_navigations) 관리
 // 컴포넌트. 상단 탭/좌측 사이드바/우측 사이드바 3개 관리 화면(각각
@@ -180,6 +180,19 @@ export function CategoryTreeManager({
   // 선택 키로 재사용해 타입을 구분한다.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  // EPIC-088: 사이트 메뉴 트리 접기/펼치기(아코디언) — 기본은 전부 펼침
+  // 상태(collapsedIds가 비어있음)이고, 토글한 노드의 id만 이 Set에
+  // 추가/제거한다. 트리 재조회(load()) 후에도 유지되도록 별도 state로 둔다
+  // (rows와 독립적).
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  function toggleCollapsed(id: string) {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -812,6 +825,8 @@ export function CategoryTreeManager({
             onManageBoard={setManagingBoardId}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
+            collapsedIds={collapsedIds}
+            onToggleCollapsed={toggleCollapsed}
           />
           {/* EPIC-087-PHASE-B: 어떤 분기에도 매칭 안 된 게시판 — 여기로
               드래그하면 boardBranchMap에서 빠지고(연결 page_modules 삭제),
@@ -888,6 +903,8 @@ function TreeLevel({
   onManageBoard,
   selectedIds,
   onToggleSelect,
+  collapsedIds,
+  onToggleCollapsed,
 }: {
   parentId: string | null;
   rows: CategoryNavRow[];
@@ -905,6 +922,8 @@ function TreeLevel({
   onManageBoard: (id: string | null) => void;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
+  collapsedIds: Set<string>;
+  onToggleCollapsed: (id: string) => void;
 }) {
   const containerId = containerIdOf(parentId);
   const { setNodeRef } = useDroppable({ id: containerId });
@@ -927,7 +946,16 @@ function TreeLevel({
             (여기로 드래그하면 하위 항목이 돼요)
           </p>
         )}
-        {children.map((child) => (
+        {children.map((child) => {
+          // EPIC-088: 이 노드가 접고 펼 것이 있는지(하위 nav 행 또는 배정된
+          // 게시판) — 없으면 토글 아이콘 자체를 보여주지 않는다.
+          const hasNavChildren = rows.some((r) => r.parent_id === child.id);
+          const hasBoardChildren = allBoards.some(
+            (b) => (boardBranchMap.get(b.id) ?? null) === child.id,
+          );
+          const hasChildren = hasNavChildren || hasBoardChildren;
+          const collapsed = collapsedIds.has(child.id);
+          return (
           <div key={child.id}>
             <CategoryRow
               row={child}
@@ -941,40 +969,50 @@ function TreeLevel({
               onAddChild={onAddChild}
               isSelected={selectedIds.has(child.id)}
               onToggleSelect={onToggleSelect}
+              hasChildren={hasChildren}
+              collapsed={collapsed}
+              onToggleCollapsed={() => onToggleCollapsed(child.id)}
             />
-            <TreeLevel
-              parentId={child.id}
-              rows={rows}
-              depth={depth + 1}
-              editingId={editingId}
-              managingId={managingId}
-              pageIdBySlug={pageIdBySlug}
-              onEdit={onEdit}
-              onManage={onManage}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-              onAddChild={onAddChild}
-              allBoards={allBoards}
-              boardBranchMap={boardBranchMap}
-              onManageBoard={onManageBoard}
-              selectedIds={selectedIds}
-              onToggleSelect={onToggleSelect}
-            />
-            {/* EPIC-087-PHASE-B: 이 분기(nav 행)에 배정된 게시판 목록 —
-                nav 자식과는 별도 SortableContext(boardlist-<id>)라 순서
-                변경 로직이 서로 섞이지 않는다. */}
-            <div style={{ marginLeft: (depth + 1) * 20 }}>
-              <BoardListLevel
-                branchId={child.id}
-                allBoards={allBoards}
-                boardBranchMap={boardBranchMap}
-                onManageBoard={onManageBoard}
-                selectedIds={selectedIds}
-                onToggleSelect={onToggleSelect}
-              />
-            </div>
+            {!collapsed && (
+              <>
+                <TreeLevel
+                  parentId={child.id}
+                  rows={rows}
+                  depth={depth + 1}
+                  editingId={editingId}
+                  managingId={managingId}
+                  pageIdBySlug={pageIdBySlug}
+                  onEdit={onEdit}
+                  onManage={onManage}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  onAddChild={onAddChild}
+                  allBoards={allBoards}
+                  boardBranchMap={boardBranchMap}
+                  onManageBoard={onManageBoard}
+                  selectedIds={selectedIds}
+                  onToggleSelect={onToggleSelect}
+                  collapsedIds={collapsedIds}
+                  onToggleCollapsed={onToggleCollapsed}
+                />
+                {/* EPIC-087-PHASE-B: 이 분기(nav 행)에 배정된 게시판 목록 —
+                    nav 자식과는 별도 SortableContext(boardlist-<id>)라 순서
+                    변경 로직이 서로 섞이지 않는다. */}
+                <div style={{ marginLeft: (depth + 1) * 20 }}>
+                  <BoardListLevel
+                    branchId={child.id}
+                    allBoards={allBoards}
+                    boardBranchMap={boardBranchMap}
+                    onManageBoard={onManageBoard}
+                    selectedIds={selectedIds}
+                    onToggleSelect={onToggleSelect}
+                  />
+                </div>
+              </>
+            )}
           </div>
-        ))}
+          );
+        })}
       </SortableContext>
     </div>
   );
@@ -1186,6 +1224,9 @@ function CategoryRow({
   onAddChild,
   isSelected,
   onToggleSelect,
+  hasChildren,
+  collapsed,
+  onToggleCollapsed,
 }: {
   row: CategoryNavRow;
   isEditing: boolean;
@@ -1200,6 +1241,11 @@ function CategoryRow({
   onAddChild: (parentId: string | null, targetType: TargetTypeLiteral) => void;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
+  // EPIC-088: 하위 nav 행/배정된 게시판이 하나라도 있으면 접기/펼치기
+  // 토글 아이콘을 보여준다 — 없으면 접을 게 없으니 아이콘 자체를 숨긴다.
+  hasChildren: boolean;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: row.id });
@@ -1259,6 +1305,21 @@ function CategoryRow({
       >
         ⠿
       </button>
+
+      {/* EPIC-088: 아코디언 접기/펼치기 — 하위(nav 자식 또는 배정된
+          게시판)가 있을 때만 아이콘을 보여준다. 드래그 핸들과 별개 버튼이라
+          토글 클릭이 dnd-kit 리스너와 충돌하지 않는다. */}
+      {hasChildren && (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={`${row.title} 하위 항목 ${collapsed ? "펼치기" : "접기"}`}
+          className="text-gray-400 hover:text-gray-700 px-0.5 w-4 text-xs shrink-0"
+        >
+          {collapsed ? "▶" : "▼"}
+        </button>
+      )}
 
       {isEditing ? (
         <>
@@ -1463,7 +1524,16 @@ const TARGET_TYPE_LABELS: Record<TargetTypeLiteral, string> = {
   sidebar_right: "오른쪽 사이드바",
 };
 
-type LinkedPageInfo = { id: string; slug: string; status: "draft" | "published" } | null;
+type LinkedPageInfo = {
+  id: string;
+  slug: string;
+  status: "draft" | "published";
+  // EPIC-088: "메뉴별 티어 접근 제어" — 사이트 메뉴 관리 화면에서 바로 이
+  // 페이지의 최소 열람 등급을 보고/바꿀 수 있어야 한다는 요구. 이미
+  // /admin/pages/[id]에 있는 page_builder.min_rank_to_read와 동일한 값 —
+  // 새 컬럼을 추가하지 않고 그 값을 여기서도 편집한다.
+  min_rank_to_read: number | null;
+} | null;
 
 type BoardDraft = {
   name: string;
@@ -1475,6 +1545,9 @@ type BoardDraft = {
   // 게시판 종류도 한눈에 보이게 — board_type은 생성 시 고정되는 값이라
   // (BoardForm에 편집 UI 없음) 읽기 전용 배지로만 노출한다.
   board_type: string;
+  // EPIC-088: 게시판의 최소 열람 등급 — BoardForm.tsx와 동일한 값
+  // (boards.min_rank_to_read)을 여기서도 바로 편집할 수 있게 한다.
+  min_rank_to_read: number | null;
 };
 
 function CategoryDetailModal({
@@ -1501,6 +1574,31 @@ function CategoryDetailModal({
   // 생성해주므로 보통 존재한다).
   const [pageInfo, setPageInfo] = useState<LinkedPageInfo>(null);
   const [pageLoading, setPageLoading] = useState(false);
+  // EPIC-088: 페이지 최소 열람 등급 — pageInfo와 별도 draft state로 둬서
+  // "저장" 버튼을 누르기 전까지는 다른 화면(usePageRankGate)에 영향을 주지
+  // 않는다(공개/노출 위치 등 이 모달의 다른 필드와 동일한 관례).
+  const [pageMinRank, setPageMinRank] = useState<number | null>(null);
+  const [pageMinRankSaving, setPageMinRankSaving] = useState(false);
+  const [pageMinRankSaved, setPageMinRankSaved] = useState(false);
+  const [pageMinRankError, setPageMinRankError] = useState<string | null>(null);
+
+  async function savePageMinRank() {
+    if (!pageInfo) return;
+    setPageMinRankSaving(true);
+    setPageMinRankError(null);
+    setPageMinRankSaved(false);
+    const { error: updateError } = await supabase
+      .from("page_builder")
+      .update({ min_rank_to_read: pageMinRank, updated_at: new Date().toISOString() })
+      .eq("id", pageInfo.id);
+    setPageMinRankSaving(false);
+    if (updateError) {
+      setPageMinRankError(updateError.message);
+      return;
+    }
+    setPageInfo((prev) => (prev ? { ...prev, min_rank_to_read: pageMinRank } : prev));
+    setPageMinRankSaved(true);
+  }
 
   useEffect(() => {
     if (!row.href) {
@@ -1511,12 +1609,13 @@ function CategoryDetailModal({
     setPageLoading(true);
     supabase
       .from("page_builder")
-      .select("id, slug, status")
+      .select("id, slug, status, min_rank_to_read")
       .eq("slug", hrefToSlug(row.href))
       .maybeSingle()
       .then(({ data }) => {
         if (cancelled) return;
         setPageInfo((data as LinkedPageInfo) ?? null);
+        setPageMinRank((data as LinkedPageInfo)?.min_rank_to_read ?? null);
         setPageLoading(false);
       });
     return () => {
@@ -1661,6 +1760,7 @@ function CategoryDetailModal({
           description: data.description ?? "",
           is_public: data.is_public ?? true,
           board_type: data.board_type ?? "",
+          min_rank_to_read: data.min_rank_to_read ?? null,
         });
       });
     return () => {
@@ -1684,6 +1784,7 @@ function CategoryDetailModal({
         thumbnail_url: boardDraft.thumbnail_url || null,
         description: boardDraft.description || null,
         is_public: boardDraft.is_public,
+        min_rank_to_read: boardDraft.min_rank_to_read,
       }),
     });
     const data = await res.json();
@@ -1830,6 +1931,35 @@ function CategoryDetailModal({
             ) : (
               <p className="text-xs text-gray-400">연결된 페이지 없음</p>
             )}
+            {/* EPIC-088: 이 페이지의 최소 접근 가능 티어 — 미달 등급 방문자는
+                usePageRankGate가 멤버십 안내 페이지로 리다이렉트한다
+                (/admin/pages/[id]와 동일한 값, 여기서도 바로 편집). */}
+            {pageInfo && (
+              <div className="mt-2 flex items-center gap-2">
+                <select
+                  className={inputClass}
+                  value={pageMinRank ?? ""}
+                  onChange={(e) => setPageMinRank(e.target.value === "" ? null : Number(e.target.value))}
+                >
+                  <option value="">최소 접근 가능 티어: 제한 없음</option>
+                  {RANK_OPTIONS.map((o) => (
+                    <option key={o.rank} value={o.rank}>
+                      최소 접근 가능 티어: {o.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={savePageMinRank}
+                  disabled={pageMinRankSaving}
+                  className={smallButtonClass}
+                >
+                  {pageMinRankSaving ? "저장 중..." : "저장"}
+                </button>
+                {pageMinRankSaved && <span className="text-xs text-green-600">저장됨</span>}
+              </div>
+            )}
+            {pageMinRankError && <p className="text-xs text-red-600 mt-1">{pageMinRankError}</p>}
           </div>
 
           {/* EPIC-077: 연결된 게시판 — 어느 게시판을 연결할지 여기서 직접
@@ -1937,6 +2067,25 @@ function CategoryDetailModal({
                           />
                           공개
                         </label>
+                        {/* EPIC-088: 이 게시판의 최소 접근 가능 티어(boards.min_rank_to_read,
+                            BoardForm.tsx의 "최소 열람 등급"과 동일한 값). */}
+                        <select
+                          className={inputClass}
+                          value={boardDraft.min_rank_to_read ?? ""}
+                          onChange={(e) =>
+                            setBoardDraft({
+                              ...boardDraft,
+                              min_rank_to_read: e.target.value === "" ? null : Number(e.target.value),
+                            })
+                          }
+                        >
+                          <option value="">최소 접근 가능 티어: 제한 없음</option>
+                          {RANK_OPTIONS.map((o) => (
+                            <option key={o.rank} value={o.rank}>
+                              최소 접근 가능 티어: {o.label}
+                            </option>
+                          ))}
+                        </select>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"

@@ -57,6 +57,13 @@ export async function GET(request: NextRequest) {
         like_count: number;
         is_best: boolean;
         photo_url: string | null;
+        // EPIC-088: 직접 업로드한 이미지가 없을 때 embed(youtube/instagram
+        // 등) 썸네일로 채워지는 값 — resolveFallbackEmbedThumbnail이 글 저장
+        // 시점에 이미 계산해둔다(src/lib/embedThumbnail.ts). 이 필드가 이
+        // select에 빠져 있어 허브 피드(최신/인기/추천)만 그 커버 이미지를
+        // 못 보여주던 것을 다른 목록(GalleryModule 등)과 동일하게 맞춘다.
+        featured_image_url?: string | null;
+        thumbnail_visible?: boolean | null;
         author_id: string;
         created_at: string;
         view_count?: number | null;
@@ -67,7 +74,7 @@ export async function GET(request: NextRequest) {
   ({ data: posts } = await supabase
     .from("posts")
     .select(
-      "id, slug, board_id, title, like_count, is_best, photo_url, author_id, created_at, view_count, tags",
+      "id, slug, board_id, title, like_count, is_best, photo_url, featured_image_url, thumbnail_visible, author_id, created_at, view_count, tags",
     )
     .in("board_id", readableBoardIds)
     .eq("visibility", "public")
@@ -115,7 +122,10 @@ export async function GET(request: NextRequest) {
       board_name: boardNameById.get(p.board_id ?? "") ?? "",
       title: p.title,
       like_count: p.like_count,
-      photo_url: p.photo_url,
+      photo_url:
+        usedRichFields && p.thumbnail_visible === false
+          ? null
+          : (usedRichFields ? p.featured_image_url : null) ?? p.photo_url,
       author_name: nameById.get(p.author_id) ?? "알 수 없음",
       created_at: p.created_at,
       comment_count: commentCountByPostId.get(p.id) ?? 0,

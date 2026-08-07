@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { NavBranchNode } from "@/lib/adminTreeGrouping";
+import { ColumnList } from "@/components/common/MillerColumnList";
 
 // EPIC-084-REVISED: "게시될 페이지 선택"/"위젯 설정 - 게시판 선택"에 쓰이던
 // 단일 <select>(사람이 읽기 힘든 긴 들여쓰기 나열 + 일부 게시판은 slug가
@@ -49,42 +50,6 @@ function computeInitialSelection(
     current = current.parentId ? branchById.get(current.parentId) : undefined;
   }
   return { rootId: chain[0]?.id ?? null, midId: chain[1]?.id ?? null };
-}
-
-function ColumnList({
-  items,
-  selectedId,
-  onSelect,
-  emptyLabel,
-}: {
-  items: { id: string; label: string }[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  emptyLabel: string;
-}) {
-  return (
-    <div className="h-56 overflow-y-auto rounded-md border border-gray-200 bg-white">
-      {items.length === 0 ? (
-        <p className="p-3 text-xs text-gray-400">{emptyLabel}</p>
-      ) : (
-        <ul>
-          {items.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(item.id)}
-                className={`block w-full truncate px-3 py-2 text-left text-sm ${
-                  selectedId === item.id ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {item.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 export function CategoryBoardPicker({

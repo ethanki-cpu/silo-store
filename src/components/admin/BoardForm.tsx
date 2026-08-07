@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { resolveBoardDefinition, type BoardPost } from "@/lib/boardLayout";
 import { BoardRenderer } from "@/components/boards/BoardRenderer";
 import { supabase } from "@/lib/supabaseClient";
+import { fetchNavBranches, fetchBoardBranchMap, type NavBranchNode } from "@/lib/adminTreeGrouping";
+import { ensurePageForSlug } from "@/lib/pageTemplates";
+import { WIDGET_DEFAULT_SETTINGS } from "@/lib/pageBuilder";
+import { CategoryBranchPicker } from "@/components/common/CategoryBranchPicker";
+import { RANK_OPTIONS } from "@/lib/membershipTiers";
+
+export { RANK_OPTIONS };
 
 export type BoardFormValues = {
   name: string;
@@ -23,15 +30,6 @@ export type BoardFormValues = {
   // EPIC-087-PHASE-C: null이면 게이트 없음(전체 공개, 기존과 동일).
   min_rank_to_read: number | null;
 };
-
-export const RANK_OPTIONS: { rank: number; label: string }[] = [
-  { rank: 0, label: "Silo Angel" },
-  { rank: 1, label: "Alice" },
-  { rank: 2, label: "Great Gatsby" },
-  { rank: 3, label: "Patron" },
-  { rank: 4, label: "Lautrec" },
-  { rank: 99, label: "Artist" },
-];
 
 export const GROUP_OPTIONS: { value: string; label: string }[] = [
   { value: "community", label: "Community" },
@@ -184,6 +182,151 @@ export function BoardForm({
     };
   }, [boardId]);
 
+  // EPIC-088(요구사항 6): "Category" 필드 — 이 게시판이 사이트 메뉴 트리의
+  // 어느 분기에 속하는지를 CategoryBranchPicker(다열 캐스케이딩 창)로
+  // 고른다. 실제 "종속"은 CategoryDetailModal.saveBoardLink()/
+  // CategoryTreeManager의 handleBoardDragEnd()와 동일한 매커니즘
+  // (page_modules의 module_type='board' 행)으로 저장한다 — 새 컬럼을
+  // 추가하지 않고 기존 사이트 메뉴 연동 방식을 그대로 재사용.
+  const [branches, setBranches] = useState<NavBranchNode[]>([]);
+  const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [branchSaving, setBranchSaving] = useState(false);
+  const [branchSaved, setBranchSaved] = useState(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!boardId) return;
+    let cancelled = false;
+    fetchNavBranches().then(async (fetchedBranches) => {
+      if (cancelled) return;
+      setBranches(fetchedBranches);
+      const map = await fetchBoardBranchMap(fetchedBranches);
+      if (cancelled) return;
+      setBoardBranchMap(map);
+      setSelectedBranchId(map.get(boardId) ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [boardId]);
+
+  async function saveBranchLink(branchId: string | null) {
+    if (!boardId) return;
+    setBranchSaving(true);
+    setBranchError(null);
+    setBranchSaved(false);
+
+    try {
+      let destPageId: string | null = null;
+      if (branchId) {
+        const branch = branches.find((b) => b.id === branchId);
+        if (!branch?.slug) {
+          setBranchError("이 카테고리는 아직 연결된 URL(href)이 없어 게시판을 배정할 수 없어요.");
+          setBranchSaving(false);
+          return;
+        }
+        const { data: existingPage } = await supabase
+          .from("page_builder")
+          .select("id")
+          .eq("slug", branch.slug)
+          .maybeSingle();
+        if (existingPage) {
+          destPageId = (existingPage as { id: string }).id;
+        } else {
+          await ensurePageForSlug(branch.slug, branch.title, null);
+          const { data: createdPage } = await supabase
+            .from("page_builder")
+            .select("id")
+            .eq("slug", branch.slug)
+            .maybeSingle();
+          destPageId = (createdPage as { id: string } | null)?.id ?? null;
+        }
+        if (!destPageId) {
+          setBranchError("이 카테고리의 페이지를 만들지 못했어요.");
+          setBranchSaving(false);
+          return;
+        }
+      }
+
+      const { data: existingLinks, error: fetchLinksError } = await supabase
+        .from("page_modules")
+        .select("id")
+        .eq("board_id", boardId)
+        .eq("module_type", "board");
+      if (fetchLinksError) throw fetchLinksError;
+
+      if (destPageId) {
+        if (existingLinks && existingLinks.length > 0) {
+          const [first, ...rest] = existingLinks as { id: string }[];
+          const { error: updateError } = await supabase
+            .from("page_modules")
+            .update({ page_id: destPageId })
+            .eq("id", first.id);
+          if (updateError) throw updateError;
+          if (rest.length > 0) {
+            const { error: deleteError } = await supabase
+              .from("page_modules")
+              .delete()
+              .in("id", rest.map((r) => r.id));
+            if (deleteError) throw deleteError;
+          }
+        } else {
+          // EPIC-088: destPageId가 방금 ensurePageForSlug로 새로 만들어진
+          // 페이지라면, 그 함수의 기본 템플릿(DEFAULT_TEMPLATE_TYPES)에
+          // board_id가 비어있는 "board" 위젯이 이미 하나 심어져 있다 —
+          // 그걸 무시하고 새로 insert하면 같은 페이지에 board 위젯이 2개
+          // (하나는 영원히 미연결) 남는다. 그 빈 슬롯이 있으면 재활용
+          // (board_id만 채움)하고, 없을 때만 새로 insert한다.
+          const { data: emptyBoardSlot } = await supabase
+            .from("page_modules")
+            .select("id")
+            .eq("page_id", destPageId)
+            .eq("module_type", "board")
+            .is("board_id", null)
+            .limit(1)
+            .maybeSingle();
+
+          if (emptyBoardSlot) {
+            const { error: fillError } = await supabase
+              .from("page_modules")
+              .update({ board_id: boardId })
+              .eq("id", (emptyBoardSlot as { id: string }).id);
+            if (fillError) throw fillError;
+          } else {
+            const { error: insertError } = await supabase.from("page_modules").insert({
+              page_id: destPageId,
+              module_type: "board",
+              board_id: boardId,
+              settings: WIDGET_DEFAULT_SETTINGS.board ?? {},
+              sort_order: 0,
+              is_hidden: false,
+            });
+            if (insertError) throw insertError;
+          }
+        }
+      } else if (existingLinks && existingLinks.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("page_modules")
+          .delete()
+          .in("id", (existingLinks as { id: string }[]).map((r) => r.id));
+        if (deleteError) throw deleteError;
+      }
+
+      setSelectedBranchId(branchId);
+      setBoardBranchMap((prev) => {
+        const next = new Map(prev);
+        if (branchId) next.set(boardId, branchId);
+        else next.delete(boardId);
+        return next;
+      });
+      setBranchSaved(true);
+    } catch (err) {
+      setBranchError(err instanceof Error ? err.message : "카테고리 배정에 실패했어요.");
+    }
+    setBranchSaving(false);
+  }
+
   function update<K extends keyof BoardFormValues>(key: K, value: BoardFormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
   }
@@ -238,15 +381,15 @@ export function BoardForm({
           <input
             type="text"
             required
-            disabled={mode === "edit"}
             value={values.category}
             onChange={(e) => update("category", e.target.value.trim())}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             placeholder="예: free-board"
           />
           {mode === "edit" && (
-            <p className="text-xs text-gray-400 mt-1">
-              슬러그는 다른 화면(Board Definition, 링크)이 참조하고 있어 여기서는 바꿀 수 없어요.
+            <p className="text-xs text-amber-600 mt-1">
+              주의: 이 값은 Board Definition/기존 링크가 참조할 수 있어요 — 바꾸면 그 화면들이
+              깨질 수 있으니 신중하게 변경하세요(다른 게시판과 중복되면 저장이 거부돼요).
             </p>
           )}
         </div>
@@ -290,23 +433,39 @@ export function BoardForm({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        {/* EPIC-088(요구사항 6): 하드코딩된 단일 Category 드롭다운(group_key)을
+            제거하고, 이 게시판이 사이트 메뉴 트리의 어느 분기에 속하는지
+            직접 클릭해 매칭하는 다열 캐스케이딩 선택창으로 대체한다. 이
+            연결은 site menu tree의 실제 연동 방식(page_modules)을 그대로
+            쓰므로 board id가 있어야(=수정 모드) 저장할 수 있다 — 생성
+            직후엔 아직 board_id가 없어 이 섹션 자체를 보여주지 않는다
+            (min_rank_to_write/read와 동일한 "edit 모드 전용" 관례). */}
+        {mode === "edit" && (
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
-            <select
-              value={values.group_key}
-              onChange={(e) => update("group_key", e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            >
-              <option value="">(미지정)</option>
-              {GROUP_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-600">
+                Category (사이트 메뉴 위치)
+              </label>
+              <button
+                type="button"
+                onClick={() => saveBranchLink(selectedBranchId)}
+                disabled={branchSaving}
+                className="text-xs rounded-md border border-gray-300 px-2 py-1 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {branchSaving ? "저장 중..." : "위치 저장"}
+              </button>
+            </div>
+            <CategoryBranchPicker
+              branches={branches}
+              value={selectedBranchId}
+              onChange={setSelectedBranchId}
+            />
+            {branchSaved && <p className="text-xs text-green-600 mt-1">저장됐어요.</p>}
+            {branchError && <p className="text-xs text-red-600 mt-1">{branchError}</p>}
           </div>
+        )}
 
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Board Type</label>
             <select

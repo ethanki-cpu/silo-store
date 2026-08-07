@@ -1,14 +1,29 @@
 import { supabase } from "@/lib/supabaseClient";
+import { hrefToSlug } from "@/lib/pageTemplates";
 
 // EPIC-079-PHASE-2: dropdown 탭의 항목도 sidebar의 group→item처럼 한 단계
 // 더 자식(서브카테고리)을 가질 수 있다 — children이 있으면 Navbar가 2차
 // 플라이아웃으로 렌더링하고, 없으면(기존처럼) 클릭 시 바로 이동하는 평범한
 // 항목으로 렌더링한다.
-export type NavItem = { label: string; href: string; children?: NavItem[] };
+// EPIC-088: 메뉴별 티어 접근 제어 — href가 연결된 page_builder 페이지의
+// min_rank_to_read를 그대로 물려받는다(새 컬럼을 site_navigations에 추가하지
+// 않고, "사이트 구성 관리"에서 이미 편집 가능한 값을 재사용). 클릭 시
+// checkNavAccess()가 이 값과 로그인 회원의 등급을 비교한다.
+export type NavItem = {
+  label: string;
+  href: string;
+  children?: NavItem[];
+  minRankToRead?: number | null;
+};
 // EPIC-058: 그룹 헤더(상위 카테고리) 자체도 Hub Page로 이동하는 링크가 될 수
 // 있도록 href를 추가한다. 없으면(기존처럼) 클릭 불가한 라벨로만 렌더링된다
 // — LeftSidebar.tsx/RightSidebar.tsx가 이 값의 유무로 분기한다.
-export type NavGroup = { groupLabel: string; href?: string; items: NavItem[] };
+export type NavGroup = {
+  groupLabel: string;
+  href?: string;
+  items: NavItem[];
+  minRankToRead?: number | null;
+};
 
 // 탭의 UI 상호작용 방식. Navbar.tsx는 이 값에 따라 렌더링 방식만 분기하고,
 // 실제 라벨/링크/그룹 구성은 DB(site_navigations, EPIC-023)에서 온다.
@@ -21,6 +36,7 @@ export type NavTab = {
   href?: string; // type === "link" | "dropdown"(EPIC-058: 드롭다운 트리거 자체도 Hub Page 링크 가능) | "sidebar-left" | "sidebar-right"(EPIC-084: 패널 헤더/상단 탭도 Hub Page 링크 가능)
   items?: NavItem[]; // type === "dropdown"
   groups?: NavGroup[]; // type === "sidebar-left" | "sidebar-right"
+  minRankToRead?: number | null;
 };
 
 // DB(site_navigations)의 target_type 값 ↔ 기존 NavTabType 매핑.
@@ -244,7 +260,17 @@ const FALLBACK_NAV_TABS: NavTab[] = [
   },
 ];
 
-function buildNavTree(rows: SiteNavRow[]): NavTab[] {
+// EPIC-088: href → page_builder.min_rank_to_read. hrefToSlug은 쿼리스트링을
+// 그대로 문자열에 남기므로(예: "/rental?floor=1f_silostore" →
+// "rental?floor=1f_silostore") 쿼리 기반 하이브리드 라우트는 애초에 어떤
+// slug와도 매칭되지 않아 자연히 게이트 없음으로 취급된다 —
+// usePageRankGate가 하이브리드 페이지를 의도적으로 제외하는 것과 같은 결과.
+function rankFor(href: string | null, slugToRank: Map<string, number>): number | null {
+  if (!href) return null;
+  return slugToRank.get(hrefToSlug(href)) ?? null;
+}
+
+function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavTab[] {
   const byParent = new Map<string | null, SiteNavRow[]>();
   for (const row of rows) {
     const list = byParent.get(row.parent_id) ?? [];
@@ -263,6 +289,7 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
         label: top.title,
         type,
         href: top.href ?? "#",
+        minRankToRead: rankFor(top.href, slugToRank),
       };
     }
 
@@ -275,11 +302,13 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
         const children = (byParent.get(i.id) ?? []).map((c) => ({
           label: c.title,
           href: c.href ?? "#",
+          minRankToRead: rankFor(c.href, slugToRank),
         }));
         return {
           label: i.title,
           href: i.href ?? "#",
           children: children.length > 0 ? children : undefined,
+          minRankToRead: rankFor(i.href, slugToRank),
         };
       });
       // EPIC-058: 드롭다운 트리거(예: 스튜디오) 자체도 href가 있으면 Hub
@@ -290,6 +319,7 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
         type,
         href: top.href ?? undefined,
         items,
+        minRankToRead: rankFor(top.href ?? null, slugToRank),
       };
     }
 
@@ -302,7 +332,9 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
       items: (byParent.get(g.id) ?? []).map((i) => ({
         label: i.title,
         href: i.href ?? "#",
+        minRankToRead: rankFor(i.href, slugToRank),
       })),
+      minRankToRead: rankFor(g.href ?? null, slugToRank),
     }));
     // EPIC-084: top.href가 드롭다운/link 타입처럼 여기서도 누락되고 있었다
     // — DB(site_navigations)에는 사일로상점(/shop)/살롱데상(/community)
@@ -316,6 +348,7 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
       type,
       href: top.href ?? undefined,
       groups,
+      minRankToRead: rankFor(top.href ?? null, slugToRank),
     };
   });
 }
@@ -323,17 +356,31 @@ function buildNavTree(rows: SiteNavRow[]): NavTab[] {
 // site_navigations(EPIC-023)에서 활성 상태인 탭/그룹/항목을 조회해 트리로 조립한다.
 // 실패하거나 아직 시드가 적용되지 않은 경우 FALLBACK_NAV_TABS를 반환한다.
 export async function fetchNavTabs(): Promise<NavTab[]> {
-  const { data, error } = await supabase
-    .from("site_navigations")
-    .select("id, key, title, href, parent_id, target_type")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
+  const [navResult, rankResult] = await Promise.all([
+    supabase
+      .from("site_navigations")
+      .select("id, key, title, href, parent_id, target_type")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true }),
+    // EPIC-088: 메뉴별 티어 접근 제어 — 게이트가 걸린(min_rank_to_read가
+    // null이 아닌) 페이지만 조회해 slug → rank 맵을 만든다(게이트 없는
+    // 페이지는 조회할 필요가 없다).
+    supabase.from("page_builder").select("slug, min_rank_to_read").not("min_rank_to_read", "is", null),
+  ]);
+  const { data, error } = navResult;
 
   if (error || !data || data.length === 0) {
     return FALLBACK_NAV_TABS;
   }
 
-  return buildNavTree(data as SiteNavRow[]);
+  const slugToRank = new Map<string, number>(
+    ((rankResult.data ?? []) as { slug: string; min_rank_to_read: number }[]).map((p) => [
+      p.slug,
+      p.min_rank_to_read,
+    ]),
+  );
+
+  return buildNavTree(data as SiteNavRow[], slugToRank);
 }
 
 export function getActiveNavTabKey(

@@ -85,6 +85,10 @@ export default function AdminPageEditorPage() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [devMode, setDevMode] = useState(false);
+  // EPIC-088: "빈 게시판 추가" — 이 페이지에 board 위젯이 하나도 없을 때만
+  // 노출한다(요구사항: "연동된 게시판이 없을 경우").
+  const [creatingBoard, setCreatingBoard] = useState(false);
+  const [createBoardError, setCreateBoardError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftBoardId, setDraftBoardId] = useState("");
@@ -202,6 +206,51 @@ export default function AdminPageEditorPage() {
     if (needsBoard) {
       openEditor(newModule);
     }
+  }
+
+  // EPIC-088: 이 페이지에 종속된 새 게시판을 즉시 생성하고, board 위젯으로
+  // 바로 연결한 뒤 그 게시판의 수정 화면으로 넘어간다 — "게시판 선택
+  // 드롭다운에서 고를 게 없어 되돌아가야 하는" 왕복을 없앤다. 슬러그
+  // (category)는 페이지 slug를 그대로 쓰고, 이미 쓰이고 있으면(POST가 409로
+  // 알려줌) "-board" 접미사를 붙여 한 번 더 시도한다.
+  async function handleCreateEmptyBoard() {
+    if (!page || !session) return;
+    setCreatingBoard(true);
+    setCreateBoardError(null);
+
+    async function tryCreate(category: string) {
+      return fetch("/api/admin/boards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session!.access_token}` },
+        body: JSON.stringify({ name: page!.title || page!.slug, category }),
+      });
+    }
+
+    let res = await tryCreate(page.slug);
+    if (res.status === 409) {
+      res = await tryCreate(`${page.slug}-board`);
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      setCreatingBoard(false);
+      setCreateBoardError(data.error ?? "게시판 생성에 실패했어요.");
+      return;
+    }
+
+    const { error: moduleError } = await supabase.from("page_modules").insert({
+      page_id: page.id,
+      module_type: "board",
+      board_id: data.id,
+      settings: WIDGET_DEFAULT_SETTINGS.board ?? {},
+      sort_order: modules.length,
+      is_hidden: false,
+    });
+    setCreatingBoard(false);
+    if (moduleError) {
+      setCreateBoardError(moduleError.message);
+      return;
+    }
+    router.push(`/admin/boards/${data.id}`);
   }
 
   async function handleDeleteModule(moduleId: string) {
@@ -455,14 +504,30 @@ export default function AdminPageEditorPage() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-700">위젯 ({modules.length})</h2>
-              <button
-                type="button"
-                onClick={() => setPaletteOpen(true)}
-                className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
-              >
-                + 위젯 추가
-              </button>
+              <div className="flex items-center gap-2">
+                {/* EPIC-088: 이 페이지에 board 위젯이 하나도 없을 때만 노출 —
+                    이미 board 위젯이 있으면(연결 여부와 무관하게) 그 위젯의
+                    "게시판 선택"에서 고르거나 위 게시판 수정 버튼을 쓰면 된다. */}
+                {!modules.some((m) => m.module_type === "board") && (
+                  <button
+                    type="button"
+                    onClick={handleCreateEmptyBoard}
+                    disabled={creatingBoard}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {creatingBoard ? "만드는 중..." : "게시판 추가"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPaletteOpen(true)}
+                  className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
+                >
+                  + 위젯 추가
+                </button>
+              </div>
             </div>
+            {createBoardError && <p className="text-xs text-red-600">{createBoardError}</p>}
 
             {modules.length === 0 ? (
               <p className="text-gray-400 text-sm">아직 위젯이 없어요. “+ 위젯 추가”로 시작하세요.</p>
@@ -646,15 +711,30 @@ function WidgetRow({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-medium text-gray-600">게시판 선택</label>
-                {draftBoardId && (
-                  <button
-                    type="button"
-                    onClick={() => onDraftBoardIdChange("")}
-                    className="text-xs text-gray-400 hover:text-gray-600"
-                  >
-                    연결 해제
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* EPIC-088: 위젯이 가리키는 게시판을 바로 옆에서 열어 설정을
+                      고칠 수 있게 — CategoryTreeManager.tsx의 BoardCard "수정"
+                      버튼과 동일한 목적지(/admin/boards/[id])를 새 탭으로 연다. */}
+                  {draftBoardId && (
+                    <a
+                      href={`/admin/boards/${draftBoardId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-gray-400 hover:text-gray-600 underline"
+                    >
+                      게시판 수정
+                    </a>
+                  )}
+                  {draftBoardId && (
+                    <button
+                      type="button"
+                      onClick={() => onDraftBoardIdChange("")}
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      연결 해제
+                    </button>
+                  )}
+                </div>
               </div>
               <CategoryBoardPicker
                 branches={navBranches}

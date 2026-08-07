@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import type { NavTab } from "@/lib/navConfig";
 import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
+import { GatedNavLink } from "@/components/common/GatedNavLink";
 
 // EPIC-039: LeftSidebar.tsx와 대칭 구조 — 자세한 배경은 그쪽 주석 참고.
 //
@@ -131,9 +131,14 @@ export function RightSidebar({
       >
         <div className="flex items-center justify-between p-4 border-b border-white/20">
           {tab.href ? (
-            <Link href={tab.href} onClick={onClose} className="font-semibold hover:underline">
+            <GatedNavLink
+              href={tab.href}
+              minRankToRead={tab.minRankToRead}
+              onClick={onClose}
+              className="font-semibold hover:underline"
+            >
               {tab.label}
-            </Link>
+            </GatedNavLink>
           ) : (
             <span className="font-semibold">{tab.label}</span>
           )}
@@ -154,13 +159,14 @@ export function RightSidebar({
               <div key={group.groupLabel} className="mb-4">
                 <div className="flex items-center rounded-md hover:bg-white/10">
                   {group.href ? (
-                    <Link
+                    <GatedNavLink
                       href={group.href}
+                      minRankToRead={group.minRankToRead}
                       onClick={onClose}
                       className="flex-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white"
                     >
                       {group.groupLabel}
-                    </Link>
+                    </GatedNavLink>
                   ) : (
                     <p className="flex-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60 cursor-default">
                       {group.groupLabel}
@@ -181,14 +187,15 @@ export function RightSidebar({
                 {hasItems && expanded && (
                   <div>
                     {group.items.map((item, idx) => (
-                      <Link
+                      <GatedNavLink
                         key={`${item.href}-${idx}`}
                         href={item.href}
+                        minRankToRead={item.minRankToRead}
                         onClick={onClose}
                         className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
                       >
                         {item.label}
-                      </Link>
+                      </GatedNavLink>
                     ))}
                   </div>
                 )}

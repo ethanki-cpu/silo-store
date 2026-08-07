@@ -9,6 +9,7 @@ import { fetchNavTabs, getActiveNavTabKey, type NavTab } from "@/lib/navConfig";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
+import { GatedNavLink } from "@/components/common/GatedNavLink";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -550,9 +551,9 @@ export function Navbar() {
             } ${tabStyleClassName}`;
             return (
               <Fragment key={tab.key}>
-                <Link href={tab.href!} className={className}>
+                <GatedNavLink href={tab.href!} minRankToRead={tab.minRankToRead} className={className}>
                   {tabLabel}
-                </Link>
+                </GatedNavLink>
                 {writeButtonEl}
               </Fragment>
             );
@@ -581,14 +582,15 @@ export function Navbar() {
                   기존 그대로 별도 동작이라 이동 여부와 섞이지 않는다. href가
                   없는 탭은 기존처럼 클릭 불가한 버튼. */}
               {tab.href ? (
-                <Link
+                <GatedNavLink
                   href={tab.href}
+                  minRankToRead={tab.minRankToRead}
                   onClick={(e) => e.currentTarget.blur()}
                   className={className}
                   aria-haspopup={hasChildren ? "true" : undefined}
                 >
                   {tabLabel}
-                </Link>
+                </GatedNavLink>
               ) : (
                 <button
                   type="button"
@@ -638,15 +640,16 @@ export function Navbar() {
                                 펼쳐진 채로 "고정"되는 버그의 실제 원인이었다.
                                 onClick에서 즉시 blur()해 해결. */}
                             {group.href ? (
-                              <Link
+                              <GatedNavLink
                                 href={group.href}
+                                minRankToRead={group.minRankToRead}
                                 onClick={(e) => e.currentTarget.blur()}
                                 aria-haspopup="true"
                                 className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                               >
                                 <span>{group.groupLabel}</span>
                                 <span className="text-gray-400 text-xs">›</span>
-                              </Link>
+                              </GatedNavLink>
                             ) : (
                               <button
                                 type="button"
@@ -663,14 +666,15 @@ export function Navbar() {
                             <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
                               <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
                                 {group.items.map((item, idx) => (
-                                  <Link
+                                  <GatedNavLink
                                     key={`${item.href}-${idx}`}
                                     href={item.href}
+                                    minRankToRead={item.minRankToRead}
                                     onClick={(e) => e.currentTarget.blur()}
                                     className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                   >
                                     {item.label}
-                                  </Link>
+                                  </GatedNavLink>
                                 ))}
                               </div>
                             </div>
@@ -681,39 +685,42 @@ export function Navbar() {
                             // EPIC-079-PHASE-2: 드롭다운 항목도 서브카테고리(손자)가
                             // 있으면 group과 동일한 2차 플라이아웃 패턴으로 렌더링.
                             <div key={item.href} className="relative group/row">
-                              <Link
+                              <GatedNavLink
                                 href={item.href}
+                                minRankToRead={item.minRankToRead}
                                 onClick={(e) => e.currentTarget.blur()}
                                 aria-haspopup="true"
                                 className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                               >
                                 <span>{item.label}</span>
                                 <span className="text-gray-400 text-xs">›</span>
-                              </Link>
+                              </GatedNavLink>
                               <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
                                 <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
                                   {item.children.map((child, idx) => (
-                                    <Link
+                                    <GatedNavLink
                                       key={`${child.href}-${idx}`}
                                       href={child.href}
+                                      minRankToRead={child.minRankToRead}
                                       onClick={(e) => e.currentTarget.blur()}
                                       className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                     >
                                       {child.label}
-                                    </Link>
+                                    </GatedNavLink>
                                   ))}
                                 </div>
                               </div>
                             </div>
                           ) : (
-                            <Link
+                            <GatedNavLink
                               key={item.href}
                               href={item.href}
+                              minRankToRead={item.minRankToRead}
                               onClick={(e) => e.currentTarget.blur()}
                               className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                             >
                               {item.label}
-                            </Link>
+                            </GatedNavLink>
                           ),
                         )}
                   </div>

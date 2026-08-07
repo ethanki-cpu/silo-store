@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-07 (EPIC-084-REVISED 후속 — Instagram 임베드 간헐적 미노출 조사 + 폴백 타임아웃 연장/재시도)
+- **사용자 신고**: 특정 게시글(`/boards/7802db3a-.../bef5d64a`)에서 "글쓰기 미리보기에는 Instagram 임베드가 보이는데 실제 게시글 상세에는 안 보인다"는 신고. 코드 버그로 의심됐으나 조사 결과 **에디터 미리보기(`InstagramEmbedPreview`, BlockEditor.tsx)와 상세 페이지(`UniversalBlockRenderer`→`PostBody.tsx`) 둘 다 완전히 동일한 `processInstagramEmbeds()`(src/lib/instagramEmbed.ts)를 호출**하는 것으로 확인 — 코드 경로 차이가 원인일 가능성은 배제됨.
+- **실측 확인**: Browser pane으로 편집기 미리보기/상세 페이지를 각각 시간을 두고, 그리고 동시에 재현 — 실패 시점엔 embed.js가 만든 iframe이 높이 ~24px(플레이스홀더)에서 전혀 못 자라고 멈췄고(70초 이상 대기해도 무변화), 이 게시글과 무관한 임의의 다른 Instagram 게시물로도 동일 증상 재현(이 글/이 코드만의 문제가 아님을 확인). 이후 시점을 바꿔 다시 테스트하니 편집기/상세 페이지 **둘 다 동시에** 정상 렌더링(iframe 500px+)됨 — 코드가 아니라 **Instagram 서버 쪽 응답이 시점에 따라 달라지는 간헐적 현상**으로 결론(반복적인 자동화 테스트 요청 자체가 일시적 rate-limit/봇 탐지를 유발했을 가능성 포함). `next.config.ts`에 CSP/X-Frame-Options/Permissions-Policy 등 iframe을 막을 만한 헤더 설정이 전혀 없음도 확인 — Vercel/우리 배포 설정이 원인일 가능성도 배제.
+- **개선(사용자 선택)**: `src/lib/instagramEmbed.ts`의 `processInstagramEmbeds()`를 6초 단발 체크에서 **1차 대기(8초) → 안 자랐으면 `Embeds.process()` 재시도 → 2차 대기(8초) → 그래도 안 자란 것만 최종 링크 카드로 교체**하는 2단계 체크로 변경(`FALLBACK_TIMEOUT_MS` → `FIRST_CHECK_MS`+`RETRY_CHECK_MS`). 중복 코드였던 미렌더 판정/링크 교체 로직을 `getUnrenderedEmbeds()`/`replaceWithFallbackLink()`로 분리. 근본 원인(Instagram 서버 쪽 간헐적 실패)은 여전히 우리 쪽에서 완전히 통제 불가 — 이 변경은 일시적 지연 구간을 좀 더 버텨내는 완화책.
+- **검증**: `npm run lint`(0 errors, 대상 파일 신규 warning 없음). 로컬 dev 서버(`silo-dev`)로 재구성된 두 단계 타이밍(구 6초 컷 대신 그 시점엔 아직 안 넘어가고, 재시도 이후 최종적으로 넘어가는 것)이 실제로 동작함을 DOM 폴링으로 확인.
+
 ## 2026-08-07 (EPIC-088 — Admin Detail Corrections, Widget Linkage, & Embed Thumbnail Engine)
 - **사이트 메뉴 접기/펼치기(요구사항 12)**: `CategoryTreeManager.tsx`에 노드별 접기 상태(`collapsedIds`)를 추가 — 하위 nav 행 또는 배정된 게시판이 있는 노드에만 ▶/▼ 토글 아이콘을 보여주고, 접으면 그 아래 `TreeLevel`/`BoardListLevel`(nav 자식 + 배정된 게시판)을 렌더링하지 않는다. 드래그 핸들과 별개 버튼이라 dnd-kit 리스너와 충돌하지 않는다.
 - **메뉴별 티어 접근 제어(요구사항 3)**: 새 컬럼을 추가하지 않고 이미 있는 `page_builder.min_rank_to_read`(EPIC-087-PHASE-C)/`boards.min_rank_to_read`를 재사용 — `CategoryDetailModal`의 "연결된 페이지"/"연결된 게시판" 섹션에 "최소 접근 가능 티어" 셀렉트+저장 버튼을 추가해 사이트 메뉴 관리 화면 안에서 바로 편집할 수 있게 했다.

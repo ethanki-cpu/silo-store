@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import type { JSONContent } from "@/lib/blockEditorCore";
@@ -13,7 +12,7 @@ import { CommentSection } from "@/components/boards/CommentSection";
 import { BoardPostListPanel } from "@/components/boards/BoardPostListPanel";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
-import { ScrapButton } from "@/components/common/ScrapButton";
+import { PostFloatingActionBar } from "@/components/boards/PostFloatingActionBar";
 
 type PostDetail = {
   id: string;
@@ -49,6 +48,10 @@ type Comment = {
   author_id: string;
   author_name: string;
   created_at: string;
+  parent_id: string | null;
+  author_avatar_url: string | null;
+  like_count: number;
+  liked_by_me: boolean;
 };
 
 // EPIC-079-PHASE-2: URL이 UUID(/boards/[id]/[postId])에서 slug
@@ -170,6 +173,61 @@ export function PostDetailClient() {
     load();
   }
 
+  // EPIC-089: 답글(대댓글) — CommentSection이 parentId를 이미 "최상위
+  // 댓글" id로 정규화해 넘겨준다(서버도 방어적으로 한 번 더 평평하게
+  // 만듦). 낙관적 갱신 없이 load()로 다시 불러온다 — 톱레벨 댓글 등록과
+  // 동일한 단순한 패턴.
+  async function handleReply(parentId: string, body: string) {
+    const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}/comments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({ body, parentId }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error);
+      return;
+    }
+    load();
+  }
+
+  // EPIC-089: 댓글/대댓글 좋아요 — 낙관적으로 즉시 반영하고, 실패하면
+  // 되돌린다(ScrapButton의 optimistic 패턴과 동일).
+  async function handleToggleCommentLike(commentId: string) {
+    if (!session) {
+      router.push("/login");
+      return;
+    }
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId
+          ? { ...c, liked_by_me: !c.liked_by_me, like_count: c.like_count + (c.liked_by_me ? -1 : 1) }
+          : c,
+      ),
+    );
+    const res = await fetch(
+      `/api/boards/${boardSlug}/posts/${postSlug}/comments/${commentId}/like`,
+      { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } },
+    );
+    if (!res.ok) {
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId
+            ? { ...c, liked_by_me: !c.liked_by_me, like_count: c.like_count + (c.liked_by_me ? -1 : 1) }
+            : c,
+        ),
+      );
+      return;
+    }
+    const data = await res.json();
+    setComments((prev) =>
+      prev.map((c) => (c.id === commentId ? { ...c, liked_by_me: data.liked, like_count: data.likeCount } : c)),
+    );
+  }
+
   async function handleDelete() {
     if (!window.confirm("이 글을 삭제할까요? 되돌릴 수 없어요.")) return;
 
@@ -220,22 +278,16 @@ export function PostDetailClient() {
 
   return (
     <>
-      <PageEditButton slug="boards-id-postid" />
       <main className="flex-1 bg-white px-6 py-12">
       <div className="max-w-4xl mx-auto w-full">
-        {/* EPIC-084: 이전 카테고리 목록으로 돌아가는 버튼 — 이전엔
-            하단의 BoardPostListPanel(다른 글 미리보기)만 있고 "목록으로"
-            자체는 없었다. */}
-        <div className="mb-4 flex items-center justify-between">
-          <Link
-            href={`/boards/${boardSlug}`}
-            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
-          >
-            ← 목록으로
-          </Link>
-          {/* EPIC-085: 상세 상단에도 스크랩 버튼(하단은 PostActions 안,
-              definition.bookmarks로 노출 여부 통일). */}
-          {definition.bookmarks && <ScrapButton postId={post.id} size="sm" />}
+        {/* EPIC-089(요구사항 3): "목록으로"는 이제 항상 떠 있는
+            PostFloatingActionBar(좌측 하단)로 옮겨갔다 — 본문 상단 좌측의
+            이 자리는 그 대신 관리자용 "페이지 수정" 버튼(기존엔 화면 우측
+            상단에 고정돼 있었음)이 인라인으로 채운다. 관리자가 아니면 이
+            자리는 비워둔다(방문자용 대체 링크 없음 — 목록으로는 FAB에 항상
+            있으므로 중복 노출하지 않음). */}
+        <div className="mb-4">
+          <PageEditButton slug="boards-id-postid" className="inline-flex items-center rounded-md bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700" />
         </div>
         <PostDetailHeader
           postNumber={post.post_number}
@@ -283,25 +335,29 @@ export function PostDetailClient() {
               onCommentBodyChange={setCommentBody}
               onSubmit={handleComment}
               submitting={commentSubmitting}
+              onReply={handleReply}
+              onToggleLike={handleToggleCommentLike}
             />
           )}
 
           <BoardPostListPanel boardId={boardSlug} currentPostId={postSlug} />
-
-          {/* EPIC-084-REVISED: 상단에만 있던 "목록으로"를 하단에도 추가 —
-              긴 글을 끝까지 읽은 뒤 다시 위로 스크롤하지 않고도 목록으로
-              돌아갈 수 있게 한다. */}
-          <div className="mt-6">
-            <Link
-              href={`/boards/${boardSlug}`}
-              className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
-            >
-              ← 목록으로
-            </Link>
-          </div>
         </div>
       </div>
       </main>
+      {/* EPIC-089(요구사항 3): 좌측 하단 고정 액션 바 — "목록으로"가 이제
+          여기 항상 떠 있으므로(스크롤 위치 무관) EPIC-084-REVISED가 하단에
+          추가했던 중복 "목록으로" 링크는 제거했다. */}
+      <PostFloatingActionBar
+        boardSlug={boardSlug}
+        likeCount={post.like_count}
+        likedByMe={likedByMe}
+        onToggleLike={handleLike}
+        likeSubmitting={likeSubmitting}
+        showLike={definition.likes}
+        postId={post.id}
+        showBookmark={definition.bookmarks}
+        showComments={definition.comments}
+      />
     </>
   );
 }

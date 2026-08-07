@@ -58,6 +58,11 @@ type SidebarIconsValue = {
   iconSizePx: number;
   backgroundColor: string;
   triggerMode: "click" | "hover";
+  // EPIC-089(요구사항 2): 지금까지 top-1/2(화면 정중앙)로 고정돼 있던
+  // 좌/우 사이드바 여닫이 아이콘의 세로 위치 — 화면 위쪽에서부터의 px
+  // 거리로 관리자가 직접 조절할 수 있게 한다. 값이 없으면(마이그레이션 전
+  // 저장값) DEFAULT_TOP_OFFSET_PX로 폴백.
+  topOffsetPx: number;
 };
 
 // EPIC-079-PHASE-4: /admin/navigation/settings("홈페이지 설정 관리")의
@@ -88,6 +93,11 @@ const DEFAULT_ICON_BG_COLOR = "#166534";
 // EPIC-077: 사이드바 여닫이 트리거 모드 기본값 — 호버 시 아르누보 애니메이션만
 // 재생되고 클릭해야 패널이 열리도록 "click"을 기본으로 한다.
 const DEFAULT_TRIGGER_MODE: "click" | "hover" = "click";
+// EPIC-089: 기존 기본값(top-1/2, 화면 정중앙 ≈ 뷰포트 높이의 50%)보다
+// 상단으로 더 올린 기본 위치 — 800px 기준 뷰포트 상단에서의 고정 px
+// 거리로 둔다(반응형 % 대신 px을 쓴 이유는 관리자가 숫자 하나로 직관적으로
+// 조절할 수 있게 하기 위함, iconSizePx와 동일한 패턴).
+const DEFAULT_TOP_OFFSET_PX = 160;
 // EPIC-043: main_logo.customFonts의 각 활성 항목에 주입할 @font-face의
 // font-family 이름 접두사 — 항목 id로 구분해 여러 개를 동시에 등록한다.
 const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
@@ -225,6 +235,7 @@ export function Navbar() {
             iconSizePx: value.iconSizePx || DEFAULT_ICON_SIZE_PX,
             backgroundColor: value.backgroundColor || DEFAULT_ICON_BG_COLOR,
             triggerMode: value.triggerMode === "hover" ? "hover" : DEFAULT_TRIGGER_MODE,
+            topOffsetPx: value.topOffsetPx || DEFAULT_TOP_OFFSET_PX,
           });
         }
       });
@@ -751,6 +762,7 @@ export function Navbar() {
         iconHoverUrl={sidebarIcons?.leftIconHoverUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
         triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
+        topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
       />
       <RightSidebar
         tab={rightSidebarTab}
@@ -761,6 +773,7 @@ export function Navbar() {
         iconHoverUrl={sidebarIcons?.rightIconHoverUrl || undefined}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
         triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
+        topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
       />
     </header>
   );

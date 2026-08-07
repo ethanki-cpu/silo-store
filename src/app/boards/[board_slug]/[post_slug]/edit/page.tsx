@@ -144,7 +144,11 @@ export default function EditPostPage() {
       return;
     }
 
-    router.push(`/boards/${selectedBoardSlug}/${postSlug}`);
+    // EPIC-089: 다른 게시판으로 옮기면서 slug 충돌로 서버가 slug를 새로
+    // 발급했을 수 있다(예: "-2" 접미사) — 그 경우 원래 postSlug로 이동하면
+    // 404가 난다. 서버가 실제로 저장한 data.slug가 있으면 그걸 우선한다.
+    const finalSlug = (data.slug as string | undefined) ?? postSlug;
+    router.push(`/boards/${selectedBoardSlug}/${finalSlug}`);
   }
 
   async function handleDelete() {

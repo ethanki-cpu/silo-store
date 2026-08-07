@@ -204,17 +204,19 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-087
-[Stage 2] Admin Dashboard Overhaul, Tier-based Access Control, & Global UX —
-9개 요구사항(관리자 전체 글 관리 일괄 작업, 사이트 메뉴 게시판 D&D, 페이지/
-게시판 티어 접근 제어, 회원관리 정렬+권한 매트릭스, 스튜디오 대관/물품대여
-신청 관리, GNB 재배치+멤버십 팝오버, Footer 신설)를 PHASE-0~G로 분할 구현
-완료. 신규 스키마: `boards`/`page_builder.min_rank_to_read`, `members.avatar_url`,
-`item_rental_requests` 테이블, `avatars` Storage 버킷. 코드/스키마 전부
-완료·검증됐으나(매 단계 `tsc`/`lint` 0 errors, Browser pane 실측 검증) 관리자
-로그인 세션에서의 실사용 클릭 테스트와 `main`/`develop` 병합은 사용자 승인
-대기 중(브랜치 `feature/EPIC-087`). EPIC-086(Slide Module 글쓰기 버튼)도 그
-직전에 완료·병합됨.
+EPIC-089
+[Stage 2] Floating Action UX, YouTube-style Nested Comments, & Admin/Sidebar
+Control — 게시글 상세 플로팅 액션 바(목록으로/좋아요/북마크/공유/댓글)와
+"페이지 수정" 버튼 재배치, `comments.parent_id`/`comment_likes`/
+`public_profiles.avatar_url` 신규 스키마로 유튜브 스타일 대댓글(1단계
+들여쓰기+@멘션)/좋아요/아바타, `/admin/posts/common`(미분류 글 관리) 탭,
+위젯 편집기 Board Type 인라인 드롭다운, 사이드바 여닫이 아이콘 Y축 위치
+관리자 설정화, 그리고 게시글을 다른 게시판으로 옮겨 저장할 때 나던 실제
+DB 저장 실패(`posts(board_id, slug)` UNIQUE 충돌) 수정. 코드/스키마 전부
+완료·검증됐으나(`tsc`/`lint` 0 errors, 로컬 dev 로그인 세션 실측 검증)
+`main`/`develop` 병합은 사용자 승인 대기 중(브랜치 `feature/EPIC-089`).
+EPIC-087(Admin Dashboard Overhaul 등)/EPIC-088(Admin Detail Corrections 등)도
+그 직전에 완료됐으나 아직 병합 전.
 
 **NEXT EPIC**
 

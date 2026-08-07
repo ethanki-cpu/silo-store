@@ -4,7 +4,7 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-08-07 (EPIC-087 기준).
+> 최종 확인: 2026-08-08 (EPIC-089 기준).
 
 =====================================
 
@@ -54,15 +54,16 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-087([Stage 2] Admin Dashboard Overhaul, Tier-based Access Control, & Global
-UX — 9개 요구사항을 PHASE-0~G로 분할 구현 완료: 전체 글 관리 일괄 작업, 사이트
-메뉴 게시판 D&D+연동 시각화, 페이지/게시판 티어 접근 제어(신규
-`min_rank_to_read` + 리다이렉트 게이트), 회원관리 정렬+티어 권한 매트릭스,
-스튜디오 대관/물품대여 신청 관리(신규 `item_rental_requests`), GNB 재배치+
-멤버십 팝오버, Footer 신설) — 브랜치 `feature/EPIC-087`, 코드/스키마 전부
-완료·검증됐으나 관리자 로그인 세션에서의 실사용 클릭 테스트와 main/develop
-병합은 사용자 승인 대기 중(NEXT_TASK.md). EPIC-086(Slide Module 글쓰기 버튼)도
-그 직전에 완료·병합됨.
+EPIC-089([Stage 2] Floating Action UX, YouTube-style Nested Comments, &
+Admin/Sidebar Control) — 게시글 상세 플로팅 액션 바+"페이지 수정" 위치 이동,
+`comments.parent_id`/`comment_likes`/아바타 신규 스키마로 유튜브 스타일
+대댓글/좋아요, `/admin/posts/common`(미분류 글 관리) 신설, 위젯 편집기 Board
+Type 인라인 드롭다운, 사이드바 Y축 위치 관리자 설정화, 그리고 게시글을 다른
+게시판으로 옮겨 저장할 때 나던 실제 DB 저장 실패(slug UNIQUE 충돌) 수정 —
+브랜치 `feature/EPIC-089`, 코드/스키마 전부 완료·검증됐으나 main/develop
+병합은 사용자 승인 대기 중(NEXT_TASK.md). EPIC-088(Admin Detail Corrections,
+Widget Linkage, & Embed Thumbnail Engine)도 브랜치 `feature/EPIC-088`로 그
+직전에 완료됐으나 아직 병합 전.
 
 =====================================
 

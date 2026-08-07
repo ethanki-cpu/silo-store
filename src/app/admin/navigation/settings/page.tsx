@@ -135,6 +135,9 @@ type SidebarIconsValue = {
   // 값이 사라지므로 필드/UI는 남겨두고 시각적 적용만 중단했다.
   backgroundColor: string;
   triggerMode: "click" | "hover";
+  // EPIC-089(요구사항 2): 좌/우 사이드바 여닫이 아이콘의 뷰포트 상단
+  // 기준 px 위치.
+  topOffsetPx: number;
 };
 
 // EPIC-079-PHASE-4: 상단 탭(site_navigations의 depth 0 행) 하나하나의
@@ -168,6 +171,10 @@ const DEFAULT_ICON_BG_COLOR = "#166534";
 // EPIC-077: 사이드바 여닫이 트리거 모드 기본값 — 호버 시 아르누보 애니메이션만
 // 재생되고 클릭해야 패널이 열리도록 "click"을 기본으로 한다.
 const DEFAULT_TRIGGER_MODE: "click" | "hover" = "click";
+// EPIC-089: Navbar.tsx의 DEFAULT_TOP_OFFSET_PX와 동일한 값 — 두 파일이
+// site_settings 값을 각자 읽고 기본값도 각자 상수로 갖는 기존 관례(위
+// 다른 DEFAULT_* 상수들과 동일)를 그대로 따른다.
+const DEFAULT_TOP_OFFSET_PX = 160;
 
 function makeDefaultCustomFont(): CustomFontEntry {
   return {
@@ -210,6 +217,7 @@ const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
   iconSizePx: DEFAULT_ICON_SIZE_PX,
   backgroundColor: DEFAULT_ICON_BG_COLOR,
   triggerMode: DEFAULT_TRIGGER_MODE,
+  topOffsetPx: DEFAULT_TOP_OFFSET_PX,
 };
 
 const STORAGE_BUCKET = "public-assets";
@@ -1061,6 +1069,26 @@ export default function AdminNavigationSettingsPage() {
                 setSidebarIcons({
                   ...sidebarIcons,
                   iconSizePx: Number(e.target.value) || DEFAULT_ICON_SIZE_PX,
+                })
+              }
+            />
+          </div>
+          {/* EPIC-089(요구사항 2): 좌/우 사이드바 여닫이 아이콘 세로 위치 —
+              기존엔 top-1/2(화면 정중앙)로 고정이었다. 뷰포트 상단에서부터의
+              px 거리로 직접 조절할 수 있게 한다(iconSizePx와 동일한 숫자
+              입력 패턴). */}
+          <div className="mt-3">
+            <label className="block text-sm mb-1">아이콘 세로 위치 (상단에서 px)</label>
+            <input
+              type="number"
+              min={0}
+              max={2000}
+              className={`${inputClass} w-28`}
+              value={sidebarIcons.topOffsetPx}
+              onChange={(e) =>
+                setSidebarIcons({
+                  ...sidebarIcons,
+                  topOffsetPx: Number(e.target.value) || DEFAULT_TOP_OFFSET_PX,
                 })
               }
             />

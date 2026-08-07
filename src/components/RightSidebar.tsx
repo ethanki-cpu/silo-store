@@ -28,6 +28,7 @@ export function RightSidebar({
   iconHoverUrl,
   iconSizePx = 32,
   triggerMode = "click",
+  topOffsetPx,
 }: {
   tab?: NavTab;
   open: boolean;
@@ -44,6 +45,9 @@ export function RightSidebar({
   // 재생하고 클릭해야 패널이 열린다. "hover"면 EPIC-063 이전 방식대로 호버
   // 즉시 열린다.
   triggerMode?: "click" | "hover";
+  // EPIC-089: 뷰포트 상단에서부터의 px 거리 — 지정하지 않으면(구버전 호출부)
+  // 기존 top-1/2(정중앙) 동작을 그대로 유지한다.
+  topOffsetPx?: number;
 }) {
   // EPIC-054D(접근성 감사 §13): Escape로 닫기 + 닫힐 때 트리거 아이콘으로
   // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
@@ -93,7 +97,10 @@ export function RightSidebar({
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="right-sidebar-panel"
-          className="group fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white"
+          className={`group fixed right-0 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white ${
+            topOffsetPx === undefined ? "top-1/2 -translate-y-1/2" : ""
+          }`}
+          style={topOffsetPx === undefined ? undefined : { top: topOffsetPx }}
         >
           {/* EPIC-078: 기본/호버 미디어를 같은 자리에 겹쳐 opacity로
               크로스페이드 — 미디어 자체(이미지 또는 투명 비디오)의 전환으로

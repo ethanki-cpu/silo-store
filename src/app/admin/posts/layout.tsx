@@ -15,6 +15,10 @@ const SUB_NAV = [
   { href: "/admin/posts/salon", label: "[살롱데상] 게시글 관리" },
   { href: "/admin/posts/studio", label: "[스튜디오] 게시글 관리" },
   { href: "/admin/posts/mypage", label: "[마이페이지] 게시글 관리" },
+  // EPIC-089: 어느 사이트 메뉴 브랜치에도 아직 안 걸린(=미분류) 게시판의
+  // 글은 위 4개 탭 어디에도 안 뜬다(AdminPostsBoardView의 domain==="common"
+  // 분기) — 이 탭이 없으면 그런 글은 관리 화면에서 영원히 안 보였다.
+  { href: "/admin/posts/common", label: "[기타] 미분류 게시글 관리" },
 ];
 
 export default function AdminPostsLayout({

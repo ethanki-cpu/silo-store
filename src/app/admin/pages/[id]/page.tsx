@@ -38,9 +38,9 @@ import {
   type NavBranchNode,
 } from "@/lib/adminTreeGrouping";
 import { CategoryBoardPicker } from "@/components/common/CategoryBoardPicker";
-import { RANK_OPTIONS } from "@/components/admin/BoardForm";
+import { RANK_OPTIONS, RENDER_TYPE_OPTIONS } from "@/components/admin/BoardForm";
 
-type BoardOption = { id: string; name: string };
+type BoardOption = { id: string; name: string; render_type: string | null };
 // EPIC-084: 위젯의 "게시판 선택" 드롭다운이 게시판 수십 개를 이름 알파벳
 // 순서도 아닌 임의 순서로 flat하게 나열해 원하는 게시판을 찾기 힘들다는
 // 요청 — adminTreeGrouping.ts(EPIC-072B, "사이트 구성 관리" 트리 뷰가 이미
@@ -133,7 +133,11 @@ export default function AdminPageEditorPage() {
           setBoards(
             data
               .filter((b: { is_public?: boolean }) => b.is_public !== false)
-              .map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })),
+              .map((b: { id: string; name: string; render_type?: string | null }) => ({
+                id: b.id,
+                name: b.name,
+                render_type: b.render_type ?? null,
+              })),
           );
         }
       });
@@ -251,6 +255,28 @@ export default function AdminPageEditorPage() {
       return;
     }
     router.push(`/admin/boards/${data.id}`);
+  }
+
+  // EPIC-089(요구사항 5): 지금까지 위젯 편집기의 "게시판 수정" 링크를 타고
+  // /admin/boards/[id]로 나가야만 Board Type(render_type)을 바꿀 수 있었다
+  // — 여기서 바로 바꿀 수 있게 PATCH /api/admin/boards/[id](이미
+  // render_type을 EDITABLE_FIELDS로 받고 있음, 새 라우트 불필요)를 호출하고
+  // 로컬 boards 상태만 갱신한다.
+  async function handleBoardRenderTypeChange(boardId: string, renderType: string) {
+    const res = await fetch(`/api/admin/boards/${boardId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({ render_type: renderType || null }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Board Type 변경에 실패했어요.");
+      return;
+    }
+    setBoards((prev) => prev.map((b) => (b.id === boardId ? { ...b, render_type: renderType || null } : b)));
   }
 
   async function handleDeleteModule(moduleId: string) {
@@ -559,6 +585,7 @@ export default function AdminPageEditorPage() {
                         onDuplicate={() => handleDuplicate(module)}
                         onToggleHidden={() => handleToggleHidden(module)}
                         onDelete={() => handleDeleteModule(module.id)}
+                        onBoardRenderTypeChange={handleBoardRenderTypeChange}
                       />
                     ))}
                   </div>
@@ -610,6 +637,7 @@ function WidgetRow({
   onDuplicate,
   onToggleHidden,
   onDelete,
+  onBoardRenderTypeChange,
 }: {
   module: PageModuleRow;
   boards: BoardOption[];
@@ -632,6 +660,7 @@ function WidgetRow({
   onDuplicate: () => void;
   onToggleHidden: () => void;
   onDelete: () => void;
+  onBoardRenderTypeChange: (boardId: string, renderType: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: module.id,
@@ -743,6 +772,29 @@ function WidgetRow({
                 value={draftBoardId}
                 onChange={onDraftBoardIdChange}
               />
+              {/* EPIC-089(요구사항 5): 게시판 수정 화면으로 나가지 않고
+                  Board Type(render_type)을 바로 바꿀 수 있게 — 선택된 값은
+                  변경 즉시 저장(다른 필드처럼 "저장" 버튼을 기다리지 않음,
+                  게시판 수정 화면 자체가 원래 그런 즉시-저장 화면이 아니라
+                  이 위젯 draft와는 별개 리소스라서 이 필드만 독립적으로
+                  즉시 반영하는 게 자연스럽다). */}
+              {draftBoardId && (
+                <div className="mt-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Board Type</label>
+                  <select
+                    value={boards.find((b) => b.id === draftBoardId)?.render_type ?? ""}
+                    onChange={(e) => onBoardRenderTypeChange(draftBoardId, e.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  >
+                    <option value="">(기본값)</option>
+                    {RENDER_TYPE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 

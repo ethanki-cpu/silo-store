@@ -35,6 +35,7 @@ export async function POST(
 
   const body = await request.json();
   const commentBody = body?.body as string | undefined;
+  const replyToId = body?.parentId as string | undefined;
 
   if (!commentBody || !commentBody.trim()) {
     return NextResponse.json(
@@ -43,12 +44,30 @@ export async function POST(
     );
   }
 
+  // EPIC-089: 유튜브처럼 답글은 딱 1단계만 들여쓴다 — 답글에 또 답글을
+  // 달면(=parentId가 가리키는 댓글도 이미 parent_id가 있으면) 그 댓글의
+  // parent_id(최상위 댓글)로 그대로 매달아 평평하게 유지한다. parentId가
+  // 이 게시글 소속이 아니면(다른 글 댓글 id를 잘못 보낸 경우) 조용히
+  // 무시하고 최상위 댓글로 처리한다.
+  let parentId: string | null = null;
+  if (replyToId) {
+    const { data: parentComment } = await requester.scopedClient
+      .from("comments")
+      .select("id, post_id, parent_id")
+      .eq("id", replyToId)
+      .maybeSingle();
+    if (parentComment && parentComment.post_id === postId) {
+      parentId = (parentComment.parent_id as string | null) ?? (parentComment.id as string);
+    }
+  }
+
   const { data: comment, error: insertError } = await requester.scopedClient
     .from("comments")
     .insert({
       post_id: postId,
       author_id: requester.member.id,
       body: commentBody,
+      parent_id: parentId,
     })
     .select()
     .single();

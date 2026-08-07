@@ -6,6 +6,7 @@ import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
 import { resolveFallbackEmbedThumbnail } from "@/lib/embedThumbnail";
 import { enqueueOrphanedImages, enqueueAllImages } from "@/lib/imageGc";
 import { fetchBoard } from "@/lib/boardFetch";
+import { slugify } from "@/lib/slugify";
 
 const richFields =
   "id, board_id, slug, title, body, body_json, featured_image_url, featured_image_path, thumbnail_visible, category, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
@@ -163,10 +164,12 @@ export async function GET(
       definition.comments
         ? client
             .from("comments")
-            .select("id, body, author_id, created_at")
+            .select("id, body, author_id, created_at, parent_id")
             .eq("post_id", postId)
             .order("created_at", { ascending: true })
-        : Promise.resolve({ data: [] as { id: string; body: string; author_id: string; created_at: string }[] }),
+        : Promise.resolve({
+            data: [] as { id: string; body: string; author_id: string; created_at: string; parent_id: string | null }[],
+          }),
       requester && definition.likes
         ? requester.scopedClient
             .from("likes")
@@ -184,12 +187,29 @@ export async function GET(
       ...(comments ?? []).map((c) => c.author_id),
     ]),
   ];
-  const { data: profiles } = await supabase
-    .from("public_profiles")
-    .select("id, name")
-    .in("id", authorIds);
+  const commentIds = (comments ?? []).map((c) => c.id);
+
+  // EPIC-089: 댓글 좋아요 — comment_likes를 group by 없이 그냥 전부 읽어와
+  // 클라이언트 계산과 동일하게 서버에서 카운트/내 좋아요 여부를 만든다
+  // (댓글 수가 페이지당 게시글 하나 단위라 규모가 작아 group by count 대신
+  // 이 방식으로도 충분 — posts.like_count 같은 캐시 컬럼을 새로 만들지
+  // 않은 이유와 동일).
+  const [{ data: profiles }, { data: commentLikes }] = await Promise.all([
+    supabase.from("public_profiles").select("id, name, avatar_url").in("id", authorIds),
+    commentIds.length > 0
+      ? supabase.from("comment_likes").select("comment_id, member_id").in("comment_id", commentIds)
+      : Promise.resolve({ data: [] as { comment_id: string; member_id: string }[] }),
+  ]);
 
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.name]));
+  const avatarById = new Map((profiles ?? []).map((p) => [p.id, (p as { avatar_url?: string | null }).avatar_url ?? null]));
+
+  const likeCountByComment = new Map<string, number>();
+  const likedCommentIds = new Set<string>();
+  for (const like of commentLikes ?? []) {
+    likeCountByComment.set(like.comment_id, (likeCountByComment.get(like.comment_id) ?? 0) + 1);
+    if (requester && like.member_id === requester.member.id) likedCommentIds.add(like.comment_id);
+  }
 
   return NextResponse.json({
     board,
@@ -203,6 +223,9 @@ export async function GET(
     comments: (comments ?? []).map((c) => ({
       ...c,
       author_name: nameById.get(c.author_id) ?? "알 수 없음",
+      author_avatar_url: avatarById.get(c.author_id) ?? null,
+      like_count: likeCountByComment.get(c.id) ?? 0,
+      liked_by_me: likedCommentIds.has(c.id),
     })),
     likedByMe,
   });
@@ -239,7 +262,7 @@ export async function PATCH(
 
   const { data: existing, error: existingError } = await requester.scopedClient
     .from("posts")
-    .select("id, author_id, body_json")
+    .select("id, author_id, body_json, slug")
     .eq("slug", postSlug)
     .eq("board_id", boardId)
     .single();
@@ -286,13 +309,39 @@ export async function PATCH(
   // EPIC-079-PHASE-4: "게시될 페이지 선택"에서 다른 게시판을 골랐으면 이
   // 글을 그 게시판으로 옮긴다 — 원래 게시판과 같으면(대부분의 경우) 아무
   // 일도 하지 않는다.
+  // EPIC-089: posts에는 (board_id, slug) 복합 UNIQUE 인덱스
+  // (posts_board_slug_unique_idx, epic-079-phase-2-slug.sql)가 있는데, 위
+  // targetBoardId 로직은 지금까지 slug를 그대로 들고 옮겼다 — 목적지
+  // 게시판에 우연히 같은 slug(짧은 영문 제목이면 흔함, 예: "notice"/
+  // "공지")를 가진 글이 이미 있으면 이 UPDATE가 unique violation으로
+  // 그대로 실패해 "저장이 전혀 안 되는" 리포트로 이어졌다. 목적지 게시판
+  // 안에서만 유일하면 되므로, 충돌할 때만 /api/admin/boards의 slug 재발급
+  // 로직과 동일하게 -2, -3 접미사를 붙여 재시도한다(같은 게시판 안에
+  // 머무르는 절대다수 케이스는 slug를 전혀 건드리지 않음).
   let targetBoardId: string | null = null;
+  let targetSlug: string | null = null;
   if (targetBoardSlug && targetBoardSlug !== boardSlug) {
     const { board: targetBoard, boardError: targetBoardError } = await fetchBoard(targetBoardSlug);
     if (targetBoardError || !targetBoard) {
       return NextResponse.json({ error: "옮길 게시판을 찾을 수 없어요." }, { status: 404 });
     }
     targetBoardId = (targetBoard as { id: string }).id;
+
+    const baseSlug = (existing.slug as string | null) || slugify(title) || postId.slice(0, 8);
+    let candidateSlug = baseSlug;
+    let suffix = 2;
+    while (true) {
+      const { data: clash } = await requester.scopedClient
+        .from("posts")
+        .select("id")
+        .eq("board_id", targetBoardId)
+        .eq("slug", candidateSlug)
+        .maybeSingle();
+      if (!clash) break;
+      candidateSlug = `${baseSlug}-${suffix}`;
+      suffix += 1;
+    }
+    targetSlug = candidateSlug;
   }
 
   let sanitizedBody: string;
@@ -319,7 +368,7 @@ export async function PATCH(
       is_docent_post: isDocentPost,
       tags,
       updated_at: new Date().toISOString(),
-      ...(targetBoardId ? { board_id: targetBoardId } : {}),
+      ...(targetBoardId ? { board_id: targetBoardId, slug: targetSlug } : {}),
     })
     .eq("id", postId)
     .select()
@@ -333,7 +382,7 @@ export async function PATCH(
         title,
         body: sanitizedBody,
         is_docent_post: isDocentPost,
-        ...(targetBoardId ? { board_id: targetBoardId } : {}),
+        ...(targetBoardId ? { board_id: targetBoardId, slug: targetSlug } : {}),
       })
       .eq("id", postId)
       .select()

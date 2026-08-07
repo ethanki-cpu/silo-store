@@ -85,11 +85,14 @@ export function ScrapButton({
         type="button"
         onClick={handleClick}
         disabled={submitting}
-        aria-label={scraped ? "스크랩 취소" : "스크랩"}
+        aria-label={scraped ? "북마크 취소" : "북마크"}
         className={buttonClass}
       >
         {scraped ? "★" : "☆"}
-        {size === "md" && <span className="ml-1">스크랩</span>}
+        {/* EPIC-089(요구사항 3): 표시 문구를 "스크랩"→"북마크"로 변경(요청
+            원문) — 내부 데이터 모델(user_scraps 테이블, /api/scraps 라우트,
+            함수/컴포넌트 이름)은 이번 범위가 아니라 그대로 둔다. */}
+        {size === "md" && <span className="ml-1">북마크</span>}
       </button>
 
       {showLoginPrompt && (
@@ -101,7 +104,7 @@ export function ScrapButton({
         >
           <div className="w-full max-w-sm rounded-lg bg-white p-6 text-center shadow-lg">
             <p className="mb-4 text-sm text-gray-700">
-              스크랩하려면 로그인이 필요해요.
+              북마크하려면 로그인이 필요해요.
             </p>
             <div className="flex justify-center gap-2">
               <Link

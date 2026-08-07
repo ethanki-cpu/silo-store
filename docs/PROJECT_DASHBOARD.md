@@ -4,7 +4,7 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-08-06 (EPIC-081 기준).
+> 최종 확인: 2026-08-07 (EPIC-087 기준).
 
 =====================================
 
@@ -54,14 +54,15 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-084-REVISED([Stage 2] Universal Navigation, Contextual Write Flow, 3-Column
-Category Selector, & Editor UX Overhaul — 이미지 업로드 500 에러의 실제 원인이
-이 머신 `.env.local`의 R2 자격증명 누락임을 실측 규명(⚠️ 사용자 조치 필요,
-NEXT_TASK.md), UUID 노출되던 게시판 단일 select를 3열 Miller Columns
-`CategoryBoardPicker`로 전면 교체, 에디터 커서 위치 삽입/갤러리·임베드
-리사이즈/외부 URL 재호스팅 통일, "미분류 페이지" 버킷 53→23개 정리 +
-재발 방지) — main/develop에 병합 완료. EPIC-085(Universal Block Renderer,
-Frictionless Archiving, Dynamic OG/SEO)도 그 직전에 완료·병합됨.
+EPIC-087([Stage 2] Admin Dashboard Overhaul, Tier-based Access Control, & Global
+UX — 9개 요구사항을 PHASE-0~G로 분할 구현 완료: 전체 글 관리 일괄 작업, 사이트
+메뉴 게시판 D&D+연동 시각화, 페이지/게시판 티어 접근 제어(신규
+`min_rank_to_read` + 리다이렉트 게이트), 회원관리 정렬+티어 권한 매트릭스,
+스튜디오 대관/물품대여 신청 관리(신규 `item_rental_requests`), GNB 재배치+
+멤버십 팝오버, Footer 신설) — 브랜치 `feature/EPIC-087`, 코드/스키마 전부
+완료·검증됐으나 관리자 로그인 세션에서의 실사용 클릭 테스트와 main/develop
+병합은 사용자 승인 대기 중(NEXT_TASK.md). EPIC-086(Slide Module 글쓰기 버튼)도
+그 직전에 완료·병합됨.
 
 =====================================
 
@@ -92,7 +93,7 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입 — 상세는 [
 
 ## Progress
 
-전체 EPIC: **68개 완료**(EPIC-057~062는 요약 소급 작성 대기 중), 진행 중 0개, 예정 0개(대기 중).
+전체 EPIC: **70개 완료**(EPIC-057~062는 요약 소급 작성 대기 중), 진행 중 0개, 예정 0개(대기 중).
 EPIC-060~062로 Page Builder CMS(Page→Module→Board→Post, Navigation이 Board가 아닌
 독립 Page로 직결)가 신설되고, EPIC-064A~066으로 Visual Widget Builder + Board
 Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 `PageEditButton`만
@@ -102,8 +103,9 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 공백)을 해결하는 자동 생성 메커니즘(`[...slug]` catch-all + `ensurePageForSlug`)을
 신설하고, 그 위에 24개 정적 placeholder 페이지 전환 + 71개 페이지 위젯 백필 + 신규
 게시판 30개를 추가 — 백필 SQL은 사용자가 Supabase SQL Editor에서 실행 완료(2026-07-30
-라이브 확인됨). 남은 정적 placeholder는 8개(`salon/docent-tour`, `salon/drinks`,
-`space-inquiry/*3`, `studio/*3`), 마이페이지 12개 탭(병존형 필요)은 아직 미착수.
+라이브 확인됨). 남은 정적 placeholder는 7개(`salon/docent-tour`, `salon/drinks`,
+`space-inquiry/*2`, `studio/*3` — `space-inquiry/item-rental`은 EPIC-087-PHASE-E에서
+실제 신청 폼으로 전환 완료), 마이페이지 12개 탭(병존형 필요)은 아직 미착수.
 오랫동안 미병합 상태였던 `feature/EPIC-053`(Block Editor)도 `develop`에 정식 병합
 완료(2026-07-30) — 상세: [docs/STAGES.md](STAGES.md) §Stage 1, [docs/EPIC.md](EPIC.md).
 
@@ -119,21 +121,16 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 
 최근 완료 10개(최신순, 상세는 [docs/EPIC.md](EPIC.md)):
 
-1. EPIC-084-REVISED — Universal Navigation, Contextual Write Flow, 3-Column Category Selector, & Editor UX Overhaul(main/develop 병합 완료)
-2. EPIC-085 — Universal Block Renderer, Frictionless Archiving (Scraping System), & Dynamic OG/SEO Engine(main/develop 병합 완료)
-3. EPIC-084 — Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up(main/develop 병합 완료)
-4. EPIC-083 — Universal Editor Extension(Table/Color/FontFamily/SourceAttribution, main/develop 병합 완료)
-5. EPIC-082 — Universal Media Library Schema & R2 Direct Upload Pipeline
-6. EPIC-081 — Community-Led Growth Vision & Architecture Alignment(Stage 2 공식 진입 선언, 문서 전용)
-7. EPIC-080 — Navigation Dual-Structure Unification(코드/문서/DB 전부 완료)
-7. EPIC-079-시리즈(PHASE-1~5, HOTFIX~HOTFIX-3, TIPTAP-FIX-V2, FINAL-FIX 등) — Tiptap Editor/Post CRUD 안정화, 임베드(Youtube/Vimeo/Instagram/X/네이버) 확장, 인스타그램 스타일 갤러리 캐러셀, 대표 이미지/본문 분리 — 상세 요약은 CHANGELOG.md에 있으나 `docs/EPIC.md` 개별 항목은 아직 소급 작성 전(P2, 아래 Technical Debt 참고)
-4. EPIC-053(merge) — 오랫동안 미병합이던 Block Editor 브랜치를 `develop`에 정식 병합
-5. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필
-6. EPIC-067 — Page Builder Integration Phase 1(핵심 도메인 12개 페이지, 병존형 패턴)
-7. EPIC-066 — Board Widget 실데이터 렌더링 완성 + Board Management System(관리자 CRUD)
-8. EPIC-065 — JSON 기반 Page Builder → No-Code Visual Widget Builder(위젯 23종)
-9. EPIC-064A — 모든 Route에 관리자 전용 "페이지 수정" 버튼 부착(126개 slug)
-10. EPIC-063 — Navigation System Completion(Page-first Architecture)
+1. EPIC-087 — Admin Dashboard Overhaul, Tier-based Access Control, & Global UX(PHASE-0~G, 브랜치 `feature/EPIC-087` — main/develop 병합은 사용자 승인 대기)
+2. EPIC-086 — Slide Module 글쓰기 버튼(main/develop 병합 완료)
+3. EPIC-084-REVISED — Universal Navigation, Contextual Write Flow, 3-Column Category Selector, & Editor UX Overhaul(main/develop 병합 완료)
+4. EPIC-085 — Universal Block Renderer, Frictionless Archiving (Scraping System), & Dynamic OG/SEO Engine(main/develop 병합 완료)
+5. EPIC-084 — Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up(main/develop 병합 완료)
+6. EPIC-083 — Universal Editor Extension(Table/Color/FontFamily/SourceAttribution, main/develop 병합 완료)
+7. EPIC-082 — Universal Media Library Schema & R2 Direct Upload Pipeline
+8. EPIC-079-시리즈(PHASE-1~5, HOTFIX~HOTFIX-3, TIPTAP-FIX-V2, FINAL-FIX 등) — Tiptap Editor/Post CRUD 안정화, 임베드(Youtube/Vimeo/Instagram/X/네이버) 확장, 인스타그램 스타일 갤러리 캐러셀, 대표 이미지/본문 분리 — 상세 요약은 CHANGELOG.md에 있으나 `docs/EPIC.md` 개별 항목은 아직 소급 작성 전(P2, 아래 Technical Debt 참고)
+9. EPIC-053(merge) — 오랫동안 미병합이던 Block Editor 브랜치를 `develop`에 정식 병합
+10. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필
 
 =====================================
 

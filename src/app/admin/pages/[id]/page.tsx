@@ -38,6 +38,7 @@ import {
   type NavBranchNode,
 } from "@/lib/adminTreeGrouping";
 import { CategoryBoardPicker } from "@/components/common/CategoryBoardPicker";
+import { RANK_OPTIONS } from "@/components/admin/BoardForm";
 
 type BoardOption = { id: string; name: string };
 // EPIC-084: 위젯의 "게시판 선택" 드롭다운이 게시판 수십 개를 이름 알파벳
@@ -78,6 +79,8 @@ export default function AdminPageEditorPage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  // EPIC-087-PHASE-C: null = 게이트 없음(전체 공개, 기존과 동일).
+  const [minRankToRead, setMinRankToRead] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -104,6 +107,7 @@ export default function AdminPageEditorPage() {
     setModules(data.modules);
     setTitle(data.page.title);
     setDescription(data.page.description ?? "");
+    setMinRankToRead(data.page.min_rank_to_read ?? null);
     setFetching(false);
   }
 
@@ -144,7 +148,12 @@ export default function AdminPageEditorPage() {
     setSaving(true);
     const { error: updateError } = await supabase
       .from("page_builder")
-      .update({ title, description, updated_at: new Date().toISOString() })
+      .update({
+        title,
+        description,
+        min_rank_to_read: minRankToRead,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", page.id);
     setSaving(false);
     if (updateError) {
@@ -413,6 +422,26 @@ export default function AdminPageEditorPage() {
               rows={2}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                최소 열람 등급
+              </label>
+              <select
+                value={minRankToRead ?? ""}
+                onChange={(e) => setMinRankToRead(e.target.value === "" ? null : Number(e.target.value))}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">(제한 없음)</option>
+                {RANK_OPTIONS.map((o) => (
+                  <option key={o.rank} value={o.rank}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                지정하면 미달 등급 방문자는 멤버십 안내 페이지로 이동해요.
+              </p>
+            </div>
             <button
               type="button"
               onClick={handleSavePage}

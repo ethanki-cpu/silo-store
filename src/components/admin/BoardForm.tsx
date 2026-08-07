@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { resolveBoardDefinition, type BoardPost } from "@/lib/boardLayout";
 import { BoardRenderer } from "@/components/boards/BoardRenderer";
+import { supabase } from "@/lib/supabaseClient";
 
 export type BoardFormValues = {
   name: string;
@@ -19,7 +20,18 @@ export type BoardFormValues = {
   default_page_size: number;
   default_sort: string;
   min_rank_to_write: number;
+  // EPIC-087-PHASE-C: null이면 게이트 없음(전체 공개, 기존과 동일).
+  min_rank_to_read: number | null;
 };
+
+export const RANK_OPTIONS: { rank: number; label: string }[] = [
+  { rank: 0, label: "Silo Angel" },
+  { rank: 1, label: "Alice" },
+  { rank: 2, label: "Great Gatsby" },
+  { rank: 3, label: "Patron" },
+  { rank: 4, label: "Lautrec" },
+  { rank: 99, label: "Artist" },
+];
 
 export const GROUP_OPTIONS: { value: string; label: string }[] = [
   { value: "community", label: "Community" },
@@ -78,6 +90,7 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   default_page_size: 24,
   default_sort: "latest",
   min_rank_to_write: 0,
+  min_rank_to_read: null,
 };
 
 const PREVIEW_POSTS: BoardPost[] = [
@@ -122,14 +135,54 @@ export function BoardForm({
   submitting,
   submitError,
   onSubmit,
+  boardId,
 }: {
   mode: "create" | "edit";
   initial: BoardFormValues;
   submitting: boolean;
   submitError: string | null;
   onSubmit: (values: BoardFormValues) => void;
+  // EPIC-087-PHASE-A: edit 모드에서만 넘어옴 — "이 게시판을 사용 중인 페이지"
+  // 역방향 조회에 쓴다(create 모드는 아직 board_id가 없어 조회 불가).
+  boardId?: string;
 }) {
   const [values, setValues] = useState<BoardFormValues>(initial);
+  const [linkedPages, setLinkedPages] = useState<
+    { pageId: string; slug: string; title: string; moduleType: string }[] | null
+  >(null);
+
+  // EPIC-087-PHASE-A: "카테고리 드롭다운에서 연결된 페이지 목록" 요청의 실제
+  // 대상 — board → page 방향 링크는 이 화면에 없었다(그 반대 방향, page →
+  // board는 CategoryDetailModal의 "관리" 모달이 이미 편집). 여기서는 읽기
+  // 전용으로 "이 게시판을 위젯으로 쓰는 페이지"만 보여준다.
+  useEffect(() => {
+    if (!boardId) return;
+    let cancelled = false;
+    supabase
+      .from("page_modules")
+      .select("module_type, page_builder(id, slug, title)")
+      .eq("board_id", boardId)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const rows = (data ?? []) as unknown as {
+          module_type: string;
+          page_builder: { id: string; slug: string; title: string } | null;
+        }[];
+        setLinkedPages(
+          rows
+            .filter((r) => r.page_builder)
+            .map((r) => ({
+              pageId: r.page_builder!.id,
+              slug: r.page_builder!.slug,
+              title: r.page_builder!.title,
+              moduleType: r.module_type,
+            })),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [boardId]);
 
   function update<K extends keyof BoardFormValues>(key: K, value: BoardFormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -197,6 +250,35 @@ export function BoardForm({
             </p>
           )}
         </div>
+
+        {boardId && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              이 게시판을 사용 중인 페이지
+            </label>
+            {linkedPages === null ? (
+              <p className="text-xs text-gray-400">불러오는 중...</p>
+            ) : linkedPages.length === 0 ? (
+              <p className="text-xs text-gray-400">이 게시판을 위젯으로 연결한 페이지가 없어요.</p>
+            ) : (
+              <ul className="space-y-1">
+                {linkedPages.map((p) => (
+                  <li key={`${p.pageId}-${p.moduleType}`} className="text-xs">
+                    <a
+                      href={`/admin/pages/${p.pageId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {p.title}
+                    </a>
+                    <span className="text-gray-400"> ({p.slug} · {p.moduleType})</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">설명</label>
@@ -319,6 +401,47 @@ export function BoardForm({
             </label>
           ))}
         </div>
+
+        {/* EPIC-087-PHASE-C: 티어 접근 제한 — 글쓰기 최소 등급(min_rank_to_write,
+            기존 컬럼이지만 이 화면에 편집 UI가 없어 저장이 안 되고 있었다)과
+            열람 최소 등급(min_rank_to_read, 신규)을 함께 편집한다. 생성
+            직후엔 /api/admin/boards POST가 의도적으로 min_rank_to_write를
+            0으로 고정하고 이 값을 body에서 받지 않으므로(EPIC-066, "특수
+            권한이 필요한 게시판은 생성 후 조정") edit 모드에서만 보여준다. */}
+        {mode === "edit" && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">최소 글쓰기 등급</label>
+            <select
+              value={values.min_rank_to_write}
+              onChange={(e) => update("min_rank_to_write", Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            >
+              {RANK_OPTIONS.map((o) => (
+                <option key={o.rank} value={o.rank}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">최소 열람 등급</label>
+            <select
+              value={values.min_rank_to_read ?? ""}
+              onChange={(e) => update("min_rank_to_read", e.target.value === "" ? null : Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            >
+              <option value="">(제한 없음)</option>
+              {RANK_OPTIONS.map((o) => (
+                <option key={o.rank} value={o.rank}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        )}
 
         <button
           type="submit"

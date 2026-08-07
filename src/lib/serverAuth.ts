@@ -70,13 +70,25 @@ export async function getTier(rank: number): Promise<TierFlags | null> {
 }
 
 export function canReadBoard(
-  board: { board_type: string; category?: string | null; is_public?: boolean | null },
+  board: {
+    board_type: string;
+    category?: string | null;
+    is_public?: boolean | null;
+    min_rank_to_read?: number | null;
+  },
   tier: TierFlags | null,
   isAdmin?: boolean,
 ): boolean {
   // EPIC-066: 게시판 관리의 "공개/비공개" 토글 — 비공개면 관리자를 제외한
   // 모두에게 등급과 무관하게 막는다(patron 게이팅보다 우선).
   if (board.is_public === false && !isAdmin) {
+    return false;
+  }
+
+  // EPIC-087-PHASE-C: 페이지/게시판별 최소 열람 티어 — min_rank_to_write와
+  // 동일한 컬럼 관례(references membership_tiers(rank), null=게이트 없음).
+  // 비회원(tier===null)은 -1로 취급해 모든 게이트보다 낮다.
+  if (!isAdmin && board.min_rank_to_read != null && (tier?.rank ?? -1) < board.min_rank_to_read) {
     return false;
   }
 

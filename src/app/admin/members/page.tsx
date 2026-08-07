@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
+import { TierPermissionMatrix } from "@/components/admin/TierPermissionMatrix";
+import { MembershipGuideUrlSetting } from "@/components/admin/MembershipGuideUrlSetting";
 
 type MemberRow = {
   id: string;
@@ -22,6 +24,36 @@ const RANK_OPTIONS: { rank: number; label: string }[] = [
   { rank: 99, label: "Artist" },
 ];
 
+// EPIC-087-PHASE-D: 정렬 가능한 컬럼 — 이름/이메일/등급/가입일.
+type SortKey = "name" | "email" | "membership_rank" | "joined_at";
+
+function SortHeader({
+  label,
+  sortKeyName,
+  activeKey,
+  dir,
+  onToggle,
+}: {
+  label: string;
+  sortKeyName: SortKey;
+  activeKey: SortKey;
+  dir: "asc" | "desc";
+  onToggle: (key: SortKey) => void;
+}) {
+  return (
+    <th className="py-2 pr-3">
+      <button
+        type="button"
+        onClick={() => onToggle(sortKeyName)}
+        className="flex items-center gap-1 font-medium hover:text-gray-900"
+      >
+        {label}
+        {activeKey === sortKeyName && <span>{dir === "asc" ? "▲" : "▼"}</span>}
+      </button>
+    </th>
+  );
+}
+
 export default function AdminMembersPage() {
   // is_admin 인증 가드는 src/app/admin/layout.tsx가 공통으로 처리한다.
   const { session, member: currentMember } = useAuth();
@@ -32,6 +64,9 @@ export default function AdminMembersPage() {
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, { name: string; membership_rank: number; is_admin: boolean }>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("joined_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [guideUrlOpen, setGuideUrlOpen] = useState(false);
 
   async function load() {
     if (!session) return;
@@ -115,9 +150,40 @@ export default function AdminMembersPage() {
     await load();
   }
 
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedRows = [...rows].sort((a, b) => {
+    const av = a[sortKey] ?? "";
+    const bv = b[sortKey] ?? "";
+    const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
   return (
     <main className="flex-1 p-8 max-w-5xl mx-auto w-full">
       <h1 className="text-2xl font-bold mb-6">회원 관리</h1>
+
+      <TierPermissionMatrix />
+
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">회원 목록</h2>
+        <button
+          type="button"
+          onClick={() => setGuideUrlOpen(true)}
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+        >
+          멤버십 안내 페이지 설정
+        </button>
+      </div>
+
+      {guideUrlOpen && <MembershipGuideUrlSetting onClose={() => setGuideUrlOpen(false)} />}
 
       <div className="flex gap-2 mb-4">
         <input
@@ -147,16 +213,16 @@ export default function AdminMembersPage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="text-left text-gray-500 border-b border-gray-200">
-                <th className="py-2 pr-3">이름</th>
-                <th className="py-2 pr-3">이메일</th>
-                <th className="py-2 pr-3">등급</th>
+                <SortHeader label="이름" sortKeyName="name" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
+                <SortHeader label="이메일" sortKeyName="email" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
+                <SortHeader label="등급" sortKeyName="membership_rank" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                 <th className="py-2 pr-3">관리자</th>
-                <th className="py-2 pr-3">가입일</th>
+                <SortHeader label="가입일" sortKeyName="joined_at" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
                 <th className="py-2 pr-3"></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {sortedRows.map((row) => {
                 const draft = drafts[row.id] ?? {
                   name: row.name,
                   membership_rank: row.membership_rank,

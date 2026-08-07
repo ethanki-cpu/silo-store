@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { fetchNavTabs, getActiveNavTabKey, type NavTab } from "@/lib/navConfig";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { RightSidebar } from "@/components/RightSidebar";
+import { MembershipPopover } from "@/components/MembershipPopover";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -119,6 +120,9 @@ export function Navbar() {
   // mismatch를 방지한다.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // EPIC-087-PHASE-F: GNB "멤버십 등급"/"회원 이름" 클릭 시 여는 팝오버.
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
   // EPIC-023: 탭/사이드바/드롭다운 구성을 site_navigations(DB)에서 조회.
   // 로딩 중이거나 조회 실패 시 navConfig.ts의 FALLBACK_NAV_TABS로 자동 대체되어
@@ -416,7 +420,7 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 shrink-0 relative">
           {mounted && !loading && session && member?.is_admin && (
             <Link
               href="/admin/payments"
@@ -426,15 +430,43 @@ export function Navbar() {
             </Link>
           )}
 
+          {/* EPIC-087-PHASE-F: GNB 우측 순서 — [멤버십 신청/등급] |
+              [마이페이지] | [회원 이름] | [로그아웃]. 이전엔 등급+이름이
+              "/mypage" 링크 하나로 합쳐져 있었다 — 요구사항대로 3개 항목으로
+              분리. 등급 항목/이름 항목 모두 클릭하면 같은 멤버십 팝오버가
+              열린다(요구사항 원문 그대로) — member가 아직 없으면(로딩 중
+              또는 회원 행 없음) 팝오버를 띄울 데이터가 없어 대신 /membership
+              으로 보낸다. */}
           {mounted && !loading && session && (
-            <Link
-              href="/mypage"
+            member ? (
+              <button
+                type="button"
+                onClick={() => setPopoverOpen((o) => !o)}
+                className="text-sm text-gray-600 hover:underline"
+              >
+                {member.tier_name}
+              </button>
+            ) : (
+              <Link href="/membership" className="text-sm text-gray-600 hover:underline">
+                멤버십 신청
+              </Link>
+            )
+          )}
+
+          {mounted && !loading && session && (
+            <Link href="/mypage" className="text-sm text-gray-600 hover:underline">
+              마이페이지
+            </Link>
+          )}
+
+          {mounted && !loading && session && member && (
+            <button
+              type="button"
+              onClick={() => setPopoverOpen((o) => !o)}
               className="text-sm text-gray-600 hover:underline"
             >
-              {member
-                ? `${member.name}님 · ${member.tier_name}`
-                : "회원 정보 불러오는 중..."}
-            </Link>
+              {member.name}
+            </button>
           )}
 
           {mounted &&
@@ -454,6 +486,15 @@ export function Navbar() {
                 로그인
               </Link>
             ))}
+
+          {popoverOpen && member && (
+            <MembershipPopover
+              memberId={member.id}
+              memberName={member.name}
+              tierName={member.tier_name}
+              onClose={() => setPopoverOpen(false)}
+            />
+          )}
         </div>
       </div>
 

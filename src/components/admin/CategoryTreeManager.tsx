@@ -22,6 +22,8 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { ensurePageForSlug, hrefToSlug } from "@/lib/pageTemplates";
 import { WIDGET_DEFAULT_SETTINGS } from "@/lib/pageBuilder";
+import { fetchNavBranches, fetchBoardBranchMap } from "@/lib/adminTreeGrouping";
+import { RENDER_TYPE_OPTIONS } from "@/components/admin/BoardForm";
 
 // EPIC-035: 티스토리 스타일 드래그앤드롭 카테고리(site_navigations) 관리
 // 컴포넌트. 상단 탭/좌측 사이드바/우측 사이드바 3개 관리 화면(각각
@@ -94,6 +96,41 @@ function isDescendant(
   return false;
 }
 
+// EPIC-087-PHASE-B: 게시판도 이 트리 안에서 드래그로 다른 분기(branch)에
+// 재배정할 수 있게 한다 — site_navigations 행(id가 곧 dnd id)과 같은
+// DndContext 안에서 구별되게 게시판 dnd id는 "board-" 접두사를 쓴다.
+// 분기별 게시판 목록은 site_navigations 재배치(parent_id/sort_order)와는
+// 다른 데이터(page_modules 연결)를 바꾸는 별도의 SortableContext 그룹
+// ("boardlist-<branchId|unassigned>")으로 둔다 — 같은 컨테이너 안에서
+// 순서만 바꿀 때는 boards.sort_order를, 다른 분기로 넘길 때는
+// page_modules(module_type='board') 연결 자체를 바꾼다.
+type BoardRow = {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_public: boolean;
+  render_type: string | null;
+};
+
+const UNASSIGNED_BOARDS_CONTAINER = "boardlist-unassigned";
+
+function boardDndId(boardId: string) {
+  return `board-${boardId}`;
+}
+function isBoardDndId(id: string) {
+  return id.startsWith("board-");
+}
+function rawBoardId(dndId: string) {
+  return dndId.slice("board-".length);
+}
+function boardListContainerId(branchId: string | null) {
+  return branchId ? `boardlist-${branchId}` : UNASSIGNED_BOARDS_CONTAINER;
+}
+function branchIdOfBoardListContainer(containerId: string): string | null {
+  const raw = containerId.slice("boardlist-".length);
+  return raw === "unassigned" ? null : raw;
+}
+
 export function CategoryTreeManager({
   title,
   targetTypes,
@@ -132,6 +169,17 @@ export function CategoryTreeManager({
   // 버튼용. hrefToSlug(nav.href) === page.slug 완전 일치 규칙(adminTreeGrouping.ts
   // 와 동일)으로 매칭한다.
   const [pageIdBySlug, setPageIdBySlug] = useState<Map<string, string>>(new Map());
+  // EPIC-087-PHASE-B: 게시판 D&D — boardBranchMap은 fetchBoardBranchMap의
+  // "추정 매칭"(module_type='board' page_modules 연결 기준)을 그대로 쓴다.
+  const [allBoards, setAllBoards] = useState<BoardRow[]>([]);
+  const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
+  const [managingBoardId, setManagingBoardId] = useState<string | null>(null);
+  const [boardDragError, setBoardDragError] = useState<string | null>(null);
+  // EPIC-087-PHASE-B: 페이지(nav 행)/게시판 체크박스 일괄 삭제 — 같은 dnd id
+  // 네임스페이스(nav 행은 raw uuid, 게시판은 "board-" 접두사)를 그대로
+  // 선택 키로 재사용해 타입을 구분한다.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -207,9 +255,10 @@ export function CategoryTreeManager({
 
   async function load() {
     setFetching(true);
-    const [navResult, pagesResult] = await Promise.all([
+    const [navResult, pagesResult, boardsResult] = await Promise.all([
       supabase.from("site_navigations").select(NAV_SELECT_FIELDS).order("sort_order", { ascending: true }),
       supabase.from("page_builder").select("id, slug"),
+      supabase.from("boards").select("id, name, sort_order, is_public, render_type").order("sort_order", { ascending: true }),
     ]);
     let { data } = navResult;
     const { error: fetchError } = navResult;
@@ -221,6 +270,16 @@ export function CategoryTreeManager({
         ),
       );
     }
+    if (boardsResult.data) {
+      setAllBoards(boardsResult.data as BoardRow[]);
+    }
+    // EPIC-087-PHASE-B: 게시판 → 분기 매칭은 site_navigations 전체가 아니라
+    // is_active=true 브랜치만 대상으로 하는 fetchNavBranches() 결과를 쓴다
+    // (adminTreeGrouping.ts의 기존 규약과 동일 — "미분류 페이지" 버킷처럼
+    // is_active=false인 행에는 게시판을 배정할 수 없다).
+    const navBranches = await fetchNavBranches();
+    const branchMap = await fetchBoardBranchMap(navBranches);
+    setBoardBranchMap(branchMap);
 
     if (fetchError) {
       setError(fetchError.message);
@@ -298,6 +357,11 @@ export function CategoryTreeManager({
     const { active, over } = e;
     if (!over || active.id === over.id) return;
 
+    if (isBoardDndId(String(active.id))) {
+      await handleBoardDragEnd(rawBoardId(String(active.id)), String(over.id));
+      return;
+    }
+
     const activeRow = rows.find((r) => r.id === active.id);
     if (!activeRow) return;
 
@@ -364,6 +428,135 @@ export function CategoryTreeManager({
     );
 
     await persistRows(updates);
+  }
+
+  // EPIC-087-PHASE-B: 게시판 드래그 — 같은 분기 안에서 움직였으면 순서만
+  // (boards.sort_order, /admin/boards/[id] PATCH — UnassignedBoardsPanel과
+  // 동일한 관례), 다른 분기로 넘겼으면 page_modules(module_type='board')
+  // 연결 자체를 옮긴다(saveBoardLink()와 동일한 direct supabase 쓰기,
+  // 새 API 라우트 추가하지 않음).
+  async function handleBoardDragEnd(activeBoardId: string, overIdStr: string) {
+    setBoardDragError(null);
+    const sourceBranchId = boardBranchMap.get(activeBoardId) ?? null;
+
+    let destBranchId: string | null;
+    if (overIdStr.startsWith("boardlist-")) {
+      destBranchId = branchIdOfBoardListContainer(overIdStr);
+    } else if (isBoardDndId(overIdStr)) {
+      destBranchId = boardBranchMap.get(rawBoardId(overIdStr)) ?? null;
+    } else {
+      // 게시판 카드를 nav 행 자체(그 행의 게시판 목록 컨테이너가 아니라
+      // 행 카드 위) 위로 떨어뜨린 경우도 "그 분기로 배정"으로 취급한다.
+      destBranchId = overIdStr;
+    }
+
+    const destSiblings = allBoards
+      .filter((b) => b.id !== activeBoardId && (boardBranchMap.get(b.id) ?? null) === destBranchId)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const overBoardId = isBoardDndId(overIdStr) ? rawBoardId(overIdStr) : null;
+    const destIndex = overBoardId
+      ? Math.max(0, destSiblings.findIndex((b) => b.id === overBoardId))
+      : destSiblings.length;
+    destSiblings.splice(destIndex, 0, allBoards.find((b) => b.id === activeBoardId)!);
+
+    if (destBranchId === sourceBranchId) {
+      // 같은 분기 안 재정렬 — sort_order만 재계산.
+      const updates = destSiblings.map((b, i) => ({ id: b.id, sort_order: i }));
+      setAllBoards((prev) =>
+        prev.map((b) => {
+          const u = updates.find((x) => x.id === b.id);
+          return u ? { ...b, sort_order: u.sort_order } : b;
+        }),
+      );
+      if (!session) return;
+      const results = await Promise.all(
+        updates.map((u) =>
+          fetch(`/api/admin/boards/${u.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ sort_order: u.sort_order }),
+          }),
+        ),
+      );
+      if (results.some((r) => !r.ok)) {
+        setBoardDragError("게시판 순서 저장에 실패한 항목이 있어요.");
+        await load();
+      }
+      return;
+    }
+
+    // 다른 분기로 재배정 — 목적지 분기에 연결된 페이지를 찾는다(그 분기
+    // nav 행의 href → page_builder.id, pageIdBySlug는 이미 로드돼 있음).
+    let destPageId: string | null = null;
+    if (destBranchId) {
+      const destRow = rows.find((r) => r.id === destBranchId);
+      const destSlug = destRow?.href ? hrefToSlug(destRow.href) : null;
+      destPageId = destSlug ? (pageIdBySlug.get(destSlug) ?? null) : null;
+      if (!destPageId) {
+        setBoardDragError(
+          "이 메뉴 항목에는 아직 연결된 페이지가 없어 게시판을 배정할 수 없어요 — 먼저 href를 지정해 페이지를 만들어주세요.",
+        );
+        return;
+      }
+    }
+
+    // 낙관적 갱신 — 실패하면 load()로 서버 진실값으로 되돌린다.
+    setBoardBranchMap((prev) => {
+      const next = new Map(prev);
+      if (destBranchId) next.set(activeBoardId, destBranchId);
+      else next.delete(activeBoardId);
+      return next;
+    });
+
+    try {
+      const { data: existingLinks, error: fetchLinksError } = await supabase
+        .from("page_modules")
+        .select("id")
+        .eq("board_id", activeBoardId)
+        .eq("module_type", "board");
+      if (fetchLinksError) throw fetchLinksError;
+
+      if (destPageId) {
+        if (existingLinks && existingLinks.length > 0) {
+          const [first, ...rest] = existingLinks as { id: string }[];
+          const { error: updateError } = await supabase
+            .from("page_modules")
+            .update({ page_id: destPageId, sort_order: destIndex })
+            .eq("id", first.id);
+          if (updateError) throw updateError;
+          if (rest.length > 0) {
+            const { error: deleteError } = await supabase
+              .from("page_modules")
+              .delete()
+              .in("id", rest.map((r) => r.id));
+            if (deleteError) throw deleteError;
+          }
+        } else {
+          const { error: insertError } = await supabase.from("page_modules").insert({
+            page_id: destPageId,
+            module_type: "board",
+            board_id: activeBoardId,
+            settings: WIDGET_DEFAULT_SETTINGS.board ?? {},
+            sort_order: destIndex,
+            is_hidden: false,
+          });
+          if (insertError) throw insertError;
+        }
+      } else if (existingLinks && existingLinks.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("page_modules")
+          .delete()
+          .in("id", (existingLinks as { id: string }[]).map((r) => r.id));
+        if (deleteError) throw deleteError;
+      }
+    } catch (err) {
+      setBoardDragError(err instanceof Error ? err.message : "게시판 재배정에 실패했어요.");
+      await load();
+      return;
+    }
+
+    await load();
   }
 
   async function addChild(parentId: string | null, targetType: TargetTypeLiteral) {
@@ -471,12 +664,74 @@ export function CategoryTreeManager({
     await load();
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // EPIC-087-PHASE-B: 선택된 nav 행/게시판을 한 번에 삭제. nav 행은
+  // deleteRow()와 동일하게 "미분류 페이지" 버킷 아래 항목이면 연결된
+  // page_builder 페이지까지 함께 지운다(재생성 방지, EPIC-084 버그
+  // 재발 방지 규칙 동일 적용) — 게시판은 기존 DELETE /api/admin/boards/[id]
+  // 라우트를 그대로 재사용(글이 있는 게시판은 그 라우트가 이미 막아준다).
+  async function bulkDeleteSelected() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택한 ${selectedIds.size}개 항목을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    setBulkDeleting(true);
+
+    const navIds = Array.from(selectedIds).filter((id) => !isBoardDndId(id));
+    const boardIds = Array.from(selectedIds).filter(isBoardDndId).map(rawBoardId);
+
+    const unassignedBucketId = rows.find((r) => r.key === UNASSIGNED_BUCKET_KEY)?.id ?? null;
+    for (const id of navIds) {
+      const row = rows.find((r) => r.id === id);
+      if (row && unassignedBucketId && row.parent_id === unassignedBucketId && row.href && session) {
+        const pageId = pageIdBySlug.get(hrefToSlug(row.href));
+        if (pageId) {
+          await fetch(`/api/admin/pages/${pageId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }).catch(() => {});
+        }
+      }
+    }
+    if (navIds.length > 0) {
+      const { error: navDeleteError } = await supabase.from("site_navigations").delete().in("id", navIds);
+      if (navDeleteError) setError(navDeleteError.message);
+    }
+
+    if (boardIds.length > 0 && session) {
+      const results = await Promise.all(
+        boardIds.map((id) =>
+          fetch(`/api/admin/boards/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+        ),
+      );
+      const failedCount = results.filter((r) => !r.ok).length;
+      if (failedCount > 0) {
+        setError(`게시판 ${failedCount}개는 삭제하지 못했어요(연결된 글이 있을 수 있어요).`);
+      }
+    }
+
+    setSelectedIds(new Set());
+    setBulkDeleting(false);
+    await load();
+  }
+
   const roots = scopedRows
     .filter((r) => r.parent_id === null)
     .sort((a, b) => a.sort_order - b.sort_order);
 
   const managingRow = rows.find((r) => r.id === managingId) ?? null;
   const activeRow = rows.find((r) => r.id === activeId) ?? null;
+  const activeBoard = activeId && isBoardDndId(activeId) ? allBoards.find((b) => b.id === rawBoardId(activeId)) : null;
+  const managingBoard = allBoards.find((b) => b.id === managingBoardId) ?? null;
 
   return (
     <section className="rounded-lg border border-gray-200 p-4">
@@ -506,6 +761,16 @@ export function CategoryTreeManager({
           >
             + 최상위 탭 추가
           </button>
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              onClick={bulkDeleteSelected}
+              disabled={bulkDeleting}
+              className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              {bulkDeleting ? "삭제 중..." : `선택 ${selectedIds.size}개 삭제`}
+            </button>
+          )}
         </div>
       </div>
 
@@ -525,6 +790,11 @@ export function CategoryTreeManager({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
+          {boardDragError && (
+            <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 mb-3">
+              {boardDragError}
+            </div>
+          )}
           <TreeLevel
             parentId={null}
             rows={scopedRows}
@@ -537,11 +807,37 @@ export function CategoryTreeManager({
             onUpdate={updateRow}
             onDelete={deleteRow}
             onAddChild={addChild}
+            allBoards={allBoards}
+            boardBranchMap={boardBranchMap}
+            onManageBoard={setManagingBoardId}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
           />
+          {/* EPIC-087-PHASE-B: 어떤 분기에도 매칭 안 된 게시판 — 여기로
+              드래그하면 boardBranchMap에서 빠지고(연결 page_modules 삭제),
+              여기서 다른 분기로 드래그해 배정할 수 있다. */}
+          <div className="mt-4 pt-3 border-t border-dashed border-gray-200">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">
+              📋 미배정 게시판
+            </p>
+            <BoardListLevel
+              branchId={null}
+              allBoards={allBoards}
+              boardBranchMap={boardBranchMap}
+              onManageBoard={setManagingBoardId}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+            />
+          </div>
           <DragOverlay>
             {activeRow && (
               <div className="rounded-lg border border-gray-400 bg-white p-2 shadow-lg text-sm">
                 {activeRow.title}
+              </div>
+            )}
+            {activeBoard && (
+              <div className="rounded-lg border border-gray-400 bg-white p-2 shadow-lg text-sm">
+                📌 {activeBoard.name}
               </div>
             )}
           </DragOverlay>
@@ -556,6 +852,18 @@ export function CategoryTreeManager({
           onSave={async (patch) => {
             const ok = await updateRow(managingRow.id, patch);
             if (ok) setManagingId(null);
+          }}
+        />
+      )}
+
+      {managingBoard && (
+        <BoardQuickManageModal
+          board={managingBoard}
+          session={session}
+          onClose={() => setManagingBoardId(null)}
+          onSaved={(patch) => {
+            setAllBoards((prev) => prev.map((b) => (b.id === managingBoard.id ? { ...b, ...patch } : b)));
+            setManagingBoardId(null);
           }}
         />
       )}
@@ -575,6 +883,11 @@ function TreeLevel({
   onUpdate,
   onDelete,
   onAddChild,
+  allBoards,
+  boardBranchMap,
+  onManageBoard,
+  selectedIds,
+  onToggleSelect,
 }: {
   parentId: string | null;
   rows: CategoryNavRow[];
@@ -587,6 +900,11 @@ function TreeLevel({
   onUpdate: (id: string, patch: Partial<CategoryNavRow>) => Promise<boolean>;
   onDelete: (id: string) => void;
   onAddChild: (parentId: string | null, targetType: TargetTypeLiteral) => void;
+  allBoards: BoardRow[];
+  boardBranchMap: Map<string, string>;
+  onManageBoard: (id: string | null) => void;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
 }) {
   const containerId = containerIdOf(parentId);
   const { setNodeRef } = useDroppable({ id: containerId });
@@ -621,6 +939,8 @@ function TreeLevel({
               onUpdate={onUpdate}
               onDelete={onDelete}
               onAddChild={onAddChild}
+              isSelected={selectedIds.has(child.id)}
+              onToggleSelect={onToggleSelect}
             />
             <TreeLevel
               parentId={child.id}
@@ -634,10 +954,223 @@ function TreeLevel({
               onUpdate={onUpdate}
               onDelete={onDelete}
               onAddChild={onAddChild}
+              allBoards={allBoards}
+              boardBranchMap={boardBranchMap}
+              onManageBoard={onManageBoard}
+              selectedIds={selectedIds}
+              onToggleSelect={onToggleSelect}
             />
+            {/* EPIC-087-PHASE-B: 이 분기(nav 행)에 배정된 게시판 목록 —
+                nav 자식과는 별도 SortableContext(boardlist-<id>)라 순서
+                변경 로직이 서로 섞이지 않는다. */}
+            <div style={{ marginLeft: (depth + 1) * 20 }}>
+              <BoardListLevel
+                branchId={child.id}
+                allBoards={allBoards}
+                boardBranchMap={boardBranchMap}
+                onManageBoard={onManageBoard}
+                selectedIds={selectedIds}
+                onToggleSelect={onToggleSelect}
+              />
+            </div>
           </div>
         ))}
       </SortableContext>
+    </div>
+  );
+}
+
+// EPIC-087-PHASE-B: 특정 분기(branchId=null이면 미배정)에 배정된 게시판
+// 목록 — 자체 SortableContext + useDroppable 컨테이너("boardlist-...")를
+// 가진다. 비어 있어도 드롭 가능해야 하므로(다른 분기에서 게시판을 여기로
+// 처음 옮겨올 때) 항상 렌더링한다.
+function BoardListLevel({
+  branchId,
+  allBoards,
+  boardBranchMap,
+  onManageBoard,
+  selectedIds,
+  onToggleSelect,
+}: {
+  branchId: string | null;
+  allBoards: BoardRow[];
+  boardBranchMap: Map<string, string>;
+  onManageBoard: (id: string | null) => void;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+}) {
+  const containerId = boardListContainerId(branchId);
+  const { setNodeRef } = useDroppable({ id: containerId });
+  const boards = allBoards
+    .filter((b) => (boardBranchMap.get(b.id) ?? null) === branchId)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  return (
+    <div ref={setNodeRef} className="space-y-1 min-h-[8px] py-1">
+      <SortableContext items={boards.map((b) => boardDndId(b.id))} strategy={verticalListSortingStrategy}>
+        {boards.length === 0 ? (
+          <p className="text-xs text-gray-300 italic py-0.5">(게시판을 여기로 드래그)</p>
+        ) : (
+          boards.map((board) => (
+            <BoardCard
+              key={board.id}
+              board={board}
+              onManage={() => onManageBoard(board.id)}
+              isSelected={selectedIds.has(boardDndId(board.id))}
+              onToggleSelect={() => onToggleSelect(boardDndId(board.id))}
+            />
+          ))
+        )}
+      </SortableContext>
+    </div>
+  );
+}
+
+function BoardCard({
+  board,
+  onManage,
+  isSelected,
+  onToggleSelect,
+}: {
+  board: BoardRow;
+  onManage: () => void;
+  isSelected: boolean;
+  onToggleSelect: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: boardDndId(board.id),
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-wrap items-center gap-2 rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5"
+    >
+      <input type="checkbox" checked={isSelected} onChange={onToggleSelect} />
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label="드래그해서 다른 분기로 이동"
+        className="cursor-grab text-gray-400 px-1 select-none touch-none"
+      >
+        ⠿
+      </button>
+      <span className="text-sm">📌 {board.name}</span>
+      {board.render_type && (
+        <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{board.render_type}</span>
+      )}
+      {!board.is_public && (
+        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">비공개</span>
+      )}
+      <div className="ml-auto flex gap-1">
+        <a href={`/admin/boards/${board.id}`} target="_blank" rel="noreferrer" className={smallButtonClass}>
+          수정
+        </a>
+        <button type="button" onClick={onManage} className={smallButtonClass}>
+          관리
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// EPIC-087-PHASE-B: "관리" 버튼 — CategoryDetailModal과 별개로, 게시판
+// 요약 설정(공개 여부/Board Type)만 빠르게 바꾸는 작은 모달. 실제 저장은
+// 기존 PATCH /api/admin/boards/[id](EDITABLE_FIELDS whitelist)를 그대로
+// 재사용 — 새 라우트를 추가하지 않는다.
+function BoardQuickManageModal({
+  board,
+  session,
+  onClose,
+  onSaved,
+}: {
+  board: BoardRow;
+  session?: Session | null;
+  onClose: () => void;
+  onSaved: (patch: Partial<BoardRow>) => void;
+}) {
+  const [isPublic, setIsPublic] = useState(board.is_public);
+  const [renderType, setRenderType] = useState(board.render_type ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!session) {
+      setError("관리자 세션이 필요해요.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const res = await fetch(`/api/admin/boards/${board.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ is_public: isPublic, render_type: renderType || null }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (!res.ok) {
+      setError(data.error ?? "저장에 실패했어요.");
+      return;
+    }
+    onSaved({ is_public: isPublic, render_type: renderType || null });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-sm rounded-lg bg-white p-6 space-y-4">
+        <h3 className="text-lg font-medium">&ldquo;{board.name}&rdquo; 관리</h3>
+
+        <div>
+          <label className="block text-sm mb-1">공개 여부</label>
+          <select
+            className={inputClass}
+            value={isPublic ? "public" : "private"}
+            onChange={(e) => setIsPublic(e.target.value === "public")}
+          >
+            <option value="public">공개</option>
+            <option value="private">비공개</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm mb-1">Board Type</label>
+          <select className={inputClass} value={renderType} onChange={(e) => setRenderType(e.target.value)}>
+            <option value="">(기본값)</option>
+            {RENDER_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-md border border-gray-300 bg-white text-gray-800 px-3 py-2 hover:bg-gray-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 rounded-md bg-gray-800 text-white px-3 py-2 disabled:opacity-50"
+          >
+            {saving ? "저장 중..." : "저장"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -651,6 +1184,8 @@ function CategoryRow({
   onUpdate,
   onDelete,
   onAddChild,
+  isSelected,
+  onToggleSelect,
 }: {
   row: CategoryNavRow;
   isEditing: boolean;
@@ -663,6 +1198,8 @@ function CategoryRow({
   onUpdate: (id: string, patch: Partial<CategoryNavRow>) => Promise<boolean>;
   onDelete: (id: string) => void;
   onAddChild: (parentId: string | null, targetType: TargetTypeLiteral) => void;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: row.id });
@@ -712,6 +1249,7 @@ function CategoryRow({
       style={style}
       className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 p-2 bg-white"
     >
+      <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(row.id)} />
       <button
         type="button"
         {...attributes}
@@ -933,6 +1471,10 @@ type BoardDraft = {
   thumbnail_url: string;
   description: string;
   is_public: boolean;
+  // EPIC-087-PHASE-B: "관리" 모달에서 활성/비활성(is_public)뿐 아니라
+  // 게시판 종류도 한눈에 보이게 — board_type은 생성 시 고정되는 값이라
+  // (BoardForm에 편집 UI 없음) 읽기 전용 배지로만 노출한다.
+  board_type: string;
 };
 
 function CategoryDetailModal({
@@ -1118,6 +1660,7 @@ function CategoryDetailModal({
           thumbnail_url: data.thumbnail_url ?? "",
           description: data.description ?? "",
           is_public: data.is_public ?? true,
+          board_type: data.board_type ?? "",
         });
       });
     return () => {
@@ -1327,7 +1870,25 @@ function CategoryDetailModal({
                 {boardModule?.board_id && (
                   <div className="rounded-md border border-gray-200 p-3 space-y-2 mt-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{boardDraft?.name}</span>
+                      <span className="text-sm font-medium flex items-center gap-1.5">
+                        {boardDraft?.name}
+                        {boardDraft?.board_type && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                            {boardDraft.board_type}
+                          </span>
+                        )}
+                        {boardDraft && (
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded ${
+                              boardDraft.is_public
+                                ? "bg-green-100 text-green-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {boardDraft.is_public ? "활성" : "비활성"}
+                          </span>
+                        )}
+                      </span>
                       <a
                         href={`/admin/boards/${boardModule.board_id}`}
                         target="_blank"

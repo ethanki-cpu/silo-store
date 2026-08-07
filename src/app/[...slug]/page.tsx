@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+import { usePageRankGate } from "@/lib/pageRankGate";
 
 // EPIC-068: 이 파일 이전까지는 src/app 전체가 138개의 손으로 만든 정적
 // page.tsx뿐이었고, DB(site_navigations)에서 카테고리를 새로 만들어도 그
@@ -25,7 +26,7 @@ import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder"
 // setState하지 않고(react-hooks/set-state-in-effect 규칙과 충돌) 렌더링
 // 시점에 state.slug와 현재 slug를 비교하는 방식으로 처리했다.
 type PageState =
-  | { slug: string; status: "ready"; modules: PageModuleRow[] }
+  | { slug: string; status: "ready"; modules: PageModuleRow[]; minRankToRead: number | null }
   | { slug: string; status: "notfound" };
 
 export default function DynamicPage() {
@@ -42,12 +43,19 @@ export default function DynamicPage() {
         setState({ slug, status: "notfound" });
         return;
       }
-      setState({ slug, status: "ready", modules: result.modules ?? [] });
+      setState({
+        slug,
+        status: "ready",
+        modules: result.modules ?? [],
+        minRankToRead: result.page.min_rank_to_read ?? null,
+      });
     });
     return () => {
       cancelled = true;
     };
   }, [slug]);
+
+  usePageRankGate(state.slug === slug && state.status === "ready" ? state.minRankToRead : undefined);
 
   if (state.slug !== slug) {
     return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;

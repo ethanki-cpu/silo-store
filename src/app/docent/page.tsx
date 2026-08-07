@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+import { usePageRankGate } from "@/lib/pageRankGate";
 
 // EPIC-061: 사용자 명시 지시로 /docent도 Page Builder만 사용하도록 전환한다
 // (slug="docent"). 이전까지 이 페이지는 docent_contents 테이블을 직접
@@ -14,13 +15,17 @@ import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder"
 // 않았으니 필요하면 이 파일만 되돌리면 복원 가능하다.
 export default function DocentListPage() {
   const [modules, setModules] = useState<PageModuleRow[] | null>(null);
+  const [minRankToRead, setMinRankToRead] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+
+  usePageRankGate(minRankToRead);
 
   useEffect(() => {
     let cancelled = false;
     fetchPublishedPageBySlug("docent").then((result) => {
       if (cancelled) return;
       setModules(result?.modules ?? []);
+      setMinRankToRead(result?.page.min_rank_to_read ?? null);
       setLoading(false);
     });
     return () => {

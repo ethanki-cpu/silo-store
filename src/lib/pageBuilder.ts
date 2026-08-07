@@ -46,6 +46,9 @@ export type PageBuilderRow = {
   // 실행 전 라이브 DB에는 이 컬럼이 없을 수 있어 옵셔널(아래 fetchAllPagesForAdmin의
   // 42703 폴백 참고).
   sort_order?: number;
+  // EPIC-087-PHASE-C: 이 페이지를 열람할 수 있는 최소 멤버십 등급 —
+  // null/미지정이면 게이트 없음(전체 공개, 기존과 동일).
+  min_rank_to_read?: number | null;
 };
 
 export type PageModuleRow = {

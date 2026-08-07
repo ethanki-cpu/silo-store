@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { data: allBoards } = await supabase
     .from("boards")
-    .select("id, name, category, board_type, slug");
+    .select("id, name, category, board_type, slug, is_public, min_rank_to_read");
 
   if (!allBoards) {
     return NextResponse.json({ latest: [], popular: [], recommended: [] });

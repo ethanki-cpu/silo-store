@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+import { usePageRankGate } from "@/lib/pageRankGate";
 
 // EPIC-060/EPIC-061: MyPage 인덱스는 원래 MYPAGE_TABS를 아이콘 그리드로
 // 직접 그렸다. 사용자 명시 지시로 이제 Page Builder만 사용한다
@@ -13,13 +14,17 @@ import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder"
 // layout.tsx가 그대로 유지하므로 이 페이지는 본문 콘텐츠만 담당한다.
 export default function MyPageHomePage() {
   const [modules, setModules] = useState<PageModuleRow[] | null>(null);
+  const [minRankToRead, setMinRankToRead] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+
+  usePageRankGate(minRankToRead);
 
   useEffect(() => {
     let cancelled = false;
     fetchPublishedPageBySlug("mypage").then((result) => {
       if (cancelled) return;
       setModules(result?.modules ?? []);
+      setMinRankToRead(result?.page.min_rank_to_read ?? null);
       setLoading(false);
     });
     return () => {

@@ -1177,6 +1177,10 @@ export type BoardRow = {
   // optional로 둔다(다른 EPIC-066/077 신규 컬럼과 동일한 패턴).
   slug?: string | null;
   min_rank_to_write?: number | null;
+  // EPIC-087-PHASE-C: min_rank_to_write의 읽기판 — null이면 게이트 없음
+  // (기존과 동일하게 전체 공개), 값이 있으면 canReadBoard()가 이 랭크
+  // 미만인 방문자/회원을 막는다.
+  min_rank_to_read?: number | null;
   is_public?: boolean | null;
   group_key?: string | null;
   render_type?: string | null;
@@ -1205,7 +1209,7 @@ export type BoardRow = {
 // 배경은 src/app/api/boards/[id]/posts/route.ts 참고) — 라이브 DB에 EPIC-066
 // 마이그레이션이 아직 안 됐어도 게시판 읽기 자체는 멈추지 않는다.
 export const BOARD_RICH_FIELDS =
-  "id, name, category, slug, board_type, min_rank_to_write, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
+  "id, name, category, slug, board_type, min_rank_to_write, min_rank_to_read, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
 // EPIC-079-PHASE-2: slug는 RICH 단계에만 포함한다 — LEGACY는 "docs/sql/
 // epic-079-phase-2-slug.sql이 아직 적용되지 않은 라이브 DB"를 위한
 // 최후 폴백 단계라, 여기에도 slug를 넣으면 마이그레이션 전엔 게시판

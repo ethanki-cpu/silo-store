@@ -73,6 +73,10 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
   const [boardTypeFilter, setBoardTypeFilter] = useState<BoardType | "all">("all");
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [noBoardsInDomain, setNoBoardsInDomain] = useState(false);
+  // EPIC-087-PHASE-A: 다중 선택 + 일괄 작업. 페이지/필터가 바뀌면 이전 선택은
+  // 화면에 없는 글을 가리키게 되므로 load() 성공 시 함께 비운다.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   async function load() {
     setFetching(true);
@@ -173,6 +177,7 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
     );
 
     setError(null);
+    setSelectedIds(new Set());
     setPosts(
       rows.map((r) => ({
         id: r.id,
@@ -228,6 +233,50 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
     setPosts((rows) => rows.filter((r) => r.id !== post.id));
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => (prev.size === posts.length ? new Set() : new Set(posts.map((p) => p.id))));
+  }
+
+  // EPIC-087-PHASE-A: 단건 toggleHidden/handleDelete와 동일하게 direct
+  // supabase 호출을 선택 집합에 대해 Promise.all로 반복한다 — 새 API
+  // 라우트를 추가하지 않고 기존 관례를 그대로 확장.
+  async function bulkSetHidden(hidden: boolean) {
+    if (selectedIds.size === 0) return;
+    setBulkProcessing(true);
+    const ids = Array.from(selectedIds);
+    const { error: updateError } = await supabase.from("posts").update({ is_hidden: hidden }).in("id", ids);
+    setBulkProcessing(false);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setPosts((rows) => rows.map((r) => (selectedIds.has(r.id) ? { ...r, is_hidden: hidden } : r)));
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택한 ${selectedIds.size}개 글을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    setBulkProcessing(true);
+    const ids = Array.from(selectedIds);
+    const { error: deleteError } = await supabase.from("posts").delete().in("id", ids);
+    setBulkProcessing(false);
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+    setPosts((rows) => rows.filter((r) => !selectedIds.has(r.id)));
+    setSelectedIds(new Set());
+  }
+
   // 사이트 내비게이션 트리 그대로 들여쓰기된 행 목록 — 게시글은 자기 자신이
   // 아니라 소속 게시판의 브랜치를 그대로 물려받는다.
   const treeRows = useMemo(
@@ -279,6 +328,36 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
         <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-700 mb-4">{error}</div>
       )}
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
+          <span>{selectedIds.size}개 선택됨</span>
+          <button
+            type="button"
+            onClick={() => bulkSetHidden(true)}
+            disabled={bulkProcessing}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100 disabled:opacity-50"
+          >
+            일괄 숨기기
+          </button>
+          <button
+            type="button"
+            onClick={() => bulkSetHidden(false)}
+            disabled={bulkProcessing}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100 disabled:opacity-50"
+          >
+            일괄 숨김 해제
+          </button>
+          <button
+            type="button"
+            onClick={bulkDelete}
+            disabled={bulkProcessing}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            일괄 삭제
+          </button>
+        </div>
+      )}
+
       {fetching ? (
         <p className="text-gray-500">불러오는 중...</p>
       ) : posts.length === 0 ? (
@@ -288,6 +367,16 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="text-left text-gray-500 border-b border-gray-200">
+                <th className="py-2 pr-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={posts.length > 0 && selectedIds.size === posts.length}
+                    ref={(el) => {
+                      if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < posts.length;
+                    }}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="py-2 pr-3">게시판</th>
                 <th className="py-2 pr-3">제목/내용</th>
                 <th className="py-2 pr-3">작성자</th>
@@ -311,7 +400,7 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
                 row.kind === "branch" ? (
                   <tr key={`branch-${row.id}`}>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       style={{ paddingLeft: row.depth * 20 }}
                       className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400"
                     >
@@ -320,6 +409,13 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
                   </tr>
                 ) : (
                   <tr key={row.item.id} className="border-b border-gray-100">
+                    <td className="py-2 pr-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(row.item.id)}
+                        onChange={() => toggleSelect(row.item.id)}
+                      />
+                    </td>
                     <td className="py-2 pr-3 whitespace-nowrap" style={{ paddingLeft: row.depth * 20 }}>
                       {row.item.board_name}
                     </td>

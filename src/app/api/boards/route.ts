@@ -31,13 +31,16 @@ export async function GET(request: NextRequest) {
   const result = boards.map((board) => {
     const locked = !canReadBoard(board, tier, requester?.member.is_admin);
     const definition = resolveBoardDefinition(board);
+    // EPIC-087-PHASE-C: 잠금 사유가 accessLevel(patron 등, definition.membership)과
+    // min_rank_to_read 둘 다일 수 있어 더 높은 랭크 쪽을 안내 메시지 기준으로 쓴다.
+    const requiredRank = Math.max(definition.membership, board.min_rank_to_read ?? 0);
     return {
       ...board,
       locked,
       lockMessage: locked
         ? board.is_public === false
           ? "비공개 게시판이에요."
-          : `${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능`
+          : `${RANK_LABELS[requiredRank] ?? "상위"} 등급부터 열람 가능`
         : null,
     };
   });

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+import { usePageRankGate } from "@/lib/pageRankGate";
 
 // EPIC-066: EPIC-064A가 이 페이지에 PageEditButton만 붙이고 실제 렌더링은
 // 여전히 고정 PageHeader 텍스트("현재 준비 중입니다")였다 — page_builder에
@@ -13,13 +14,17 @@ import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder"
 // 맞춘다.
 export default function EventNoticesPage() {
   const [modules, setModules] = useState<PageModuleRow[] | null>(null);
+  const [minRankToRead, setMinRankToRead] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+
+  usePageRankGate(minRankToRead);
 
   useEffect(() => {
     let cancelled = false;
     fetchPublishedPageBySlug("event-notices").then((result) => {
       if (cancelled) return;
       setModules(result?.modules ?? []);
+      setMinRankToRead(result?.page.min_rank_to_read ?? null);
       setLoading(false);
     });
     return () => {

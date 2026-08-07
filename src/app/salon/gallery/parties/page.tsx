@@ -4,17 +4,22 @@ import { useEffect, useState } from "react";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+import { usePageRankGate } from "@/lib/pageRankGate";
 
 // EPIC-068: page_builder(slug="salon-gallery-parties")의 published 모듈만 렌더링한다.
 export default function GalleryPartiesPage() {
   const [modules, setModules] = useState<PageModuleRow[] | null>(null);
+  const [minRankToRead, setMinRankToRead] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+
+  usePageRankGate(minRankToRead);
 
   useEffect(() => {
     let cancelled = false;
     fetchPublishedPageBySlug("salon-gallery-parties").then((result) => {
       if (cancelled) return;
       setModules(result?.modules ?? []);
+      setMinRankToRead(result?.page.min_rank_to_read ?? null);
       setLoading(false);
     });
     return () => {

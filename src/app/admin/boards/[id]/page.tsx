@@ -50,6 +50,7 @@ export default function AdminBoardEditPage() {
         default_page_size: data.default_page_size ?? 24,
         default_sort: data.default_sort ?? "latest",
         min_rank_to_write: data.min_rank_to_write ?? 0,
+        min_rank_to_read: data.min_rank_to_read ?? null,
       });
     }
 
@@ -80,6 +81,8 @@ export default function AdminBoardEditPage() {
         use_view_count: next.use_view_count,
         default_page_size: next.default_page_size,
         default_sort: next.default_sort,
+        min_rank_to_write: next.min_rank_to_write,
+        min_rank_to_read: next.min_rank_to_read,
       }),
     });
 
@@ -158,6 +161,7 @@ export default function AdminBoardEditPage() {
         submitting={submitting}
         submitError={submitError}
         onSubmit={handleSubmit}
+        boardId={id}
       />
 
       <ConfirmModal

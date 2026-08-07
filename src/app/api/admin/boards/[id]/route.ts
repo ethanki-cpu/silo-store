@@ -59,6 +59,7 @@ const EDITABLE_FIELDS = [
   "description",
   "widget_settings",
   "min_rank_to_write",
+  "min_rank_to_read",
   "sort_order",
   "topic",
   "thumbnail_url",

@@ -89,9 +89,12 @@ export async function GET(
   ]);
 
   if (!canReadBoard(board, tier, requester?.member.is_admin)) {
+    // EPIC-087-PHASE-C: 잠금 사유가 accessLevel과 min_rank_to_read 둘 다일
+    // 수 있어 더 높은 랭크 쪽으로 안내한다.
+    const requiredRank = Math.max(definition.membership, (board as { min_rank_to_read?: number | null }).min_rank_to_read ?? 0);
     return NextResponse.json(
       {
-        error: `이 게시판은 ${RANK_LABELS[definition.membership] ?? "상위"} 등급부터 열람 가능해요.`,
+        error: `이 게시판은 ${RANK_LABELS[requiredRank] ?? "상위"} 등급부터 열람 가능해요.`,
       },
       { status: 403 },
     );

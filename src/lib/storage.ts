@@ -14,6 +14,8 @@ export const STORAGE_BUCKETS = {
   GALLERY: "gallery",
   /** PDF/오디오 등 첨부파일 */
   ATTACHMENTS: "attachments",
+  /** EPIC-087-PHASE-F: 멤버십 팝오버 프로필 사진 */
+  AVATARS: "avatars",
 } as const;
 
 export type StorageBucket = (typeof STORAGE_BUCKETS)[keyof typeof STORAGE_BUCKETS];

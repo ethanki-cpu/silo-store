@@ -17,8 +17,13 @@ const ADMIN_NAV = [
   { href: "/admin/site-structure", label: "사이트 구성 관리" },
   { href: "/admin/navigation/settings", label: "홈페이지 설정 관리" },
   { href: "/admin/posts", label: "전체 글 관리" },
-  { href: "/admin/projects/new", label: "스튜디오 포트폴리오 등록" },
+  // EPIC-087-PHASE-E: "스튜디오 포트폴리오 등록"(styling_projects CRUD, 신청
+  // 관리와 무관한 쇼케이스 콘텐츠 기능)을 완전히 교체 — 사용자 확인 완료.
+  // 기존 라우트(/admin/projects/new)는 삭제하지 않고 그대로 남겨두되(URL
+  // 직접 접근은 계속 가능) 최상위 탭에서는 뺀다.
+  { href: "/admin/rentals", label: "스튜디오 대관/물품대여 신청 관리" },
   { href: "/admin/fonts", label: "커스텀 폰트 관리" },
+  { href: "/admin/footer", label: "하단 메뉴 관리" },
 ];
 
 export default function AdminLayout({

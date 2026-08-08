@@ -252,22 +252,43 @@ export async function PATCH(
     return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
   }
 
-  const { board, boardError } = await fetchBoard(boardSlug);
+  const body = await request.json();
+  // HOTFIX-091: 지금까지 이 라우트는 게시글을 (slug, URL의 board_id) 조합
+  // 으로만 찾았다 — 이 글이 방금(같은 세션에서 이전 요청으로) 다른
+  // 게시판으로 이미 옮겨진 뒤라면, 페이지가 아직 이동하지 않은 상태에서
+  // 다시 저장을 시도하거나(더블클릭, 뒤로가기 후 재제출 등) URL의
+  // board_slug가 더 이상 실제 소속 게시판과 안 맞아 조회가 실패하고
+  // "게시글을 찾을 수 없어요"를 잘못 반환했다. 클라이언트가 이미 알고
+  // 있는 진짜 PK(`postId`, edit 페이지가 최초 GET 응답에서 받아둔 값)가
+  // 오면 그것 하나만으로 찾는다 — board_id가 그 사이 뭘로 바뀌었든 항상
+  // 정확히 그 글을 찾는다. postId가 없는 요청(구버전 클라이언트 등)만
+  // 기존 slug+URL board_id 방식으로 폴백한다.
+  const requestedPostId = body?.postId as string | undefined;
 
-  if (boardError || !board) {
-    return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+  let existing: { id: string; author_id: string; body_json: JSONContent | null; slug: string; board_id: string } | null =
+    null;
+  if (requestedPostId) {
+    const { data } = await requester.scopedClient
+      .from("posts")
+      .select("id, author_id, body_json, slug, board_id")
+      .eq("id", requestedPostId)
+      .maybeSingle();
+    existing = data;
+  } else {
+    const { board: urlBoard, boardError: urlBoardError } = await fetchBoard(boardSlug);
+    if (urlBoardError || !urlBoard) {
+      return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+    }
+    const { data } = await requester.scopedClient
+      .from("posts")
+      .select("id, author_id, body_json, slug, board_id")
+      .eq("slug", postSlug)
+      .eq("board_id", (urlBoard as { id: string }).id)
+      .maybeSingle();
+    existing = data;
   }
 
-  const boardId = (board as { id: string }).id;
-
-  const { data: existing, error: existingError } = await requester.scopedClient
-    .from("posts")
-    .select("id, author_id, body_json, slug")
-    .eq("slug", postSlug)
-    .eq("board_id", boardId)
-    .single();
-
-  if (existingError || !existing) {
+  if (!existing) {
     return NextResponse.json({ error: "게시글을 찾을 수 없어요." }, { status: 404 });
   }
 
@@ -275,11 +296,18 @@ export async function PATCH(
     return NextResponse.json({ error: "본인이 작성한 글만 수정할 수 있어요." }, { status: 403 });
   }
 
-  const postId = existing.id as string;
+  const postId = existing.id;
+
+  // definition(카테고리/태그 등)은 이 글이 지금 실제로 속한 게시판 기준으로
+  // 계산해야 한다 — URL의 board가 위 이유로 이미 stale할 수 있어 URL 대신
+  // existing.board_id로 다시 조회한다(fetchBoard는 UUID도 그대로 받는다).
+  const { board, boardError } = await fetchBoard(existing.board_id);
+  if (boardError || !board) {
+    return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+  }
 
   const definition = resolveBoardDefinition(board);
 
-  const body = await request.json();
   const title = body?.title as string | undefined;
   const bodyJson = body?.bodyJson as JSONContent | undefined;
   const isDocentPost = Boolean(body?.isDocentPost);
@@ -309,6 +337,11 @@ export async function PATCH(
   // EPIC-079-PHASE-4: "게시될 페이지 선택"에서 다른 게시판을 골랐으면 이
   // 글을 그 게시판으로 옮긴다 — 원래 게시판과 같으면(대부분의 경우) 아무
   // 일도 하지 않는다.
+  // HOTFIX-091: "옮기는 중인가"는 URL의 board_slug 문자열이 아니라
+  // existing.board_id(이 글이 지금 실제로 속한 게시판)와 비교해서
+  // 판정해야 한다 — 같은 게시판을 가리키는 slug와 UUID 두 형태(레거시
+  // 링크)가 섞이면 문자열 비교만으론 "다른 게시판"으로 오판해 실제로는
+  // 이동이 아닌데도 slug 재발급 로직이 불필요하게 돌 수 있었다.
   // EPIC-089: posts에는 (board_id, slug) 복합 UNIQUE 인덱스
   // (posts_board_slug_unique_idx, epic-079-phase-2-slug.sql)가 있는데, 위
   // targetBoardId 로직은 지금까지 slug를 그대로 들고 옮겼다 — 목적지
@@ -320,13 +353,22 @@ export async function PATCH(
   // 머무르는 절대다수 케이스는 slug를 전혀 건드리지 않음).
   let targetBoardId: string | null = null;
   let targetSlug: string | null = null;
-  if (targetBoardSlug && targetBoardSlug !== boardSlug) {
+  if (targetBoardSlug) {
     const { board: targetBoard, boardError: targetBoardError } = await fetchBoard(targetBoardSlug);
     if (targetBoardError || !targetBoard) {
       return NextResponse.json({ error: "옮길 게시판을 찾을 수 없어요." }, { status: 404 });
     }
-    targetBoardId = (targetBoard as { id: string }).id;
+    const resolvedTargetBoardId = (targetBoard as { id: string }).id;
+    if (resolvedTargetBoardId === existing.board_id) {
+      // 실제로는 지금 있는 게시판과 같은 곳(문자열만 다른 legacy UUID
+      // 링크 등) — 이동이 아니므로 아래 slug 재발급 로직을 건너뛴다.
+      targetBoardId = null;
+    } else {
+      targetBoardId = resolvedTargetBoardId;
+    }
+  }
 
+  if (targetBoardId) {
     const baseSlug = (existing.slug as string | null) || slugify(title) || postId.slice(0, 8);
     let candidateSlug = baseSlug;
     let suffix = 2;

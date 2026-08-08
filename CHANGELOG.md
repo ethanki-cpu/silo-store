@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-08 (HOTFIX-091 — 게시글 수정 시 "게시글을 찾을 수 없어요" 오류 수정)
+- **실측 재현**: 라이브 API를 직접 호출해 정확한 실패 시나리오를 특정했다 — 테스트 글을 게시판 A→B로 옮기는 PATCH는 정상 성공(200)하지만, 그 직후(같은 세션에서 페이지가 아직 이동하지 않은 상태, 예: 더블클릭·뒤로가기 후 재제출) URL의 board_slug가 여전히 A를 가리키는 채로 같은 글을 다시 PATCH하면 `{"status":404,"error":"게시글을 찾을 수 없어요."}`가 재현됨을 확인 — 지시문이 지목한 원인(`slug`+`board_id`를 동시에 WHERE로 걸어 조회)이 정확히 맞았다.
+- **수정**: `src/app/api/boards/[board_slug]/posts/[post_slug]/route.ts`의 PATCH — 클라이언트가 이미 알고 있는 진짜 PK(`postId`)가 요청에 오면 `id` 단일 조건으로만 게시글을 찾는다(URL의 board_slug가 그 사이 stale해졌어도 무관) → `postId`가 없는 요청(구버전 호환)만 기존 `slug`+URL `board_id` 방식으로 폴백. definition(카테고리/태그 계산용 게시판 컨텍스트)도 URL이 아니라 이 글이 실제로 지금 속한 게시판(`existing.board_id`)으로 다시 조회하도록 변경. 부수로 "이동 여부" 판정도 URL board_slug 문자열 비교 대신 실제 board_id 비교로 바꿔, 같은 게시판을 가리키는 slug/UUID 두 형태(레거시 링크)가 섞였을 때 불필요하게 "이동"으로 오판해 slug를 재발급하던 잠재 버그도 함께 없앴다. `src/app/boards/[board_slug]/[post_slug]/edit/page.tsx`가 최초 GET 응답의 `post.id`를 저장해뒀다가 PATCH 페이로드에 `postId`로 실어 보내도록 수정.
+- **검증**: `npx tsc --noEmit` 0 errors, `npm run lint` 0 errors(기존 경고 개수 그대로, 신규 경고 없음). 로컬 dev + 라이브 Supabase를 대상으로 실제 API 시퀀스로 재현/수정 확인 — (1) 게시판 이동 → (2) 이동 직후 stale board_slug로 재제출(수정 전: 404 재현 / 수정 후: `postId` 포함 시 200 성공), (3) `postId` 없는 폴백 경로도 여전히 정상 동작 확인. 테스트로 만든 글은 정리 완료.
+- **변경된 API 라우트**: `src/app/api/boards/[board_slug]/posts/[post_slug]/route.ts` (PATCH). 프론트엔드: `src/app/boards/[board_slug]/[post_slug]/edit/page.tsx`.
+
 ## 2026-08-08 (HOTFIX-090 — 위젯 설정 내 "게시판 추가" 버튼 위치 수정)
 - **진짜 원인**: EPIC-088/089가 만든 "게시판 추가" 버튼은 "페이지 전체에 board 위젯이 하나도 없을 때"만 노출되는 조건이었다 — 실사용 흐름("+위젯 추가"→"Board" 선택 직후, 위젯은 생겼지만 아직 게시판을 안 고른 가장 흔한 순간)에는 이미 board 위젯이 존재해서 그 버튼이 사라져 있었고, 위젯의 "게시판 선택"(Miller Columns) 패널 안에는 기존 게시판을 고르는 기능만 있고 새로 만드는 버튼이 전혀 없었다 — 이게 반복 신고의 실제 원인.
 - **수정**: `src/app/admin/pages/[id]/page.tsx`의 위젯 편집기 — `CategoryBoardPicker` 바로 아래에 `[+ 새 게시판 추가]` 버튼을 위젯별로 항상 노출(연결 여부 무관, 요구사항 원문대로 "언제든 누를 수 있게"). 클릭 시 임시 이름/슬러그(`new-board-<timestamp36>`)로 `POST /api/admin/boards` → 응답으로 받은 board id를 지금 편집 중인 위젯의 `page_modules.board_id`에 즉시 반영 → `/admin/boards/[새id]`로 리다이렉트(요구사항 1.2 그대로).

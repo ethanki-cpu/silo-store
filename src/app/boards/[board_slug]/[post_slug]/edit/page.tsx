@@ -31,6 +31,7 @@ export default function EditPostPage() {
   const [loadingPost, setLoadingPost] = useState(true);
   const [notAllowed, setNotAllowed] = useState(false);
   const [post, setPost] = useState<{
+    id: string;
     title: string;
     body: string;
     body_json: JSONContent | null;
@@ -123,6 +124,10 @@ export default function EditPostPage() {
         ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
       body: JSON.stringify({
+        // HOTFIX-091: 이 글의 진짜 PK — 서버가 이걸로 우선 조회하면 그
+        // 사이 board_id가 바뀌었어도(더블클릭/뒤로가기 재제출 등) 항상
+        // 정확히 이 글을 찾는다(URL의 board_slug가 stale해도 무관).
+        postId: post?.id,
         title: payload.title,
         bodyJson: payload.bodyJson,
         bodyHtml: payload.bodyHtml,

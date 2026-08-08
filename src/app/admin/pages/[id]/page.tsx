@@ -89,6 +89,14 @@ export default function AdminPageEditorPage() {
   // 노출한다(요구사항: "연동된 게시판이 없을 경우").
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [createBoardError, setCreateBoardError] = useState<string | null>(null);
+  // HOTFIX-090: EPIC-088/089 둘 다 "연동된 게시판이 없으면 게시판 추가
+  // 버튼을 보여달라"고 지시했는데, 실제로 만든 버튼(위 creatingBoard 쪽)은
+  // 페이지 전체에 board 위젯이 하나도 없을 때만 보이는 조건이었다 — 이미
+  // board 위젯을 추가했지만 아직 게시판을 안 고른 상태(가장 흔한 실사용
+  // 시나리오: "+위젯 추가"→"Board" 선택 직후)에는 그 위젯의 "게시판 선택"
+  // 패널 안에 새로 만드는 버튼이 전혀 없었다 — 이게 진짜 신고 원인. 이제
+  // 위젯별로(어느 위젯의 "새 게시판 추가"를 눌렀는지) 로딩 상태를 추적한다.
+  const [addingBoardModuleId, setAddingBoardModuleId] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftBoardId, setDraftBoardId] = useState("");
@@ -120,34 +128,60 @@ export default function AdminPageEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  useEffect(() => {
-    fetch("/api/boards", {
+  // HOTFIX-090(요구사항: "게시판 선택 옵션이 사이트메뉴 변화에 바로
+  // 적용되도록 연동"): 기존엔 컴포넌트가 처음 마운트될 때 한 번만 게시판
+  // 목록/사이트 메뉴 트리를 불러왔다 — 관리자가 이 위젯 편집기 탭을 열어둔
+  // 채로 다른 탭에서 "사이트 구성 관리"의 메뉴를 바꾸고 돌아오면 반영되지
+  // 않았다. 두 조회를 재사용 가능한 함수로 뽑아 마운트 시 + 이 탭이 다시
+  // 포커스를 받을 때(다른 탭에서 메뉴를 바꾸고 돌아오는 가장 흔한 시나리오)
+  // 마다 다시 불러온다 — 실시간 구독(Supabase Realtime)까지는 이 화면
+  // 규모에 과한 인프라라 판단해 window focus 트리거로 충분히 해결한다.
+  async function loadBoards() {
+    const res = await fetch("/api/boards", {
       headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          // EPIC-066: Page Builder 위젯의 게시판 드롭다운은 공개된 게시판만
-          // 골라야 한다(요구사항 ②) — is_public===false만 명시적으로
-          // 제외하고, 필드 자체가 없으면(마이그레이션 전) 기존처럼 전부 보여준다.
-          setBoards(
-            data
-              .filter((b: { is_public?: boolean }) => b.is_public !== false)
-              .map((b: { id: string; name: string; render_type?: string | null }) => ({
-                id: b.id,
-                name: b.name,
-                render_type: b.render_type ?? null,
-              })),
-          );
-        }
-      });
+    });
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      // EPIC-066: Page Builder 위젯의 게시판 드롭다운은 공개된 게시판만
+      // 골라야 한다(요구사항 ②) — is_public===false만 명시적으로
+      // 제외하고, 필드 자체가 없으면(마이그레이션 전) 기존처럼 전부 보여준다.
+      setBoards(
+        data
+          .filter((b: { is_public?: boolean }) => b.is_public !== false)
+          .map((b: { id: string; name: string; render_type?: string | null }) => ({
+            id: b.id,
+            name: b.name,
+            render_type: b.render_type ?? null,
+          })),
+      );
+    }
+  }
+
+  async function loadNavBranches() {
+    const branches = await fetchNavBranches();
+    setNavBranches(branches);
+    setBoardBranchMap(await fetchBoardBranchMap(branches));
+  }
+
+  useEffect(() => {
+    loadBoards();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   useEffect(() => {
-    fetchNavBranches().then(async (branches) => {
-      setNavBranches(branches);
-      setBoardBranchMap(await fetchBoardBranchMap(branches));
-    });
+    loadNavBranches();
+
+    function onFocus() {
+      loadBoards();
+      loadNavBranches();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // EPIC-084: branchId(또는 미분류) → "브랜치 경로 - 게시판들" 그룹으로 묶는다.
@@ -277,6 +311,49 @@ export default function AdminPageEditorPage() {
       return;
     }
     setBoards((prev) => prev.map((b) => (b.id === boardId ? { ...b, render_type: renderType || null } : b)));
+  }
+
+  // HOTFIX-090: 위젯의 "게시판 선택"(Miller Columns) 영역 바로 아래에서
+  // 즉석으로 새 게시판을 만든다 — handleCreateEmptyBoard(위, 페이지 전체에
+  // board 위젯이 하나도 없을 때만 쓰는 진입점)와 달리 이건 "이미 board
+  // 위젯은 있는데 아직 게시판을 안 골랐거나, 기존 목록에 없는 새 게시판을
+  // 원할 때" 언제든 누를 수 있어야 한다(요구사항 원문). 임시 제목/슬러그로
+  // 즉시 생성 → 지금 편집 중인 이 위젯에 바로 연결(page_modules.board_id
+  // 직접 update, draft 저장을 기다리지 않음) → 요구사항대로 게시판 수정
+  // 화면(/admin/boards/[id])으로 바로 이동.
+  async function handleAddNewBoardForModule(moduleId: string) {
+    if (!session) return;
+    setAddingBoardModuleId(moduleId);
+    setCreateBoardError(null);
+
+    const tempCategory = `new-board-${crypto.randomUUID().slice(0, 8)}`;
+    const res = await fetch("/api/admin/boards", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ name: "새 게시판", category: tempCategory }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setAddingBoardModuleId(null);
+      setCreateBoardError(data.error ?? "게시판 생성에 실패했어요.");
+      return;
+    }
+
+    const { error: linkError } = await supabase
+      .from("page_modules")
+      .update({ board_id: data.id })
+      .eq("id", moduleId);
+
+    setAddingBoardModuleId(null);
+    if (linkError) {
+      setCreateBoardError(linkError.message);
+      return;
+    }
+
+    router.push(`/admin/boards/${data.id}`);
   }
 
   async function handleDeleteModule(moduleId: string) {
@@ -586,6 +663,8 @@ export default function AdminPageEditorPage() {
                         onToggleHidden={() => handleToggleHidden(module)}
                         onDelete={() => handleDeleteModule(module.id)}
                         onBoardRenderTypeChange={handleBoardRenderTypeChange}
+                        onAddNewBoard={() => handleAddNewBoardForModule(module.id)}
+                        addingBoard={addingBoardModuleId === module.id}
                       />
                     ))}
                   </div>
@@ -638,6 +717,8 @@ function WidgetRow({
   onToggleHidden,
   onDelete,
   onBoardRenderTypeChange,
+  onAddNewBoard,
+  addingBoard,
 }: {
   module: PageModuleRow;
   boards: BoardOption[];
@@ -661,6 +742,8 @@ function WidgetRow({
   onToggleHidden: () => void;
   onDelete: () => void;
   onBoardRenderTypeChange: (boardId: string, renderType: string) => void;
+  onAddNewBoard: () => void;
+  addingBoard: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: module.id,
@@ -772,6 +855,19 @@ function WidgetRow({
                 value={draftBoardId}
                 onChange={onDraftBoardIdChange}
               />
+              {/* HOTFIX-090: 3열 게시판 선택 영역 바로 아래 — 목록에서 고를
+                  게시판이 아직 없거나(연동된 게시판이 없는 경우) 새로
+                  만들고 싶을 때 언제든 누를 수 있다. 기존 목록 위(페이지
+                  전체에 board 위젯이 하나도 없을 때만 뜨는 "게시판 추가"
+                  버튼)와 달리 이건 위젯 하나하나의 설정 안에 항상 떠 있다. */}
+              <button
+                type="button"
+                onClick={onAddNewBoard}
+                disabled={addingBoard}
+                className="mt-2 w-full rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50"
+              >
+                {addingBoard ? "새 게시판 만드는 중..." : "+ 새 게시판 추가"}
+              </button>
               {/* EPIC-089(요구사항 5): 게시판 수정 화면으로 나가지 않고
                   Board Type(render_type)을 바로 바꿀 수 있게 — 선택된 값은
                   변경 즉시 저장(다른 필드처럼 "저장" 버튼을 기다리지 않음,

@@ -69,6 +69,12 @@ export function CategoryBoardPicker({
   loading?: boolean;
 }) {
   const branchById = useMemo(() => new Map(branches.map((b) => [b.id, b])), [branches]);
+  // HOTFIX-090(요구사항: "게시판 선택의 게시판 순서도 사이트 메뉴의 카테고리
+  // 정렬 순서와 같도록") — branches는 이미 fetchNavBranches()가 depth-first로
+  // site_navigations.sort_order 그대로 펼친 배열이라, 그 배열 안 위치를 곧
+  // "사이트 메뉴 순서"로 쓸 수 있다. 게시판을 자신이 속한 브랜치의 이 순서로
+  // 정렬한다.
+  const branchOrderIndex = useMemo(() => new Map(branches.map((b, i) => [b.id, i])), [branches]);
   const boardBySlugOrId = useMemo(() => {
     const map = new Map<string, PickableBoard>();
     for (const b of boards) map.set(b.slug ?? b.id, b);
@@ -126,8 +132,13 @@ export function CategoryBoardPicker({
         const branchId = boardBranchMap.get(b.id);
         return branchId ? isDescendantOrSelf(branchId, anchorId, branchById) : false;
       })
+      .sort((a, b) => {
+        const aOrder = branchOrderIndex.get(boardBranchMap.get(a.id) ?? "") ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = branchOrderIndex.get(boardBranchMap.get(b.id) ?? "") ?? Number.MAX_SAFE_INTEGER;
+        return aOrder - bOrder;
+      })
       .map((b) => ({ id: b.slug ?? b.id, label: b.name }));
-  }, [rootId, midId, boards, boardBranchMap, branchById, unassignedBoards]);
+  }, [rootId, midId, boards, boardBranchMap, branchById, branchOrderIndex, unassignedBoards]);
 
   if (loading) {
     return <p className="text-sm text-gray-500">게시판 목록을 불러오는 중...</p>;

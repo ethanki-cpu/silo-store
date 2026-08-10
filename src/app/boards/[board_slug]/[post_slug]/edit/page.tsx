@@ -42,6 +42,7 @@ export default function EditPostPage() {
     featured_image_path: string | null;
     thumbnail_visible: boolean | null;
     category: string | null;
+    created_at: string;
   } | null>(null);
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +139,7 @@ export default function EditPostPage() {
         isDocentPost: payload.isDocentPost,
         tags: payload.tags,
         targetBoardSlug: selectedBoardSlug,
+        ...(payload.createdAt ? { createdAt: payload.createdAt } : {}),
       }),
     });
 
@@ -226,6 +228,7 @@ export default function EditPostPage() {
         initialFeaturedImagePath={post.featured_image_path}
         initialThumbnailVisible={post.thumbnail_visible ?? true}
         initialCategory={post.category}
+        initialCreatedAt={post.created_at}
         draftStorageKey={`draft-edit-${postSlug}`}
         submitLabel="수정 완료"
         onSubmit={handleSubmit}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import type { JSONContent } from "@/lib/blockEditorCore";
@@ -13,6 +14,7 @@ import { BoardPostListPanel } from "@/components/boards/BoardPostListPanel";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PostFloatingActionBar } from "@/components/boards/PostFloatingActionBar";
+import type { BreadcrumbItem } from "@/components/PageHeader";
 
 type PostDetail = {
   id: string;
@@ -65,7 +67,7 @@ type Comment = {
 // 안 된다. 그래서 클라이언트 로직은 이 파일(이름만 PostDetailClient로
 // 변경, 내용은 100% 동일)에 남기고, page.tsx가 얇은 Server Component
 // 래퍼로 generateMetadata + 이 컴포넌트 렌더링만 담당하도록 분리했다.
-export function PostDetailClient() {
+export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbItem[] }) {
   const { board_slug: boardSlug, post_slug: postSlug } = useParams<{
     board_slug: string;
     post_slug: string;
@@ -280,6 +282,22 @@ export function PostDetailClient() {
     <>
       <main className="flex-1 bg-white px-6 py-12">
       <div className="max-w-4xl mx-auto w-full">
+        {breadcrumb.length > 0 && (
+          <nav className="mb-4 text-xs text-gray-400" aria-label="breadcrumb">
+            {breadcrumb.map((item, i) => (
+              <span key={i}>
+                {item.href ? (
+                  <Link href={item.href} className="hover:text-gray-600">
+                    {item.label}
+                  </Link>
+                ) : (
+                  <span className="text-gray-500">{item.label}</span>
+                )}
+                {i < breadcrumb.length - 1 && <span className="mx-1.5">›</span>}
+              </span>
+            ))}
+          </nav>
+        )}
         {/* EPIC-089(요구사항 3): "목록으로"는 이제 항상 떠 있는
             PostFloatingActionBar(좌측 하단)로 옮겨갔다 — 본문 상단 좌측의
             이 자리는 그 대신 관리자용 "페이지 수정" 버튼(기존엔 화면 우측
@@ -287,7 +305,11 @@ export function PostDetailClient() {
             자리는 비워둔다(방문자용 대체 링크 없음 — 목록으로는 FAB에 항상
             있으므로 중복 노출하지 않음). */}
         <div className="mb-4">
-          <PageEditButton slug="boards-id-postid" className="inline-flex items-center rounded-md bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700" />
+          <PageEditButton
+            slug="boards-id-postid"
+            label="게시글 보여지는 방식 수정"
+            className="inline-flex items-center rounded-md bg-[#166534] px-3 py-1.5 text-sm text-white hover:opacity-90"
+          />
         </div>
         <PostDetailHeader
           postNumber={post.post_number}

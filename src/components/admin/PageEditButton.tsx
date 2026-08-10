@@ -12,17 +12,23 @@ import { supabase } from "@/lib/supabaseClient";
 // — 존재하지 않는 페이지로 링크를 걸지 않기 위함.
 // EPIC-089(요구사항 3): 게시글 상세 페이지는 이 버튼을 기존 우측 상단
 // 고정 위치 대신 본문 상단 좌측(원래 "목록으로"가 있던 자리)에 인라인으로
-// 배치해야 한다 — 나머지 112개 호출부의 기본 동작(우측 상단 고정)은 그대로
-// 두고, 이 페이지만 className을 override한다.
+// 배치해야 한다 — 나머지 호출부의 기본 동작은 그대로 두고, 이 페이지만
+// className을 override한다.
+// EPIC-092(요구사항 3/4): 기본 위치를 화면 우측 상단 고정에서 헤더 바로
+// 아래 좌측 상단 고정으로 옮기고, 배경색을 #166534로 강제 지정한다.
+// 게시글 상세 페이지 등 개별 호출부는 페이지 유형에 맞는 label을 넘겨
+// "페이지 수정" 외의 문구를 노출할 수 있다(예: "게시글 보여지는 방식 수정").
 const DEFAULT_CLASS_NAME =
-  "fixed top-20 right-4 z-30 rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm shadow-md hover:bg-gray-700";
+  "fixed top-20 left-4 z-30 rounded-md bg-[#166534] text-white px-3 py-1.5 text-sm shadow-md hover:opacity-90";
 
 export function PageEditButton({
   slug,
   className = DEFAULT_CLASS_NAME,
+  label = "페이지 수정",
 }: {
   slug: string;
   className?: string;
+  label?: string;
 }) {
   const { member, memberLoading } = useAuth();
   const [pageId, setPageId] = useState<string | null>(null);
@@ -47,7 +53,7 @@ export function PageEditButton({
 
   return (
     <Link href={`/admin/pages/${pageId}`} className={className}>
-      페이지 수정
+      {label}
     </Link>
   );
 }

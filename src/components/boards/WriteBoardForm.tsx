@@ -18,7 +18,14 @@ import { useBoardOptions, useSelectedBoardTypeAndCategory } from "@/lib/useBoard
 // 시작해 사용자가 직접 게시판을 골라야 한다.
 // EPIC-084-REVISED: 단일 <select>(UUID 노출 가능성 + 긴 들여쓰기 나열)를
 // 3열 Miller Columns 선택기(CategoryBoardPicker)로 교체.
-export function WriteBoardForm({ initialBoardSlug }: { initialBoardSlug: string }) {
+export function WriteBoardForm({
+  initialBoardSlug,
+  initialCreatedAtDate,
+}: {
+  initialBoardSlug: string;
+  /** EPIC-092(요구사항 5): 캘린더 "+ 글 등록"이 넘기는 "YYYY-MM-DD" — PostForm의 관리자 전용 등록 날짜 필드 초기값. */
+  initialCreatedAtDate?: string;
+}) {
   const { session, member } = useAuth();
   const router = useRouter();
 
@@ -95,6 +102,7 @@ export function WriteBoardForm({ initialBoardSlug }: { initialBoardSlug: string 
         isDocentPost: payload.isDocentPost,
         tags: payload.tags,
         ...(boardType === "adoption_story" ? { orderId: payload.orderId } : {}),
+        ...(payload.createdAt ? { createdAt: payload.createdAt } : {}),
       }),
     });
 
@@ -144,6 +152,7 @@ export function WriteBoardForm({ initialBoardSlug }: { initialBoardSlug: string 
             showTags={Boolean(definition?.tags)}
             confirmedOrders={confirmedOrders}
             existingTags={existingTags}
+            initialCreatedAt={initialCreatedAtDate}
             draftStorageKey={`draft-${selectedBoardSlug}`}
             submitLabel="등록"
             onSubmit={handleSubmit}

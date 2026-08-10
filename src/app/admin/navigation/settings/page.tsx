@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { inputClass, primaryButtonClass, smallButtonClass } from "../shared";
+import {
+  normalizeHeroSlideshow,
+  defaultHeroSlideshowValue,
+  defaultHeroSlideshowConfig,
+  type SlideItem,
+  type HeroSlideshowConfig,
+  type HeroSlideshowValue,
+} from "@/lib/heroSlideshow";
 
 // EPIC-026: "홈페이지 설정 관리" 실 구현. site_settings(key-value, EPIC-026)의
 // 키(main_logo/hero_slideshow/sidebar_icons)를 조회/저장한다. 다른 CMS
@@ -104,20 +112,6 @@ type MainLogoValue = {
   fontFileUrl: string;
   customFonts: CustomFontEntry[];
 };
-type SlideItem = { imageUrl: string; title: string; description: string };
-type HeroSlideshowValue = {
-  slides: SlideItem[];
-  autoAdvanceSeconds: number;
-  objectFit: "cover" | "contain";
-  /** @deprecated EPIC-039: wallpaperUrls(배열)로 대체. 구버전 데이터 호환용으로만 읽는다. */
-  wallpaperUrl: string;
-  wallpaperUrls: string[];
-  // EPIC-078 후속: 여백 배경 이미지 업로드 시 적용할 압축 품질(원본 대비 %,
-  // 1~100). 100이면 압축 없이 원본 그대로 업로드한다. 이미 업로드된
-  // 이미지에는 소급 적용되지 않는다 — 다음에 파일을 새로 업로드할 때부터
-  // 적용.
-  wallpaperQuality: number;
-};
 // EPIC-078: 기본(default)/호버(hover) 2종 미디어로 확장 — 이미지뿐 아니라
 // 투명 배경 비디오(.webm/.mp4)도 지원해 실제 사이트에서 호버 시 기본
 // 미디어가 호버 미디어로 크로스페이드된다. 구버전 leftIconUrl/rightIconUrl
@@ -201,14 +195,6 @@ const DEFAULT_MAIN_LOGO: MainLogoValue = {
   fontFileUrl: "",
   customFonts: [],
 };
-const DEFAULT_HERO_SLIDESHOW: HeroSlideshowValue = {
-  slides: [],
-  autoAdvanceSeconds: 5,
-  objectFit: "cover",
-  wallpaperUrl: "",
-  wallpaperUrls: [],
-  wallpaperQuality: 100,
-};
 const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
   leftIconDefaultUrl: "",
   leftIconHoverUrl: "",
@@ -285,8 +271,15 @@ export default function AdminNavigationSettingsPage() {
 
   const [mainLogo, setMainLogo] = useState<MainLogoValue>(DEFAULT_MAIN_LOGO);
   const [heroSlideshow, setHeroSlideshow] = useState<HeroSlideshowValue>(
-    DEFAULT_HERO_SLIDESHOW,
+    defaultHeroSlideshowValue(),
   );
+  // EPIC-092(요구사항 7): "PC 버전"/"모바일 버전" 탭 — admin/payments의
+  // useState<"pending"|"all"> 탭 토글과 동일한 패턴.
+  const [heroTab, setHeroTab] = useState<"pc" | "mobile">("pc");
+  const activeHero = heroSlideshow[heroTab];
+  function updateActiveHero(patch: Partial<HeroSlideshowConfig>) {
+    setHeroSlideshow((prev) => ({ ...prev, [heroTab]: { ...prev[heroTab], ...patch } }));
+  }
   const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
     DEFAULT_SIDEBAR_ICONS,
   );
@@ -359,15 +352,9 @@ export default function AdminNavigationSettingsPage() {
           }
           setMainLogo(value);
         } else if (row.setting_key === "hero_slideshow") {
-          const value = {
-            ...DEFAULT_HERO_SLIDESHOW,
-            ...(row.setting_value as Partial<HeroSlideshowValue>),
-          };
-          // EPIC-039: 구버전 단일 wallpaperUrl을 wallpaperUrls 배열로 1회 이전.
-          if (value.wallpaperUrls.length === 0 && value.wallpaperUrl) {
-            value.wallpaperUrls = [value.wallpaperUrl];
-          }
-          setHeroSlideshow(value);
+          // EPIC-092(요구사항 7): 옛 flat 모양이든 새 {pc,mobile} 모양이든
+          // normalizeHeroSlideshow가 한 번에 처리한다(라이브 데이터 back-compat).
+          setHeroSlideshow(normalizeHeroSlideshow(row.setting_value));
         } else if (row.setting_key === "sidebar_icons") {
           // EPIC-078: 구버전 leftIconUrl/rightIconUrl(단일 URL)을
           // leftIconDefaultUrl/rightIconDefaultUrl로 1회 폴백.
@@ -404,24 +391,15 @@ export default function AdminNavigationSettingsPage() {
   }
 
   function addSlide() {
-    setHeroSlideshow((prev) => ({
-      ...prev,
-      slides: [...prev.slides, { imageUrl: "", title: "", description: "" }],
-    }));
+    updateActiveHero({ slides: [...activeHero.slides, { imageUrl: "", title: "", description: "" }] });
   }
 
   function updateSlide(index: number, patch: Partial<SlideItem>) {
-    setHeroSlideshow((prev) => ({
-      ...prev,
-      slides: prev.slides.map((s, i) => (i === index ? { ...s, ...patch } : s)),
-    }));
+    updateActiveHero({ slides: activeHero.slides.map((s, i) => (i === index ? { ...s, ...patch } : s)) });
   }
 
   function removeSlide(index: number) {
-    setHeroSlideshow((prev) => ({
-      ...prev,
-      slides: prev.slides.filter((_, i) => i !== index),
-    }));
+    updateActiveHero({ slides: activeHero.slides.filter((_, i) => i !== index) });
   }
 
   async function handleLogoFileChange(file: File | null) {
@@ -470,31 +448,23 @@ export default function AdminNavigationSettingsPage() {
   }
 
   function addWallpaper() {
-    setHeroSlideshow((prev) => {
-      if (prev.wallpaperUrls.length >= MAX_WALLPAPERS) return prev;
-      return { ...prev, wallpaperUrls: [...prev.wallpaperUrls, ""] };
-    });
+    if (activeHero.wallpaperUrls.length >= MAX_WALLPAPERS) return;
+    updateActiveHero({ wallpaperUrls: [...activeHero.wallpaperUrls, ""] });
   }
 
   function updateWallpaper(index: number, url: string) {
-    setHeroSlideshow((prev) => ({
-      ...prev,
-      wallpaperUrls: prev.wallpaperUrls.map((u, i) => (i === index ? url : u)),
-    }));
+    updateActiveHero({ wallpaperUrls: activeHero.wallpaperUrls.map((u, i) => (i === index ? url : u)) });
   }
 
   function removeWallpaper(index: number) {
-    setHeroSlideshow((prev) => ({
-      ...prev,
-      wallpaperUrls: prev.wallpaperUrls.filter((_, i) => i !== index),
-    }));
+    updateActiveHero({ wallpaperUrls: activeHero.wallpaperUrls.filter((_, i) => i !== index) });
   }
 
   async function handleWallpaperFileChange(index: number, file: File | null) {
     if (!file) return;
     setUploadingWallpaperIdx(index);
     setError(null);
-    const compressed = await compressImage(file, heroSlideshow.wallpaperQuality);
+    const compressed = await compressImage(file, activeHero.wallpaperQuality);
     const { url, error: uploadError } = await uploadImage(compressed, "wallpaper");
     setUploadingWallpaperIdx(null);
     if (uploadError || !url) {
@@ -799,13 +769,32 @@ export default function AdminNavigationSettingsPage() {
             </button>
           </div>
 
-          {heroSlideshow.slides.length === 0 ? (
+          {/* EPIC-092(요구사항 7): PC/모바일 버전을 독립적으로 편집 —
+              아래 슬라이드/여백/배경 설정은 전부 선택된 탭에만 적용된다. */}
+          <div className="mb-4 flex gap-1 rounded-md border border-gray-200 p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => setHeroTab("pc")}
+              className={`rounded px-3 py-1 text-sm ${heroTab === "pc" ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+            >
+              PC 버전
+            </button>
+            <button
+              type="button"
+              onClick={() => setHeroTab("mobile")}
+              className={`rounded px-3 py-1 text-sm ${heroTab === "mobile" ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+            >
+              모바일 버전
+            </button>
+          </div>
+
+          {activeHero.slides.length === 0 ? (
             <p className="text-sm text-gray-400 mb-3">
               아직 추가된 슬라이드가 없어요.
             </p>
           ) : (
             <div className="space-y-3 mb-3">
-              {heroSlideshow.slides.map((slide, idx) => (
+              {activeHero.slides.map((slide, idx) => (
                 <div
                   key={idx}
                   className="rounded-md border border-gray-200 p-3 space-y-2"
@@ -881,14 +870,11 @@ export default function AdminNavigationSettingsPage() {
                 min={1}
                 max={60}
                 className={inputClass}
-                value={heroSlideshow.autoAdvanceSeconds}
+                value={activeHero.autoAdvanceSeconds}
                 onChange={(e) =>
-                  setHeroSlideshow((prev) => ({
-                    ...prev,
-                    autoAdvanceSeconds:
-                      Number(e.target.value) ||
-                      DEFAULT_HERO_SLIDESHOW.autoAdvanceSeconds,
-                  }))
+                  updateActiveHero({
+                    autoAdvanceSeconds: Number(e.target.value) || defaultHeroSlideshowConfig().autoAdvanceSeconds,
+                  })
                 }
               />
             </div>
@@ -896,17 +882,58 @@ export default function AdminNavigationSettingsPage() {
               <label className="block text-sm mb-1">이미지 채움 방식</label>
               <select
                 className={inputClass}
-                value={heroSlideshow.objectFit}
-                onChange={(e) =>
-                  setHeroSlideshow((prev) => ({
-                    ...prev,
-                    objectFit: e.target.value as "cover" | "contain",
-                  }))
-                }
+                value={activeHero.objectFit}
+                onChange={(e) => updateActiveHero({ objectFit: e.target.value as "cover" | "contain" })}
               >
                 <option value="cover">꽉 차게 (cover)</option>
                 <option value="contain">원본 모두 보이게 (contain)</option>
               </select>
+            </div>
+          </div>
+
+          {/* EPIC-092(요구사항 6): 슬라이드쇼 위젯 바깥 여백(px) — 저장 후
+              공개 홈페이지가 다음 요청부터 바로 반영한다(별도 미리보기 캔버스
+              없음, 기존 다른 hero_slideshow 필드와 동일한 "실시간 적용" 의미). */}
+          <div className="grid grid-cols-4 gap-3 mb-3">
+            <div>
+              <label className="block text-sm mb-1">여백 위(px)</label>
+              <input
+                type="number"
+                min={0}
+                className={inputClass}
+                value={activeHero.marginTopPx}
+                onChange={(e) => updateActiveHero({ marginTopPx: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">여백 아래(px)</label>
+              <input
+                type="number"
+                min={0}
+                className={inputClass}
+                value={activeHero.marginBottomPx}
+                onChange={(e) => updateActiveHero({ marginBottomPx: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">여백 왼쪽(px)</label>
+              <input
+                type="number"
+                min={0}
+                className={inputClass}
+                value={activeHero.marginLeftPx}
+                onChange={(e) => updateActiveHero({ marginLeftPx: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">여백 오른쪽(px)</label>
+              <input
+                type="number"
+                min={0}
+                className={inputClass}
+                value={activeHero.marginRightPx}
+                onChange={(e) => updateActiveHero({ marginRightPx: Math.max(0, Number(e.target.value) || 0) })}
+              />
             </div>
           </div>
 
@@ -920,7 +947,7 @@ export default function AdminNavigationSettingsPage() {
               <button
                 type="button"
                 onClick={addWallpaper}
-                disabled={heroSlideshow.wallpaperUrls.length >= MAX_WALLPAPERS}
+                disabled={activeHero.wallpaperUrls.length >= MAX_WALLPAPERS}
                 className={smallButtonClass}
               >
                 + 추가
@@ -937,25 +964,19 @@ export default function AdminNavigationSettingsPage() {
                 min={1}
                 max={100}
                 className={`${inputClass} max-w-[120px]`}
-                value={heroSlideshow.wallpaperQuality}
+                value={activeHero.wallpaperQuality}
                 onChange={(e) =>
-                  setHeroSlideshow((prev) => ({
-                    ...prev,
-                    wallpaperQuality: Math.max(
-                      1,
-                      Math.min(100, Number(e.target.value) || 100),
-                    ),
-                  }))
+                  updateActiveHero({ wallpaperQuality: Math.max(1, Math.min(100, Number(e.target.value) || 100)) })
                 }
               />
             </div>
-            {heroSlideshow.wallpaperUrls.length === 0 ? (
+            {activeHero.wallpaperUrls.length === 0 ? (
               <p className="text-sm text-gray-400">
                 아직 추가된 배경 이미지가 없어요.
               </p>
             ) : (
               <div className="space-y-2">
-                {heroSlideshow.wallpaperUrls.map((url, idx) => (
+                {activeHero.wallpaperUrls.map((url, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     {url && (
                       // eslint-disable-next-line @next/next/no-img-element

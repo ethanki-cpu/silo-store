@@ -23,6 +23,11 @@ export function TimelineView<T extends TimelineEntry>({
   const grouped = groupByYearMonth(entries);
   const years = [...grouped.keys()].sort((a, b) => Number(b) - Number(a));
 
+  // EPIC-092(요구사항 2): Commonninja 스타일의 중앙선+배지+카드 타임라인으로
+  // 재설계 — entries/renderItem/emptyMessage 계약은 그대로 유지하고, 각
+  // 항목을 감싸는 선/배지/카드 마크업만 이 컴포넌트가 새로 책임진다. 좌우
+  // 교차 배치는 하지 않는다(마이페이지 패널처럼 좁은 컨테이너에서도 동일하게
+  // 동작해야 하므로 단일 컬럼 + 좌측 선 + 카드 조합으로 통일).
   return (
     <div className="space-y-12">
       {years.map((year) => {
@@ -34,15 +39,23 @@ export function TimelineView<T extends TimelineEntry>({
             <h2 className="font-serif text-2xl font-bold text-gray-900 mb-6">
               {year}
             </h2>
-            <div className="space-y-8 border-l border-gray-200 pl-6">
+            <div className="space-y-8">
               {months.map((month) => (
                 <div key={month}>
-                  <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-3">
+                  <h3 className="inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-500 mb-4">
                     {year}년 {Number(month)}월
                   </h3>
-                  <div className="space-y-3">
+                  <div className="relative space-y-6 pl-8">
+                    {/* 중앙(좌측) 세로선 */}
+                    <div className="absolute left-3 top-1 bottom-1 w-px bg-gray-200" aria-hidden />
                     {byMonth.get(month)!.map((entry) => (
-                      <div key={entry.id}>{renderItem(entry)}</div>
+                      <div key={entry.id} className="relative">
+                        {/* 아이콘 배지 마커 */}
+                        <span className="absolute left-3 top-1 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-gray-400 bg-white shadow-sm" aria-hidden />
+                        <div className="rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+                          {renderItem(entry)}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>

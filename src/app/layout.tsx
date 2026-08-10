@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/AuthProvider";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -63,6 +64,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <Navbar />
           </Suspense>
+          <Breadcrumb />
           {children}
           <Footer />
         </AuthProvider>

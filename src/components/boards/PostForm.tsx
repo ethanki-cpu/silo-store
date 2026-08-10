@@ -4,6 +4,17 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { BlockEditor } from "@/components/editor/BlockEditor";
 import { findFeaturedImage, findFirstImage, isEmptyDoc, type JSONContent } from "@/lib/blockEditorCore";
 import { uploadPostImage } from "@/lib/storage";
+import { useAuth } from "@/lib/AuthProvider";
+
+// EPIC-092(요구사항 1): datetime-local input은 "YYYY-MM-DDTHH:mm" 형식을
+// 쓴다 — ISO 문자열(Z/초/밀리초 포함)을 그대로 넣으면 인식하지 못해 빈
+// 필드로 보이므로, 표시용/제출용 변환 헬퍼를 둔다.
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 // EPIC-053.1: 글쓰기(write)와 수정(edit) 페이지가 공유하는 폼 —
 // "새 Editor 생성 금지 / 중복 코드 생성 금지" 원칙에 따라 두 화면이
@@ -23,6 +34,9 @@ export type PostFormSubmitPayload = {
   tags: string[];
   isDocentPost: boolean;
   orderId?: string;
+  /** EPIC-092(요구사항 1): 관리자만 채울 수 있는 등록 날짜/시간(ISO) — 값이
+   * 있을 때만 서버가 posts.created_at을 덮어쓴다. */
+  createdAt?: string;
 };
 
 export function PostForm({
@@ -43,6 +57,7 @@ export function PostForm({
   initialFeaturedImagePath = null,
   initialThumbnailVisible = true,
   initialCategory = null,
+  initialCreatedAt,
   draftStorageKey,
   submitLabel,
   onSubmit,
@@ -68,6 +83,10 @@ export function PostForm({
   initialFeaturedImagePath?: string | null;
   initialThumbnailVisible?: boolean;
   initialCategory?: string | null;
+  /** EPIC-092(요구사항 1): 수정 화면에서 이 글의 현재 created_at(ISO)을
+   * 넘기면 관리자 전용 "등록 날짜/시간" 필드가 그 값으로 초기화된다. 글쓰기
+   * 화면(캘린더의 "+ 글 등록" 등)에서는 원하는 날짜만 넘겨도 된다. */
+  initialCreatedAt?: string;
   draftStorageKey: string;
   submitLabel: string;
   onSubmit: (payload: PostFormSubmitPayload) => Promise<void>;
@@ -86,6 +105,17 @@ export function PostForm({
   const [category, setCategory] = useState<string>(initialCategory ?? "");
   const [uploadingFeatured, setUploadingFeatured] = useState(false);
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
+  const { member } = useAuth();
+  // EPIC-092(요구사항 1): 관리자 전용 "등록 날짜/시간" — initialCreatedAt이
+  // ISO든 "YYYY-MM-DD"(캘린더 "+ 글 등록" pre-fill)든 datetime-local 형식
+  // ("YYYY-MM-DDTHH:mm")으로 정규화해 보여준다.
+  const [createdAtLocal, setCreatedAtLocal] = useState(() =>
+    initialCreatedAt
+      ? initialCreatedAt.includes("T")
+        ? toDatetimeLocalValue(initialCreatedAt)
+        : `${initialCreatedAt}T00:00`
+      : "",
+  );
 
   // 대표 이미지를 명시적으로 지정한 적이 없으면, 에디터 안에서 ★(대표
   // 이미지) 표시가 바뀔 때마다 자동으로 따라간다 — 없으면 본문 첫 이미지로
@@ -169,6 +199,7 @@ export function PostForm({
         .filter((t) => t.length > 0),
       isDocentPost,
       ...(boardType === "adoption_story" ? { orderId } : {}),
+      ...(member?.is_admin && createdAtLocal ? { createdAt: new Date(createdAtLocal).toISOString() } : {}),
     });
 
     if (mode === "create") localStorage.removeItem(draftStorageKey);
@@ -211,6 +242,21 @@ export function PostForm({
           className="w-full rounded-md border border-gray-300 px-3 py-2"
         />
       </div>
+
+      {member?.is_admin && (
+        <div>
+          <label className="block text-sm mb-1">등록 날짜/시간 (관리자 전용)</label>
+          <input
+            type="datetime-local"
+            value={createdAtLocal}
+            onChange={(e) => setCreatedAtLocal(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            비워두면 원래 등록 시각(수정 시) 또는 지금 시각(새 글)이 그대로 사용돼요.
+          </p>
+        </div>
+      )}
 
       {categories && categories.length > 0 && (
         <div>

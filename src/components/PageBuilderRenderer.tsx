@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useAuth } from "@/lib/AuthProvider";
 import type { PageModuleRow, PageModuleType } from "@/lib/pageBuilder";
 import type { BreadcrumbItem } from "@/components/PageHeader";
 import { HeroModule } from "@/components/modules/HeroModule";
@@ -8,6 +10,7 @@ import { BreadcrumbWidget } from "@/components/modules/BreadcrumbWidget";
 import { BoardModule } from "@/components/modules/BoardModule";
 import { ApplicationModule } from "@/components/modules/ApplicationModule";
 import { CalendarGrid } from "@/components/modules/CalendarGrid";
+import { CalendarBoardWidget } from "@/components/modules/CalendarBoardWidget";
 import { SearchInput } from "@/components/modules/SearchInput";
 import { SortSelect } from "@/components/modules/SortSelect";
 import { FilterModule } from "@/components/modules/FilterModule";
@@ -137,7 +140,17 @@ function BadgeFromSettings({ settings }: { settings: Record<string, unknown> }) 
   return <BadgeWidget items={arr<{ label: string }>(settings.items)} />;
 }
 
-function CalendarFromSettings({ settings }: { settings: Record<string, unknown> }) {
+// EPIC-092(요구사항 5): board_id가 연결돼 있으면 실제 게시판 데이터와
+// 이어주는 CalendarBoardWidget으로 렌더링하고, 없으면(레거시/미연결)
+// 기존처럼 순수 프레젠테이션 셸(CalendarGrid)만 보여준다.
+function CalendarFromSettings({
+  settings,
+  boardId,
+}: {
+  settings: Record<string, unknown>;
+  boardId: string | null;
+}) {
+  if (boardId) return <CalendarBoardWidget boardId={boardId} />;
   const now = new Date();
   const year = num(settings.year, now.getFullYear());
   const month = num(settings.month, now.getMonth() + 1);
@@ -227,7 +240,7 @@ function renderModule(module: PageModuleRow) {
     case "badge":
       return <BadgeFromSettings settings={settings} />;
     case "calendar":
-      return <CalendarFromSettings settings={settings} />;
+      return <CalendarFromSettings settings={settings} boardId={board_id} />;
     case "search":
       return <SearchDemo settings={settings} />;
     case "sort":
@@ -257,6 +270,7 @@ export function PageBuilderRenderer({
   modules: PageModuleRow[];
   includeHidden?: boolean;
 }) {
+  const { member } = useAuth();
   const visible = includeHidden ? modules : modules.filter((m) => !m.is_hidden);
 
   if (visible.length === 0) {
@@ -266,9 +280,23 @@ export function PageBuilderRenderer({
   return (
     <div className="space-y-10">
       {visible.map((module) => (
-        <div key={module.id} className={module.is_hidden ? "opacity-40" : undefined}>
+        <div
+          key={module.id}
+          className={`relative${module.is_hidden ? " opacity-40" : ""}`}
+        >
           {module.is_hidden && (
             <p className="mb-1 text-xs font-medium text-amber-600">🙈 숨겨진 위젯(공개 페이지에는 안 보임)</p>
+          )}
+          {/* EPIC-092(요구사항 3): 관리자에게만 위젯별 설정으로 바로 연결되는
+              작은 톱니바퀴 버튼을 우측 상단에 띄운다. */}
+          {member?.is_admin && (
+            <Link
+              href={`/admin/pages/${module.page_id}?module=${module.id}`}
+              className="absolute top-1 right-1 z-10 rounded-full bg-gray-800/80 p-1 text-white hover:bg-gray-700"
+              title="위젯 수정"
+            >
+              ⚙
+            </Link>
           )}
           {renderModule(module)}
         </div>

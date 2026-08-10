@@ -14,7 +14,11 @@ import { WriteBoardForm } from "@/components/boards/WriteBoardForm";
 function WritePageInner() {
   const searchParams = useSearchParams();
   const boardId = searchParams.get("boardId") ?? "";
-  return <WriteBoardForm initialBoardSlug={boardId} />;
+  // EPIC-092(요구사항 5): 캘린더 위젯의 "+ 글 등록"이 날짜를 붙여 여기로
+  // 온다(/write?boardId=X&date=YYYY-MM-DD) — 관리자 전용 "등록 날짜/시간"
+  // 필드(PostForm.tsx)의 초기값으로 그대로 넘긴다.
+  const date = searchParams.get("date") ?? "";
+  return <WriteBoardForm initialBoardSlug={boardId} initialCreatedAtDate={date} />;
 }
 
 export default function GlobalWritePage() {

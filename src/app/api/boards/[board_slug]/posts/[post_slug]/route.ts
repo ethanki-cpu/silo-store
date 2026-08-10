@@ -330,6 +330,17 @@ export async function PATCH(
       : [];
   const targetBoardSlug = body?.targetBoardSlug as string | undefined;
 
+  // EPIC-092(요구사항 1): 관리자만 게시글 "등록 날짜/시간"(created_at)을
+  // 직접 덮어쓸 수 있다 — 클라이언트의 is_admin 표시는 UI 게이팅일 뿐이라
+  // 여기서 requester.member.is_admin(서버 조회값)을 다시 확인하지 않으면
+  // 위조된 요청으로 아무나 created_at을 바꿀 수 있다. 값이 없거나 관리자가
+  // 아니면 조용히 무시(에러로 취급하지 않음).
+  const requestedCreatedAt = body?.createdAt as string | undefined;
+  const createdAtOverride =
+    requester.member.is_admin && requestedCreatedAt && !isNaN(new Date(requestedCreatedAt).getTime())
+      ? new Date(requestedCreatedAt).toISOString()
+      : null;
+
   if (!title || !bodyJson) {
     return NextResponse.json({ error: "제목과 내용을 모두 입력해주세요." }, { status: 400 });
   }
@@ -411,6 +422,7 @@ export async function PATCH(
       tags,
       updated_at: new Date().toISOString(),
       ...(targetBoardId ? { board_id: targetBoardId, slug: targetSlug } : {}),
+      ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
     })
     .eq("id", postId)
     .select()
@@ -425,6 +437,7 @@ export async function PATCH(
         body: sanitizedBody,
         is_docent_post: isDocentPost,
         ...(targetBoardId ? { board_id: targetBoardId, slug: targetSlug } : {}),
+        ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
       })
       .eq("id", postId)
       .select()

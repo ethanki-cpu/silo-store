@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { supabase } from "@/lib/supabaseClient";
 import { extractPostMetadata } from "@/lib/utils/extractPostMetadata";
 import type { JSONContent } from "@/lib/blockEditorCore";
+import { getNavNodeForBoardId, getAncestorChain } from "@/lib/siteTree";
+import type { BreadcrumbItem } from "@/components/PageHeader";
 import { PostDetailClient } from "./PostDetailClient";
 
 // EPIC-085: Dynamic SEO & Open Graph — 실제 화면(PostDetailClient)은 여전히
@@ -63,6 +65,23 @@ export async function generateMetadata({
   };
 }
 
-export default function PostDetailPage() {
-  return <PostDetailClient />;
+// EPIC-092(요구사항 8): 게시글 상세의 브레드크럼은 board_id → site_navigations
+// 역추적이 필요해(직접 FK 없음, src/lib/siteTree.ts 참고) 전역 <Breadcrumb>
+// (layout.tsx, pathname 매칭)이 처리하지 못한다 — 여기서 서버 사이드로 미리
+// 계산해 클라이언트에 prop으로 내려줘 별도 클라이언트 fetch를 피한다.
+export default async function PostDetailPage({
+  params,
+}: {
+  params: Promise<{ board_slug: string; post_slug: string }>;
+}) {
+  const { board_slug: boardSlug } = await params;
+
+  let breadcrumb: BreadcrumbItem[] = [];
+  const { data: board } = await supabase.from("boards").select("id").eq("slug", boardSlug).maybeSingle();
+  if (board) {
+    const navNode = await getNavNodeForBoardId((board as { id: string }).id);
+    if (navNode) breadcrumb = await getAncestorChain(navNode.id);
+  }
+
+  return <PostDetailClient breadcrumb={breadcrumb} />;
 }

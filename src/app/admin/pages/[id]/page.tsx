@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   DndContext,
   PointerSensor,
@@ -64,9 +64,10 @@ type BoardOption = { id: string; name: string; render_type: string | null };
 // 없음) — "저장" 버튼을 눌러야 draft가 실제로 DB/modules에 반영된다. 위젯
 // 추가/복제/숨기기/삭제/순서 변경은 draft 없이 즉시 DB에 반영된다(기존
 // EPIC-060 편집 화면과 동일한 즉시-저장 패턴).
-export default function AdminPageEditorPage() {
+function AdminPageEditorPageInner() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { session } = useAuth();
 
   const [page, setPage] = useState<PageBuilderRow | null>(null);
@@ -127,6 +128,22 @@ export default function AdminPageEditorPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // EPIC-092(요구사항 3): 위젯 렌더러의 톱니바퀴 버튼(/admin/pages/[id]?module=)
+  // 으로 들어오면, modules가 로드된 뒤 해당 위젯의 Inspector를 자동으로 연다.
+  // 관리자가 이후 자유롭게 닫았다 열었다 할 수 있도록 최초 1회만 적용한다.
+  const appliedDeepLinkRef = useRef(false);
+  useEffect(() => {
+    if (appliedDeepLinkRef.current || modules.length === 0) return;
+    const targetModuleId = searchParams.get("module");
+    if (!targetModuleId) return;
+    const target = modules.find((m) => m.id === targetModuleId);
+    if (target) {
+      appliedDeepLinkRef.current = true;
+      openEditor(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modules, searchParams]);
 
   // HOTFIX-090(요구사항: "게시판 선택 옵션이 사이트메뉴 변화에 바로
   // 적용되도록 연동"): 기존엔 컴포넌트가 처음 마운트될 때 한 번만 게시판
@@ -691,6 +708,16 @@ export default function AdminPageEditorPage() {
         <WidgetPalette onSelect={handleSelectWidget} onClose={() => setPaletteOpen(false)} />
       )}
     </main>
+  );
+}
+
+// EPIC-092(요구사항 3): useSearchParams()를 쓰므로 write/page.tsx와 동일한
+// 이유로 Suspense가 필요하다.
+export default function AdminPageEditorPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageEditorPageInner />
+    </Suspense>
   );
 }
 

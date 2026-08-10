@@ -363,6 +363,16 @@ export async function POST(
           .map((t) => t.trim())
       : [];
 
+  // EPIC-092(요구사항 1): 관리자만 등록 시 created_at을 직접 지정할 수
+  // 있다 — 클라이언트의 is_admin 표시는 UI 게이팅일 뿐이라 서버가
+  // requester.member.is_admin으로 다시 검증한다. 값이 없거나 관리자가
+  // 아니면 조용히 무시하고 DB 기본값(now())을 그대로 쓴다.
+  const requestedCreatedAt = body?.createdAt as string | undefined;
+  const createdAtOverride =
+    requester.member.is_admin && requestedCreatedAt && !isNaN(new Date(requestedCreatedAt).getTime())
+      ? new Date(requestedCreatedAt).toISOString()
+      : null;
+
   if (!title || !bodyJson) {
     return NextResponse.json(
       { error: "제목과 내용을 모두 입력해주세요." },
@@ -443,6 +453,7 @@ export async function POST(
       order_id: validatedOrderId,
       tags,
       slug,
+      ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
     })
     .select()
     .single();
@@ -466,6 +477,7 @@ export async function POST(
         order_id: validatedOrderId,
         tags,
         slug,
+        ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
       })
       .select()
       .single());
@@ -484,6 +496,7 @@ export async function POST(
         visibility: "public",
         order_id: validatedOrderId,
         slug,
+        ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
       })
       .select()
       .single());

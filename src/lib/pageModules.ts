@@ -143,6 +143,10 @@ export type CalendarModuleProps = {
   month: number; // 1-12
   markedDates?: string[]; // "YYYY-MM-DD"
   onDateClick?: (date: string) => void;
+  // EPIC-092(요구사항 5): 실제 게시판 데이터와 연동하려면 board_id가
+  // 필요하다 — 다른 board 연동 위젯 4종(BoardModuleProps)과 동일한 관례.
+  // 없으면(레거시/미연결) 순수 프레젠테이션 셸로만 동작한다.
+  boardId?: string | null;
 };
 
 export type SurveyOption = { label: string; votes?: number };

@@ -11,6 +11,10 @@ export function HeroSlideshow({
   autoAdvanceSeconds = DEFAULT_AUTO_ADVANCE_SECONDS,
   objectFit = "cover",
   wallpaperUrls,
+  marginTopPx = 0,
+  marginBottomPx = 0,
+  marginLeftPx = 0,
+  marginRightPx = 0,
 }: {
   slides: SlideItem[];
   autoAdvanceSeconds?: number;
@@ -19,6 +23,12 @@ export function HeroSlideshow({
   // 배경 후보 목록(최대 10개) — 슬라이드가 바뀔 때마다 이 중 하나를
   // 무작위로 골라 적용한다.
   wallpaperUrls?: string[];
+  // EPIC-092(요구사항 6): 위젯 바깥 여백(px) — "홈페이지 설정 관리"에서
+  // 지정, 기본 0이면 기존과 동일하게 화면 끝까지 꽉 찬다.
+  marginTopPx?: number;
+  marginBottomPx?: number;
+  marginLeftPx?: number;
+  marginRightPx?: number;
 }) {
   const [current, setCurrent] = useState(0);
   // 버그 수정(EPIC-079-FINAL-FIX): 첫 로드 시 이미지가 아직 안 뜬 짧은
@@ -61,7 +71,15 @@ export function HeroSlideshow({
   const showWallpaper = objectFit === "contain" && !!activeWallpaper;
 
   return (
-    <div className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden bg-transparent">
+    <div
+      className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden bg-transparent"
+      style={{
+        marginTop: marginTopPx,
+        marginBottom: marginBottomPx,
+        marginLeft: marginLeftPx,
+        marginRight: marginRightPx,
+      }}
+    >
       {slides.map((slide, idx) => (
         <div
           key={idx}

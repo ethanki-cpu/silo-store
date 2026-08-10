@@ -298,19 +298,14 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
             ))}
           </nav>
         )}
-        {/* EPIC-089(요구사항 3): "목록으로"는 이제 항상 떠 있는
-            PostFloatingActionBar(좌측 하단)로 옮겨갔다 — 본문 상단 좌측의
-            이 자리는 그 대신 관리자용 "페이지 수정" 버튼(기존엔 화면 우측
-            상단에 고정돼 있었음)이 인라인으로 채운다. 관리자가 아니면 이
-            자리는 비워둔다(방문자용 대체 링크 없음 — 목록으로는 FAB에 항상
-            있으므로 중복 노출하지 않음). */}
-        <div className="mb-4">
-          <PageEditButton
-            slug="boards-id-postid"
-            label="게시글 보여지는 방식 수정"
-            className="inline-flex items-center rounded-md bg-[#166534] px-3 py-1.5 text-sm text-white hover:opacity-90"
-          />
-        </div>
+        {/* EPIC-092(요구사항 3/4, 사용자 확인): "페이지 수정" 버튼은 모든
+            페이지에서 동일하게 헤더 바로 아래 좌측 상단에 고정 노출된다 —
+            게시글 상세 페이지만 예외로 본문 상단에 인라인 배치하던 것을
+            제거하고, 다른 페이지와 완전히 같은 위치/스타일(PageEditButton의
+            기본값)을 쓰도록 통일한다. 텍스트만 "게시글 보여지는 방식 수정"으로
+            분기한다. "목록으로"는 항상 떠 있는 PostFloatingActionBar(좌측
+            하단)가 담당한다. */}
+        <PageEditButton slug="boards-id-postid" label="게시글 보여지는 방식 수정" />
         <PostDetailHeader
           postNumber={post.post_number}
           createdAt={post.created_at}

@@ -36,6 +36,11 @@ export default function AdminBoardNewPage() {
         use_view_count: values.use_view_count,
         default_page_size: values.default_page_size,
         default_sort: values.default_sort,
+        widget_settings: {
+          ...(values.gallery_layout ? { galleryLayout: values.gallery_layout } : {}),
+          ...(values.gallery_columns ? { galleryColumns: values.gallery_columns } : {}),
+          galleryHoverAutoSlide: values.gallery_hover_auto_slide,
+        },
       }),
     });
 

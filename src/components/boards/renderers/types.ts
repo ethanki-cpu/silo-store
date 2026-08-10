@@ -18,4 +18,12 @@ export type BoardRendererProps = {
   // EPIC-066: 게시글이 아니라 게시판 단위 속성인 카테고리 — Story/
   // Community/Gallery Renderer가 태그 칩으로 함께 보여준다.
   boardCategory?: string | null;
+  // EPIC-092 후속: 갤러리 레이아웃 설정(boards.widget_settings에서 옴) —
+  // GalleryRenderer만 쓰고 나머지 Renderer는 무시한다(hubFeed/hubChildBoards와
+  // 동일한 "필요한 것만 골라 쓰는" 관례).
+  galleryLayout?: "masonry" | "grid";
+  galleryColumns?: number;
+  // EPIC-092 후속 2차: 호버 시 이미지 슬라이드 자동 전환 여부(기본 false —
+  // 좌우 화살표로 직접 넘김). 영상은 이 값과 무관하게 항상 자동재생.
+  galleryHoverAutoSlide?: boolean;
 };

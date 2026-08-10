@@ -29,6 +29,14 @@ export type BoardFormValues = {
   min_rank_to_write: number;
   // EPIC-087-PHASE-C: null이면 게이트 없음(전체 공개, 기존과 동일).
   min_rank_to_read: number | null;
+  // EPIC-092 후속(요구사항): 갤러리(render_type="gallery")에서만 의미 있음 —
+  // "" = 미지정(기존과 동일한 masonry). widget_settings.galleryLayout/
+  // galleryColumns로 저장된다.
+  gallery_layout: string; // "" | "masonry" | "grid"
+  gallery_columns: number;
+  // EPIC-092 후속 2차: 호버 시 이미지 슬라이드 자동 전환 여부(기본 false —
+  // 좌우 화살표로 직접 넘김). 영상은 이 값과 무관하게 항상 자동재생.
+  gallery_hover_auto_slide: boolean;
 };
 
 export const GROUP_OPTIONS: { value: string; label: string }[] = [
@@ -89,6 +97,9 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   default_sort: "latest",
   min_rank_to_write: 0,
   min_rank_to_read: null,
+  gallery_layout: "",
+  gallery_columns: 3,
+  gallery_hover_auto_slide: false,
 };
 
 const PREVIEW_POSTS: BoardPost[] = [
@@ -465,6 +476,47 @@ export function BoardForm({
           </div>
         )}
 
+        {values.render_type === "gallery" && (
+          <div className="grid grid-cols-2 gap-4 rounded-md border border-gray-200 p-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">갤러리 배치 방향</label>
+              <select
+                value={values.gallery_layout}
+                onChange={(e) => update("gallery_layout", e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">(기본값 — 세로 채움 masonry)</option>
+                <option value="masonry">세로 채움 (Masonry)</option>
+                <option value="grid">가로 채움 (Grid)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">한 행당 개수 (가로 채움일 때)</label>
+              <select
+                value={values.gallery_columns}
+                onChange={(e) => update("gallery_columns", Number(e.target.value))}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                {[2, 3, 4, 5, 6].map((n) => (
+                  <option key={n} value={n}>
+                    {n}개
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={values.gallery_hover_auto_slide}
+                  onChange={(e) => update("gallery_hover_auto_slide", e.target.checked)}
+                />
+                썸네일 호버 시 이미지 자동 슬라이드 (끄면 좌우 화살표로 직접 넘김 — 영상은 항상 자동재생)
+              </label>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Board Type</label>
@@ -621,6 +673,9 @@ export function BoardForm({
             boardId="preview"
             posts={PREVIEW_POSTS}
             isQna={false}
+            galleryLayout={values.gallery_layout === "grid" ? "grid" : values.gallery_layout === "masonry" ? "masonry" : undefined}
+            galleryColumns={values.gallery_columns}
+            galleryHoverAutoSlide={values.gallery_hover_auto_slide}
           />
         </div>
       </div>

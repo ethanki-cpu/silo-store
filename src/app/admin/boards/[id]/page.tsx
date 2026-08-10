@@ -51,6 +51,9 @@ export default function AdminBoardEditPage() {
         default_sort: data.default_sort ?? "latest",
         min_rank_to_write: data.min_rank_to_write ?? 0,
         min_rank_to_read: data.min_rank_to_read ?? null,
+        gallery_layout: data.widget_settings?.galleryLayout ?? "",
+        gallery_columns: data.widget_settings?.galleryColumns ?? 3,
+        gallery_hover_auto_slide: data.widget_settings?.galleryHoverAutoSlide ?? false,
       });
     }
 
@@ -83,6 +86,13 @@ export default function AdminBoardEditPage() {
         default_sort: next.default_sort,
         min_rank_to_write: next.min_rank_to_write,
         min_rank_to_read: next.min_rank_to_read,
+        // EPIC-092 후속: 갤러리 배치 방향/한 행당 개수 — render_type이
+        // "gallery"가 아니어도 그냥 저장해둔다(나중에 갤러리로 바꿔도 값 유지).
+        widget_settings: {
+          ...(next.gallery_layout ? { galleryLayout: next.gallery_layout } : {}),
+          ...(next.gallery_columns ? { galleryColumns: next.gallery_columns } : {}),
+          galleryHoverAutoSlide: next.gallery_hover_auto_slide,
+        },
       }),
     });
 

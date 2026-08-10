@@ -21,8 +21,11 @@ import { slugifyWithFallback } from "@/lib/slugify";
 // 수 있다 — 없는 컬럼을 select하면 PostgREST가 쿼리 전체를 42703으로
 // 실패시키므로, 먼저 새 컬럼 포함으로 시도하고 실패하면 레거시 컬럼만으로
 // 재시도해 마이그레이션 전에도 게시판 읽기가 완전히 멈추지 않게 한다.
+// EPIC-092 후속: 갤러리 카드 hover 미리보기(영상 재생 → 이미지 슬라이드)가
+// 본문 갤러리/임베드 전체 목록이 필요해 body_json도 목록 조회에 포함시킨다
+// — 별도 per-post fetch 없이 hover 즉시 재생되게 하려는 선택(사용자 확인).
 const richFields =
-  "id, slug, title, body, is_docent_post, like_count, is_best, photo_url, featured_image_url, thumbnail_visible, category, tags, view_count, updated_at, author_id, created_at";
+  "id, slug, title, body, body_json, is_docent_post, like_count, is_best, photo_url, featured_image_url, thumbnail_visible, category, tags, view_count, updated_at, author_id, created_at";
 const legacyFields =
   "id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
@@ -126,6 +129,7 @@ export async function GET(
         slug: string;
         title: string | null;
         body: string | null;
+        body_json: JSONContent | null;
         is_docent_post: boolean;
         like_count: number;
         is_best: boolean;
@@ -152,6 +156,7 @@ export async function GET(
       }[]).map((p) => ({
         ...p,
         slug: p.id,
+        body_json: null as JSONContent | null,
         featured_image_url: null as string | null,
         thumbnail_visible: true as boolean | null,
         category: null as string | null,

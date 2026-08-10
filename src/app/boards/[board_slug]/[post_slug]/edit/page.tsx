@@ -147,7 +147,12 @@ export default function EditPostPage() {
     setSubmitting(false);
 
     if (!res.ok) {
-      setError(data.error);
+      // EPIC-092 후속: 서버는 detail(실제 DB 에러 메시지)도 함께 내려주는데
+      // 지금까지 화면엔 안내 문구(data.error)만 보여줘 "왜" 실패했는지
+      // 알 수 없었다 — 관리자가 원인을 바로 파악할 수 있도록 detail이 있으면
+      // 이어 붙인다(사용자 요청, 예전에 실패 사유를 오류 메시지에 표시하라는
+      // 지시가 있었음).
+      setError(data.detail ? `${data.error} (${data.detail})` : data.error);
       return;
     }
 

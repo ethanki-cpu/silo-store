@@ -110,7 +110,9 @@ export function WriteBoardForm({
     setLoading(false);
 
     if (!res.ok) {
-      setError(data.error);
+      // EPIC-092 후속: 서버가 detail(실제 DB 에러)도 함께 내려주면 이어
+      // 붙여 원인을 바로 보여준다(수정 화면과 동일한 처리).
+      setError(data.detail ? `${data.error} (${data.detail})` : data.error);
       return;
     }
 

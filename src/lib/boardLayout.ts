@@ -9,6 +9,8 @@
 // 최종 권한자다 — 이 파일의 `membership`/`allowPosting`은 UI 표시(잠금
 // 안내 문구 등)와 API의 2차 게이팅용이지, 보안 최종 판정을 대체하지 않는다.
 
+import type { JSONContent } from "@/lib/blockEditorCore";
+
 export type SortOption = "latest" | "popular" | "views" | "comments" | "oldest";
 
 export function isSortOption(value: string | null): value is SortOption {
@@ -54,6 +56,9 @@ export type BoardPost = {
   created_at: string;
   updated_at?: string;
   is_answered?: boolean;
+  /** EPIC-092 후속(갤러리 호버 미리보기): 목록 조회에도 body_json을 포함시켜
+   * 카드 hover 시 본문 갤러리/영상을 별도 fetch 없이 바로 미리 볼 수 있게 한다. */
+  body_json?: JSONContent | null;
 };
 
 // EPIC-050: "timeline"은 연/월/일 순으로 묶어 보여주는 5번째 레이아웃 —

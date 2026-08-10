@@ -21,6 +21,13 @@ type Board = {
   name: string;
   category: string | null;
   board_type: string;
+  // EPIC-092 후속: 갤러리 레이아웃(masonry/grid)+줄당 개수+호버 자동슬라이드
+  // 여부 설정을 여기 담는다.
+  widget_settings?: {
+    galleryLayout?: "masonry" | "grid";
+    galleryColumns?: number;
+    galleryHoverAutoSlide?: boolean;
+  } | null;
 };
 
 // EPIC-054C: "Board Module" — 게시판 하나(boardId)를 Page 어디에든 꽂을 수
@@ -214,6 +221,9 @@ export function BoardModule({
         hubChildBoards={includeChildBoards ? hubChildBoards : undefined}
         showThumbnail={showThumbnail}
         boardCategory={board?.category}
+        galleryLayout={board?.widget_settings?.galleryLayout}
+        galleryColumns={board?.widget_settings?.galleryColumns}
+        galleryHoverAutoSlide={board?.widget_settings?.galleryHoverAutoSlide}
       />
 
       {definition.pageable && paginationEnabled !== false && (

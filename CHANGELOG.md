@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-08-10 (EPIC-092 후속 — 갤러리 배치 방향/줄당 개수 설정 + 썸네일 호버 영상·이미지 슬라이드 미리보기)
+- **요청**: `/about-silo/silo-story`(갤러리형 게시판)를 예시로, (1) masonry(세로 우선 채움)만 있던 갤러리 배치를 grid(가로 우선 채움)로 바꾸고 한 행당 개수도 설정 가능하게, (2) 썸네일에 커서를 올리면 영상이 재생되고 이어서 본문의 다른 이미지들이 슬라이드로 넘어가는 미리보기 추가.
+- **범위(사용자 확인)**: 우선 갤러리형 보드(`GalleryModule.tsx`)부터 적용 — 스토리/슬라이드/타임라인 등 다른 썸네일 컴포넌트는 이번 범위 밖(사이트에 공유되는 단일 썸네일 컴포넌트가 없어 확장 시 각각 별도 작업 필요). 호버 미디어 소스는 목록 API가 `body_json`까지 내려주도록 확장해 별도 fetch 없이 즉시 재생.
+- **배치 방향/줄당 개수**: `GalleryModule.tsx`가 `layout`("masonry"|"grid")/`columns`(2~6) props를 받아 `grid`일 때는 `grid-template-columns: repeat(N, 1fr)`(가로 우선), 기본값(masonry)은 기존 `columns-2 sm:columns-3`(세로 우선) 그대로 유지. 설정은 `boards.widget_settings`(기존에 있었지만 어디서도 읽지 않던 dead 컬럼)에 `{galleryLayout, galleryColumns}`로 저장 — `BoardForm.tsx`에 Board Type이 "gallery"일 때만 보이는 설정 UI 추가(라이브 미리보기에도 즉시 반영), `BoardModule.tsx`→`BoardRenderer`→`GalleryRenderer`로 값을 전달.
+- **호버 미리보기**: `GET /api/boards/[board_slug]/posts`의 select 목록에 `body_json`을 추가(`src/lib/boardLayout.ts`의 `BoardPost` 타입에도 반영). `GalleryModule.tsx`에 신설한 `GalleryCardMedia`가 `src/lib/calendarMedia.ts`의 `extractCalendarMedia`(EPIC-092 캘린더 위젯용으로 만든 body_json→미디어 목록 추출 유틸, 이름과 무관하게 범용 재사용)로 갤러리 이미지/영상을 뽑아 보여준다(영상은 `autoPlay muted loop`) — embed(유튜브 등 iframe)는 매 hover 로드 비용/autoplay 미보장 때문에 제외. 마우스가 벗어나면 원래 대표 이미지로 즉시 복귀.
+- **후속 수정(같은 날, 사용자 피드백)**: 이미지 슬라이드가 자동으로 넘어가던 걸 기본은 좌우 화살표로 직접 넘기는 방식으로 바꾸고, 자동 전환은 게시판별로 켤 수 있는 옵션(`galleryHoverAutoSlide`, 기본 꺼짐)으로 변경 — 영상 자동재생은 이 옵션과 무관하게 항상 유지. `GalleryCardMedia`에 좌우 화살표 버튼 추가(클릭 시 `preventDefault`/`stopPropagation`으로 카드 링크 이동 방지), `BoardForm.tsx`에 "썸네일 호버 시 이미지 자동 슬라이드" 체크박스 추가.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 로컬 dev(비로그인)에서 hover 시 대표 이미지가 본문 갤러리의 다른 이미지로 바뀌는 것과, 좌우 화살표 클릭으로 슬라이드가 넘어가면서도 게시글 상세로 이동하지 않는 것까지 실측 확인, 콘솔 에러 없음. **관리자 로그인 세션이 필요해 다음에 확인**: `BoardForm.tsx`의 새 설정(배치 방향/줄당 개수/자동 슬라이드 여부) 저장 왕복, grid 레이아웃 실제 렌더링, 영상이 포함된 게시글에서 호버 시 영상 자동재생 확인.
+- **변경 파일**: `src/components/modules/GalleryModule.tsx`, `src/components/boards/renderers/GalleryRenderer.tsx`, `src/components/boards/renderers/types.ts`, `src/components/modules/BoardModule.tsx`, `src/lib/useBoardData.ts`, `src/lib/boardLayout.ts`, `src/app/api/boards/[board_slug]/posts/route.ts`, `src/components/admin/BoardForm.tsx`, `src/app/admin/boards/[id]/page.tsx`, `src/app/admin/boards/new/page.tsx`.
+
+## 2026-08-10 (EPIC-092 후속 — 등록 날짜/시간 저장 실패 수정 + 오류 메시지에 실패 사유 표시)
+- **신고**: 관리자 전용 "등록 날짜/시간"을 바꿔 저장하면 "글 수정에 실패했어요"만 뜨고 원인을 알 수 없음.
+- **근본 원인(Management API로 실측 확인)**: `information_schema.column_privileges` 조회 결과, `posts.created_at`은 `authenticated` 역할에 `INSERT`/`SELECT`/`REFERENCES`만 있고 `UPDATE` 권한이 없었다 — `created_at`은 지금까지 INSERT 시점 DB 기본값(`now()`)으로만 채워지고 한 번도 UPDATE된 적 없는 컬럼이라(CLAUDE.md의 "Column-scoped write via GRANT, not just RLS" 패턴과 동일한 사유), RLS 정책은 통과해도 Postgres가 컬럼 단위 GRANT 부재로 UPDATE 자체를 `42501 permission denied for column created_at`로 막고 있었다.
+- **수정**: `docs/sql/EPIC-092-created-at-update-grant.sql` 신설(`grant update (created_at) on public.posts to authenticated;`) — Management API로 즉시 실행 완료, 재조회로 `authenticated`에 `UPDATE` 권한이 실제로 생겼음을 확인.
+- **오류 메시지 개선(사용자 요청 — 과거에도 실패 사유를 화면에 표시해달라는 지시가 있었음)**: 서버(`PATCH .../[post_slug]`, `POST .../posts`)는 이미 `detail`(실제 DB 에러 메시지)을 함께 내려주고 있었는데 클라이언트가 `data.error`(안내 문구)만 보여주고 버려왔다 — `src/app/boards/[board_slug]/[post_slug]/edit/page.tsx`/`src/components/boards/WriteBoardForm.tsx`가 `detail`이 있으면 `"{error} ({detail})"` 형태로 이어 붙이도록 수정.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. GRANT는 Management API 재조회로 확인, 실제 UI 저장 왕복은 관리자 로그인 세션이 필요해 다음 세션 확인 필요.
+
+## 2026-08-10 (EPIC-092 후속 — 게시글 상세 페이지 "페이지 수정" 버튼 위치 통일)
+- **사용자 확인**: 관리자 로그인 화면 스크린샷으로 실제 위치를 확인 — 일반 페이지는 좌측 상단 `#166534` 고정 버튼이 의도대로 보였고, 게시글 상세 페이지만 여전히 본문 상단에 인라인으로 다르게 배치돼 있는 걸 지적해 "모든 페이지에서 같은 위치로 고정해달라"고 요청.
+- **수정**: `src/app/boards/[board_slug]/[post_slug]/PostDetailClient.tsx` — `PageEditButton`에 커스텀 `className`(인라인 스타일) 넘기던 것을 제거하고 `label`만 넘기도록 변경 — 이제 이 페이지도 `PageEditButton.tsx`의 기본값(`fixed top-20 left-4`, `#166534`)을 그대로 쓴다. 텍스트는 계속 "게시글 보여지는 방식 수정"으로 분기.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 관리자 로그인 세션이 없어 실제 화면 확인은 다음 세션 필요.
+
 ## 2026-08-10 (EPIC-092 — [Stage 2] Advanced Widget UX, Inline Editing, & Contextual Navigation)
 - **요구사항 1 (관리자 전용 등록 날짜/시간)**: `PostForm.tsx`에 `member?.is_admin`일 때만 보이는 `datetime-local` 필드 추가 — 값이 있으면 `posts.created_at`을 직접 덮어쓴다. 클라이언트의 `is_admin` 표시는 UI 게이팅일 뿐이라, `POST /api/boards/[board_slug]/posts`와 `PATCH .../[post_slug]`(라우트) 둘 다 `requester.member.is_admin`(서버 조회값)을 다시 검증한 뒤에만 `created_at`을 반영한다(관리자가 아니면 조용히 무시). 캘린더 위젯의 "+ 글 등록"이 이 필드를 날짜로 pre-fill하는 데 재사용된다(요구사항 5).
 - **요구사항 2 (페이지 수정 버튼 재배치)**: `PageEditButton.tsx`의 기본 위치/색상을 우측 상단 고정(`bg-gray-800`)에서 좌측 상단(헤더 바로 아래) 고정 + `#166534` 강제 지정으로 변경. `label` prop 추가(기본 "페이지 수정") — 게시글 상세(`PostDetailClient.tsx`)는 `label="게시글 보여지는 방식 수정"`을 넘긴다(이 버튼은 게시글 개별 페이지가 아니라 고정 슬러그 `"boards-id-postid"`로 게시글 상세 공용 렌더링 페이지를 가리킨다).

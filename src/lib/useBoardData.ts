@@ -4,7 +4,18 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import type { BoardPost, SortOption, HubFeed } from "@/lib/boardLayout";
 
-type Board = { id: string; name: string; category: string | null; board_type: string };
+type Board = {
+  id: string;
+  name: string;
+  category: string | null;
+  board_type: string;
+  // EPIC-092 후속: 갤러리 레이아웃(masonry/grid)+줄당 개수+호버 자동슬라이드 설정.
+  widget_settings?: {
+    galleryLayout?: "masonry" | "grid";
+    galleryColumns?: number;
+    galleryHoverAutoSlide?: boolean;
+  } | null;
+};
 
 const EMPTY_FEED: HubFeed = { latest: [], popular: [], recommended: [] };
 

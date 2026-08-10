@@ -70,16 +70,31 @@ export function HeroSlideshow({
 
   const showWallpaper = objectFit === "contain" && !!activeWallpaper;
 
+  // EPIC-092 후속(사용자 피드백): 여백(margin)을 그냥 빈 공간으로 두면
+  // "여백에도 여백 배경 이미지가 보여야 한다"는 요청과 어긋난다 — margin
+  // 대신 바깥 박스에 padding을 주고, 그 바깥 박스 자체에 여백 배경
+  // 이미지를 깔아 padding 영역(=예전의 margin 자리)까지 이어지는 배경으로
+  // 보이게 한다. 안쪽(h-[60vh] 박스)은 기존과 동일하게 슬라이드/점 인디케이터를
+  // 담당 — objectFit이 "contain"이 아니거나 여백 배경이 없으면(showWallpaper
+  // false) 바깥 박스는 배경 없이 padding만 적용돼 기존처럼 빈 여백으로 보인다.
   return (
     <div
-      className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden bg-transparent"
+      className="relative w-full overflow-hidden bg-transparent"
       style={{
-        marginTop: marginTopPx,
-        marginBottom: marginBottomPx,
-        marginLeft: marginLeftPx,
-        marginRight: marginRightPx,
+        paddingTop: marginTopPx,
+        paddingBottom: marginBottomPx,
+        paddingLeft: marginLeftPx,
+        paddingRight: marginRightPx,
+        ...(showWallpaper
+          ? {
+              backgroundImage: `url(${activeWallpaper})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }
+          : undefined),
       }}
     >
+      <div className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden">
       {slides.map((slide, idx) => (
         <div
           key={idx}
@@ -148,6 +163,7 @@ export function HeroSlideshow({
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

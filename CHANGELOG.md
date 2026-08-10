@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2026-08-10 (EPIC-092 후속 2차 — 슬라이드쇼 여백 영역에도 여백 배경 이미지가 보이도록 수정)
+- **오해 정정**: 이전 수정(force-dynamic)으로 여백 자체(px)는 정상 적용되고 있었다(Management API/DOM 직접 측정으로 재확인) — 사용자의 실제 요구는 "여백이 생기는 것"이 아니라 "그 여백 공간에도 슬라이드쇼의 여백 배경 이미지(wallpaper)가 이어져 보여야 한다"는 것이었다. 기존 구현은 CSS `margin`으로 박스를 바깥으로 밀어내기만 해서, 여백 부분은 그냥 빈 흰 공간(페이지 배경)이었다.
+- **수정**: `HeroSlideshow.tsx`의 바깥 박스를 `margin` 대신 `padding`으로 바꾸고, 그 바깥 박스 자체에 여백 배경 이미지(`activeWallpaper`)를 `background-image`로 깔았다 — padding 영역이 이제 슬라이드 안쪽의 레터박스 배경과 이어지는 하나의 배경으로 보인다. 안쪽(`h-[60vh]` 박스, 슬라이드/점 인디케이터)은 기존과 동일하게 유지, `objectFit`이 "contain"이 아니거나 여백 배경이 없으면(showWallpaper=false) 기존처럼 padding만 있고 배경은 비어 있다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 로컬 dev에서 padding 영역에 여백 배경 이미지(초록 잎 패턴)가 이어져 보이는 것 스크린샷+DOM(`padding: 10px 0px` + `background-image` 동일 요소에 적용) 둘 다로 확인.
+
 ## 2026-08-10 (EPIC-092 후속 — 슬라이드쇼 여백이 저장해도 반영 안 되는 문제 수정)
 - **신고**: "홈페이지 설정 관리"에서 슬라이드쇼 위/아래 여백을 10px로 저장했는데도 실제 사이트(`dev.silostore.net`)에는 변화가 없음.
 - **진단**: Supabase Management API로 라이브 `site_settings.hero_slideshow`를 직접 조회한 결과 `pc.marginTopPx: 10`이 정확히 저장돼 있었다 — 그런데 dev.silostore.net에서 실제 렌더링된 DOM을 `javascript_tool`로 직접 확인하니 슬라이드쇼 루트 div의 `style` 속성이 `margin-top:0`이었다. DB는 맞는데 화면만 stale하다는 건 서버 렌더링 캐싱 문제라는 뜻.

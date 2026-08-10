@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-10 (EPIC-092 후속 — 슬라이드쇼 여백이 저장해도 반영 안 되는 문제 수정)
+- **신고**: "홈페이지 설정 관리"에서 슬라이드쇼 위/아래 여백을 10px로 저장했는데도 실제 사이트(`dev.silostore.net`)에는 변화가 없음.
+- **진단**: Supabase Management API로 라이브 `site_settings.hero_slideshow`를 직접 조회한 결과 `pc.marginTopPx: 10`이 정확히 저장돼 있었다 — 그런데 dev.silostore.net에서 실제 렌더링된 DOM을 `javascript_tool`로 직접 확인하니 슬라이드쇼 루트 div의 `style` 속성이 `margin-top:0`이었다. DB는 맞는데 화면만 stale하다는 건 서버 렌더링 캐싱 문제라는 뜻.
+- **근본 원인**: `src/app/page.tsx`(홈페이지 Server Component)에 `export const dynamic = "force-dynamic"`이 없었다 — `PROJECT_RULES.md`가 이미 "인증 불필요 단순 조회 페이지는 매 요청 최신 데이터를 가져오도록 force-dynamic을 쓴다"고 명시한 관례인데, 유독 홈페이지 자신은 이 지정이 빠져 있어 Next.js가 `site_settings`/`page_builder` 조회 결과를 캐싱하고 있었다. 슬라이드/배경 이미지가 최신으로 보였던 건 그 값들이 여백을 설정하기 전에 이미 캐시된 렌더에 포함돼 있었기 때문(같은 저장 동작 안에 있었을 뿐 실제로는 별개 타이밍).
+- **수정**: `src/app/page.tsx`에 `export const dynamic = "force-dynamic";` 추가.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 로컬 dev 서버에서 홈페이지가 정상 렌더링되는 것 확인(콘솔/서버 에러 없음). **다음에 확인 필요**: `dev.silostore.net` 재배포 후 실제로 여백이 반영되는지 최종 확인.
+
 ## 2026-08-10 (EPIC-092 후속 — 갤러리 배치 방향/줄당 개수 설정 + 썸네일 호버 영상·이미지 슬라이드 미리보기)
 - **요청**: `/about-silo/silo-story`(갤러리형 게시판)를 예시로, (1) masonry(세로 우선 채움)만 있던 갤러리 배치를 grid(가로 우선 채움)로 바꾸고 한 행당 개수도 설정 가능하게, (2) 썸네일에 커서를 올리면 영상이 재생되고 이어서 본문의 다른 이미지들이 슬라이드로 넘어가는 미리보기 추가.
 - **범위(사용자 확인)**: 우선 갤러리형 보드(`GalleryModule.tsx`)부터 적용 — 스토리/슬라이드/타임라인 등 다른 썸네일 컴포넌트는 이번 범위 밖(사이트에 공유되는 단일 썸네일 컴포넌트가 없어 확장 시 각각 별도 작업 필요). 호버 미디어 소스는 목록 API가 `body_json`까지 내려주도록 확장해 별도 fetch 없이 즉시 재생.

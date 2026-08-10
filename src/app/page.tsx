@@ -6,6 +6,16 @@ import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { fetchPublishedPageBySlug } from "@/lib/pageBuilder";
 import { normalizeHeroSlideshow, type HeroSlideshowConfig } from "@/lib/heroSlideshow";
 
+// EPIC-092 후속(버그 수정): 이 Server Component에 dynamic 지정이 없어
+// Next.js가 site_settings 조회 결과를 캐싱해, "홈페이지 설정 관리"에서
+// 슬라이드쇼 여백(marginTopPx 등)을 저장해도 배포된 사이트에 반영되지
+// 않는 문제가 있었다(실사용 중 발견 — DB에는 값이 정확히 저장돼 있는데
+// 렌더링된 DOM의 style 속성은 항상 0이었음). PROJECT_RULES.md가 이미
+// 명시한 "인증 불필요 단순 조회 페이지는 force-dynamic" 관례를 이 페이지가
+// 놓치고 있었다 — 이제 매 요청마다 최신 site_settings/page_builder를
+// 다시 조회한다.
+export const dynamic = "force-dynamic";
+
 // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
 // site_settings.hero_slideshow를 조회해 최상단 히어로 배너를 렌더링한다.
 // Server Component에서 직접 조회 — 클라이언트 쪽 깜빡임 없이 첫 렌더부터

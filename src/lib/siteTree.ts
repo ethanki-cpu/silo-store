@@ -43,7 +43,16 @@ export async function findNavNodeByPathname(pathname: string): Promise<{ id: str
 // 게시판" 메커니즘(약 1650-1730줄)과 정확히 반대 방향으로 체인을 탄다:
 // page_modules(module_type='board', board_id=X) → page_id → page_builder.slug
 // → 그 slug와 hrefToSlug(href)가 일치하는 site_navigations 행.
-export async function getNavNodeForBoardId(boardId: string): Promise<{ id: string } | null> {
+// HOTFIX-094: board_id -> 그 게시판을 "board" 위젯으로 담고 있는 전용
+// page_builder 페이지의 slug. CategoryBranchPicker(BoardForm의 "Category
+// (사이트 메뉴 위치)")로 게시판을 사이트 메뉴 분기에 배정하면
+// ensurePageForSlug가 그 분기 전용 page_builder 행을 만들고 이 게시판을
+// board 위젯으로 연결한다 - 그 결과를 역추적한다. 배정된 적이 없으면
+// null이며, 호출부는 이 경우 "이 게시판 전용 페이지가 아직 없다"로 취급해야
+// 한다 - 모든 게시판이 공유하는 대체 슬러그로 폴백하지 않는다(그러면
+// 게시판마다 서로 다른 게시판의 "페이지 수정"/위젯 영역을 보게 되는
+// 문제로 되돌아간다).
+export async function getBoardPageSlug(boardId: string): Promise<string | null> {
   const { data: pm } = await supabase
     .from("page_modules")
     .select("page_id")
@@ -56,7 +65,11 @@ export async function getNavNodeForBoardId(boardId: string): Promise<{ id: strin
   if (!pageId) return null;
 
   const { data: page } = await supabase.from("page_builder").select("slug").eq("id", pageId).maybeSingle();
-  const slug = (page as { slug: string } | null)?.slug;
+  return (page as { slug: string } | null)?.slug ?? null;
+}
+
+export async function getNavNodeForBoardId(boardId: string): Promise<{ id: string } | null> {
+  const slug = await getBoardPageSlug(boardId);
   if (!slug) return null;
 
   const rows = await fetchAllNavRows();

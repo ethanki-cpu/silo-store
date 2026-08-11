@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-11 (HOTFIX-094 — 게시판 목록 페이지 "페이지 수정" 버튼이 게시판마다 다른 게시판 편집 화면으로 가던 문제 수정)
+- **근본 원인**: `/boards/[board_slug]/page.tsx`(모든 게시판이 공유하는 동적 라우트)의 `PageEditButton`과 위젯 아래 위젯 영역 조회가 게시판마다 실제 slug를 넘기지 않고 항상 고정 문자열 `"boards-id"`(EPIC-064A 백필 때 만든 placeholder 1개)를 썼다 — "그리스"든 다른 어떤 게시판이든 "페이지 수정"을 누르면 전부 같은 `page_builder` 행으로 이동했고, 편집 화면 제목도 그 slug 그대로 `/boards-id`로 표시됐다. HOTFIX-093-B/EPIC-093에서 이미 "재현은 됐지만 EPIC-067의 의도된 설계"로 남겨뒀던 항목인데, 실제로는 `BoardForm.tsx`의 "Category (사이트 메뉴 위치)" 기능(EPIC-084/088)이 게시판을 사이트 메뉴 분기에 배정하면 그 분기 전용 `page_builder` 행을 이미 자동으로 만들어주고 있었다 — 다만 `/boards/[board_slug]/page.tsx`가 그 결과를 조회하지 않고 계속 공용 placeholder만 썼을 뿐이었다(사용자 확인: 게시판별로 실제 분리하는 방향으로 진행).
+- **수정**: `src/lib/siteTree.ts`에 `getBoardPageSlug(boardId)`를 새로 뽑아냄(기존 `getNavNodeForBoardId`가 내부에서 하던 "board 위젯으로 이 게시판을 담고 있는 전용 page_builder 페이지 slug 역추적"을 재사용 가능하게 분리). `/boards/[board_slug]/page.tsx`가 이제 URL의 board_slug → `boards.id` → `getBoardPageSlug(id)` 순으로 실제 전용 페이지 slug를 조회해 그 값으로 `PageEditButton`/위젯 영역을 렌더링한다. 아직 어떤 분기에도 배정되지 않은 게시판(전용 페이지가 없음)은 공용 placeholder로 폴백하지 않고 버튼/위젯 영역 자체를 렌더링하지 않는다 — 폴백하면 다시 여러 게시판이 같은 화면을 공유하는 원래 문제로 되돌아가기 때문.
+- **범위**: 이번엔 게시판 목록 페이지(`/boards/[board_slug]`)만 고쳤다. 동일한 고정-slug 패턴이 남아있는 글쓰기 폼(`"boards-id-write"`)과 게시글 상세(`"boards-id-postid"`)는 이번 요청 범위 밖으로 남겨둠(둘 다 "게시판별 전용 화면"이 아니라 "글쓰기/게시글 상세 공통 하단 위젯 영역"이라는 의도가 더 뚜렷해 보여 별도 확인 후 처리 권장).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors, 신규 warning 없음. 로컬 dev(비로그인)에서 `/boards/greeks`를 열어, 위젯 영역이 더 이상 공용 "Boards Id" 대신 "그리스" 전용 hero("BC 1100~146 그리스 Greeks")를 보여주는 것으로 전용 페이지 조회가 실제로 동작함을 확인(해당 게시판은 이미 사이트 메뉴에 배정돼 있어 전용 페이지가 존재했음). 관리자 로그인 세션이 없어 "페이지 수정" 버튼 클릭 → `/admin/pages/[id]` 도착 화면 자체는 이번 세션에서 클릭 검증하지 못함.
+- **변경 파일**: `src/lib/siteTree.ts`, `src/app/boards/[board_slug]/page.tsx`.
+
 ## 2026-08-11 (HOTFIX-093-B 후속 — post_boards SQL 실행 완료)
 - **`docs/sql/HOTFIX-093-B-post-boards-multi.sql` 실행 완료(사용자가 Supabase SQL Editor에서 직접 실행)**: Management API로 재조회해 `post_boards` 테이블과 RLS 정책 3개(`post_boards_select`/`post_boards_insert`/`post_boards_delete`) 전부 생성됨을 확인 — 게시글 다중 게시판 소속(N:M) 기능이 이제 실제로 동작한다(그 전엔 코드의 방어적 폴백 덕분에 조용히 no-op이었을 뿐 기존 기능은 안 깨졌었음). **다음에 확인 필요**: 실제 관리자 로그인 세션으로 "추가로 노출할 게시판" 체크박스로 저장 → 양쪽 게시판 목록/캘린더에 실제로 노출되는지 클릭 검증.
 

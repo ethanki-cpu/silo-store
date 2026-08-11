@@ -72,6 +72,8 @@ export function DbTimelineModule({ boardId }: { boardId: string | null }) {
     <TimelineView
       entries={entries}
       orientation={settings?.timelineOrientation ?? "vertical"}
+      align={settings?.postMetaStyle?.position ?? "left"}
+      accentColorHex={settings?.timelineAccentColorHex}
       renderItem={(entry) => renderTimelinePostLabel(boardId, entry, undefined, settings?.postMetaStyle)}
       renderPreview={
         settings?.timelineShowPreview === false

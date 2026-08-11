@@ -54,6 +54,8 @@ export type BoardFormValues = {
   // 있음 — widget_settings.timelineOrientation/timelineShowPreview로 저장.
   timeline_orientation: string; // "" | "vertical" | "horizontal" ("" = vertical과 동일)
   timeline_show_preview: boolean; // hover 시 썸네일+본문 일부 미리보기 카드
+  // HOTFIX-100(사용자 지시): 게시판마다 다른 선/마커 색상.
+  timeline_accent_color_hex: string; // "" = 미지정(기본 회색)
 };
 
 export const GROUP_OPTIONS: { value: string; label: string }[] = [
@@ -127,6 +129,7 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   post_meta_author_name_color_hex: "",
   timeline_orientation: "",
   timeline_show_preview: true,
+  timeline_accent_color_hex: "",
 };
 
 const PREVIEW_POSTS: BoardPost[] = [
@@ -547,7 +550,11 @@ export function BoardForm({
         {/* HOTFIX-097(사용자 지시): "타임라인 설정" — 배치 방향(세로/가로)과
             hover 시 썸네일+본문 일부 미리보기 카드 노출 여부. 게시판이
             render_type="timeline"일 때만 보여준다(갤러리 설정 섹션과 동일한
-            조건부 노출 관례). */}
+            조건부 노출 관례).
+            HOTFIX-100(사용자 지시): 선/마커 색상 추가 — 정렬(왼쪽/가운데/
+            오른쪽)은 아래 "게시물 출력방식" 섹션의 "정렬 위치"를 그대로
+            공유한다(같은 게시판 메타 정보 정렬 설정 하나로 통일, 세로형에서
+            선·마커 위치도 함께 따라간다). */}
         {values.render_type === "timeline" && (
           <div className="grid grid-cols-2 gap-4 rounded-md border border-gray-200 p-3">
             <div>
@@ -562,6 +569,16 @@ export function BoardForm({
                 <option value="horizontal">가로형</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">선·마커 색상 (Hex)</label>
+              <input
+                type="text"
+                value={values.timeline_accent_color_hex}
+                onChange={(e) => update("timeline_accent_color_hex", e.target.value)}
+                placeholder="#166534"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
             <div className="col-span-2">
               <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
                 <input
@@ -572,6 +589,9 @@ export function BoardForm({
                 항목에 마우스를 올리면 썸네일+본문 일부 미리보기 카드 보이기
               </label>
             </div>
+            <p className="col-span-2 text-xs text-gray-400">
+              세로형에서 선/마커의 좌우 위치는 아래 &ldquo;게시물 출력방식 → 정렬 위치&rdquo;를 따라갑니다.
+            </p>
           </div>
         )}
 
@@ -846,6 +866,7 @@ export function BoardForm({
             galleryHoverAutoSlide={values.gallery_hover_auto_slide}
             timelineOrientation={values.timeline_orientation === "horizontal" ? "horizontal" : values.timeline_orientation === "vertical" ? "vertical" : undefined}
             timelineShowPreview={values.timeline_show_preview}
+            timelineAccentColorHex={values.timeline_accent_color_hex || undefined}
             postMetaStyle={{
               ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
               ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),

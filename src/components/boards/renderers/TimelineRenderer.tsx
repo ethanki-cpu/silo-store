@@ -73,6 +73,7 @@ export function TimelineRenderer({
   boardCategory,
   timelineOrientation,
   timelineShowPreview,
+  timelineAccentColorHex,
   postMetaStyle,
 }: BoardRendererProps) {
   const entries = posts.map((post) => ({ ...post, createdAt: post.created_at }));
@@ -81,6 +82,8 @@ export function TimelineRenderer({
     <TimelineView
       entries={entries}
       orientation={timelineOrientation ?? "vertical"}
+      align={postMetaStyle?.position ?? "left"}
+      accentColorHex={timelineAccentColorHex}
       renderItem={(entry) => renderTimelinePostLabel(boardId, entry, boardCategory, postMetaStyle)}
       renderPreview={
         timelineShowPreview === false

@@ -231,6 +231,7 @@ export function BoardModule({
         galleryHoverAutoSlide={board?.widget_settings?.galleryHoverAutoSlide}
         timelineOrientation={board?.widget_settings?.timelineOrientation}
         timelineShowPreview={board?.widget_settings?.timelineShowPreview}
+        timelineAccentColorHex={board?.widget_settings?.timelineAccentColorHex}
         postMetaStyle={board?.widget_settings?.postMetaStyle}
       />
 

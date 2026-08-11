@@ -42,6 +42,7 @@ export default function AdminBoardNewPage() {
           galleryHoverAutoSlide: values.gallery_hover_auto_slide,
           ...(values.timeline_orientation ? { timelineOrientation: values.timeline_orientation } : {}),
           timelineShowPreview: values.timeline_show_preview,
+          ...(values.timeline_accent_color_hex ? { timelineAccentColorHex: values.timeline_accent_color_hex } : {}),
           ...(values.post_meta_date_size_px ||
           values.post_meta_date_color_hex ||
           values.post_meta_font_weight ||

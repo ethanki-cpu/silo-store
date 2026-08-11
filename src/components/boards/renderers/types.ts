@@ -39,4 +39,7 @@ export type BoardRendererProps = {
   // 오해하기 쉽다. 일단 사용자가 실제로 신고한 TimelineRenderer에만
   // 적용한다(다른 Renderer는 무시, 범위 확장 시 별도 확인 필요).
   postMetaStyle?: PostMetaStyle | null;
+  // HOTFIX-100(사용자 지시): 타임라인 선/마커 색상 — 게시판마다 다르게
+  // 지정할 수 있다(기본은 회색). TimelineRenderer만 쓴다.
+  timelineAccentColorHex?: string;
 };

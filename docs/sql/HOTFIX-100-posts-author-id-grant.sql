@@ -1,0 +1,22 @@
+-- HOTFIX-100: 관리자 "작성자 변경"(HOTFIX-099)이 "permission denied for
+-- table posts"로 실패하던 근본 원인 수정.
+--
+-- 이 프로젝트의 posts UPDATE는 RLS row policy("posts update like fields",
+-- qual/with_check 둘 다 true — 행 단위 소유권 검사는 안 함) 대신 컬럼별
+-- GRANT로 "authenticated가 건드릴 수 있는 컬럼"을 제한하는 방식을 쓴다
+-- (CLAUDE.md "Column-scoped write via GRANT" 참고). title/body/board_id 등
+-- 대부분 컬럼은 authenticated에게 GRANT돼 있었지만 author_id만 빠져 있어서,
+-- HOTFIX-099가 admin의 authorId 변경 시도를 author_id 포함 UPDATE로 보내는
+-- 순간 (실제 요청을 보낸 사용자가 관리자인지와 무관하게) Postgres가 통째로
+-- "permission denied for table posts"를 반환했다 — 실행 중 실제로 이 GRANT를
+-- 적용해 확인 완료(2026-08-12, Management API).
+--
+-- author_id 변경 권한 자체는 여전히 애플리케이션 레이어
+-- (PATCH /api/boards/[board_slug]/posts/[post_slug])가 통제한다 —
+-- requester.member.is_admin을 서버에서 재확인하고, 넘어온 authorId가 실제
+-- members 행인지 확인한 뒤에만 UPDATE에 author_id를 포함시킨다. 이 GRANT는
+-- "그 검사를 통과한 요청이 DB 단에서 막히지 않게" 해주는 것일 뿐, RLS
+-- policy 자체가 행 단위 소유권을 안 보는 이 테이블의 기존 신뢰 모델
+-- (Route Handler가 1차 방어선, RLS/GRANT는 그 아래 2차 계층)을 그대로 따른다.
+
+grant update (author_id) on posts to authenticated;

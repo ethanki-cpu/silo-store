@@ -64,6 +64,7 @@ export default function AdminBoardEditPage() {
         post_meta_author_name_color_hex: data.widget_settings?.postMetaStyle?.authorNameColorHex ?? "",
         timeline_orientation: data.widget_settings?.timelineOrientation ?? "",
         timeline_show_preview: data.widget_settings?.timelineShowPreview ?? true,
+        timeline_accent_color_hex: data.widget_settings?.timelineAccentColorHex ?? "",
       });
     }
 
@@ -107,6 +108,7 @@ export default function AdminBoardEditPage() {
           // 타임라인으로 바꿔도 값 유지, 갤러리 설정과 동일한 관례).
           ...(next.timeline_orientation ? { timelineOrientation: next.timeline_orientation } : {}),
           timelineShowPreview: next.timeline_show_preview,
+          ...(next.timeline_accent_color_hex ? { timelineAccentColorHex: next.timeline_accent_color_hex } : {}),
           // HOTFIX-093-B(요구사항 1.3)/HOTFIX-099: 값이 전부 미지정이면
           // postMetaStyle 자체를 저장하지 않는다(PostDetailHeader가
           // undefined일 때 기존 기본 스타일을 그대로 쓰도록 이미 구현돼 있음).

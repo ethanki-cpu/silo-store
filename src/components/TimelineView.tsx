@@ -91,15 +91,22 @@ function VerticalRow<T extends TimelineEntry>({
         aria-hidden
       />
       <div className="min-w-0 rounded-md px-2 py-1 transition-colors group-hover/item:bg-gray-50">
-        {renderItem(entry)}
-      </div>
-      {renderPreview && (
-        <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-3 hidden w-72 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover/item:pointer-events-auto group-hover/item:block group-hover/item:opacity-100 lg:block">
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-            {renderPreview(entry)}
-          </div>
+        {/* HOTFIX-097 후속(실사용 확인 중 발견): 이 wrapper가 없으면 아래
+            미리보기 카드의 "left-full"이 이 행 전체(거의 풀 너비) 기준으로
+            계산돼 라벨 텍스트에서 한참 떨어진, 화면 밖일 수도 있는 위치에
+            떠버린다 — 라벨 내용 폭에 맞춰 shrink-wrap되는 inline-block으로
+            감싸 미리보기가 항상 라벨 바로 옆에 붙도록 한다. */}
+        <div className="relative inline-block max-w-full align-top">
+          {renderItem(entry)}
+          {renderPreview && (
+            <div className="pointer-events-none absolute left-full top-0 z-20 ml-3 hidden w-72 opacity-0 transition-opacity duration-150 group-hover/item:pointer-events-auto group-hover/item:block group-hover/item:opacity-100 lg:block">
+              <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                {renderPreview(entry)}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

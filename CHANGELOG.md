@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-12 (HOTFIX-097 후속 — dev.silostore.net 실사용 검증 중 발견: 세로형 hover 미리보기 카드 위치 버그)
+- **발견 경위**: 위 HOTFIX-097을 배포 후 `dev.silostore.net`에서 직접 hover해보며 검증하던 중 — 미리보기 카드가 라벨(날짜+제목) 바로 옆이 아니라 한참 떨어진(행 전체 폭 기준 오른쪽 끝) 위치에 떠서, 넓은 화면에서는 사실상 화면 밖으로 나가 안 보였다.
+- **원인**: `TimelineView.tsx`의 세로형(`VerticalRow`)에서 미리보기 카드에 쓴 `absolute left-full`이 라벨 텍스트 자체가 아니라 그 바깥의 **호버 판정용 풀-너비 행(row)** 을 기준으로 계산되고 있었다 — 그 행은 hover 배경 강조를 위해 일부러 폭 전체를 차지하게 만들어둔 것.
+- **수정**: 라벨(renderItem 결과)만 감싸는 `relative inline-block`(내용 폭만큼만 줄어듦) 래퍼를 추가하고, 미리보기 카드를 그 래퍼 기준으로 `left-full` 배치하도록 변경 — 이제 라벨 텍스트 길이와 무관하게 항상 라벨 바로 오른쪽 12px 지점에 붙는다. 가로형(`HorizontalTimeline`)은 원래도 좁은 고정폭(`w-40`) 컨테이너 기준이라 이 문제가 없었음(수정 불필요, 확인만 함).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 로컬 dev에서 hover 후 라벨 우측 끝과 미리보기 카드 좌측 끝 사이 간격을 `getBoundingClientRect()`로 직접 측정해 12px(`ml-3`)로 정확히 붙어있음을 확인(수정 전에는 이 gap이 수백 px였음).
+- **변경 파일**: `src/components/TimelineView.tsx`.
+
 ## 2026-08-12 (HOTFIX-097 — 타임라인 게시글 클릭 오류 수정 + Common Ninja 스타일 재설계(가로/세로 + hover 미리보기) + 관리자 설정)
 - **1. "게시글을 찾을 수 없어요" 클릭 버그 수정**: "사일로 타임라인" 게시판(page_builder Timeline 위젯)에서 게시글을 클릭하면 항상 이 오류가 났다 — 재현해보니 그 글의 **주 게시판은 "silo-daily"**였고 "사일로 타임라인"에는 `post_boards`(HOTFIX-093-B, N:M 다중 게시판)로만 "추가 노출"돼 있었다. 목록 조회(`GET /api/boards/[board_slug]/posts`)는 이미 이 cross-post 합집합을 반영해 보여주는데, **상세 조회**(`GET .../posts/[post_slug]`)는 `board_id` 정확히 일치만 확인해 못 찾고 404를 반환하고 있었다. `fetchCrossPostedPostIds`(이미 `src/lib/postBoards.ts`에 있던 헬퍼)로 이 게시판에 cross-post된 글 id 목록을 함께 조회해, `slug` 매칭 시 `board_id` 일치 **또는** cross-post id에 포함이면 찾도록 수정(목록 라우트의 기존 `.or()` 패턴과 동일). 로컬 dev에서 실제로 열리는 것 확인, 일반(cross-post 없는) 게시글도 회귀 없이 정상 동작 확인.
 - **2. 타임라인 디자인 재설계(사용자 참고 이미지: Common Ninja 스타일)**: 항상 보이던 썸네일+제목+메타 전체를 라인 위에 그리던 기존 방식을, "선 위에는 날짜+제목만 보이는 얇은 라벨, hover하면 썸네일+본문 일부(excerpt)+날짜+메타(작성자/좋아요/조회/댓글)를 담은 카드가 옆으로 떠오르는" 방식으로 바꿨다. `src/components/TimelineView.tsx`에 `renderPreview`(선택) prop을 추가 — 안 넘기면(마이페이지 활동 로그 등 썸네일/본문이 없는 항목) 기존과 동일하게 라벨만 보임(하위 호환). `src/lib/htmlExcerpt.ts` 신설(HTML 태그 제거 + 길이 제한 텍스트 추출).

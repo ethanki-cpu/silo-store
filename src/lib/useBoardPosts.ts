@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import type { BoardPost, SortOption } from "@/lib/boardLayout";
+import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
 
 type Board = {
   id: string;
@@ -15,6 +16,9 @@ type Board = {
   widget_settings?: {
     timelineOrientation?: "vertical" | "horizontal";
     timelineShowPreview?: boolean;
+    // HOTFIX-098: 날짜/작성자 스타일 — Page Builder Timeline 위젯도
+    // 게시판 설정과 동일하게 반영한다.
+    postMetaStyle?: PostMetaStyle;
   } | null;
 };
 type FetchResult = { board: Board | null; posts: BoardPost[] };

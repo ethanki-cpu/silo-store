@@ -72,9 +72,11 @@ export function DbTimelineModule({ boardId }: { boardId: string | null }) {
     <TimelineView
       entries={entries}
       orientation={settings?.timelineOrientation ?? "vertical"}
-      renderItem={(entry) => renderTimelinePostLabel(boardId, entry)}
+      renderItem={(entry) => renderTimelinePostLabel(boardId, entry, undefined, settings?.postMetaStyle)}
       renderPreview={
-        settings?.timelineShowPreview === false ? undefined : (entry) => renderTimelinePostPreview(boardId, entry)
+        settings?.timelineShowPreview === false
+          ? undefined
+          : (entry) => renderTimelinePostPreview(boardId, entry, settings?.postMetaStyle)
       }
     />
   );

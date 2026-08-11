@@ -231,6 +231,7 @@ export function BoardModule({
         galleryHoverAutoSlide={board?.widget_settings?.galleryHoverAutoSlide}
         timelineOrientation={board?.widget_settings?.timelineOrientation}
         timelineShowPreview={board?.widget_settings?.timelineShowPreview}
+        postMetaStyle={board?.widget_settings?.postMetaStyle}
       />
 
       {definition.pageable && paginationEnabled !== false && (

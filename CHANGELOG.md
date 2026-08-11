@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-12 (HOTFIX-098 — "타임라인 정렬을 가운데로 했는데 아무것도 안 바뀌어" 수정)
+- **원인**: "게시물 출력방식 — 날짜/작성자 스타일"(정렬 위치 포함, HOTFIX-093-B) 섹션이 `BoardForm.tsx` 안에서 게시판 전체 설정처럼 보이지만, 실제로는 **게시글 상세 페이지**(`PostDetailHeader.tsx`)에만 적용되고 목록/위젯(타임라인 포함) 쪽에는 전혀 반영되지 않고 있었다. 실제 라이브 DB 확인 결과 "사일로 타임라인" 게시판의 `widget_settings.postMetaStyle.position`이 이미 `"center"`로 저장돼 있었는데(사용자가 실제로 저장한 값), 타임라인 렌더러가 이 값을 아예 읽지 않아 화면이 그대로였던 것.
+- **수정**: `PostDetailHeader.tsx`의 `metaStyleToCss`를 export해 재사용 — `TimelineRenderer.tsx`의 `renderTimelinePostLabel`/`renderTimelinePostPreview`가 이제 `boards.widget_settings.postMetaStyle`(크기/색상/굵기/정렬)을 라벨과 미리보기 카드 텍스트에 그대로 적용한다. `BoardModule.tsx`(게시판 직접 렌더)와 `DbFeedModules.tsx`의 `DbTimelineModule`(Page Builder Timeline 위젯) 둘 다 이 값을 게시판에서 읽어 전달하도록 배선(HOTFIX-097의 timelineOrientation/timelineShowPreview와 동일 경로). `BoardForm.tsx`의 실시간 미리보기 패널에도 반영.
+- **범위**: 사용자가 실제로 신고한 타임라인만 수정했다 — Story/Community/Gallery 등 다른 목록 Renderer들도 같은 이유로 이 설정을 무시하고 있지만(같은 폼 안에 있어 게시판 전체 설정으로 오해하기 쉬운 UX 문제), 이번엔 범위를 넓히지 않았다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 warning 없음). 로컬 dev에서 실제로 `postMetaStyle.position: "center"`가 저장돼 있는 "사일로 타임라인" 게시판(`/about-silo/silo-timeline`)을 열어 라벨의 `getComputedStyle(...).textAlign`이 `"center"`로 실제 반영됨을 확인.
+- **변경 파일**: `src/components/boards/PostDetailHeader.tsx`, `src/components/boards/renderers/types.ts`, `src/components/boards/renderers/TimelineRenderer.tsx`, `src/components/modules/BoardModule.tsx`, `src/components/modules/DbFeedModules.tsx`, `src/lib/useBoardData.ts`, `src/lib/useBoardPosts.ts`, `src/components/admin/BoardForm.tsx`.
+
 ## 2026-08-12 (HOTFIX-097 후속 — dev.silostore.net 실사용 검증 중 발견: 세로형 hover 미리보기 카드 위치 버그)
 - **발견 경위**: 위 HOTFIX-097을 배포 후 `dev.silostore.net`에서 직접 hover해보며 검증하던 중 — 미리보기 카드가 라벨(날짜+제목) 바로 옆이 아니라 한참 떨어진(행 전체 폭 기준 오른쪽 끝) 위치에 떠서, 넓은 화면에서는 사실상 화면 밖으로 나가 안 보였다.
 - **원인**: `TimelineView.tsx`의 세로형(`VerticalRow`)에서 미리보기 카드에 쓴 `absolute left-full`이 라벨 텍스트 자체가 아니라 그 바깥의 **호버 판정용 풀-너비 행(row)** 을 기준으로 계산되고 있었다 — 그 행은 hover 배경 강조를 위해 일부러 폭 전체를 차지하게 만들어둔 것.

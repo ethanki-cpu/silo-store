@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import type { BoardPost, SortOption, HubFeed } from "@/lib/boardLayout";
+import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
 
 type Board = {
   id: string;
@@ -18,6 +19,9 @@ type Board = {
     // 사용 여부.
     timelineOrientation?: "vertical" | "horizontal";
     timelineShowPreview?: boolean;
+    // HOTFIX-098: 날짜/작성자 스타일 — 지금까지 게시글 상세에만 적용되던
+    // 것을 타임라인 라벨/미리보기에도 반영한다.
+    postMetaStyle?: PostMetaStyle;
   } | null;
 };
 

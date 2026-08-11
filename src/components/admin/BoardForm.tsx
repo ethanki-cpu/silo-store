@@ -787,6 +787,14 @@ export function BoardForm({
             galleryHoverAutoSlide={values.gallery_hover_auto_slide}
             timelineOrientation={values.timeline_orientation === "horizontal" ? "horizontal" : values.timeline_orientation === "vertical" ? "vertical" : undefined}
             timelineShowPreview={values.timeline_show_preview}
+            postMetaStyle={{
+              ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
+              ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),
+              ...(values.post_meta_font_weight ? { fontWeight: values.post_meta_font_weight } : {}),
+              ...(values.post_meta_position
+                ? { position: values.post_meta_position as "left" | "center" | "right" }
+                : {}),
+            }}
           />
         </div>
       </div>

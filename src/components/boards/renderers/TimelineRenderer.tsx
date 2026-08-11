@@ -4,6 +4,7 @@ import { TimelineView } from "@/components/TimelineView";
 import { PostTags } from "@/components/boards/PostTags";
 import { formatPostMeta } from "@/lib/postMeta";
 import { htmlToExcerpt } from "@/lib/htmlExcerpt";
+import { metaStyleToCss, type PostMetaStyle } from "@/components/boards/PostDetailHeader";
 import type { BoardRendererProps } from "./types";
 
 // Timeline Engine(EPIC-050): 연→월 순으로 묶어 보여주는 그룹핑은
@@ -19,9 +20,22 @@ import type { BoardRendererProps } from "./types";
 // DbFeedModules.tsx(Page Builder의 Timeline 위젯)도 동일한 마크업을 그대로
 // 재사용한다(중복 구현 없음, GalleryModule/GalleryRenderer가 이미 쓰는
 // 관례와 동일).
-export function renderTimelinePostLabel(boardId: string, post: BoardPost, boardCategory?: string | null) {
+// HOTFIX-098(사용자 신고 — "정렬을 가운데로 했는데 아무것도 안 바뀌어"):
+// "게시물 출력방식"(날짜/작성자 스타일, boards.widget_settings.postMetaStyle)
+// 이 지금까지 PostDetailHeader(게시글 상세)에만 적용되고 타임라인 라벨/
+// 미리보기에는 전혀 반영되지 않아, 같은 게시판 설정 폼 안의 값을 바꿔도
+// 타임라인 화면은 그대로였다 — metaStyleToCss(PostDetailHeader.tsx에서
+// export)를 그대로 재사용해 날짜/제목/메타 텍스트 정렬·크기·색상·굵기에
+// 적용한다.
+export function renderTimelinePostLabel(
+  boardId: string,
+  post: BoardPost,
+  boardCategory?: string | null,
+  metaStyle?: PostMetaStyle | null,
+) {
+  const style = metaStyleToCss(metaStyle);
   return (
-    <Link href={`/boards/${boardId}/${post.slug ?? post.id}`} className="block">
+    <Link href={`/boards/${boardId}/${post.slug ?? post.id}`} className="block" style={style}>
       <p className="text-xs text-gray-400">{new Date(post.created_at).toLocaleDateString()}</p>
       <p className="font-serif text-gray-900 hover:underline">{post.title}</p>
       <PostTags tags={[...(post.tags ?? []), ...(boardCategory ? [boardCategory] : [])]} />
@@ -29,9 +43,10 @@ export function renderTimelinePostLabel(boardId: string, post: BoardPost, boardC
   );
 }
 
-export function renderTimelinePostPreview(boardId: string, post: BoardPost) {
+export function renderTimelinePostPreview(boardId: string, post: BoardPost, metaStyle?: PostMetaStyle | null) {
   const imageUrl = post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null;
   const excerpt = htmlToExcerpt(post.body, 90);
+  const style = metaStyleToCss(metaStyle);
   return (
     <Link href={`/boards/${boardId}/${post.slug ?? post.id}`} className="block">
       {imageUrl ? (
@@ -42,7 +57,7 @@ export function renderTimelinePostPreview(boardId: string, post: BoardPost) {
           이미지 없음
         </div>
       )}
-      <div className="p-3">
+      <div className="p-3" style={style}>
         <p className="text-[11px] text-gray-400">{new Date(post.created_at).toLocaleDateString()}</p>
         <p className="mt-0.5 font-serif text-sm font-semibold text-gray-900 line-clamp-1">{post.title}</p>
         {excerpt && <p className="mt-1 text-xs leading-relaxed text-gray-500 line-clamp-3">{excerpt}</p>}
@@ -58,6 +73,7 @@ export function TimelineRenderer({
   boardCategory,
   timelineOrientation,
   timelineShowPreview,
+  postMetaStyle,
 }: BoardRendererProps) {
   const entries = posts.map((post) => ({ ...post, createdAt: post.created_at }));
 
@@ -65,9 +81,11 @@ export function TimelineRenderer({
     <TimelineView
       entries={entries}
       orientation={timelineOrientation ?? "vertical"}
-      renderItem={(entry) => renderTimelinePostLabel(boardId, entry, boardCategory)}
+      renderItem={(entry) => renderTimelinePostLabel(boardId, entry, boardCategory, postMetaStyle)}
       renderPreview={
-        timelineShowPreview === false ? undefined : (entry) => renderTimelinePostPreview(boardId, entry)
+        timelineShowPreview === false
+          ? undefined
+          : (entry) => renderTimelinePostPreview(boardId, entry, postMetaStyle)
       }
     />
   );

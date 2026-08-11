@@ -11,7 +11,7 @@ export type PostMetaStyle = {
   position?: "left" | "center" | "right";
 };
 
-function metaStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
+export function metaStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
   if (!metaStyle) return {};
   return {
     ...(metaStyle.dateSizePx ? { fontSize: metaStyle.dateSizePx } : {}),

@@ -1,4 +1,5 @@
 import type { BoardDefinition, BoardPost, HubFeed, HubChildBoard } from "@/lib/boardLayout";
+import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
 
 // EPIC-066: Renderer Registry가 공유하는 단일 props 계약 — 모든 Renderer가
 // 같은 모양을 받고, 자신에게 필요한 필드만 골라 쓴다(hub는 posts를 안 쓰고
@@ -31,4 +32,11 @@ export type BoardRendererProps = {
   timelineOrientation?: "vertical" | "horizontal";
   // false면 hover 시 썸네일+본문 일부 미리보기 카드를 띄우지 않는다(기본 true).
   timelineShowPreview?: boolean;
+  // HOTFIX-098(사용자 신고 — "정렬을 가운데로 했는데 아무것도 안 바뀌어"):
+  // "게시물 출력방식"(날짜/작성자 스타일, HOTFIX-093-B)이 지금까지
+  // 게시글 상세 페이지(PostDetailHeader)에만 적용되고 목록/위젯 쪽엔 전혀
+  // 반영되지 않았다 — 같은 폼 안에 있어 게시판 전체에 적용되는 설정으로
+  // 오해하기 쉽다. 일단 사용자가 실제로 신고한 TimelineRenderer에만
+  // 적용한다(다른 Renderer는 무시, 범위 확장 시 별도 확인 필요).
+  postMetaStyle?: PostMetaStyle | null;
 };

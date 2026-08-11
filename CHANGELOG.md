@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 2026-08-11 (HOTFIX-093-B 후속 — post_boards SQL 실행 완료)
+- **`docs/sql/HOTFIX-093-B-post-boards-multi.sql` 실행 완료(사용자가 Supabase SQL Editor에서 직접 실행)**: Management API로 재조회해 `post_boards` 테이블과 RLS 정책 3개(`post_boards_select`/`post_boards_insert`/`post_boards_delete`) 전부 생성됨을 확인 — 게시글 다중 게시판 소속(N:M) 기능이 이제 실제로 동작한다(그 전엔 코드의 방어적 폴백 덕분에 조용히 no-op이었을 뿐 기존 기능은 안 깨졌었음). **다음에 확인 필요**: 실제 관리자 로그인 세션으로 "추가로 노출할 게시판" 체크박스로 저장 → 양쪽 게시판 목록/캘린더에 실제로 노출되는지 클릭 검증.
+
 ## 2026-08-11 (HOTFIX-093-B — 관리자 버튼/캘린더 렌더링 버그 근본 원인 확인 + 게시판 다중 소속(N:M) + 메타데이터 스타일링)
 - **1.4 "페이지 수정" 버튼이 아이콘과 겹쳐 떠다니던 문제 — 근본 원인 확인 및 수정**: EPIC-093 1차에서 "재현 못함"으로 남겨뒀던 항목을 라이브 `site_settings`를 직접 조회해 재현했다 — `sidebar_icons.topOffsetPx=100, iconSizePx=100`(왼쪽 사이드바 여닫이 아이콘이 화면 왼쪽 가장자리 y:100~216px, x:0~116px 범위를 차지)이 `PageEditButton`의 고정 좌표(`top-20`=80px, `left-4`=16px)와 정확히 겹쳤다 — 관리자가 사이드바 아이콘 크기/위치를 이 값으로 설정한 뒤부터 계속 겹쳐 있었던 것. `PageEditButton.tsx`가 이제 `site_settings.sidebar_icons`를 직접 읽어, 왼쪽 아이콘의 실제 범위와 겹칠 때만 그 아래로 동적으로 내려가도록 수정(안 겹치면 기존 `top-20` 그대로) — 관리자가 나중에 아이콘 설정을 또 바꿔도 다시 겹치지 않는다. `z-30`→`z-50`으로도 올려 어떤 경우든 항상 최상단에 그려지게 함.
 - **1.4 라우팅("엉뚱한 곳으로 라우팅") — 재확인 결과 동일**: `/admin/pages/[id]/page.tsx`의 id 파라미터 처리, `PageEditButton`의 slug→page_builder id 조회 둘 다 다시 검토했지만 결함을 못 찾았다. 게시판 목록/게시글 상세가 게시판마다 개별 page_builder 행 대신 고정 slug(`"boards-id"`/`"boards-id-postid"`)로 공용 위젯 템플릿 하나를 공유하는 것은 EPIC-067의 의도된 설계다 — 이게 사용자가 "엉뚱한 페이지"로 느낀 원인일 가능성이 있다(모든 게시판의 "페이지 수정"이 같은 템플릿으로 감). 이 부분은 코드 결함이 아니라 아키텍처 특성이라 이번엔 바꾸지 않았다(바꾸려면 게시판 수만큼 개별 page_builder 행을 만드는 재설계가 필요 — 기존 위젯 배치가 있는 게시판들의 마이그레이션도 필요).

@@ -58,6 +58,10 @@ export default function AdminBoardEditPage() {
         post_meta_date_color_hex: data.widget_settings?.postMetaStyle?.dateColorHex ?? "",
         post_meta_font_weight: data.widget_settings?.postMetaStyle?.fontWeight ?? 0,
         post_meta_position: data.widget_settings?.postMetaStyle?.position ?? "",
+        post_meta_post_number_size_px: data.widget_settings?.postMetaStyle?.postNumberSizePx ?? 0,
+        post_meta_post_number_color_hex: data.widget_settings?.postMetaStyle?.postNumberColorHex ?? "",
+        post_meta_author_name_size_px: data.widget_settings?.postMetaStyle?.authorNameSizePx ?? 0,
+        post_meta_author_name_color_hex: data.widget_settings?.postMetaStyle?.authorNameColorHex ?? "",
         timeline_orientation: data.widget_settings?.timelineOrientation ?? "",
         timeline_show_preview: data.widget_settings?.timelineShowPreview ?? true,
       });
@@ -103,16 +107,35 @@ export default function AdminBoardEditPage() {
           // 타임라인으로 바꿔도 값 유지, 갤러리 설정과 동일한 관례).
           ...(next.timeline_orientation ? { timelineOrientation: next.timeline_orientation } : {}),
           timelineShowPreview: next.timeline_show_preview,
-          // HOTFIX-093-B(요구사항 1.3): 4개 값이 전부 미지정이면 postMetaStyle
-          // 자체를 저장하지 않는다(PostDetailHeader가 undefined일 때 기존
-          // 기본 스타일을 그대로 쓰도록 이미 구현돼 있음).
-          ...(next.post_meta_date_size_px || next.post_meta_date_color_hex || next.post_meta_font_weight || next.post_meta_position
+          // HOTFIX-093-B(요구사항 1.3)/HOTFIX-099: 값이 전부 미지정이면
+          // postMetaStyle 자체를 저장하지 않는다(PostDetailHeader가
+          // undefined일 때 기존 기본 스타일을 그대로 쓰도록 이미 구현돼 있음).
+          ...(next.post_meta_date_size_px ||
+          next.post_meta_date_color_hex ||
+          next.post_meta_font_weight ||
+          next.post_meta_position ||
+          next.post_meta_post_number_size_px ||
+          next.post_meta_post_number_color_hex ||
+          next.post_meta_author_name_size_px ||
+          next.post_meta_author_name_color_hex
             ? {
                 postMetaStyle: {
                   ...(next.post_meta_date_size_px ? { dateSizePx: next.post_meta_date_size_px } : {}),
                   ...(next.post_meta_date_color_hex ? { dateColorHex: next.post_meta_date_color_hex } : {}),
                   ...(next.post_meta_font_weight ? { fontWeight: next.post_meta_font_weight } : {}),
                   ...(next.post_meta_position ? { position: next.post_meta_position } : {}),
+                  ...(next.post_meta_post_number_size_px
+                    ? { postNumberSizePx: next.post_meta_post_number_size_px }
+                    : {}),
+                  ...(next.post_meta_post_number_color_hex
+                    ? { postNumberColorHex: next.post_meta_post_number_color_hex }
+                    : {}),
+                  ...(next.post_meta_author_name_size_px
+                    ? { authorNameSizePx: next.post_meta_author_name_size_px }
+                    : {}),
+                  ...(next.post_meta_author_name_color_hex
+                    ? { authorNameColorHex: next.post_meta_author_name_color_hex }
+                    : {}),
                 },
               }
             : {}),

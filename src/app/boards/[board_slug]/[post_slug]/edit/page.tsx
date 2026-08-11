@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { PostForm, type PostFormSubmitPayload } from "@/components/boards/PostForm";
 import { CategoryBoardPicker } from "@/components/common/CategoryBoardPicker";
-import { useBoardOptions, useSelectedBoardTypeAndCategory } from "@/lib/useBoardOptions";
+import { useBoardOptions, useSelectedBoardTypeAndCategory, groupBoardsByCategory } from "@/lib/useBoardOptions";
 import type { JSONContent } from "@/lib/blockEditorCore";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 
@@ -38,6 +38,7 @@ export default function EditPostPage() {
     tags: string[] | null;
     is_docent_post: boolean;
     author_id: string;
+    author_name?: string;
     featured_image_url: string | null;
     featured_image_path: string | null;
     thumbnail_visible: boolean | null;
@@ -144,6 +145,8 @@ export default function EditPostPage() {
         tags: payload.tags,
         targetBoardSlug: selectedBoardSlug,
         ...(payload.createdAt ? { createdAt: payload.createdAt } : {}),
+        // HOTFIX-099(사용자 지시): 관리자가 작성자를 바꿨을 때만 실려온다.
+        ...(payload.authorId ? { authorId: payload.authorId } : {}),
         additionalBoardSlugs,
       }),
     });
@@ -230,23 +233,31 @@ export default function EditPostPage() {
             추가로 노출할 게시판 선택{additionalBoardSlugs.length > 0 ? ` (${additionalBoardSlugs.length})` : ""}
           </summary>
           <div className="mt-3 grid max-h-56 grid-cols-2 gap-x-4 gap-y-1 overflow-y-auto sm:grid-cols-3">
-            {boardOptions
-              .filter((b) => b.slug && b.slug !== selectedBoardSlug)
-              .map((b) => (
-                <label key={b.id} className="flex items-center gap-1.5 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={additionalBoardSlugs.includes(b.slug as string)}
-                    onChange={(e) => {
-                      const slug = b.slug as string;
-                      setAdditionalBoardSlugs((prev) =>
-                        e.target.checked ? [...prev, slug] : prev.filter((s) => s !== slug),
-                      );
-                    }}
-                  />
-                  {b.name}
-                </label>
-              ))}
+            {/* HOTFIX-099(사용자 지시): 카테고리별로 묶어 정렬. */}
+            {groupBoardsByCategory(
+              boardOptions.filter((b) => b.slug && b.slug !== selectedBoardSlug),
+            ).map(({ category, items }) => (
+              <div key={category} className="col-span-full contents">
+                <p className="col-span-full mt-2 text-xs font-medium text-gray-400 first:mt-0">
+                  {category}
+                </p>
+                {items.map((b) => (
+                  <label key={b.id} className="flex items-center gap-1.5 text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={additionalBoardSlugs.includes(b.slug as string)}
+                      onChange={(e) => {
+                        const slug = b.slug as string;
+                        setAdditionalBoardSlugs((prev) =>
+                          e.target.checked ? [...prev, slug] : prev.filter((s) => s !== slug),
+                        );
+                      }}
+                    />
+                    {b.name}
+                  </label>
+                ))}
+              </div>
+            ))}
           </div>
         </details>
       )}
@@ -267,6 +278,7 @@ export default function EditPostPage() {
         initialThumbnailVisible={post.thumbnail_visible ?? true}
         initialCategory={post.category}
         initialCreatedAt={post.created_at}
+        initialAuthorName={post.author_name}
         draftStorageKey={`draft-edit-${postSlug}`}
         submitLabel="수정 완료"
         onSubmit={handleSubmit}

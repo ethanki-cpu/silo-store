@@ -361,6 +361,22 @@ export async function PATCH(
       ? new Date(requestedCreatedAt).toISOString()
       : null;
 
+  // HOTFIX-099(사용자 지시): 관리자만 게시글 작성자(author_id)를 다른
+  // 회원으로 바꿀 수 있다 — createdAt과 동일하게 클라이언트가 보낸
+  // is_admin 표시가 아니라 서버 조회값을 신뢰한다. 존재하지 않는 회원
+  // id로 위조된 요청을 그대로 저장하지 않도록 실제로 members에 있는
+  // 행인지 확인한 뒤에만 적용한다.
+  const requestedAuthorId = body?.authorId as string | undefined;
+  let authorIdOverride: string | null = null;
+  if (requester.member.is_admin && requestedAuthorId) {
+    const { data: targetMember } = await requester.scopedClient
+      .from("members")
+      .select("id")
+      .eq("id", requestedAuthorId)
+      .maybeSingle();
+    if (targetMember) authorIdOverride = requestedAuthorId;
+  }
+
   if (!title || !bodyJson) {
     return NextResponse.json({ error: "제목과 내용을 모두 입력해주세요." }, { status: 400 });
   }
@@ -443,6 +459,7 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
       ...(targetBoardId ? { board_id: targetBoardId, slug: targetSlug } : {}),
       ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
+      ...(authorIdOverride ? { author_id: authorIdOverride } : {}),
     })
     .eq("id", postId)
     .select()
@@ -458,6 +475,7 @@ export async function PATCH(
         is_docent_post: isDocentPost,
         ...(targetBoardId ? { board_id: targetBoardId, slug: targetSlug } : {}),
         ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
+        ...(authorIdOverride ? { author_id: authorIdOverride } : {}),
       })
       .eq("id", postId)
       .select()

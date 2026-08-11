@@ -9,6 +9,13 @@ export type PostMetaStyle = {
   dateColorHex?: string;
   fontWeight?: number;
   position?: "left" | "center" | "right";
+  // HOTFIX-099(사용자 지시): 글 번호("No. X")/작성자 이름을 날짜와 별도로
+  // 크기/색상만 지정할 수 있게 한다(굵기/정렬은 날짜와 공유 — 셋 다 같은
+  // 메타 정보 블록이라 서로 다른 정렬을 갖는 경우는 상정하지 않음).
+  postNumberSizePx?: number;
+  postNumberColorHex?: string;
+  authorNameSizePx?: number;
+  authorNameColorHex?: string;
 };
 
 export function metaStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
@@ -16,6 +23,26 @@ export function metaStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSS
   return {
     ...(metaStyle.dateSizePx ? { fontSize: metaStyle.dateSizePx } : {}),
     ...(metaStyle.dateColorHex ? { color: metaStyle.dateColorHex } : {}),
+    ...(metaStyle.fontWeight ? { fontWeight: metaStyle.fontWeight } : {}),
+    ...(metaStyle.position ? { textAlign: metaStyle.position } : {}),
+  };
+}
+
+function postNumberStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
+  if (!metaStyle) return {};
+  return {
+    ...(metaStyle.postNumberSizePx ? { fontSize: metaStyle.postNumberSizePx } : {}),
+    ...(metaStyle.postNumberColorHex ? { color: metaStyle.postNumberColorHex } : {}),
+    ...(metaStyle.fontWeight ? { fontWeight: metaStyle.fontWeight } : {}),
+    ...(metaStyle.position ? { textAlign: metaStyle.position } : {}),
+  };
+}
+
+function authorNameStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
+  if (!metaStyle) return {};
+  return {
+    ...(metaStyle.authorNameSizePx ? { fontSize: metaStyle.authorNameSizePx } : {}),
+    ...(metaStyle.authorNameColorHex ? { color: metaStyle.authorNameColorHex } : {}),
     ...(metaStyle.fontWeight ? { fontWeight: metaStyle.fontWeight } : {}),
     ...(metaStyle.position ? { textAlign: metaStyle.position } : {}),
   };
@@ -77,13 +104,15 @@ export function PostDetailHeader({
   ];
   const wasEdited = updatedAt && updatedAt !== createdAt;
   const metaCss = metaStyleToCss(metaStyle);
+  const postNumberCss = postNumberStyleToCss(metaStyle);
+  const authorNameCss = authorNameStyleToCss(metaStyle);
 
   return (
     <div>
       <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr_1fr] gap-4 md:gap-8 items-start">
         <div className="order-2 md:order-1">
           {postNumber !== null && (
-            <p className="text-xs uppercase tracking-wide text-gray-400">
+            <p className="text-xs uppercase tracking-wide text-gray-400" style={postNumberCss}>
               No. {postNumber}
             </p>
           )}
@@ -120,7 +149,7 @@ export function PostDetailHeader({
           <Link
             href={`/u/${authorId}`}
             className="text-sm font-medium text-gray-800 mt-1 block hover:underline"
-            style={metaCss}
+            style={authorNameCss}
           >
             {authorName}
           </Link>

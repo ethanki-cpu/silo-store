@@ -37,7 +37,103 @@ export type PostFormSubmitPayload = {
   /** EPIC-092(요구사항 1): 관리자만 채울 수 있는 등록 날짜/시간(ISO) — 값이
    * 있을 때만 서버가 posts.created_at을 덮어쓴다. */
   createdAt?: string;
+  /** HOTFIX-099(사용자 지시): 관리자가 작성자를 다른 회원으로 바꿨을 때만
+   * 채워진다 — 값이 있을 때만 서버가 posts.author_id를 덮어쓴다. */
+  authorId?: string;
 };
+
+type MemberSearchResult = { id: string; name: string; email: string };
+
+// HOTFIX-099: 관리자 전용 "작성자 변경" — 이름/이메일로 검색해 고르는
+// 자동완성. 회원 검색은 기존 /admin/members 화면이 쓰는
+// GET /api/admin/members?q=를 그대로 재사용한다(새 엔드포인트 없음).
+function AdminAuthorPicker({
+  accessToken,
+  currentAuthorName,
+  onSelect,
+}: {
+  accessToken: string | undefined;
+  currentAuthorName: string;
+  onSelect: (member: MemberSearchResult) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<MemberSearchResult[]>([]);
+  const [selected, setSelected] = useState<MemberSearchResult | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!query.trim() || !accessToken) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      fetch(`/api/admin/members?q=${encodeURIComponent(query.trim())}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (cancelled) return;
+          setResults(Array.isArray(data) ? data.slice(0, 8) : []);
+          setSearching(false);
+        })
+        .catch(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, accessToken]);
+
+  return (
+    <div>
+      <label className="block text-sm mb-1">작성자 (관리자 전용)</label>
+      <p className="text-xs text-gray-400 mb-1">
+        현재: {currentAuthorName}
+        {selected && selected.name !== currentAuthorName && ` → ${selected.name}(으)로 변경 예정`}
+      </p>
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setSelected(null);
+          }}
+          placeholder="이름 또는 이메일로 검색"
+          className="w-full rounded-md border border-gray-300 px-3 py-2"
+        />
+        {query.trim() && !selected && (
+          <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-md">
+            {searching && <li className="px-3 py-2 text-xs text-gray-400">검색 중...</li>}
+            {!searching && results.length === 0 && (
+              <li className="px-3 py-2 text-xs text-gray-400">일치하는 회원이 없어요.</li>
+            )}
+            {results.map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  onClick={() => {
+                    setSelected(m);
+                    setQuery(m.name);
+                    setResults([]);
+                    onSelect(m);
+                  }}
+                >
+                  {m.name} <span className="text-xs text-gray-400">{m.email}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function PostForm({
   mode,
@@ -58,6 +154,7 @@ export function PostForm({
   initialThumbnailVisible = true,
   initialCategory = null,
   initialCreatedAt,
+  initialAuthorName,
   draftStorageKey,
   submitLabel,
   onSubmit,
@@ -87,6 +184,11 @@ export function PostForm({
    * 넘기면 관리자 전용 "등록 날짜/시간" 필드가 그 값으로 초기화된다. 글쓰기
    * 화면(캘린더의 "+ 글 등록" 등)에서는 원하는 날짜만 넘겨도 된다. */
   initialCreatedAt?: string;
+  /** HOTFIX-099(사용자 지시): 수정 화면에서 이 글의 현재 작성자 이름 —
+   * 관리자 전용 "작성자 변경" 피커의 "현재:" 표시에 쓴다(edit 모드에서만
+   * 넘어옴, create 모드는 작성자가 항상 글쓴이 본인이라 이 필드 자체가
+   * 없다). */
+  initialAuthorName?: string;
   draftStorageKey: string;
   submitLabel: string;
   onSubmit: (payload: PostFormSubmitPayload) => Promise<void>;
@@ -105,7 +207,10 @@ export function PostForm({
   const [category, setCategory] = useState<string>(initialCategory ?? "");
   const [uploadingFeatured, setUploadingFeatured] = useState(false);
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
-  const { member } = useAuth();
+  const { member, session } = useAuth();
+  // HOTFIX-099(사용자 지시): 관리자가 작성자를 바꾼 경우에만 채워진다 —
+  // null이면 제출 시 authorId 필드 자체를 안 보내(기존 작성자 유지).
+  const [newAuthorId, setNewAuthorId] = useState<string | null>(null);
   // EPIC-092(요구사항 1): 관리자 전용 "등록 날짜/시간" — initialCreatedAt이
   // ISO든 "YYYY-MM-DD"(캘린더 "+ 글 등록" pre-fill)든 datetime-local 형식
   // ("YYYY-MM-DDTHH:mm")으로 정규화해 보여준다.
@@ -200,6 +305,7 @@ export function PostForm({
       isDocentPost,
       ...(boardType === "adoption_story" ? { orderId } : {}),
       ...(member?.is_admin && createdAtLocal ? { createdAt: new Date(createdAtLocal).toISOString() } : {}),
+      ...(member?.is_admin && newAuthorId ? { authorId: newAuthorId } : {}),
     });
 
     if (mode === "create") localStorage.removeItem(draftStorageKey);
@@ -256,6 +362,14 @@ export function PostForm({
             비워두면 원래 등록 시각(수정 시) 또는 지금 시각(새 글)이 그대로 사용돼요.
           </p>
         </div>
+      )}
+
+      {mode === "edit" && member?.is_admin && (
+        <AdminAuthorPicker
+          accessToken={session?.access_token}
+          currentAuthorName={initialAuthorName ?? "알 수 없음"}
+          onSelect={(m) => setNewAuthorId(m.id)}
+        />
       )}
 
       {categories && categories.length > 0 && (

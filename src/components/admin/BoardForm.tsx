@@ -44,6 +44,12 @@ export type BoardFormValues = {
   post_meta_date_color_hex: string; // "" = 미지정
   post_meta_font_weight: number; // 0 = 미지정
   post_meta_position: string; // "" | "left" | "center" | "right"
+  // HOTFIX-099(사용자 지시): 글 번호/작성자 이름을 날짜와 별도로 크기·색상
+  // 지정 — widget_settings.postMetaStyle.postNumber*/authorName*로 저장.
+  post_meta_post_number_size_px: number; // 0 = 미지정
+  post_meta_post_number_color_hex: string; // "" = 미지정
+  post_meta_author_name_size_px: number; // 0 = 미지정
+  post_meta_author_name_color_hex: string; // "" = 미지정
   // HOTFIX-097(사용자 지시): 타임라인(render_type="timeline")에서만 의미
   // 있음 — widget_settings.timelineOrientation/timelineShowPreview로 저장.
   timeline_orientation: string; // "" | "vertical" | "horizontal" ("" = vertical과 동일)
@@ -115,6 +121,10 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   post_meta_date_color_hex: "",
   post_meta_font_weight: 0,
   post_meta_position: "",
+  post_meta_post_number_size_px: 0,
+  post_meta_post_number_color_hex: "",
+  post_meta_author_name_size_px: 0,
+  post_meta_author_name_color_hex: "",
   timeline_orientation: "",
   timeline_show_preview: true,
 };
@@ -622,6 +632,55 @@ export function BoardForm({
                 <option value="center">가운데</option>
                 <option value="right">오른쪽</option>
               </select>
+            </div>
+          </div>
+
+          {/* HOTFIX-099(사용자 지시): 글 번호/작성자 이름도 날짜와 별도로
+              크기·색상을 지정할 수 있게 — 굵기/정렬은 위 값을 그대로 공유. */}
+          <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 pt-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">글 번호 크기 (px)</label>
+              <input
+                type="number"
+                min={8}
+                max={48}
+                value={values.post_meta_post_number_size_px || ""}
+                onChange={(e) => update("post_meta_post_number_size_px", Number(e.target.value) || 0)}
+                placeholder="기본값(12px)"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">글 번호 색상 (Hex)</label>
+              <input
+                type="text"
+                value={values.post_meta_post_number_color_hex}
+                onChange={(e) => update("post_meta_post_number_color_hex", e.target.value)}
+                placeholder="#9CA3AF"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">작성자 이름 크기 (px)</label>
+              <input
+                type="number"
+                min={8}
+                max={48}
+                value={values.post_meta_author_name_size_px || ""}
+                onChange={(e) => update("post_meta_author_name_size_px", Number(e.target.value) || 0)}
+                placeholder="기본값(14px)"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">작성자 이름 색상 (Hex)</label>
+              <input
+                type="text"
+                value={values.post_meta_author_name_color_hex}
+                onChange={(e) => update("post_meta_author_name_color_hex", e.target.value)}
+                placeholder="#1F2937"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
             </div>
           </div>
         </details>

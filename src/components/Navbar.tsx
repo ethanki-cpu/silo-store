@@ -626,7 +626,17 @@ export function Navbar() {
                 <div className="hidden group-hover/tab:block group-focus-within/tab:block absolute left-0 top-full pt-4 z-40">
                   <div className="w-64 rounded-md border border-gray-200 bg-white shadow-md py-2">
                     {tab.groups && tab.groups.length > 0
-                      ? tab.groups.map((group) => (
+                      ? tab.groups.map((group) => {
+                          // HOTFIX-096(사용자 지시): group.items가 비어있는
+                          // 그룹(예: "Silo's old Story", DB 자식 노드 0개)도
+                          // 이 chevron(›)과 2차 플라이아웃을 무조건 렌더링해,
+                          // 실제로는 펼칠 게 없는데도 화살표가 보이고
+                          // hover하면 빈 흰색 박스만 뜨는("이상한 빈칸") 문제가
+                          // 있었다. tab.items 분기(item.children.length > 0)와
+                          // 동일하게 items가 있을 때만 chevron/플라이아웃을
+                          // 렌더링한다.
+                          const hasItems = group.items.length > 0;
+                          return (
                           <div key={group.groupLabel} className="relative group/row">
                             {/* EPIC-054D(접근성 감사 §13): 순수 텍스트 div였던
                                 그룹 라벨을 포커스 가능한 버튼으로 바꿔 Tab으로도
@@ -655,42 +665,46 @@ export function Navbar() {
                                 href={group.href}
                                 minRankToRead={group.minRankToRead}
                                 onClick={(e) => e.currentTarget.blur()}
-                                aria-haspopup="true"
+                                aria-haspopup={hasItems ? "true" : undefined}
                                 className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                               >
                                 <span>{group.groupLabel}</span>
-                                <span className="text-gray-400 text-xs">›</span>
+                                {hasItems && <span className="text-gray-400 text-xs">›</span>}
                               </GatedNavLink>
                             ) : (
                               <button
                                 type="button"
-                                aria-haspopup="true"
+                                aria-haspopup={hasItems ? "true" : undefined}
                                 className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50 text-left"
                               >
                                 <span>{group.groupLabel}</span>
-                                <span className="text-gray-400 text-xs">›</span>
+                                {hasItems && <span className="text-gray-400 text-xs">›</span>}
                               </button>
                             )}
                             {/* 2차 플라이아웃 — group-hover/row 또는
                                 group-focus-within/row로 노출, JS 없음.
-                                pl-2가 그룹 행↔플라이아웃 사이의 브릿지 역할. */}
-                            <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
-                              <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
-                                {group.items.map((item, idx) => (
-                                  <GatedNavLink
-                                    key={`${item.href}-${idx}`}
-                                    href={item.href}
-                                    minRankToRead={item.minRankToRead}
-                                    onClick={(e) => e.currentTarget.blur()}
-                                    className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                  >
-                                    {item.label}
-                                  </GatedNavLink>
-                                ))}
+                                pl-2가 그룹 행↔플라이아웃 사이의 브릿지 역할.
+                                hasItems일 때만 렌더링(위 HOTFIX-096 참고). */}
+                            {hasItems && (
+                              <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
+                                <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
+                                  {group.items.map((item, idx) => (
+                                    <GatedNavLink
+                                      key={`${item.href}-${idx}`}
+                                      href={item.href}
+                                      minRankToRead={item.minRankToRead}
+                                      onClick={(e) => e.currentTarget.blur()}
+                                      className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                    >
+                                      {item.label}
+                                    </GatedNavLink>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
-                        ))
+                          );
+                        })
                       : (tab.items ?? []).map((item) =>
                           item.children && item.children.length > 0 ? (
                             // EPIC-079-PHASE-2: 드롭다운 항목도 서브카테고리(손자)가

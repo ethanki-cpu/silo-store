@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-11 (HOTFIX-096 — 상단 GNB 메가메뉴에서 하위 항목 없는 그룹에도 "›" 화살표+빈 플라이아웃이 뜨던 문제 수정)
+- **증상**: "사일로 상점" 상단 탭을 hover하면 뜨는 메가메뉴에서 "Silo's old Story 사일로의 옛날이야기" 항목 오른쪽에 정체 모를 빈 칸이 보인다는 스크린샷 보고 — 실제로는 그 항목에 hover 시 나타나는 2차 플라이아웃(자식 메뉴 박스)이 비어 있었던 것.
+- **근본 원인**: `Navbar.tsx`의 `tab.groups` 렌더링 분기가 각 그룹의 "›" chevron과 2차 플라이아웃을 `group.items.length`와 무관하게 항상 렌더링하고 있었다 — DB(`site_navigations`) 조회 결과 "Silo's old Story"는 실제 자식 노드가 0개(형제인 "사일로 보물들"은 5개, "사일로 유산 Heritage"는 2개)라, hover하면 내용 없는 빈 흰색 박스만 떴다. 바로 아래 `tab.items` 분기는 이미 `item.children.length > 0`으로 조건 처리돼 있어 동일 파일 안에서도 일관되지 않았던 코드였다.
+- **수정**: `group.items.length > 0`(`hasItems`)을 계산해 chevron과 2차 플라이아웃 둘 다 이 조건으로 감쌌다 — 자식이 없는 그룹은 이제 화살표 없이 순수 링크로만 보이고, hover해도 빈 박스가 뜨지 않는다. `aria-haspopup`도 실제 하위 메뉴가 있을 때만 `"true"`로 설정하도록 함께 정리.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 warning 없음, 파일에 이미 있던 무관한 사전 경고 1건 유지). 로컬 dev에서 "사일로 상점" 메가메뉴를 열어 DOM으로 직접 확인 — "Silo's old Story"는 `›` 없음, "사일로 보물들"/"사일로 유산 Heritage"는 `›` 그대로 유지.
+- **변경 파일**: `src/components/Navbar.tsx`.
+
 ## 2026-08-11 (HOTFIX-095 후속 — 관리자 로그인 세션 실사용 검증 중 발견한 P1: 스크랩/댓글이 HOTFIX-093-B 이후 계속 빈 화면이었던 근본 원인 수정)
 - **P1 발견 경위**: 위 HOTFIX-095 1번 항목을 실제 관리자 계정으로 로그인해 검증하던 중(dev.silostore.net, 사용자가 직접 로그인) — "silo-daily" 게시글을 스크랩(북마크)해도 `/mypage/archive`에 아무것도 뜨지 않았다. `ScrapsPanel.tsx`가 에러를 확인하지 않고 `(data ?? [])`로 조용히 빈 배열 폴백하는 걸 발견하고, 브라우저에서 직접 PostgREST를 호출해 실제 에러(`PGRST201: Could not embed because more than one relationship was found for 'posts' and 'boards'`)를 확인했다.
 - **근본 원인**: HOTFIX-093-B가 추가한 `post_boards`(게시글-게시판 N:M) 테이블 때문에 `posts`→`boards` 사이에 FK 경로가 2개(직접 `posts.board_id`, `post_boards` 경유)가 됐다 — PostgREST는 이 경우 `select`에 `"boards(...)"`처럼 관계를 명시하지 않으면 어느 쪽인지 모호하다며 요청 전체를 실패(HTTP 300)시킨다. `ScrapsPanel.tsx`/`CommentsPanel.tsx` 둘 다 이 `error`를 무시하고 있어서, HOTFIX-093-B가 merge된 시점부터 계속 "스크랩한 글이 없어요"/"작성한 댓글이 없어요"만 보였을 것으로 추정된다(오늘 처음 만든 증상이 아니라 이번에 우연히 발견한 기존 버그).

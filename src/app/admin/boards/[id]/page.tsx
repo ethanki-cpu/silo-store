@@ -58,6 +58,8 @@ export default function AdminBoardEditPage() {
         post_meta_date_color_hex: data.widget_settings?.postMetaStyle?.dateColorHex ?? "",
         post_meta_font_weight: data.widget_settings?.postMetaStyle?.fontWeight ?? 0,
         post_meta_position: data.widget_settings?.postMetaStyle?.position ?? "",
+        timeline_orientation: data.widget_settings?.timelineOrientation ?? "",
+        timeline_show_preview: data.widget_settings?.timelineShowPreview ?? true,
       });
     }
 
@@ -96,6 +98,11 @@ export default function AdminBoardEditPage() {
           ...(next.gallery_layout ? { galleryLayout: next.gallery_layout } : {}),
           ...(next.gallery_columns ? { galleryColumns: next.gallery_columns } : {}),
           galleryHoverAutoSlide: next.gallery_hover_auto_slide,
+          // HOTFIX-097(사용자 지시): 타임라인 배치 방향/미리보기 여부 —
+          // render_type이 "timeline"이 아니어도 그냥 저장해둔다(나중에
+          // 타임라인으로 바꿔도 값 유지, 갤러리 설정과 동일한 관례).
+          ...(next.timeline_orientation ? { timelineOrientation: next.timeline_orientation } : {}),
+          timelineShowPreview: next.timeline_show_preview,
           // HOTFIX-093-B(요구사항 1.3): 4개 값이 전부 미지정이면 postMetaStyle
           // 자체를 저장하지 않는다(PostDetailHeader가 undefined일 때 기존
           // 기본 스타일을 그대로 쓰도록 이미 구현돼 있음).

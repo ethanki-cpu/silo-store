@@ -44,6 +44,10 @@ export type BoardFormValues = {
   post_meta_date_color_hex: string; // "" = 미지정
   post_meta_font_weight: number; // 0 = 미지정
   post_meta_position: string; // "" | "left" | "center" | "right"
+  // HOTFIX-097(사용자 지시): 타임라인(render_type="timeline")에서만 의미
+  // 있음 — widget_settings.timelineOrientation/timelineShowPreview로 저장.
+  timeline_orientation: string; // "" | "vertical" | "horizontal" ("" = vertical과 동일)
+  timeline_show_preview: boolean; // hover 시 썸네일+본문 일부 미리보기 카드
 };
 
 export const GROUP_OPTIONS: { value: string; label: string }[] = [
@@ -111,6 +115,8 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   post_meta_date_color_hex: "",
   post_meta_font_weight: 0,
   post_meta_position: "",
+  timeline_orientation: "",
+  timeline_show_preview: true,
 };
 
 const PREVIEW_POSTS: BoardPost[] = [
@@ -528,6 +534,37 @@ export function BoardForm({
           </div>
         )}
 
+        {/* HOTFIX-097(사용자 지시): "타임라인 설정" — 배치 방향(세로/가로)과
+            hover 시 썸네일+본문 일부 미리보기 카드 노출 여부. 게시판이
+            render_type="timeline"일 때만 보여준다(갤러리 설정 섹션과 동일한
+            조건부 노출 관례). */}
+        {values.render_type === "timeline" && (
+          <div className="grid grid-cols-2 gap-4 rounded-md border border-gray-200 p-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">타임라인 배치 방향</label>
+              <select
+                value={values.timeline_orientation}
+                onChange={(e) => update("timeline_orientation", e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">(기본값 — 세로형)</option>
+                <option value="vertical">세로형</option>
+                <option value="horizontal">가로형</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={values.timeline_show_preview}
+                  onChange={(e) => update("timeline_show_preview", e.target.checked)}
+                />
+                항목에 마우스를 올리면 썸네일+본문 일부 미리보기 카드 보이기
+              </label>
+            </div>
+          </div>
+        )}
+
         {/* HOTFIX-093-B(요구사항 1.3): "게시물 출력방식" — 게시글 상세의
             날짜/작성자 텍스트 스타일 커스텀. 값을 비워두면(0/"") 기존
             기본 스타일 그대로 렌더링된다(PostDetailHeader.tsx). */}
@@ -748,6 +785,8 @@ export function BoardForm({
             galleryLayout={values.gallery_layout === "grid" ? "grid" : values.gallery_layout === "masonry" ? "masonry" : undefined}
             galleryColumns={values.gallery_columns}
             galleryHoverAutoSlide={values.gallery_hover_auto_slide}
+            timelineOrientation={values.timeline_orientation === "horizontal" ? "horizontal" : values.timeline_orientation === "vertical" ? "vertical" : undefined}
+            timelineShowPreview={values.timeline_show_preview}
           />
         </div>
       </div>

@@ -4,7 +4,19 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import type { BoardPost, SortOption } from "@/lib/boardLayout";
 
-type Board = { id: string; name: string; category: string | null; board_type: string };
+type Board = {
+  id: string;
+  name: string;
+  category: string | null;
+  board_type: string;
+  // HOTFIX-097(사용자 지시): 타임라인 위젯이 배치 방향/미리보기 여부를
+  // 게시판 설정에서 읽을 수 있도록 노출한다(GalleryModule의 layout 설정과
+  // 동일한 위치, boards.widget_settings).
+  widget_settings?: {
+    timelineOrientation?: "vertical" | "horizontal";
+    timelineShowPreview?: boolean;
+  } | null;
+};
 type FetchResult = { board: Board | null; posts: BoardPost[] };
 
 // EPIC-070: 같은 페이지 안에 같은 게시판을 가리키는 위젯이 여러 개

@@ -40,6 +40,8 @@ export default function AdminBoardNewPage() {
           ...(values.gallery_layout ? { galleryLayout: values.gallery_layout } : {}),
           ...(values.gallery_columns ? { galleryColumns: values.gallery_columns } : {}),
           galleryHoverAutoSlide: values.gallery_hover_auto_slide,
+          ...(values.timeline_orientation ? { timelineOrientation: values.timeline_orientation } : {}),
+          timelineShowPreview: values.timeline_show_preview,
           ...(values.post_meta_date_size_px || values.post_meta_date_color_hex || values.post_meta_font_weight || values.post_meta_position
             ? {
                 postMetaStyle: {

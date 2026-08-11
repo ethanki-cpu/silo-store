@@ -7,7 +7,7 @@ import { resolveFallbackEmbedThumbnail } from "@/lib/embedThumbnail";
 import { enqueueOrphanedImages, enqueueAllImages } from "@/lib/imageGc";
 import { fetchBoard } from "@/lib/boardFetch";
 import { slugify } from "@/lib/slugify";
-import { fetchAdditionalBoardSlugs, syncPostBoards } from "@/lib/postBoards";
+import { fetchAdditionalBoardSlugs, fetchCrossPostedPostIds, syncPostBoards } from "@/lib/postBoards";
 
 const richFields =
   "id, board_id, slug, title, body, body_json, featured_image_url, featured_image_path, thumbnail_visible, category, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
@@ -20,23 +20,36 @@ const legacyFields =
 // 컬럼이 없을 수 있어(마이그레이션 전) 그 경우 id로 한 번 더 시도한다
 // (fetchBoard의 UUID 폴백과 동일한 패턴, 이 프로젝트에서 post_slug 자체가
 // UUID처럼 보일 일은 거의 없지만 방어적으로 남겨둔다).
-async function fetchPost(client: typeof supabase, boardId: string, postSlug: string) {
+// HOTFIX-097: 이 게시판(boardId)의 "주 게시판" 글뿐 아니라 post_boards로
+// "추가 노출"만 된 글도 같은 게시판 URL에서 열려야 한다 — 목록 조회
+// (posts/route.ts의 fetchPosts)는 이미 이 cross-post 합집합을 반영해서
+// 보여주는데, 상세 조회는 board_id 정확히 일치만 확인해 "게시글을 찾을 수
+// 없어요"를 반환하고 있었다(타임라인처럼 여러 게시판이 같은 글을 공유하는
+// 위젯에서 링크를 눌렀을 때 실제로 재현됨 — 클릭한 글의 주 게시판이 지금
+// 보고 있는 게시판과 다른데 post_boards로만 연결된 경우). crossPostedIds가
+// 비어있으면(마이그레이션 전이거나 아무도 cross-post를 안 쓰는 게시판)
+// 기존과 동일한 단일 board_id 매칭으로 동작한다.
+async function fetchPost(
+  client: typeof supabase,
+  boardId: string,
+  postSlug: string,
+  crossPostedIds: string[],
+) {
+  const filter =
+    crossPostedIds.length > 0
+      ? `board_id.eq.${boardId},id.in.(${crossPostedIds.join(",")})`
+      : null;
+
   let usedRichFields = true;
-  let { data: post, error: postError } = await client
-    .from("posts")
-    .select(richFields)
-    .eq("slug", postSlug)
-    .eq("board_id", boardId)
-    .single();
+  let { data: post, error: postError } = filter
+    ? await client.from("posts").select(richFields).eq("slug", postSlug).or(filter).single()
+    : await client.from("posts").select(richFields).eq("slug", postSlug).eq("board_id", boardId).single();
 
   if (postError) {
     usedRichFields = false;
-    ({ data: post, error: postError } = await client
-      .from("posts")
-      .select(legacyFields)
-      .eq("id", postSlug)
-      .eq("board_id", boardId)
-      .single());
+    ({ data: post, error: postError } = filter
+      ? await client.from("posts").select(legacyFields).eq("id", postSlug).or(filter).single()
+      : await client.from("posts").select(legacyFields).eq("id", postSlug).eq("board_id", boardId).single());
   }
 
   return { post, postError, usedRichFields };
@@ -69,10 +82,11 @@ export async function GET(
 
   // 게시글 조회 자체는 권한 판정과 무관하게 시작할 수 있어 tier 조회와
   // 동시에 진행하고, 거부 판정이면 아래에서 결과를 버리고 403을 반환한다.
-  const [tier, { post, postError, usedRichFields }] = await Promise.all([
+  const [tier, crossPostedIds] = await Promise.all([
     requester ? getTier(requester.member.membership_rank) : Promise.resolve(null),
-    fetchPost(client, boardId, postSlug),
+    fetchCrossPostedPostIds(client, boardId),
   ]);
+  const { post, postError, usedRichFields } = await fetchPost(client, boardId, postSlug, crossPostedIds);
 
   if (!canReadBoard(board, tier, requester?.member.is_admin)) {
     // EPIC-087-PHASE-C: 잠금 사유가 accessLevel과 min_rank_to_read 둘 다일

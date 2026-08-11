@@ -14,6 +14,10 @@ type Board = {
     galleryLayout?: "masonry" | "grid";
     galleryColumns?: number;
     galleryHoverAutoSlide?: boolean;
+    // HOTFIX-097(사용자 지시): 타임라인 배치 방향 + hover 미리보기 카드
+    // 사용 여부.
+    timelineOrientation?: "vertical" | "horizontal";
+    timelineShowPreview?: boolean;
   } | null;
 };
 

@@ -28,6 +28,10 @@ type Board = {
     galleryLayout?: "masonry" | "grid";
     galleryColumns?: number;
     galleryHoverAutoSlide?: boolean;
+    // HOTFIX-097(사용자 지시): 타임라인 배치 방향 + hover 미리보기 카드
+    // 사용 여부.
+    timelineOrientation?: "vertical" | "horizontal";
+    timelineShowPreview?: boolean;
   } | null;
 };
 
@@ -225,6 +229,8 @@ export function BoardModule({
         galleryLayout={board?.widget_settings?.galleryLayout}
         galleryColumns={board?.widget_settings?.galleryColumns}
         galleryHoverAutoSlide={board?.widget_settings?.galleryHoverAutoSlide}
+        timelineOrientation={board?.widget_settings?.timelineOrientation}
+        timelineShowPreview={board?.widget_settings?.timelineShowPreview}
       />
 
       {definition.pageable && paginationEnabled !== false && (

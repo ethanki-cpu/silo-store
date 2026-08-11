@@ -26,4 +26,9 @@ export type BoardRendererProps = {
   // EPIC-092 후속 2차: 호버 시 이미지 슬라이드 자동 전환 여부(기본 false —
   // 좌우 화살표로 직접 넘김). 영상은 이 값과 무관하게 항상 자동재생.
   galleryHoverAutoSlide?: boolean;
+  // HOTFIX-097(사용자 지시): 타임라인 배치 방향(boards.widget_settings에서
+  // 옴) — TimelineRenderer만 쓰고 나머지 Renderer는 무시한다.
+  timelineOrientation?: "vertical" | "horizontal";
+  // false면 hover 시 썸네일+본문 일부 미리보기 카드를 띄우지 않는다(기본 true).
+  timelineShowPreview?: boolean;
 };

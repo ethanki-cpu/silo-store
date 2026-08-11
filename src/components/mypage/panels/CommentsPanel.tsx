@@ -29,10 +29,14 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
     let cancelled = false;
 
     async function load() {
+      // HOTFIX-095: post_boards(N:M, HOTFIX-093-B) 때문에 posts→boards
+      // 관계가 모호해져(PGRST201) "boards(...)"만으론 요청 전체가 실패하고
+      // 있었다(ScrapsPanel.tsx와 동일 원인 — 상세 주석 참고) — 주 게시판
+      // 관계(posts_board_id_fkey)를 명시해 해소한다.
       const { data } = await supabase
         .from("comments")
         .select(
-          "id, body, created_at, posts(id, slug, title, like_count, board_id, boards(name, slug))",
+          "id, body, created_at, posts(id, slug, title, like_count, board_id, boards!posts_board_id_fkey(name, slug))",
         )
         .eq("author_id", memberId)
         .order("created_at", { ascending: false })

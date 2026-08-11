@@ -74,11 +74,14 @@ export function DbTimelineModule({ boardId }: { boardId: string | null }) {
       orientation={settings?.timelineOrientation ?? "vertical"}
       align={settings?.postMetaStyle?.position ?? "left"}
       accentColorHex={settings?.timelineAccentColorHex}
+      lineWidthPx={settings?.timelineLineWidthPx}
+      markerSizePx={settings?.timelineMarkerSizePx}
+      cardTheme={settings?.timelineCardTheme ?? "light"}
       renderItem={(entry) => renderTimelinePostLabel(boardId, entry, undefined, settings?.postMetaStyle)}
       renderPreview={
         settings?.timelineShowPreview === false
           ? undefined
-          : (entry) => renderTimelinePostPreview(boardId, entry, settings?.postMetaStyle)
+          : (entry) => renderTimelinePostPreview(boardId, entry, settings?.postMetaStyle, settings?.timelineCardTheme ?? "light")
       }
     />
   );

@@ -18,10 +18,17 @@ import { groupByYearMonth, type TimelineEntry } from "@/lib/timelineEngine";
 // 단일 라인) 중 고를 수 있다.
 //
 // HOTFIX-100(사용자 지시): (1) 세로형에서 "정렬"(align)이 왼쪽/가운데/
-// 오른쪽일 때 선·마커의 위치도 텍스트 정렬을 따라간다(이전엔 정렬을
-// 가운데로 바꿔도 마커는 항상 왼쪽에 고정돼 있어 마커와 텍스트가 따로
-// 노는 것처럼 보였다). (2) accentColorHex로 선/마커 색을 게시판마다
-// 다르게 지정할 수 있다(기본은 CSS로 이미 정의된 회색).
+// 오른쪽일 때 선·마커의 위치도 텍스트 정렬을 따라간다. (2) accentColorHex로
+// 선/마커 색을 게시판마다 다르게 지정할 수 있다.
+//
+// HOTFIX-103(사용자 지시 — "타임라인 아직도 구리다"): 참고 이미지(Common
+// Ninja)와의 격차를 좁히려고 3가지를 더 손볼 수 있게 한다 — 카드 테마
+// (라이트/다크, 참고 이미지의 빨간 라인 예시가 쓰는 어두운 카드), 선 굵기,
+// 마커 크기. 기본값 자체도 기존보다 조금 더 존재감 있게 올렸다(선 1px→2px,
+// 마커 12px→14px, 카드 모서리/그림자도 더 뚜렷하게).
+const DEFAULT_LINE_WIDTH_PX = 2;
+const DEFAULT_MARKER_SIZE_PX = 14;
+
 export function TimelineView<T extends TimelineEntry>({
   entries,
   renderItem,
@@ -29,6 +36,9 @@ export function TimelineView<T extends TimelineEntry>({
   orientation = "vertical",
   align = "left",
   accentColorHex,
+  lineWidthPx = DEFAULT_LINE_WIDTH_PX,
+  markerSizePx = DEFAULT_MARKER_SIZE_PX,
+  cardTheme = "light",
   emptyMessage = "아직 기록이 없어요.",
 }: {
   entries: T[];
@@ -37,6 +47,9 @@ export function TimelineView<T extends TimelineEntry>({
   orientation?: "vertical" | "horizontal";
   align?: "left" | "center" | "right";
   accentColorHex?: string;
+  lineWidthPx?: number;
+  markerSizePx?: number;
+  cardTheme?: "light" | "dark";
   emptyMessage?: string;
 }) {
   if (entries.length === 0) {
@@ -50,6 +63,9 @@ export function TimelineView<T extends TimelineEntry>({
         renderItem={renderItem}
         renderPreview={renderPreview}
         accentColorHex={accentColorHex}
+        lineWidthPx={lineWidthPx}
+        markerSizePx={markerSizePx}
+        cardTheme={cardTheme}
       />
     );
   }
@@ -89,8 +105,11 @@ export function TimelineView<T extends TimelineEntry>({
                   <div className={`relative space-y-1 ${contentPaddingClass}`}>
                     {/* 세로선(spine) — 정렬을 따라 왼쪽/가운데/오른쪽으로 이동. */}
                     <div
-                      className={`absolute top-1 bottom-1 w-px bg-gray-200 ${spinePositionClass}`}
-                      style={accentColorHex ? { backgroundColor: accentColorHex } : undefined}
+                      className={`absolute top-1 bottom-1 bg-gray-200 ${spinePositionClass}`}
+                      style={{
+                        width: lineWidthPx,
+                        ...(accentColorHex ? { backgroundColor: accentColorHex } : {}),
+                      }}
                       aria-hidden
                     />
                     {byMonth.get(month)!.map((entry) => (
@@ -101,6 +120,8 @@ export function TimelineView<T extends TimelineEntry>({
                         renderPreview={renderPreview}
                         align={align}
                         accentColorHex={accentColorHex}
+                        markerSizePx={markerSizePx}
+                        cardTheme={cardTheme}
                       />
                     ))}
                   </div>
@@ -114,32 +135,44 @@ export function TimelineView<T extends TimelineEntry>({
   );
 }
 
+const CARD_THEME_CLASS: Record<"light" | "dark", string> = {
+  light: "border border-gray-200 bg-white shadow-xl",
+  dark: "border border-gray-800 bg-gray-900 shadow-xl shadow-black/30",
+};
+
 function VerticalRow<T extends TimelineEntry>({
   entry,
   renderItem,
   renderPreview,
   align,
   accentColorHex,
+  markerSizePx,
+  cardTheme,
 }: {
   entry: T;
   renderItem: (entry: T) => ReactNode;
   renderPreview?: (entry: T) => ReactNode;
   align: "left" | "center" | "right";
   accentColorHex?: string;
+  markerSizePx: number;
+  cardTheme: "light" | "dark";
 }) {
   const dotPositionClass =
     align === "center" ? "left-1/2 -translate-x-1/2" : align === "right" ? "right-3 translate-x-1/2" : "left-3 -translate-x-1/2";
-  const dotStyle: CSSProperties | undefined = accentColorHex ? { borderColor: accentColorHex } : undefined;
+  const dotStyle: CSSProperties = {
+    width: markerSizePx,
+    height: markerSizePx,
+    ...(accentColorHex ? { borderColor: accentColorHex } : {}),
+  };
   // HOTFIX-100: 오른쪽 정렬이면 라벨 왼쪽에 놓일 텍스트 흐름과 자연스럽게
-  // 이어지도록 미리보기 카드도 왼쪽으로 열린다(기존엔 항상 오른쪽으로만
-  // 열려, 오른쪽 정렬일 때 카드가 화면 밖으로 나갈 수 있었다).
+  // 이어지도록 미리보기 카드도 왼쪽으로 열린다.
   const previewPositionClass = align === "right" ? "right-full mr-3" : "left-full ml-3";
 
   return (
     <div className="group/item relative py-2">
       {/* 아이콘 배지 마커 */}
       <span
-        className={`absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-gray-400 bg-white shadow-sm transition-transform group-hover/item:scale-125 group-hover/item:border-gray-700 ${dotPositionClass}`}
+        className={`absolute top-1/2 -translate-y-1/2 rounded-full border-2 border-gray-400 bg-white shadow-sm transition-transform group-hover/item:scale-125 group-hover/item:border-gray-700 ${dotPositionClass}`}
         style={dotStyle}
         aria-hidden
       />
@@ -155,9 +188,7 @@ function VerticalRow<T extends TimelineEntry>({
             <div
               className={`pointer-events-none absolute top-0 z-20 hidden w-72 opacity-0 transition-opacity duration-150 group-hover/item:pointer-events-auto group-hover/item:block group-hover/item:opacity-100 lg:block ${previewPositionClass}`}
             >
-              <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-                {renderPreview(entry)}
-              </div>
+              <div className={`overflow-hidden rounded-xl ${CARD_THEME_CLASS[cardTheme]}`}>{renderPreview(entry)}</div>
             </div>
           )}
         </div>
@@ -171,24 +202,34 @@ function HorizontalTimeline<T extends TimelineEntry>({
   renderItem,
   renderPreview,
   accentColorHex,
+  lineWidthPx,
+  markerSizePx,
+  cardTheme,
 }: {
   entries: T[];
   renderItem: (entry: T) => ReactNode;
   renderPreview?: (entry: T) => ReactNode;
   accentColorHex?: string;
+  lineWidthPx: number;
+  markerSizePx: number;
+  cardTheme: "light" | "dark";
 }) {
   const sorted = [...entries].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
-  const dotStyle: CSSProperties | undefined = accentColorHex ? { borderColor: accentColorHex } : undefined;
+  const dotStyle: CSSProperties = {
+    width: markerSizePx,
+    height: markerSizePx,
+    ...(accentColorHex ? { borderColor: accentColorHex } : {}),
+  };
 
   return (
     <div className="overflow-x-auto pb-2">
       <div className="relative flex min-w-max items-center gap-14 px-6" style={{ height: 260 }}>
         {/* 중앙 가로선 */}
         <div
-          className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-gray-200"
-          style={accentColorHex ? { backgroundColor: accentColorHex } : undefined}
+          className="absolute left-0 right-0 top-1/2 -translate-y-1/2 bg-gray-200"
+          style={{ height: lineWidthPx, ...(accentColorHex ? { backgroundColor: accentColorHex } : {}) }}
           aria-hidden
         />
         {sorted.map((entry, idx) => {
@@ -199,29 +240,25 @@ function HorizontalTimeline<T extends TimelineEntry>({
                 <>
                   <div className="mb-3 flex flex-1 flex-col justify-end text-center">{renderItem(entry)}</div>
                   <span
-                    className="h-3 w-3 rounded-full border-2 border-gray-400 bg-white shadow-sm transition-transform group-hover/item:scale-125 group-hover/item:border-gray-700"
+                    className="rounded-full border-2 border-gray-400 bg-white shadow-sm transition-transform group-hover/item:scale-125 group-hover/item:border-gray-700"
                     style={dotStyle}
                   />
                   {renderPreview && (
                     <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-3 hidden w-64 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover/item:pointer-events-auto group-hover/item:block group-hover/item:opacity-100">
-                      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {renderPreview(entry)}
-                      </div>
+                      <div className={`overflow-hidden rounded-xl ${CARD_THEME_CLASS[cardTheme]}`}>{renderPreview(entry)}</div>
                     </div>
                   )}
                 </>
               ) : (
                 <>
                   <span
-                    className="h-3 w-3 rounded-full border-2 border-gray-400 bg-white shadow-sm transition-transform group-hover/item:scale-125 group-hover/item:border-gray-700"
+                    className="rounded-full border-2 border-gray-400 bg-white shadow-sm transition-transform group-hover/item:scale-125 group-hover/item:border-gray-700"
                     style={dotStyle}
                   />
                   <div className="mt-3 flex flex-1 flex-col text-center">{renderItem(entry)}</div>
                   {renderPreview && (
                     <div className="pointer-events-none absolute top-full left-1/2 z-20 mt-3 hidden w-64 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover/item:pointer-events-auto group-hover/item:block group-hover/item:opacity-100">
-                      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {renderPreview(entry)}
-                      </div>
+                      <div className={`overflow-hidden rounded-xl ${CARD_THEME_CLASS[cardTheme]}`}>{renderPreview(entry)}</div>
                     </div>
                   )}
                 </>

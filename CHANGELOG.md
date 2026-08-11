@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-12 (HOTFIX-102/103 — "이 게시판을 사용 중인 페이지" 추가/삭제 + 타임라인 꾸미기 설정 확장)
+- **HOTFIX-102: "이 게시판을 사용 중인 페이지"에서 직접 추가/삭제**: 지금까지 읽기 전용으로 목록만 보여주던 것을, 각 항목에 "연결 해제" 버튼(해당 `page_modules` 행 삭제)과, 목록 아래 페이지 선택 드롭다운 + "연결 추가" 버튼(선택한 페이지에 이 게시판을 새 `board` 위젯으로 연결, "Category" 섹션이 쓰는 것과 동일한 insert 패턴)을 추가했다. 여러 페이지에 동시에 노출하고 싶을 때(허브 페이지 + 이 게시판 전용 페이지 등) "Category (사이트 메뉴 위치)"의 단일 브랜치 배정과 별개로 자유롭게 관리할 수 있다.
+- **HOTFIX-103: 타임라인 "아직도 구리다" 피드백 — 꾸밀 수 있는 설정 확장**: "타임라인 설정"에 3개 추가 — (1) 선 굵기(px), (2) 마커 크기(px), (3) 미리보기 카드 테마(라이트/다크 — 다크는 참고 이미지의 빨간 라인 예시가 쓰는 검은 카드 스타일을 그대로 재현, 텍스트 색도 자동으로 반전). 기본값 자체도 더 존재감 있게 올렸다(선 1px→2px, 마커 12px→14px, 카드 모서리/그림자를 `rounded-xl shadow-xl`로 더 뚜렷하게) — 설정을 하나도 안 건드려도 이전보다 조금 더 나아 보이도록.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 warning 1건 — `loadLinkedPages()`를 effect 안에서 부르는 것, 이 파일에 이미 있던 동일 클래스 패턴). 로컬 dev에서 "사일로 타임라인" 게시판에 다크 테마/선 3px/마커 18px를 임시로 넣어 실제 DOM(카드 클래스 `bg-gray-900`+제목 `text-white`, 선 `width:3px`, 마커 `width/height:18px`)으로 반영 확인 후 테스트 값 원상복구. 페이지 추가/삭제 UI는 `/admin/boards/[id]`가 관리자 로그인 필요라 로컬에서 직접 클릭 검증은 못 함(코드는 기존에 이미 검증된 동일 insert/delete 패턴 재사용).
+- **변경 파일**: `src/components/admin/BoardForm.tsx`, `src/components/TimelineView.tsx`, `src/components/boards/renderers/TimelineRenderer.tsx`, `src/components/boards/renderers/types.ts`, `src/components/modules/BoardModule.tsx`, `src/components/modules/DbFeedModules.tsx`, `src/lib/useBoardData.ts`, `src/lib/useBoardPosts.ts`, `src/app/admin/boards/[id]/page.tsx`, `src/app/admin/boards/new/page.tsx`.
+
 ## 2026-08-12 (HOTFIX-101 — "추가로 노출할 게시판 선택"을 사이트 메뉴와 동일한 순서로 정렬)
 - **사용자 피드백**: HOTFIX-099가 카테고리 문자열 가나다순으로 정렬했는데, 사용자가 원한 건 "사이트 구성 관리 → 사이트 메뉴"에 보이는 실제 트리 순서(상단 탭 순서 → 그 아래 하위 항목들)였다.
 - **수정**: `groupBoardsByCategory()`(가나다순 카테고리 그룹핑)를 제거하고, `CategoryTreeManager.tsx`/`CategoryBoardPicker`가 이미 쓰는 `buildAdminTree()`(`src/lib/adminTreeGrouping.ts`, `site_navigations` 트리를 SSoT로 쓰는 함수)를 `WriteBoardForm.tsx`/`edit/page.tsx`의 "추가로 노출할 게시판 선택" 체크박스 목록에도 그대로 적용 — 이미 두 파일 다 `boardBranches`/`boardBranchMap`을 이 목적으로 fetch하고 있었으므로(기존 "게시될 페이지 선택" 피커용) 새 조회 없이 재사용만 하면 됐다. 브랜치(상위 메뉴) 헤더도 깊이(depth)만큼 들여써서 실제 트리 구조가 그대로 보인다.

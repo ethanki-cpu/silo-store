@@ -18,6 +18,10 @@ type Board = {
     timelineShowPreview?: boolean;
     // HOTFIX-100(사용자 지시): 타임라인 선/마커 색상(게시판별 테마).
     timelineAccentColorHex?: string;
+    // HOTFIX-103(사용자 지시): 선 굵기/마커 크기/카드 테마.
+    timelineLineWidthPx?: number;
+    timelineMarkerSizePx?: number;
+    timelineCardTheme?: "light" | "dark";
     // HOTFIX-098: 날짜/작성자 스타일 — Page Builder Timeline 위젯도
     // 게시판 설정과 동일하게 반영한다.
     postMetaStyle?: PostMetaStyle;

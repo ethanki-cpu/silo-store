@@ -43,25 +43,38 @@ export function renderTimelinePostLabel(
   );
 }
 
-export function renderTimelinePostPreview(boardId: string, post: BoardPost, metaStyle?: PostMetaStyle | null) {
+// HOTFIX-103(사용자 지시 — "타임라인 아직도 구리다"): 참고 이미지의 빨간
+// 라인 예시가 쓰는 어두운 카드 테마를 고를 수 있게 — 다크 테마에서는
+// 회색 텍스트가 어두운 배경에 묻히지 않도록 색을 반전한다.
+function previewTextClasses(theme: "light" | "dark") {
+  return theme === "dark"
+    ? { meta: "text-gray-500", title: "text-white", excerpt: "text-gray-300", empty: "bg-gray-800 text-gray-500" }
+    : { meta: "text-gray-400", title: "text-gray-900", excerpt: "text-gray-500", empty: "bg-gray-50 text-gray-300" };
+}
+
+export function renderTimelinePostPreview(
+  boardId: string,
+  post: BoardPost,
+  metaStyle?: PostMetaStyle | null,
+  cardTheme: "light" | "dark" = "light",
+) {
   const imageUrl = post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null;
   const excerpt = htmlToExcerpt(post.body, 90);
   const style = metaStyleToCss(metaStyle);
+  const c = previewTextClasses(cardTheme);
   return (
     <Link href={`/boards/${boardId}/${post.slug ?? post.id}`} className="block">
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt="" className="h-32 w-full object-cover" />
       ) : (
-        <div className="flex h-16 w-full items-center justify-center bg-gray-50 text-xs text-gray-300">
-          이미지 없음
-        </div>
+        <div className={`flex h-16 w-full items-center justify-center text-xs ${c.empty}`}>이미지 없음</div>
       )}
       <div className="p-3" style={style}>
-        <p className="text-[11px] text-gray-400">{new Date(post.created_at).toLocaleDateString()}</p>
-        <p className="mt-0.5 font-serif text-sm font-semibold text-gray-900 line-clamp-1">{post.title}</p>
-        {excerpt && <p className="mt-1 text-xs leading-relaxed text-gray-500 line-clamp-3">{excerpt}</p>}
-        <p className="mt-1.5 text-[11px] text-gray-400">{formatPostMeta(post)}</p>
+        <p className={`text-[11px] ${c.meta}`}>{new Date(post.created_at).toLocaleDateString()}</p>
+        <p className={`mt-0.5 font-serif text-sm font-semibold line-clamp-1 ${c.title}`}>{post.title}</p>
+        {excerpt && <p className={`mt-1 text-xs leading-relaxed line-clamp-3 ${c.excerpt}`}>{excerpt}</p>}
+        <p className={`mt-1.5 text-[11px] ${c.meta}`}>{formatPostMeta(post)}</p>
       </div>
     </Link>
   );
@@ -74,6 +87,9 @@ export function TimelineRenderer({
   timelineOrientation,
   timelineShowPreview,
   timelineAccentColorHex,
+  timelineLineWidthPx,
+  timelineMarkerSizePx,
+  timelineCardTheme,
   postMetaStyle,
 }: BoardRendererProps) {
   const entries = posts.map((post) => ({ ...post, createdAt: post.created_at }));
@@ -84,11 +100,14 @@ export function TimelineRenderer({
       orientation={timelineOrientation ?? "vertical"}
       align={postMetaStyle?.position ?? "left"}
       accentColorHex={timelineAccentColorHex}
+      lineWidthPx={timelineLineWidthPx}
+      markerSizePx={timelineMarkerSizePx}
+      cardTheme={timelineCardTheme ?? "light"}
       renderItem={(entry) => renderTimelinePostLabel(boardId, entry, boardCategory, postMetaStyle)}
       renderPreview={
         timelineShowPreview === false
           ? undefined
-          : (entry) => renderTimelinePostPreview(boardId, entry, postMetaStyle)
+          : (entry) => renderTimelinePostPreview(boardId, entry, postMetaStyle, timelineCardTheme ?? "light")
       }
     />
   );

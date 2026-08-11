@@ -232,6 +232,9 @@ export function BoardModule({
         timelineOrientation={board?.widget_settings?.timelineOrientation}
         timelineShowPreview={board?.widget_settings?.timelineShowPreview}
         timelineAccentColorHex={board?.widget_settings?.timelineAccentColorHex}
+        timelineLineWidthPx={board?.widget_settings?.timelineLineWidthPx}
+        timelineMarkerSizePx={board?.widget_settings?.timelineMarkerSizePx}
+        timelineCardTheme={board?.widget_settings?.timelineCardTheme}
         postMetaStyle={board?.widget_settings?.postMetaStyle}
       />
 

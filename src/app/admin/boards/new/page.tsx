@@ -43,6 +43,9 @@ export default function AdminBoardNewPage() {
           ...(values.timeline_orientation ? { timelineOrientation: values.timeline_orientation } : {}),
           timelineShowPreview: values.timeline_show_preview,
           ...(values.timeline_accent_color_hex ? { timelineAccentColorHex: values.timeline_accent_color_hex } : {}),
+          ...(values.timeline_line_width_px ? { timelineLineWidthPx: values.timeline_line_width_px } : {}),
+          ...(values.timeline_marker_size_px ? { timelineMarkerSizePx: values.timeline_marker_size_px } : {}),
+          ...(values.timeline_card_theme ? { timelineCardTheme: values.timeline_card_theme } : {}),
           ...(values.post_meta_date_size_px ||
           values.post_meta_date_color_hex ||
           values.post_meta_font_weight ||

@@ -42,4 +42,10 @@ export type BoardRendererProps = {
   // HOTFIX-100(사용자 지시): 타임라인 선/마커 색상 — 게시판마다 다르게
   // 지정할 수 있다(기본은 회색). TimelineRenderer만 쓴다.
   timelineAccentColorHex?: string;
+  // HOTFIX-103(사용자 지시 — "타임라인 아직도 구리다"): 선 굵기(px)/마커
+  // 크기(px)/미리보기 카드 테마(라이트·다크). 전부 미지정이면 TimelineView의
+  // 기본값(선 2px, 마커 14px, 라이트)을 쓴다.
+  timelineLineWidthPx?: number;
+  timelineMarkerSizePx?: number;
+  timelineCardTheme?: "light" | "dark";
 };

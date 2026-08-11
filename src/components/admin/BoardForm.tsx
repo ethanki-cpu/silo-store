@@ -56,6 +56,11 @@ export type BoardFormValues = {
   timeline_show_preview: boolean; // hover 시 썸네일+본문 일부 미리보기 카드
   // HOTFIX-100(사용자 지시): 게시판마다 다른 선/마커 색상.
   timeline_accent_color_hex: string; // "" = 미지정(기본 회색)
+  // HOTFIX-103(사용자 지시 — "타임라인 아직도 구리다"): 선 굵기/마커 크기/
+  // 미리보기 카드 테마.
+  timeline_line_width_px: number; // 0 = 미지정(기본 2px)
+  timeline_marker_size_px: number; // 0 = 미지정(기본 14px)
+  timeline_card_theme: string; // "" | "light" | "dark" ("" = light과 동일)
 };
 
 export const GROUP_OPTIONS: { value: string; label: string }[] = [
@@ -130,6 +135,9 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   timeline_orientation: "",
   timeline_show_preview: true,
   timeline_accent_color_hex: "",
+  timeline_line_width_px: 0,
+  timeline_marker_size_px: 0,
+  timeline_card_theme: "",
 };
 
 const PREVIEW_POSTS: BoardPost[] = [
@@ -187,41 +195,94 @@ export function BoardForm({
 }) {
   const [values, setValues] = useState<BoardFormValues>(initial);
   const [linkedPages, setLinkedPages] = useState<
-    { pageId: string; slug: string; title: string; moduleType: string }[] | null
+    { moduleId: string; pageId: string; slug: string; title: string; moduleType: string }[] | null
   >(null);
+  // HOTFIX-102(사용자 지시): "이 게시판을 사용 중인 페이지"에서 직접
+  // 추가/삭제할 수 있게 — 연결 추가용 전체 페이지 목록 + 선택값 + 처리 상태.
+  const [allPages, setAllPages] = useState<{ id: string; slug: string; title: string }[]>([]);
+  const [pageIdToAdd, setPageIdToAdd] = useState("");
+  const [addingPageLink, setAddingPageLink] = useState(false);
+  const [removingModuleId, setRemovingModuleId] = useState<string | null>(null);
+  const [pageLinkError, setPageLinkError] = useState<string | null>(null);
 
   // EPIC-087-PHASE-A: "카테고리 드롭다운에서 연결된 페이지 목록" 요청의 실제
   // 대상 — board → page 방향 링크는 이 화면에 없었다(그 반대 방향, page →
-  // board는 CategoryDetailModal의 "관리" 모달이 이미 편집). 여기서는 읽기
-  // 전용으로 "이 게시판을 위젯으로 쓰는 페이지"만 보여준다.
+  // board는 CategoryDetailModal의 "관리" 모달이 이미 편집). HOTFIX-102부터
+  // 읽기 전용이 아니라 여기서 직접 추가/삭제할 수 있다.
+  async function loadLinkedPages() {
+    if (!boardId) return;
+    const { data } = await supabase
+      .from("page_modules")
+      .select("id, module_type, page_builder(id, slug, title)")
+      .eq("board_id", boardId);
+    const rows = (data ?? []) as unknown as {
+      id: string;
+      module_type: string;
+      page_builder: { id: string; slug: string; title: string } | null;
+    }[];
+    setLinkedPages(
+      rows
+        .filter((r) => r.page_builder)
+        .map((r) => ({
+          moduleId: r.id,
+          pageId: r.page_builder!.id,
+          slug: r.page_builder!.slug,
+          title: r.page_builder!.title,
+          moduleType: r.module_type,
+        })),
+    );
+  }
+
+  useEffect(() => {
+    loadLinkedPages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardId]);
+
   useEffect(() => {
     if (!boardId) return;
-    let cancelled = false;
     supabase
-      .from("page_modules")
-      .select("module_type, page_builder(id, slug, title)")
-      .eq("board_id", boardId)
-      .then(({ data }) => {
-        if (cancelled) return;
-        const rows = (data ?? []) as unknown as {
-          module_type: string;
-          page_builder: { id: string; slug: string; title: string } | null;
-        }[];
-        setLinkedPages(
-          rows
-            .filter((r) => r.page_builder)
-            .map((r) => ({
-              pageId: r.page_builder!.id,
-              slug: r.page_builder!.slug,
-              title: r.page_builder!.title,
-              moduleType: r.module_type,
-            })),
-        );
-      });
-    return () => {
-      cancelled = true;
-    };
+      .from("page_builder")
+      .select("id, slug, title")
+      .order("title", { ascending: true })
+      .then(({ data }) => setAllPages((data ?? []) as { id: string; slug: string; title: string }[]));
   }, [boardId]);
+
+  // HOTFIX-102: 선택한 페이지에 이 게시판을 새 "board" 위젯으로 연결한다
+  // (BoardForm.tsx의 "Category (사이트 메뉴 위치)"가 쓰는 것과 동일한
+  // page_modules insert 패턴 — 다만 여기는 여러 페이지에 동시에 연결하는
+  // 용도라 branch/사이트 메뉴 배정과는 독립적으로 동작한다).
+  async function handleAddPageLink() {
+    if (!boardId || !pageIdToAdd) return;
+    setAddingPageLink(true);
+    setPageLinkError(null);
+    const { error } = await supabase.from("page_modules").insert({
+      page_id: pageIdToAdd,
+      module_type: "board",
+      board_id: boardId,
+      settings: WIDGET_DEFAULT_SETTINGS.board ?? {},
+      sort_order: 0,
+      is_hidden: false,
+    });
+    setAddingPageLink(false);
+    if (error) {
+      setPageLinkError(error.message);
+      return;
+    }
+    setPageIdToAdd("");
+    await loadLinkedPages();
+  }
+
+  async function handleRemovePageLink(moduleId: string) {
+    setRemovingModuleId(moduleId);
+    setPageLinkError(null);
+    const { error } = await supabase.from("page_modules").delete().eq("id", moduleId);
+    setRemovingModuleId(null);
+    if (error) {
+      setPageLinkError(error.message);
+      return;
+    }
+    setLinkedPages((prev) => (prev ? prev.filter((p) => p.moduleId !== moduleId) : prev));
+  }
 
   // EPIC-088(요구사항 6): "Category" 필드 — 이 게시판이 사이트 메뉴 트리의
   // 어느 분기에 속하는지를 CategoryBranchPicker(다열 캐스케이딩 창)로
@@ -447,20 +508,60 @@ export function BoardForm({
             ) : (
               <ul className="space-y-1">
                 {linkedPages.map((p) => (
-                  <li key={`${p.pageId}-${p.moduleType}`} className="text-xs">
-                    <a
-                      href={`/admin/pages/${p.pageId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 hover:underline"
+                  <li key={p.moduleId} className="flex items-center justify-between gap-2 text-xs">
+                    <span>
+                      <a
+                        href={`/admin/pages/${p.pageId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        {p.title}
+                      </a>
+                      <span className="text-gray-400"> ({p.slug} · {p.moduleType})</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePageLink(p.moduleId)}
+                      disabled={removingModuleId === p.moduleId}
+                      className="shrink-0 text-gray-400 hover:text-red-600 disabled:opacity-50"
                     >
-                      {p.title}
-                    </a>
-                    <span className="text-gray-400"> ({p.slug} · {p.moduleType})</span>
+                      {removingModuleId === p.moduleId ? "삭제 중..." : "연결 해제"}
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
+            {/* HOTFIX-102(사용자 지시): 이 목록에서 직접 다른 페이지에도
+                게시판 위젯으로 추가 연결할 수 있게 — "Category (사이트 메뉴
+                위치)"가 관리하는 단일 브랜치 배정과 별개로, 여러 페이지에
+                동시에 노출하고 싶을 때(예: 허브 페이지 + 이 게시판 전용
+                페이지) 쓴다. */}
+            <div className="mt-2 flex items-center gap-2">
+              <select
+                value={pageIdToAdd}
+                onChange={(e) => setPageIdToAdd(e.target.value)}
+                className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
+              >
+                <option value="">페이지 선택...</option>
+                {allPages
+                  .filter((p) => !linkedPages?.some((lp) => lp.pageId === p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} ({p.slug})
+                    </option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleAddPageLink}
+                disabled={!pageIdToAdd || addingPageLink}
+                className="shrink-0 rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+              >
+                {addingPageLink ? "추가 중..." : "+ 연결 추가"}
+              </button>
+            </div>
+            {pageLinkError && <p className="mt-1 text-xs text-red-600">{pageLinkError}</p>}
           </div>
         )}
 
@@ -588,6 +689,45 @@ export function BoardForm({
                 />
                 항목에 마우스를 올리면 썸네일+본문 일부 미리보기 카드 보이기
               </label>
+            </div>
+            {/* HOTFIX-103(사용자 지시 — "타임라인 아직도 구리다"): 선 굵기/
+                마커 크기/미리보기 카드 테마 — 더 화려하고 존재감 있게
+                꾸밀 수 있는 세부 설정. */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">선 굵기 (px)</label>
+              <input
+                type="number"
+                min={1}
+                max={8}
+                value={values.timeline_line_width_px || ""}
+                onChange={(e) => update("timeline_line_width_px", Number(e.target.value) || 0)}
+                placeholder="기본값(2px)"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">마커 크기 (px)</label>
+              <input
+                type="number"
+                min={8}
+                max={32}
+                value={values.timeline_marker_size_px || ""}
+                onChange={(e) => update("timeline_marker_size_px", Number(e.target.value) || 0)}
+                placeholder="기본값(14px)"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">미리보기 카드 테마</label>
+              <select
+                value={values.timeline_card_theme}
+                onChange={(e) => update("timeline_card_theme", e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">(기본값 — 라이트)</option>
+                <option value="light">라이트 (흰 배경)</option>
+                <option value="dark">다크 (검은 배경, 참고 이미지의 빨간 라인 스타일)</option>
+              </select>
             </div>
             <p className="col-span-2 text-xs text-gray-400">
               세로형에서 선/마커의 좌우 위치는 아래 &ldquo;게시물 출력방식 → 정렬 위치&rdquo;를 따라갑니다.
@@ -867,6 +1007,9 @@ export function BoardForm({
             timelineOrientation={values.timeline_orientation === "horizontal" ? "horizontal" : values.timeline_orientation === "vertical" ? "vertical" : undefined}
             timelineShowPreview={values.timeline_show_preview}
             timelineAccentColorHex={values.timeline_accent_color_hex || undefined}
+            timelineLineWidthPx={values.timeline_line_width_px || undefined}
+            timelineMarkerSizePx={values.timeline_marker_size_px || undefined}
+            timelineCardTheme={values.timeline_card_theme === "dark" ? "dark" : values.timeline_card_theme === "light" ? "light" : undefined}
             postMetaStyle={{
               ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
               ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),

@@ -72,8 +72,13 @@ export default function DynamicPage() {
   return (
     <>
       <PageEditButton slug={slug} />
-      <main className="flex-1 bg-white px-6 py-12">
-        <div className="max-w-3xl mx-auto w-full">
+      {/* EPIC-093(요구사항 1.2): 새로 만들어지는(page_builder 기반) 페이지의
+          기본 컨테이너가 max-w-3xl + px-6로 화면 양옆에 원치 않는 여백을
+          만들던 것 — 이 catch-all이 그런 페이지 전부의 "기본값"이므로 여기서
+          여백을 0으로 강제한다. 위젯 각각(HeroModule 등)이 자체 내부
+          여백/max-width를 가진 경우 그 값은 그대로 유지된다. */}
+      <main className="flex-1 bg-white p-0">
+        <div className="w-full">
           <PageBuilderRenderer modules={state.modules} />
         </div>
       </main>

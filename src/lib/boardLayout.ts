@@ -1268,6 +1268,18 @@ function applyAdminOverrides(base: BoardDefinition, board: BoardRow): BoardDefin
 // 기존 8개 그룹 로직으로 폴백 — 알 수 없는 board_type이 들어오면(마이그
 // 레이션 누락 등) 가장 보수적인 기본값인 "topic" 정의로 대체한다. 마지막에
 // applyAdminOverrides를 거쳐 EPIC-066 admin 컬럼 값이 있으면 덮어쓴다.
+// EPIC-093(요구사항 6): "+ 새 게시판 추가"(src/app/admin/pages/[id]/page.tsx)가
+// 관리자가 이름을 아직 정하기 전까지 임시로 채워 넣는 category 값
+// (`new-board-<8자리 랜덤>`)이 그대로 게시글 태그로 노출되던 문제 —
+// 이 패턴에 해당하는 category는 "실제 카테고리"로 취급하지 않는다.
+const PLACEHOLDER_BOARD_CATEGORY_RE = /^new-board-[a-z0-9]+$/i;
+
+export function isRealBoardCategory(
+  category: string | null | undefined,
+): category is string {
+  return Boolean(category) && !PLACEHOLDER_BOARD_CATEGORY_RE.test(category as string);
+}
+
 export function resolveBoardDefinition(board: BoardRow): BoardDefinition {
   let base: BoardDefinition;
 

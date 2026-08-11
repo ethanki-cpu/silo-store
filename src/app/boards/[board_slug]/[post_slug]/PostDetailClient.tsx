@@ -11,7 +11,7 @@ import { PostActions } from "@/components/boards/PostActions";
 import { PostBody } from "@/components/boards/PostBody";
 import { CommentSection } from "@/components/boards/CommentSection";
 import { BoardPostListPanel } from "@/components/boards/BoardPostListPanel";
-import { resolveBoardDefinition } from "@/lib/boardLayout";
+import { resolveBoardDefinition, isRealBoardCategory } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PostFloatingActionBar } from "@/components/boards/PostFloatingActionBar";
 import type { BreadcrumbItem } from "@/components/PageHeader";
@@ -273,7 +273,7 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
   // 개념글 여부를 함께 얹어 보여준다.
   const displayTags = [
     ...(post.tags ?? []),
-    board?.category,
+    isRealBoardCategory(board?.category) ? board.category : null,
     post.is_docent_post ? "도슨트" : null,
     post.is_best ? "개념글" : null,
   ].filter((t): t is string => Boolean(t));
@@ -302,10 +302,10 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
             페이지에서 동일하게 헤더 바로 아래 좌측 상단에 고정 노출된다 —
             게시글 상세 페이지만 예외로 본문 상단에 인라인 배치하던 것을
             제거하고, 다른 페이지와 완전히 같은 위치/스타일(PageEditButton의
-            기본값)을 쓰도록 통일한다. 텍스트만 "게시글 보여지는 방식 수정"으로
-            분기한다. "목록으로"는 항상 떠 있는 PostFloatingActionBar(좌측
-            하단)가 담당한다. */}
-        <PageEditButton slug="boards-id-postid" label="게시글 보여지는 방식 수정" />
+            기본값)을 쓰도록 통일한다. 텍스트만 "게시물 출력방식"으로
+            분기한다(EPIC-093 요구사항 1.1). "목록으로"는 항상 떠 있는
+            PostFloatingActionBar(좌측 하단)가 담당한다. */}
+        <PageEditButton slug="boards-id-postid" label="게시물 출력방식" />
         <PostDetailHeader
           postNumber={post.post_number}
           createdAt={post.created_at}

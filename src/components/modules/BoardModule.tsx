@@ -11,6 +11,7 @@ import { FilterModule } from "@/components/modules/FilterModule";
 import { HeroModule } from "@/components/modules/HeroModule";
 import {
   resolveBoardDefinition,
+  isRealBoardCategory,
   INDIVIDUAL_BOARD_DEFINITIONS,
   type BoardDefinition,
   type HubFeed,
@@ -220,7 +221,7 @@ export function BoardModule({
         hubFeed={hubFeed}
         hubChildBoards={includeChildBoards ? hubChildBoards : undefined}
         showThumbnail={showThumbnail}
-        boardCategory={board?.category}
+        boardCategory={isRealBoardCategory(board?.category) ? board.category : null}
         galleryLayout={board?.widget_settings?.galleryLayout}
         galleryColumns={board?.widget_settings?.galleryColumns}
         galleryHoverAutoSlide={board?.widget_settings?.galleryHoverAutoSlide}

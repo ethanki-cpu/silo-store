@@ -37,6 +37,13 @@ export type BoardFormValues = {
   // EPIC-092 후속 2차: 호버 시 이미지 슬라이드 자동 전환 여부(기본 false —
   // 좌우 화살표로 직접 넘김). 영상은 이 값과 무관하게 항상 자동재생.
   gallery_hover_auto_slide: boolean;
+  // HOTFIX-093-B(요구사항 1.3): 게시글 상세의 날짜/작성자 영역 커스텀
+  // 스타일 — widget_settings.postMetaStyle로 저장된다. 값이 비어있으면
+  // (post_meta_date_size_px=0 등) 기존 기본 스타일을 그대로 쓴다.
+  post_meta_date_size_px: number; // 0 = 미지정
+  post_meta_date_color_hex: string; // "" = 미지정
+  post_meta_font_weight: number; // 0 = 미지정
+  post_meta_position: string; // "" | "left" | "center" | "right"
 };
 
 export const GROUP_OPTIONS: { value: string; label: string }[] = [
@@ -100,6 +107,10 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   gallery_layout: "",
   gallery_columns: 3,
   gallery_hover_auto_slide: false,
+  post_meta_date_size_px: 0,
+  post_meta_date_color_hex: "",
+  post_meta_font_weight: 0,
+  post_meta_position: "",
 };
 
 const PREVIEW_POSTS: BoardPost[] = [
@@ -516,6 +527,67 @@ export function BoardForm({
             </div>
           </div>
         )}
+
+        {/* HOTFIX-093-B(요구사항 1.3): "게시물 출력방식" — 게시글 상세의
+            날짜/작성자 텍스트 스타일 커스텀. 값을 비워두면(0/"") 기존
+            기본 스타일 그대로 렌더링된다(PostDetailHeader.tsx). */}
+        <details className="rounded-md border border-gray-200 p-3">
+          <summary className="cursor-pointer text-xs font-medium text-gray-600">
+            게시물 출력방식 — 날짜/작성자 스타일
+          </summary>
+          <div className="mt-3 grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">날짜 크기 (px)</label>
+              <input
+                type="number"
+                min={8}
+                max={48}
+                value={values.post_meta_date_size_px || ""}
+                onChange={(e) => update("post_meta_date_size_px", Number(e.target.value) || 0)}
+                placeholder="기본값(12px)"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">색상 (Hex)</label>
+              <input
+                type="text"
+                value={values.post_meta_date_color_hex}
+                onChange={(e) => update("post_meta_date_color_hex", e.target.value)}
+                placeholder="#9CA3AF"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">폰트 웨이트</label>
+              <select
+                value={values.post_meta_font_weight || ""}
+                onChange={(e) => update("post_meta_font_weight", Number(e.target.value) || 0)}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">(기본값)</option>
+                {[400, 500, 600, 700, 800].map((w) => (
+                  <option key={w} value={w}>
+                    {w}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">정렬 위치</label>
+              <select
+                value={values.post_meta_position}
+                onChange={(e) => update("post_meta_position", e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">(기본값)</option>
+                <option value="left">왼쪽</option>
+                <option value="center">가운데</option>
+                <option value="right">오른쪽</option>
+              </select>
+            </div>
+          </div>
+        </details>
 
         <div className="grid grid-cols-2 gap-4">
           <div>

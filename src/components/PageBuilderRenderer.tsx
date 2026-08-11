@@ -9,7 +9,6 @@ import { HeroModule } from "@/components/modules/HeroModule";
 import { BreadcrumbWidget } from "@/components/modules/BreadcrumbWidget";
 import { BoardModule } from "@/components/modules/BoardModule";
 import { ApplicationModule } from "@/components/modules/ApplicationModule";
-import { CalendarGrid } from "@/components/modules/CalendarGrid";
 import { CalendarBoardWidget } from "@/components/modules/CalendarBoardWidget";
 import { SearchInput } from "@/components/modules/SearchInput";
 import { SortSelect } from "@/components/modules/SortSelect";
@@ -140,21 +139,15 @@ function BadgeFromSettings({ settings }: { settings: Record<string, unknown> }) 
   return <BadgeWidget items={arr<{ label: string }>(settings.items)} />;
 }
 
-// EPIC-092(요구사항 5): board_id가 연결돼 있으면 실제 게시판 데이터와
-// 이어주는 CalendarBoardWidget으로 렌더링하고, 없으면(레거시/미연결)
-// 기존처럼 순수 프레젠테이션 셸(CalendarGrid)만 보여준다.
-function CalendarFromSettings({
-  settings,
-  boardId,
-}: {
-  settings: Record<string, unknown>;
-  boardId: string | null;
-}) {
-  if (boardId) return <CalendarBoardWidget boardId={boardId} />;
-  const now = new Date();
-  const year = num(settings.year, now.getFullYear());
-  const month = num(settings.month, now.getMonth() + 1);
-  return <CalendarGrid year={year} month={month} />;
+// EPIC-092(요구사항 5)/HOTFIX-093-B: board_id 연결 여부와 무관하게 항상
+// CalendarBoardWidget으로 렌더링한다 — 이전에는 board_id가 비어 있으면
+// 필터 체크박스/"+ 글 등록" 버튼이 아예 없는 순수 셸(CalendarGrid)로
+// 조용히 폴백해서, 위젯을 아직 게시판에 연결하지 않은 캘린더는 이 UI들이
+// "코드는 있지만 화면엔 없는" 상태가 됐다(실사용 신고로 확인됨).
+// CalendarBoardWidget이 boardId=null을 직접 받아 데이터 조회만 건너뛰고
+// 나머지 UI(필터/글쓰기 버튼)는 항상 그리도록 바뀌었다.
+function CalendarFromSettings({ boardId }: { boardId: string | null }) {
+  return <CalendarBoardWidget boardId={boardId} />;
 }
 
 function SearchDemo({ settings }: { settings: Record<string, unknown> }) {
@@ -240,7 +233,7 @@ function renderModule(module: PageModuleRow) {
     case "badge":
       return <BadgeFromSettings settings={settings} />;
     case "calendar":
-      return <CalendarFromSettings settings={settings} boardId={board_id} />;
+      return <CalendarFromSettings boardId={board_id} />;
     case "search":
       return <SearchDemo settings={settings} />;
     case "sort":

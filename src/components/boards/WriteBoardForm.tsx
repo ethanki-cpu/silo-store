@@ -37,6 +37,9 @@ export function WriteBoardForm({
   } = useBoardOptions(session);
   const [selectedBoardSlug, setSelectedBoardSlug] = useState(initialBoardSlug);
   const { boardType, boardCategory } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
+  // HOTFIX-093-B(요구사항 1.2): 주 게시판(selectedBoardSlug) 외에 이 글을
+  // 추가로 노출할 게시판들 — 체크박스 다중 선택.
+  const [additionalBoardSlugs, setAdditionalBoardSlugs] = useState<string[]>([]);
   const [confirmedOrders, setConfirmedOrders] = useState<ConfirmedOrder[]>([]);
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +106,7 @@ export function WriteBoardForm({
         tags: payload.tags,
         ...(boardType === "adoption_story" ? { orderId: payload.orderId } : {}),
         ...(payload.createdAt ? { createdAt: payload.createdAt } : {}),
+        additionalBoardSlugs,
       }),
     });
 
@@ -145,6 +149,35 @@ export function WriteBoardForm({
             loading={boardsLoading}
           />
         </div>
+
+        {/* HOTFIX-093-B(요구사항 1.2): 주 게시판 외에 이 글을 추가로 노출할
+            게시판들을 체크박스로 다중 선택한다. */}
+        {selectedBoardSlug && boardOptions.length > 0 && (
+          <details className="mb-6 rounded-md border border-gray-200 p-3">
+            <summary className="cursor-pointer text-sm font-medium text-gray-700">
+              추가로 노출할 게시판 선택{additionalBoardSlugs.length > 0 ? ` (${additionalBoardSlugs.length})` : ""}
+            </summary>
+            <div className="mt-3 grid max-h-56 grid-cols-2 gap-x-4 gap-y-1 overflow-y-auto sm:grid-cols-3">
+              {boardOptions
+                .filter((b) => b.slug && b.slug !== selectedBoardSlug)
+                .map((b) => (
+                  <label key={b.id} className="flex items-center gap-1.5 text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={additionalBoardSlugs.includes(b.slug as string)}
+                      onChange={(e) => {
+                        const slug = b.slug as string;
+                        setAdditionalBoardSlugs((prev) =>
+                          e.target.checked ? [...prev, slug] : prev.filter((s) => s !== slug),
+                        );
+                      }}
+                    />
+                    {b.name}
+                  </label>
+                ))}
+            </div>
+          </details>
+        )}
 
         {selectedBoardSlug ? (
           <PostForm

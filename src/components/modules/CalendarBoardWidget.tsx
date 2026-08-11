@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { CalendarGrid } from "@/components/modules/CalendarGrid";
 import { extractCalendarMedia } from "@/lib/calendarMedia";
+import { fetchCrossPostedPostIds } from "@/lib/postBoards";
 import type { JSONContent } from "@/lib/blockEditorCore";
 
 type CalendarPost = {
@@ -116,17 +117,25 @@ function CalendarCellPopout({
 // modules/CalendarGrid.tsx)를 실제 게시판 데이터와 연결하는 데이터-페칭
 // 래퍼 — BoardModule.tsx가 boardId 하나로 나머지(조회/상태관리)를 전부
 // 책임지는 역할 분담과 동일한 패턴.
-export function CalendarBoardWidget({ boardId }: { boardId: string }) {
+// HOTFIX-093-B: boardId가 null이어도(아직 게시판을 연결하지 않은 캘린더
+// 위젯) 필터 체크박스/"+ 글 등록" 버튼은 항상 렌더링한다 — 데이터 조회만
+// 건너뛴다(빈 달력). "+ 글 등록"은 연결된 게시판이 없으면 boardId 쿼리
+// 없이 일반 글쓰기 페이지(/write)로 보낸다.
+export function CalendarBoardWidget({ boardId }: { boardId: string | null }) {
   const { member } = useAuth();
   const now = useMemo(() => new Date(), []);
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
   const [posts, setPosts] = useState<CalendarPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [boardSlug, setBoardSlug] = useState<string | null>(null);
   const [checkedFilters, setCheckedFilters] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!boardId) {
+      setBoardSlug(null);
+      return;
+    }
     let cancelled = false;
     supabase
       .from("boards")
@@ -142,22 +151,35 @@ export function CalendarBoardWidget({ boardId }: { boardId: string }) {
   }, [boardId]);
 
   useEffect(() => {
+    if (!boardId) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     const monthStart = `${year}-${pad(month)}-01`;
     const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
     const monthEnd = `${next.y}-${pad(next.m)}-01`;
-    supabase
-      .from("posts")
-      .select("id, slug, title, created_at, tags, author_id, body_json")
-      .eq("board_id", boardId)
-      .gte("created_at", monthStart)
-      .lt("created_at", monthEnd)
-      .then(({ data }) => {
+    // HOTFIX-093-B(요구사항 1.2): 이 게시판에 주 소속인 글뿐 아니라
+    // post_boards로 "추가 연결"된 글도 캘린더에 함께 표시한다.
+    fetchCrossPostedPostIds(supabase, boardId).then((crossIds) => {
+      if (cancelled) return;
+      const filter =
+        crossIds.length > 0
+          ? `board_id.eq.${boardId},id.in.(${crossIds.join(",")})`
+          : null;
+      const query = supabase
+        .from("posts")
+        .select("id, slug, title, created_at, tags, author_id, body_json")
+        .gte("created_at", monthStart)
+        .lt("created_at", monthEnd);
+      (filter ? query.or(filter) : query.eq("board_id", boardId)).then(({ data }) => {
         if (cancelled) return;
         setPosts((data as CalendarPost[]) ?? []);
         setLoading(false);
       });
+    });
     return () => {
       cancelled = true;
     };
@@ -211,7 +233,9 @@ export function CalendarBoardWidget({ boardId }: { boardId: string }) {
     }
   }
 
-  const writeBase = boardSlug ? `/write?boardId=${encodeURIComponent(boardSlug)}` : null;
+  // HOTFIX-093-B: 게시판이 연결되지 않았어도 버튼 자체는 항상 보여야
+  // 하므로(요구사항), 연결 전에는 boardId 없이 일반 글쓰기 페이지로 보낸다.
+  const writeBase = boardSlug ? `/write?boardId=${encodeURIComponent(boardSlug)}` : "/write";
 
   return (
     <div>

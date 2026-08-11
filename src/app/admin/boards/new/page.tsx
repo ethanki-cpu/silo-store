@@ -40,6 +40,16 @@ export default function AdminBoardNewPage() {
           ...(values.gallery_layout ? { galleryLayout: values.gallery_layout } : {}),
           ...(values.gallery_columns ? { galleryColumns: values.gallery_columns } : {}),
           galleryHoverAutoSlide: values.gallery_hover_auto_slide,
+          ...(values.post_meta_date_size_px || values.post_meta_date_color_hex || values.post_meta_font_weight || values.post_meta_position
+            ? {
+                postMetaStyle: {
+                  ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
+                  ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),
+                  ...(values.post_meta_font_weight ? { fontWeight: values.post_meta_font_weight } : {}),
+                  ...(values.post_meta_position ? { position: values.post_meta_position } : {}),
+                },
+              }
+            : {}),
         },
       }),
     });

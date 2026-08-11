@@ -7,6 +7,7 @@ import { resolveFallbackEmbedThumbnail } from "@/lib/embedThumbnail";
 import { enqueueOrphanedImages, enqueueAllImages } from "@/lib/imageGc";
 import { fetchBoard } from "@/lib/boardFetch";
 import { slugify } from "@/lib/slugify";
+import { fetchAdditionalBoardSlugs, syncPostBoards } from "@/lib/postBoards";
 
 const richFields =
   "id, board_id, slug, title, body, body_json, featured_image_url, featured_image_path, thumbnail_visible, category, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
@@ -211,6 +212,10 @@ export async function GET(
     if (requester && like.member_id === requester.member.id) likedCommentIds.add(like.comment_id);
   }
 
+  // HOTFIX-093-B(요구사항 1.2): 수정 화면이 기존에 골라둔 "추가 게시판"
+  // 체크박스를 프리필할 수 있도록 함께 내려준다.
+  const additionalBoardSlugs = await fetchAdditionalBoardSlugs(client, postId);
+
   return NextResponse.json({
     board,
     post: {
@@ -219,6 +224,7 @@ export async function GET(
       tags: definition.tags ? (normalizedPost.tags ?? []) : [],
       author_name: nameById.get(normalizedPost.author_id) ?? "알 수 없음",
       post_number: postNumber ?? null,
+      additionalBoardSlugs,
     },
     comments: (comments ?? []).map((c) => ({
       ...c,
@@ -452,6 +458,17 @@ export async function PATCH(
   }
 
   await enqueueOrphanedImages(requester.scopedClient, postId, existing.body_json as JSONContent | null, bodyJson);
+
+  // HOTFIX-093-B(요구사항 1.2): additionalBoardSlugs가 요청에 실려 있으면
+  // (빈 배열 포함) 그 값으로 post_boards를 통째로 다시 채운다 — 필드
+  // 자체가 없는 요청(구버전 클라이언트 등)은 기존 연결을 건드리지 않는다.
+  if (Array.isArray(body?.additionalBoardSlugs)) {
+    const additionalBoardSlugs = (body.additionalBoardSlugs as unknown[]).filter(
+      (s): s is string => typeof s === "string",
+    );
+    const primaryBoardId = targetBoardId ?? existing.board_id;
+    await syncPostBoards(requester.scopedClient, postId, primaryBoardId, additionalBoardSlugs);
+  }
 
   return NextResponse.json(updated);
 }

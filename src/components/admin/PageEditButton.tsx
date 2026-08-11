@@ -18,12 +18,23 @@ import { supabase } from "@/lib/supabaseClient";
 // 아래 좌측 상단 고정으로 옮기고, 배경색을 #166534로 강제 지정한다.
 // 게시글 상세 페이지 등 개별 호출부는 페이지 유형에 맞는 label을 넘겨
 // "페이지 수정" 외의 문구를 노출할 수 있다(예: "게시글 보여지는 방식 수정").
-const DEFAULT_CLASS_NAME =
-  "fixed top-20 left-4 z-30 rounded-md bg-[#166534] text-white px-3 py-1.5 text-sm shadow-md hover:opacity-90";
+//
+// HOTFIX-093-B: "아이콘과 겹쳐서 떠다닌다"는 신고의 근본 원인을 라이브
+// site_settings로 확인함 — LeftSidebar 트리거 아이콘(fixed left-0)이
+// 관리자 설정(`sidebar_icons.topOffsetPx`/`iconSizePx`)에 따라 화면 왼쪽
+// 어디든 놓일 수 있는데, 이 버튼의 top 값(top-20=80px)이 고정값이라
+// 현재 라이브 설정(topOffsetPx:100, iconSizePx:100 — 아이콘이 대략
+// y:100~216px, x:0~116px 범위를 차지)과 정확히 겹쳤다. 좌표를 클래스로
+// 고정하는 대신 실제 아이콘 설정을 읽어 그 아래로 항상 비켜가도록
+// 동적으로 계산한다(관리자가 아이콘 크기/위치를 나중에 또 바꿔도 다시
+// 겹치지 않는다).
+const DEFAULT_TOP_PX = 80; // 기존 top-20과 동일한 기본값(설정 로딩 전/미설정 시)
+const ICON_PADDING_PX = 16; // LeftSidebar 트리거의 p-2(양쪽 8px)
+const CLEARANCE_PX = 12;
 
 export function PageEditButton({
   slug,
-  className = DEFAULT_CLASS_NAME,
+  className,
   label = "페이지 수정",
 }: {
   slug: string;
@@ -32,6 +43,7 @@ export function PageEditButton({
 }) {
   const { member, memberLoading } = useAuth();
   const [pageId, setPageId] = useState<string | null>(null);
+  const [topPx, setTopPx] = useState(DEFAULT_TOP_PX);
 
   useEffect(() => {
     if (!member?.is_admin) return;
@@ -49,10 +61,40 @@ export function PageEditButton({
     };
   }, [slug, member?.is_admin]);
 
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "sidebar_icons")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const value = data?.setting_value as
+          | { topOffsetPx?: number; iconSizePx?: number }
+          | null
+          | undefined;
+        const iconTop = value?.topOffsetPx ?? 160; // LeftSidebar/RightSidebar 기본값(Navbar.tsx DEFAULT_TOP_OFFSET_PX)
+        const iconBottom = iconTop + (value?.iconSizePx ?? 32) + ICON_PADDING_PX;
+        const overlaps = iconTop < DEFAULT_TOP_PX + 48 && iconBottom > DEFAULT_TOP_PX;
+        setTopPx(overlaps ? iconBottom + CLEARANCE_PX : DEFAULT_TOP_PX);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (memberLoading || !member?.is_admin || !pageId) return null;
 
   return (
-    <Link href={`/admin/pages/${pageId}`} className={className}>
+    <Link
+      href={`/admin/pages/${pageId}`}
+      className={
+        className ??
+        "fixed left-4 z-50 rounded-md bg-[#166534] text-white px-3 py-1.5 text-sm shadow-md hover:opacity-90"
+      }
+      style={className ? undefined : { top: topPx }}
+    >
       {label}
     </Link>
   );

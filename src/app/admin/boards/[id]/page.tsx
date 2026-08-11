@@ -54,6 +54,10 @@ export default function AdminBoardEditPage() {
         gallery_layout: data.widget_settings?.galleryLayout ?? "",
         gallery_columns: data.widget_settings?.galleryColumns ?? 3,
         gallery_hover_auto_slide: data.widget_settings?.galleryHoverAutoSlide ?? false,
+        post_meta_date_size_px: data.widget_settings?.postMetaStyle?.dateSizePx ?? 0,
+        post_meta_date_color_hex: data.widget_settings?.postMetaStyle?.dateColorHex ?? "",
+        post_meta_font_weight: data.widget_settings?.postMetaStyle?.fontWeight ?? 0,
+        post_meta_position: data.widget_settings?.postMetaStyle?.position ?? "",
       });
     }
 
@@ -92,6 +96,19 @@ export default function AdminBoardEditPage() {
           ...(next.gallery_layout ? { galleryLayout: next.gallery_layout } : {}),
           ...(next.gallery_columns ? { galleryColumns: next.gallery_columns } : {}),
           galleryHoverAutoSlide: next.gallery_hover_auto_slide,
+          // HOTFIX-093-B(요구사항 1.3): 4개 값이 전부 미지정이면 postMetaStyle
+          // 자체를 저장하지 않는다(PostDetailHeader가 undefined일 때 기존
+          // 기본 스타일을 그대로 쓰도록 이미 구현돼 있음).
+          ...(next.post_meta_date_size_px || next.post_meta_date_color_hex || next.post_meta_font_weight || next.post_meta_position
+            ? {
+                postMetaStyle: {
+                  ...(next.post_meta_date_size_px ? { dateSizePx: next.post_meta_date_size_px } : {}),
+                  ...(next.post_meta_date_color_hex ? { dateColorHex: next.post_meta_date_color_hex } : {}),
+                  ...(next.post_meta_font_weight ? { fontWeight: next.post_meta_font_weight } : {}),
+                  ...(next.post_meta_position ? { position: next.post_meta_position } : {}),
+                },
+              }
+            : {}),
         },
       }),
     });

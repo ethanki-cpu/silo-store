@@ -1,5 +1,25 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+
+// HOTFIX-093-B(요구사항 1.3): '게시물 출력방식' 설정에서 관리자가 고른
+// 날짜/작성자 스타일 — boards.widget_settings.postMetaStyle(JSON)로
+// 저장/전달된다(src/components/admin/BoardForm.tsx 참고).
+export type PostMetaStyle = {
+  dateSizePx?: number;
+  dateColorHex?: string;
+  fontWeight?: number;
+  position?: "left" | "center" | "right";
+};
+
+function metaStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
+  if (!metaStyle) return {};
+  return {
+    ...(metaStyle.dateSizePx ? { fontSize: metaStyle.dateSizePx } : {}),
+    ...(metaStyle.dateColorHex ? { color: metaStyle.dateColorHex } : {}),
+    ...(metaStyle.fontWeight ? { fontWeight: metaStyle.fontWeight } : {}),
+    ...(metaStyle.position ? { textAlign: metaStyle.position } : {}),
+  };
+}
 
 // EPIC-046/047: Editorial Magazine 게시글 헤더 — 좌측 글 번호/작성일, 가운데
 // 큰 제목, 우측 Author/작성자(프로필 링크). 좋아요/조회/댓글 수는 Board
@@ -26,6 +46,7 @@ export function PostDetailHeader({
   editHref,
   onDelete,
   deleting,
+  metaStyle,
 }: {
   postNumber: number | null;
   createdAt: string;
@@ -46,6 +67,8 @@ export function PostDetailHeader({
   /** 작성자 본인(또는 관리자)에게만 전달 — 있으면 "삭제" 버튼을 보여준다. */
   onDelete?: () => void;
   deleting?: boolean;
+  /** HOTFIX-093-B(요구사항 1.3): 게시판별 날짜/작성자 커스텀 스타일. */
+  metaStyle?: PostMetaStyle | null;
 }) {
   const statParts = [
     ...(showLikes ? [`좋아요 ${likeCount}`] : []),
@@ -53,6 +76,7 @@ export function PostDetailHeader({
     ...(showComments ? [`댓글 ${commentCount}`] : []),
   ];
   const wasEdited = updatedAt && updatedAt !== createdAt;
+  const metaCss = metaStyleToCss(metaStyle);
 
   return (
     <div>
@@ -63,11 +87,11 @@ export function PostDetailHeader({
               No. {postNumber}
             </p>
           )}
-          <p className="text-xs uppercase tracking-wide text-gray-400 mt-1">
+          <p className="text-xs uppercase tracking-wide text-gray-400 mt-1" style={metaCss}>
             {new Date(createdAt).toLocaleDateString()}
           </p>
           {wasEdited && (
-            <p className="text-xs uppercase tracking-wide text-gray-300 mt-1">
+            <p className="text-xs uppercase tracking-wide text-gray-300 mt-1" style={metaCss}>
               수정 {new Date(updatedAt!).toLocaleDateString()}
             </p>
           )}
@@ -96,6 +120,7 @@ export function PostDetailHeader({
           <Link
             href={`/u/${authorId}`}
             className="text-sm font-medium text-gray-800 mt-1 block hover:underline"
+            style={metaCss}
           >
             {authorName}
           </Link>

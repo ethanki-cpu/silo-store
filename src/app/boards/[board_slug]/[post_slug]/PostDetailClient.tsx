@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import type { JSONContent } from "@/lib/blockEditorCore";
-import { PostDetailHeader } from "@/components/boards/PostDetailHeader";
+import { PostDetailHeader, type PostMetaStyle } from "@/components/boards/PostDetailHeader";
 import { PostTags } from "@/components/boards/PostTags";
 import { PostActions } from "@/components/boards/PostActions";
 import { PostBody } from "@/components/boards/PostBody";
@@ -42,6 +42,8 @@ type Board = {
   name: string;
   category: string | null;
   board_type: string;
+  // HOTFIX-093-B(요구사항 1.3): 게시물 출력방식 설정에 저장된 날짜/작성자 스타일.
+  widget_settings?: { postMetaStyle?: PostMetaStyle } | null;
 };
 
 type Comment = {
@@ -319,6 +321,7 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
           showLikes={definition.likes}
           showComments={definition.comments}
           showViewCount={definition.showViewCount}
+          metaStyle={board?.widget_settings?.postMetaStyle}
           editHref={
             member?.id === post.author_id || member?.is_admin
               ? `/boards/${boardSlug}/${postSlug}/edit`

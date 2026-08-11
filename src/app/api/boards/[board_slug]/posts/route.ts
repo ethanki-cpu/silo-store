@@ -12,6 +12,7 @@ import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
 import { resolveFallbackEmbedThumbnail } from "@/lib/embedThumbnail";
 import { fetchBoard } from "@/lib/boardFetch";
 import { slugifyWithFallback } from "@/lib/slugify";
+import { fetchCrossPostedPostIds, syncPostBoards } from "@/lib/postBoards";
 
 // 게시판 규모가 크지 않아 검색/정렬/페이지네이션을 DB 쪽 복잡한 OR/배열-
 // 포함 쿼리로 밀어넣는 대신, 전체를 가져와 라우트 핸들러에서 처리한다
@@ -29,24 +30,29 @@ const richFields =
 const legacyFields =
   "id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
-async function fetchPosts(client: typeof supabase, boardId: string) {
+// HOTFIX-093-B(요구사항 1.2): 이 게시판에 "주 게시판"으로 속한 글뿐 아니라
+// post_boards로 "추가 연결"된 글도 함께 보여준다 — crossPostedIds가
+// 비어있으면(마이그레이션 전이거나 아무도 다중 연결을 안 쓴 게시판) 기존과
+// 100% 동일한 단일 board_id 필터로 동작한다.
+async function fetchPosts(client: typeof supabase, boardId: string, crossPostedIds: string[]) {
   let usedRichFields = true;
   let posts: Record<string, unknown>[] | null;
   let postsError: { message: string } | null;
 
-  ({ data: posts, error: postsError } = await client
-    .from("posts")
-    .select(richFields)
-    .eq("board_id", boardId)
-    .order("created_at", { ascending: false }));
+  const filter =
+    crossPostedIds.length > 0
+      ? `board_id.eq.${boardId},id.in.(${crossPostedIds.join(",")})`
+      : null;
+
+  ({ data: posts, error: postsError } = filter
+    ? await client.from("posts").select(richFields).or(filter).order("created_at", { ascending: false })
+    : await client.from("posts").select(richFields).eq("board_id", boardId).order("created_at", { ascending: false }));
 
   if (postsError) {
     usedRichFields = false;
-    ({ data: posts, error: postsError } = await client
-      .from("posts")
-      .select(legacyFields)
-      .eq("board_id", boardId)
-      .order("created_at", { ascending: false }));
+    ({ data: posts, error: postsError } = filter
+      ? await client.from("posts").select(legacyFields).or(filter).order("created_at", { ascending: false })
+      : await client.from("posts").select(legacyFields).eq("board_id", boardId).order("created_at", { ascending: false }));
   }
 
   return { posts, postsError, usedRichFields };
@@ -86,10 +92,11 @@ export async function GET(
   // EPIC-070: 게시글 조회는 권한 체크(tier) 결과와 무관하게 board_id만
   // 있으면 되므로, 권한 판정이 끝나길 기다리지 않고 tier 조회와 동시에
   // 시작한다 — 거부 판정이면 아래에서 결과를 버리고 403을 반환한다.
-  const [tier, { posts, postsError, usedRichFields }] = await Promise.all([
+  const [tier, crossPostedIds] = await Promise.all([
     requester ? getTier(requester.member.membership_rank) : Promise.resolve(null),
-    fetchPosts(client, boardId),
+    fetchCrossPostedPostIds(client, boardId),
   ]);
+  const { posts, postsError, usedRichFields } = await fetchPosts(client, boardId, crossPostedIds);
 
   if (!canReadBoard(board, tier, requester?.member.is_admin)) {
     // EPIC-087-PHASE-C: 잠금 사유가 accessLevel과 min_rank_to_read 둘 다일
@@ -520,6 +527,16 @@ export async function POST(
     points: 5,
     related_id: post.id,
   });
+
+  // HOTFIX-093-B(요구사항 1.2): 에디터에서 체크박스로 고른 "추가로 노출할
+  // 게시판" 목록 — post_boards 테이블이 아직 없는 환경에서도 조용히
+  // no-op되므로 글 작성 자체를 막지 않는다.
+  const additionalBoardSlugs = Array.isArray(body?.additionalBoardSlugs)
+    ? (body.additionalBoardSlugs as unknown[]).filter((s): s is string => typeof s === "string")
+    : [];
+  if (additionalBoardSlugs.length > 0) {
+    await syncPostBoards(requester.scopedClient, post.id, boardId, additionalBoardSlugs);
+  }
 
   return NextResponse.json(post);
 }

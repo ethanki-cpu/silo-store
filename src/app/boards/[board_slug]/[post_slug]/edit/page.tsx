@@ -43,8 +43,11 @@ export default function EditPostPage() {
     thumbnail_visible: boolean | null;
     category: string | null;
     created_at: string;
+    additionalBoardSlugs?: string[];
   } | null>(null);
   const [existingTags, setExistingTags] = useState<string[]>([]);
+  // HOTFIX-093-B(요구사항 1.2): 주 게시판 외에 추가로 노출 중인 게시판 목록.
+  const [additionalBoardSlugs, setAdditionalBoardSlugs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -96,6 +99,7 @@ export default function EditPostPage() {
         // 되돌린다 — render가 notAllowed를 post 유무보다 먼저 체크하므로.
         setNotAllowed(false);
         setPost(data.post);
+        setAdditionalBoardSlugs(data.post.additionalBoardSlugs ?? []);
         // EPIC-079-PHASE-4: URL의 boardSlug가 실제로는 slug가 아니라
         // board.id인 낡은 링크가 일부 남아있다(slug 라우팅 전환 이전에
         // 만들어진 글 — fetchBoard.ts의 id 폴백으로 여전히 조회는 되지만,
@@ -140,6 +144,7 @@ export default function EditPostPage() {
         tags: payload.tags,
         targetBoardSlug: selectedBoardSlug,
         ...(payload.createdAt ? { createdAt: payload.createdAt } : {}),
+        additionalBoardSlugs,
       }),
     });
 
@@ -217,6 +222,34 @@ export default function EditPostPage() {
           onChange={setSelectedBoardSlug}
         />
       </div>
+
+      {/* HOTFIX-093-B(요구사항 1.2): 주 게시판 외에 추가로 노출할 게시판. */}
+      {boardOptions.length > 0 && (
+        <details className="mb-6 rounded-md border border-gray-200 p-3">
+          <summary className="cursor-pointer text-sm font-medium text-gray-700">
+            추가로 노출할 게시판 선택{additionalBoardSlugs.length > 0 ? ` (${additionalBoardSlugs.length})` : ""}
+          </summary>
+          <div className="mt-3 grid max-h-56 grid-cols-2 gap-x-4 gap-y-1 overflow-y-auto sm:grid-cols-3">
+            {boardOptions
+              .filter((b) => b.slug && b.slug !== selectedBoardSlug)
+              .map((b) => (
+                <label key={b.id} className="flex items-center gap-1.5 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={additionalBoardSlugs.includes(b.slug as string)}
+                    onChange={(e) => {
+                      const slug = b.slug as string;
+                      setAdditionalBoardSlugs((prev) =>
+                        e.target.checked ? [...prev, slug] : prev.filter((s) => s !== slug),
+                      );
+                    }}
+                  />
+                  {b.name}
+                </label>
+              ))}
+          </div>
+        </details>
+      )}
 
       <PostForm
         mode="edit"

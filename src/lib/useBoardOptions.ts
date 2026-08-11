@@ -25,28 +25,6 @@ export type BoardOption = {
   locked?: boolean;
 };
 
-// HOTFIX-099(사용자 지시): "추가로 노출할 게시판 선택" 체크박스 목록이
-// (WriteBoardForm.tsx/edit/page.tsx 둘 다) DB 조회 순서(sort_order) 그대로
-// 나열돼 카테고리가 뒤섞여 있었다 — 카테고리로 묶어 정렬한다(카테고리 없는
-// 게시판은 "미분류"로 맨 뒤). 같은 카테고리 안에서는 이름 가나다순.
-export function groupBoardsByCategory<T extends { category: string | null; name: string }>(
-  boards: T[],
-): { category: string; items: T[] }[] {
-  const sorted = [...boards].sort((a, b) => {
-    const catA = a.category || "￿";
-    const catB = b.category || "￿";
-    if (catA !== catB) return catA.localeCompare(catB, "ko");
-    return a.name.localeCompare(b.name, "ko");
-  });
-  const groups = new Map<string, T[]>();
-  for (const board of sorted) {
-    const key = board.category || "미분류";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(board);
-  }
-  return [...groups.entries()].map(([category, items]) => ({ category, items }));
-}
-
 // EPIC-079-PHASE-5: 이전엔 fetch 실패를 `.catch(() => {})`로 조용히
 // 삼켜버려 boards가 영원히 빈 배열로 남았다(진짜 로딩 상태가 아니라
 // "매칭 실패"였는데 구분이 안 됐음). 실제 loading/error를 state로 노출해

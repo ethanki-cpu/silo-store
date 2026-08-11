@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { PostForm, type PostFormSubmitPayload } from "@/components/boards/PostForm";
 import { CategoryBoardPicker } from "@/components/common/CategoryBoardPicker";
-import { useBoardOptions, useSelectedBoardTypeAndCategory, groupBoardsByCategory } from "@/lib/useBoardOptions";
+import { useBoardOptions, useSelectedBoardTypeAndCategory } from "@/lib/useBoardOptions";
+import { buildAdminTree } from "@/lib/adminTreeGrouping";
 import type { JSONContent } from "@/lib/blockEditorCore";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 
@@ -233,31 +234,39 @@ export default function EditPostPage() {
             추가로 노출할 게시판 선택{additionalBoardSlugs.length > 0 ? ` (${additionalBoardSlugs.length})` : ""}
           </summary>
           <div className="mt-3 grid max-h-56 grid-cols-2 gap-x-4 gap-y-1 overflow-y-auto sm:grid-cols-3">
-            {/* HOTFIX-099(사용자 지시): 카테고리별로 묶어 정렬. */}
-            {groupBoardsByCategory(
+            {/* HOTFIX-101(사용자 지시): "사이트 구성 관리 → 사이트 메뉴"와
+                동일한 순서로 정렬 — 카테고리 문자열 가나다순(HOTFIX-099)이
+                아니라 실제 site_navigations 트리 순서/깊이를 그대로 쓴다. */}
+            {buildAdminTree(
               boardOptions.filter((b) => b.slug && b.slug !== selectedBoardSlug),
-            ).map(({ category, items }) => (
-              <div key={category} className="col-span-full contents">
-                <p className="col-span-full mt-2 text-xs font-medium text-gray-400 first:mt-0">
-                  {category}
+              (b) => boardBranchMap.get(b.id) ?? null,
+              boardBranches,
+              "all",
+            ).map((row) =>
+              row.kind === "branch" ? (
+                <p
+                  key={`branch-${row.id}`}
+                  className="col-span-full mt-2 text-xs font-medium text-gray-400 first:mt-0"
+                  style={{ paddingLeft: row.depth * 8 }}
+                >
+                  {row.title}
                 </p>
-                {items.map((b) => (
-                  <label key={b.id} className="flex items-center gap-1.5 text-sm text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={additionalBoardSlugs.includes(b.slug as string)}
-                      onChange={(e) => {
-                        const slug = b.slug as string;
-                        setAdditionalBoardSlugs((prev) =>
-                          e.target.checked ? [...prev, slug] : prev.filter((s) => s !== slug),
-                        );
-                      }}
-                    />
-                    {b.name}
-                  </label>
-                ))}
-              </div>
-            ))}
+              ) : (
+                <label key={row.item.id} className="flex items-center gap-1.5 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={additionalBoardSlugs.includes(row.item.slug as string)}
+                    onChange={(e) => {
+                      const slug = row.item.slug as string;
+                      setAdditionalBoardSlugs((prev) =>
+                        e.target.checked ? [...prev, slug] : prev.filter((s) => s !== slug),
+                      );
+                    }}
+                  />
+                  {row.item.name}
+                </label>
+              ),
+            )}
           </div>
         </details>
       )}

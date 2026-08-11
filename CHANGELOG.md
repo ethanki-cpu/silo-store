@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-12 (HOTFIX-101 — "추가로 노출할 게시판 선택"을 사이트 메뉴와 동일한 순서로 정렬)
+- **사용자 피드백**: HOTFIX-099가 카테고리 문자열 가나다순으로 정렬했는데, 사용자가 원한 건 "사이트 구성 관리 → 사이트 메뉴"에 보이는 실제 트리 순서(상단 탭 순서 → 그 아래 하위 항목들)였다.
+- **수정**: `groupBoardsByCategory()`(가나다순 카테고리 그룹핑)를 제거하고, `CategoryTreeManager.tsx`/`CategoryBoardPicker`가 이미 쓰는 `buildAdminTree()`(`src/lib/adminTreeGrouping.ts`, `site_navigations` 트리를 SSoT로 쓰는 함수)를 `WriteBoardForm.tsx`/`edit/page.tsx`의 "추가로 노출할 게시판 선택" 체크박스 목록에도 그대로 적용 — 이미 두 파일 다 `boardBranches`/`boardBranchMap`을 이 목적으로 fetch하고 있었으므로(기존 "게시될 페이지 선택" 피커용) 새 조회 없이 재사용만 하면 됐다. 브랜치(상위 메뉴) 헤더도 깊이(depth)만큼 들여써서 실제 트리 구조가 그대로 보인다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 로컬 dev에서 실제로 "About Silo → Silo Timeline/Silo daily/에단의 블루노트/사일로의 취향 → 사일로의 전시" → "사일로 상점 → 사일로 보물들 → ..." → "온라인 도슨트 → 고대~왕정 → 르네상스/바로크/로코코" 순으로, `/admin/site-structure`의 실제 사이트 메뉴 순서·계층과 정확히 일치하는 것을 DOM으로 확인.
+- **부가 확인(같은 세션)**: 사용자가 "글 번호/작성자 이름 스타일은 어디서 설정하냐"고 물어 실제 배포 상태를 관리자 세션으로 직접 확인 — HOTFIX-099가 이미 각 게시판의 "게시판 수정"(`/admin/boards/[id]`) 화면의 "게시물 출력방식 — 날짜/작성자 스타일" 섹션(접혀있는 `<details>`) 안에 정상 배포돼 있음을 확인함(코드 변경 없음, 위치 안내만 필요했던 케이스).
+- **변경 파일**: `src/lib/useBoardOptions.ts`, `src/components/boards/WriteBoardForm.tsx`, `src/app/boards/[board_slug]/[post_slug]/edit/page.tsx`.
+
 ## 2026-08-12 (HOTFIX-100 — 관리자 작성자 변경 "permission denied" 수정 + 타임라인 컬러 테마/정렬-마커 연동)
 - **1. 관리자 작성자 변경이 "글 수정에 실패했어요. (permission denied for table posts)"로 실패하던 문제 수정**: 원인은 애플리케이션 로직이 아니라 DB 권한이었다 — 이 프로젝트의 `posts` UPDATE는 행 단위 RLS 대신 컬럼별 GRANT로 제어되는데(`docs/database-schema.sql`/CLAUDE.md 참고), `title`/`body`/`board_id` 등 대부분 컬럼은 `authenticated`에게 UPDATE 권한이 있었지만 **`author_id`만 빠져 있었다** — HOTFIX-099가 이 컬럼을 SET절에 포함시키자마자(요청자가 실제 관리자인지와 무관하게) Postgres가 요청 전체를 거부했다. `grant update (author_id) on posts to authenticated;`를 Management API로 실행해 확인(`docs/sql/HOTFIX-100-posts-author-id-grant.sql`). 작성자 변경 가능 여부 자체는 여전히 `PATCH` 라우트가 `requester.member.is_admin`을 서버에서 재확인하고 대상 회원 실존 여부까지 확인한 뒤에만 적용하므로 이 GRANT로 새로운 보안 구멍이 생기지 않는다.
 - **2. 타임라인을 참고 이미지(Common Ninja)에 더 가깝게 — 게시판별 컬러 테마**: `boards.widget_settings.timelineAccentColorHex`를 추가해 게시판마다 선/마커 색을 다르게 지정할 수 있다(`BoardForm.tsx`의 "타임라인 설정"에 색상 입력 필드 추가). 기본값은 기존 회색 그대로.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -180,11 +180,14 @@ export function CategoryTreeManager({
   // 선택 키로 재사용해 타입을 구분한다.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  // EPIC-088: 사이트 메뉴 트리 접기/펼치기(아코디언) — 기본은 전부 펼침
-  // 상태(collapsedIds가 비어있음)이고, 토글한 노드의 id만 이 Set에
-  // 추가/제거한다. 트리 재조회(load()) 후에도 유지되도록 별도 state로 둔다
-  // (rows와 독립적).
+  // HOTFIX-095(사용자 지시): 기본을 "전부 펼침"에서 "전부 접힘"으로 변경 —
+  // 하위 항목(nav 자식 또는 배정된 게시판)이 있는 노드의 id를 최초 load()
+  // 한 번에만 collapsedIds에 채워 넣는다(didInitCollapseRef로 1회 제한 —
+  // 이후 board 드래그 등으로 load()가 다시 불려도 사용자가 이미 펼친/접은
+  // 상태를 덮어쓰지 않는다). 토글한 노드의 id는 계속 이 Set에 추가/제거되며,
+  // 트리 재조회(load()) 후에도 유지된다(rows와 독립적인 state).
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const didInitCollapseRef = useRef(false);
   function toggleCollapsed(id: string) {
     setCollapsedIds((prev) => {
       const next = new Set(prev);
@@ -310,7 +313,14 @@ export function CategoryTreeManager({
     }
 
     setError(null);
-    setRows((data ?? []) as CategoryNavRow[]);
+    const finalRows = (data ?? []) as CategoryNavRow[];
+    setRows(finalRows);
+    if (!didInitCollapseRef.current) {
+      didInitCollapseRef.current = true;
+      const parentIds = new Set(finalRows.map((r) => r.parent_id).filter((id): id is string => !!id));
+      for (const branchId of branchMap.values()) parentIds.add(branchId);
+      setCollapsedIds(parentIds);
+    }
     setFetching(false);
   }
 

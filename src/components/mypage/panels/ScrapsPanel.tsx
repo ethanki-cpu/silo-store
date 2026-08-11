@@ -17,7 +17,7 @@ type ScrapRow = {
     slug: string | null;
     board_id: string;
     featured_image_url: string | null;
-    boards: { name: string; category: string | null } | null;
+    boards: { name: string; category: string | null; slug: string | null } | null;
   } | null;
 };
 
@@ -26,6 +26,7 @@ type ScrapItem = {
   postId: string;
   postSlug: string | null;
   boardId: string;
+  boardSlug: string | null;
   boardName: string;
   category: string;
   title: string;
@@ -54,7 +55,7 @@ export function ScrapsPanel() {
       const { data } = await supabase
         .from("user_scraps")
         .select(
-          "id, created_at, posts(id, title, slug, board_id, featured_image_url, boards(name, category))",
+          "id, created_at, posts(id, title, slug, board_id, featured_image_url, boards(name, category, slug))",
         )
         .eq("user_id", session!.user.id)
         .order("created_at", { ascending: false });
@@ -70,6 +71,7 @@ export function ScrapsPanel() {
             postId: r.posts!.id,
             postSlug: r.posts!.slug,
             boardId: r.posts!.board_id,
+            boardSlug: r.posts!.boards?.slug ?? null,
             boardName: r.posts!.boards?.name ?? "게시판",
             category: r.posts!.boards?.category ?? "기타",
             title: r.posts!.title,
@@ -108,7 +110,7 @@ export function ScrapsPanel() {
             {categoryItems.map((item) => (
               <Link
                 key={item.scrapId}
-                href={`/boards/${item.boardId}/${item.postSlug ?? item.postId}`}
+                href={`/boards/${item.boardSlug ?? item.boardId}/${item.postSlug ?? item.postId}`}
                 className="block"
               >
                 <StoryCard

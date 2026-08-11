@@ -10,9 +10,11 @@ type RecentComment = {
   body: string;
   created_at: string;
   post_id: string | null;
+  post_slug: string | null;
   post_title: string | null;
   post_like_count: number | null;
   board_id: string | null;
+  board_slug: string | null;
   board_name: string | null;
 };
 
@@ -30,7 +32,7 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
       const { data } = await supabase
         .from("comments")
         .select(
-          "id, body, created_at, posts(id, title, like_count, board_id, boards(name))",
+          "id, body, created_at, posts(id, slug, title, like_count, board_id, boards(name, slug))",
         )
         .eq("author_id", memberId)
         .order("created_at", { ascending: false })
@@ -44,10 +46,11 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
         created_at: string;
         posts: {
           id: string;
+          slug: string | null;
           title: string | null;
           like_count: number;
           board_id: string | null;
-          boards: { name: string } | null;
+          boards: { name: string; slug: string | null } | null;
         } | null;
       }[];
 
@@ -57,9 +60,11 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
           body: c.body,
           created_at: c.created_at,
           post_id: c.posts?.id ?? null,
+          post_slug: c.posts?.slug ?? null,
           post_title: c.posts?.title ?? null,
           post_like_count: c.posts?.like_count ?? null,
           board_id: c.posts?.board_id ?? null,
+          board_slug: c.posts?.boards?.slug ?? null,
           board_name: c.posts?.boards?.name ?? null,
         })),
       );
@@ -95,7 +100,7 @@ export function CommentsPanel({ memberId }: { memberId: string }) {
         return c.board_id && c.post_id ? (
           <Link
             key={c.id}
-            href={`/boards/${c.board_id}/${c.post_id}`}
+            href={`/boards/${c.board_slug ?? c.board_id}/${c.post_slug ?? c.post_id}`}
             className="block rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow"
           >
             {content}

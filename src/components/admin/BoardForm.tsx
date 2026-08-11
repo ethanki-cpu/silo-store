@@ -30,7 +30,7 @@ export type BoardFormValues = {
   // EPIC-087-PHASE-C: null이면 게이트 없음(전체 공개, 기존과 동일).
   min_rank_to_read: number | null;
   // EPIC-092 후속(요구사항): 갤러리(render_type="gallery")에서만 의미 있음 —
-  // "" = 미지정(기존과 동일한 masonry). widget_settings.galleryLayout/
+  // "" = 미지정(HOTFIX-095부터 기본값은 grid/가로 채움). widget_settings.galleryLayout/
   // galleryColumns로 저장된다.
   gallery_layout: string; // "" | "masonry" | "grid"
   gallery_columns: number;
@@ -496,7 +496,7 @@ export function BoardForm({
                 onChange={(e) => update("gallery_layout", e.target.value)}
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               >
-                <option value="">(기본값 — 세로 채움 masonry)</option>
+                <option value="">(기본값 — 가로 채움 Grid)</option>
                 <option value="masonry">세로 채움 (Masonry)</option>
                 <option value="grid">가로 채움 (Grid)</option>
               </select>

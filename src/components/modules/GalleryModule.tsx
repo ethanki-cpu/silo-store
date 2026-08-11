@@ -139,7 +139,7 @@ export function GalleryModule({
   showComments,
   showViewCount,
   showWriteButton = true,
-  layout = "masonry",
+  layout = "grid",
   columns,
   hoverAutoSlide = false,
 }: {
@@ -151,9 +151,10 @@ export function GalleryModule({
   showComments?: boolean;
   showViewCount?: boolean;
   showWriteButton?: boolean;
-  // EPIC-092 후속(요구사항): 기본은 기존과 동일한 masonry(세로 우선 채움,
-  // CSS columns) — "grid"를 주면 가로 우선(행 우선) CSS Grid로 바뀐다.
-  // columns는 grid일 때 한 행에 보여줄 개수(2~6, 기본 3)를 강제한다.
+  // EPIC-092 후속: "masonry"를 주면 세로 우선 채움(CSS columns), 기본값은
+  // "grid"(가로 우선/행 우선 CSS Grid — HOTFIX-095, 사용자 지시로 기본을
+  // masonry에서 grid로 변경). columns는 grid일 때 한 행에 보여줄 개수
+  // (2~6, 기본 3)를 강제한다.
   layout?: "masonry" | "grid";
   columns?: number;
   // EPIC-092 후속 2차: 호버 시 이미지 슬라이드를 자동으로 넘길지(true) 아니면

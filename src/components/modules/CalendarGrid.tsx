@@ -27,7 +27,15 @@ export function CalendarGrid({
   markedDates = [],
   onDateClick,
   cellContent,
-}: CalendarModuleProps & { cellContent?: (date: string) => ReactNode }) {
+  cellWrapper,
+}: CalendarModuleProps & {
+  cellContent?: (date: string) => ReactNode;
+  // EPIC-096(요구사항 2.2): 이 셸은 여전히 dnd-kit을 전혀 모른다 —
+  // 드래그앤드롭이 필요한 호출부(CalendarBoardWidget)가 날짜 셀 하나
+  // 전체를 자기 마음대로(useDraggable/useDroppable 등) 감쌀 수 있는
+  // 훅만 열어준다. 없으면(기존 호출부 전부) 100% 그대로 동작한다.
+  cellWrapper?: (date: string, children: ReactNode) => ReactNode;
+}) {
   const total = daysInMonth(year, month);
   const startOffset = firstWeekday(year, month);
   const cells: (number | null)[] = [
@@ -51,7 +59,7 @@ export function CalendarGrid({
           if (day === null) return <div key={`empty-${i}`} />;
           const dateStr = `${year}-${pad(month)}-${pad(day)}`;
           const marked = markedDates.includes(dateStr);
-          return (
+          const cell = (
             <div key={dateStr} className="group relative">
               <button
                 type="button"
@@ -69,6 +77,7 @@ export function CalendarGrid({
               )}
             </div>
           );
+          return cellWrapper ? <div key={dateStr}>{cellWrapper(dateStr, cell)}</div> : cell;
         })}
       </div>
     </div>

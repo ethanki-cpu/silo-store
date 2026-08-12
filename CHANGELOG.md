@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-12 (EPIC-096, 3차 — 인터랙티브 캘린더: 드래그앤드롭 일정 이동)
+- **2.2 Hover Expansion**: 재확인 결과 이미 구현돼 있었다 — `CalendarGrid.tsx`가 날짜 셀에 `isolate`(새 stacking context) + `hover:scale-125 hover:z-20 hover:shadow-lg`로 이웃 셀을 덮으며 확대되고, 미리보기 카드(`CalendarCellPopout`)도 `group-hover:block`으로 함께 팝업된다(EPIC-092 때 이미 구현). 이번엔 코드 변경 없이 재확인만 함.
+- **2.2 Drag & Drop 일정 이동**: `CalendarBoardWidget.tsx`에 이미 프로젝트에 설치돼 있던 `@dnd-kit/core`(admin/pages 위젯 편집기·site-structure 트리가 이미 쓰는 라이브러리, 새 의존성 추가 없음)로 구현 — "나의 달력" 필터가 켜진 상태에서만(요구사항 원문 그대로), 날짜 칸에 로그인한 본인 글이 있으면 그 칸 자체가 드래그 핸들이자(`useDraggable`) 모든 칸이 드롭 타겟(`useDroppable`)이 된다. 드롭하면 그 글의 `posts.created_at`을 대상 날짜로 옮기되(시/분/초는 원래 값 보존) 낙관적 갱신 + 실패 시 롤백. `CalendarGrid.tsx`(순수 프레젠테이션 셸 원칙 유지)는 dnd-kit을 전혀 몰라도 되도록 `cellWrapper` render-prop 하나만 추가해 호출부가 날짜 셀 전체를 원하는 대로 감쌀 수 있게 열어줬다(칸이 작아 별도 드래그 칩 UI를 넣을 공간이 없어, "하루 1글 위주" 성격의 이 타임라인/저널형 게시판에는 그 날의 첫 글만 옮기는 절충으로 충분하다고 판단).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 warning 없음). 로컬 dev에서 실제 calendar 위젯이 있는 `/studio` 페이지로 확인 — 31개 날짜 칸 전부 `DraggableDroppableCell`로 정상 래핑, 콘솔 에러 없음. **다음 세션에서 확인 필요(로그인 세션)**: 비로그인 상태라 `canDrag` 조건(로그인 + 나의 달력 필터)이 실제로 참이 되는 경로는 이번엔 검증 못함 — 실제 로그인 후 자기 글이 있는 날짜 칸을 다른 날짜로 드래그해 `created_at`이 정확히 바뀌는지 최종 확인 필요.
+- **변경 파일**: `src/components/modules/CalendarGrid.tsx`, `src/components/modules/CalendarBoardWidget.tsx`.
+
 ## 2026-08-12 (EPIC-096, 2차 — 하이엔드 타임라인: 양방향 교차형 카드 + 스크롤 페이드업)
 - **2.1 타임라인 리마스터링**: 기존 "얇은 단일 스파인 + 왼쪽 라벨" 세로형 레이아웃을 완전히 폐기하고 Common Ninja/Apple류의 양방향 교차형(Alternating) 카드로 재구축(`TimelineView.tsx`의 새 `AlternatingRow`) — 중앙 스파인을 기준으로 짝수/홀수 항목이 좌우로 번갈아 배치되고, `renderPreview`(썸네일+본문 발췌+메타)가 있으면 그 완전한 카드를 처음부터 항상 펼쳐 보여준다(참고 이미지처럼 hover 없이 바로 보임 — 기존 hover-only 미리보기 방식은 가로형(horizontal) 오리엔테이션에만 그대로 남김). 좁은 화면(모바일)에서는 좌우 분할이 카드 폭을 반토막 내 오히려 가독성이 떨어지므로, `md` 미만에서는 기존 단일 스파인 목록(카드 스타일만 업그레이드)으로 우아하게 저하시키고 `md` 이상에서만 교차형을 쓴다(두 버전을 함께 렌더링 후 Tailwind 반응형 클래스로 하나만 노출 — JS 브레이크포인트 감지 없이 SSR 안전).
 - **스크롤 페이드업 애니메이션**: 새 라이브러리 없이 `IntersectionObserver` 하나로 구현(`FadeUpOnScroll`) — 카드가 뷰포트에 10% 이상 들어오면 한 번만 `opacity-0 translate-y-6` → `opacity-100 translate-y-0`로 전환되고 그 뒤로는 유지된다(반복 재생 없음).

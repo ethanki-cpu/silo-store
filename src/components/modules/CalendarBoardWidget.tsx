@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { CalendarGrid } from "@/components/modules/CalendarGrid";
@@ -113,6 +122,51 @@ function CalendarCellPopout({
   );
 }
 
+// EPIC-096(요구사항 2.2): 날짜 셀 하나를 드롭 타겟으로, 그 날짜의(내가 쓴)
+// 첫 글을 드래그 핸들로 동시에 등록한다 — dnd-kit의 useDraggable/
+// useDroppable을 같은 DOM 노드에 함께 걸면 "이 칸이 곧 그 글의 핸들이자
+// 다른 글을 받는 타겟"이 된다(칸이 작아 별도 칩 UI를 넣을 공간이 없어
+// 택한 절충 — 하루에 내 글이 여러 개면 그 중 첫 글만 옮겨진다, 이 보드
+// 성격(하루 1글 위주의 타임라인/저널)에는 충분하다). draggable은
+// canDrag일 때만 활성화한다(로그인한 본인 글 + "나의 달력" 필터 켜짐).
+function DraggableDroppableCell({
+  date,
+  postId,
+  canDrag,
+  children,
+}: {
+  date: string;
+  postId: string | null;
+  canDrag: boolean;
+  children: ReactNode;
+}) {
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `date:${date}` });
+  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
+    id: postId ? `post:${postId}` : `nodrag:${date}`,
+    disabled: !canDrag || !postId,
+  });
+
+  return (
+    <div
+      ref={(node) => {
+        setDropRef(node);
+        setDragRef(node);
+      }}
+      {...(canDrag && postId ? { ...attributes, ...listeners } : {})}
+      className={`rounded-md transition-shadow ${isOver ? "ring-2 ring-[#166534] ring-offset-1" : ""} ${
+        canDrag && postId ? "cursor-grab active:cursor-grabbing" : ""
+      } ${isDragging ? "opacity-40" : ""}`}
+      style={
+        transform
+          ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: isDragging ? 40 : undefined }
+          : undefined
+      }
+    >
+      {children}
+    </div>
+  );
+}
+
 // EPIC-092(요구사항 5): CalendarGrid(순수 프레젠테이션 셸, src/components/
 // modules/CalendarGrid.tsx)를 실제 게시판 데이터와 연결하는 데이터-페칭
 // 래퍼 — BoardModule.tsx가 boardId 하나로 나머지(조회/상태관리)를 전부
@@ -207,6 +261,42 @@ export function CalendarBoardWidget({ boardId }: { boardId: string | null }) {
 
   const markedDates = useMemo(() => [...postsByDate.keys()], [postsByDate]);
 
+  // EPIC-096(요구사항 2.2): "'나의 달력' 필터 상태에서" 드래그앤드롭 —
+  // 요구사항 원문 그대로, 이 필터가 켜져 있을 때만 드래그를 활성화한다.
+  const myCalendarActive = checkedFilters.has("나의 달력");
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  async function handleDragEnd(e: DragEndEvent) {
+    const activeId = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    if (!overId || !activeId.startsWith("post:") || !overId.startsWith("date:")) return;
+
+    const postId = activeId.slice("post:".length);
+    const targetDate = overId.slice("date:".length); // "YYYY-MM-DD"
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    const original = new Date(post.created_at);
+    if (dateKey(post.created_at) === targetDate) return; // 같은 날짜로 드롭 — 변경 없음
+
+    const [ty, tm, td] = targetDate.split("-").map(Number);
+    // 시각(시/분/초)은 원래 값을 그대로 보존하고 날짜만 옮긴다.
+    const next = new Date(original);
+    next.setFullYear(ty, tm - 1, td);
+
+    // 낙관적 업데이트 — 실패하면 되돌린다.
+    const prevPosts = posts;
+    setPosts((rows) => rows.map((r) => (r.id === postId ? { ...r, created_at: next.toISOString() } : r)));
+
+    const { error: updateError } = await supabase
+      .from("posts")
+      .update({ created_at: next.toISOString() })
+      .eq("id", postId);
+    if (updateError) {
+      setPosts(prevPosts);
+    }
+  }
+
   function toggleFilter(label: string) {
     setCheckedFilters((prev) => {
       const next = new Set(prev);
@@ -278,19 +368,34 @@ export function CalendarBoardWidget({ boardId }: { boardId: string | null }) {
         ))}
       </div>
 
-      <CalendarGrid
-        year={year}
-        month={month}
-        markedDates={markedDates}
-        cellContent={(date) => (
-          <CalendarCellPopout
-            date={date}
-            posts={postsByDate.get(date) ?? []}
-            boardSlug={boardSlug}
-            writeHref={writeBase ? `${writeBase}&date=${date}` : null}
-          />
-        )}
-      />
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <CalendarGrid
+          year={year}
+          month={month}
+          markedDates={markedDates}
+          cellContent={(date) => (
+            <CalendarCellPopout
+              date={date}
+              posts={postsByDate.get(date) ?? []}
+              boardSlug={boardSlug}
+              writeHref={writeBase ? `${writeBase}&date=${date}` : null}
+            />
+          )}
+          cellWrapper={(date, children) => {
+            const myFirstPost = (postsByDate.get(date) ?? []).find((p) => p.author_id === member?.id);
+            return (
+              <DraggableDroppableCell date={date} postId={myFirstPost?.id ?? null} canDrag={myCalendarActive}>
+                {children}
+              </DraggableDroppableCell>
+            );
+          }}
+        />
+      </DndContext>
+      {myCalendarActive && (
+        <p className="mt-2 text-xs text-gray-400">
+          내 글이 있는 날짜 칸을 다른 날짜로 드래그하면 등록일이 바뀌어요.
+        </p>
+      )}
       {loading && <p className="mt-2 text-xs text-gray-400">불러오는 중...</p>}
     </div>
   );

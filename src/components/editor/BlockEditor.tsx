@@ -1579,6 +1579,18 @@ export function BlockEditor({
   const previewRef = useRef<HTMLDivElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  // EPIC-096(요구사항 3.2): 슬래시 커맨드 메뉴 — 문단 맨 앞에서 "/"를 치면
+  // 뜬다. from/to는 지울 "/쿼리" 텍스트 범위, top/left는 그 자리 화면 좌표.
+  const [slashMenu, setSlashMenu] = useState<{
+    from: number;
+    to: number;
+    query: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  // "설문" 항목을 고르면 곧바로 노드를 안 만들고 이 작은 작성 폼을 먼저
+  // 띄운다(질문+선택지 입력 필요) — from/to는 지워야 할 "/poll" 텍스트 범위.
+  const [pollPrompt, setPollPrompt] = useState<{ from: number; to: number } | null>(null);
 
   const extensions = useMemo(
     () => [
@@ -1718,6 +1730,42 @@ export function BlockEditor({
     },
   }, [extensions]);
 
+  // EPIC-096(요구사항 3.2): 슬래시 커맨드 감지 — 별도 패키지(@tiptap/suggestion)
+  // 없이, 매 update/selectionUpdate마다 "커서가 속한 문단의 맨 앞부터
+  // 커서까지"의 텍스트가 `/쿼리` 패턴이면 메뉴를 띄운다(패턴이 깨지면,
+  // 예를 들어 공백을 치거나 커서가 다른 곳으로 가면 즉시 닫는다). 이 방식은
+  // ProseMirror 트랜잭션마다 순수 텍스트 비교만 하므로 가볍고, 이 파일이
+  // 이미 쓰는 "새 의존성보다 직접 구현 우선" 관례와도 맞는다.
+  useEffect(() => {
+    if (!editor) return;
+    function syncSlashMenu() {
+      const { state, view } = editor!;
+      const { $from } = state.selection;
+      const blockStart = $from.start();
+      const textBefore = $from.parent.textBetween(0, $from.parentOffset, undefined, " ");
+      const match = /^\/(\S*)$/.exec(textBefore);
+      if (!match || !state.selection.empty) {
+        setSlashMenu(null);
+        return;
+      }
+      const coords = view.coordsAtPos(blockStart);
+      const editorRect = view.dom.getBoundingClientRect();
+      setSlashMenu({
+        from: blockStart,
+        to: $from.pos,
+        query: match[1],
+        top: coords.bottom - editorRect.top,
+        left: coords.left - editorRect.left,
+      });
+    }
+    editor.on("update", syncSlashMenu);
+    editor.on("selectionUpdate", syncSlashMenu);
+    return () => {
+      editor.off("update", syncSlashMenu);
+      editor.off("selectionUpdate", syncSlashMenu);
+    };
+  }, [editor]);
+
   // EPIC-079-PHASE-4: "미리보기" 모드는 dangerouslySetInnerHTML로 정적
   // 마크업만 넣는다 — instagram 위젯/customHtml raw HTML 둘 다 실제로
   // 화면에 보이려면 이 시점에 한 번 더 처리해야 한다(PostBody.tsx와 동일
@@ -1827,6 +1875,71 @@ export function BlockEditor({
     [handleImageFiles],
   );
 
+  // EPIC-096(요구사항 3.2): 슬래시 메뉴 항목 — 대부분 기존 툴바 버튼이 이미
+  // 쓰는 chain 커맨드 그대로다(새 기능이 아니라 새 진입 경로). "설문"만
+  // 예외로, 노드를 바로 안 만들고 작은 작성 폼(pollPrompt)을 먼저 연다.
+  const SLASH_ITEMS = [
+    { key: "h2", label: "제목 2", hint: "Heading 2", run: () => editor?.chain().focus().setHeading({ level: 2 }).run() },
+    { key: "h3", label: "제목 3", hint: "Heading 3", run: () => editor?.chain().focus().setHeading({ level: 3 }).run() },
+    { key: "bulletList", label: "글머리 목록", hint: "Bullet list", run: () => editor?.chain().focus().toggleBulletList().run() },
+    { key: "orderedList", label: "번호 목록", hint: "Numbered list", run: () => editor?.chain().focus().toggleOrderedList().run() },
+    { key: "blockquote", label: "인용구", hint: "Quote", run: () => editor?.chain().focus().toggleBlockquote().run() },
+    {
+      key: "table",
+      label: "표",
+      hint: "3×3 Table",
+      run: () => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+    },
+    { key: "divider", label: "구분선", hint: "Divider", run: () => editor?.chain().focus().setHorizontalRule().run() },
+    { key: "poll", label: "설문 (Poll)", hint: "질문 + 선택지로 투표 만들기", run: null },
+  ];
+  const filteredSlashItems = slashMenu
+    ? SLASH_ITEMS.filter((item) => item.key.toLowerCase().includes(slashMenu.query.toLowerCase()) || item.label.includes(slashMenu.query))
+    : [];
+
+  function runSlashItem(item: (typeof SLASH_ITEMS)[number]) {
+    if (!editor || !slashMenu) return;
+    editor.chain().focus().deleteRange({ from: slashMenu.from, to: slashMenu.to }).run();
+    if (item.key === "poll") {
+      setPollPrompt({ from: slashMenu.from, to: slashMenu.from });
+    } else {
+      item.run?.();
+    }
+    setSlashMenu(null);
+  }
+
+  // EPIC-096(요구사항 3.2): "설문" 슬래시 항목 제출 — /api/polls/inline(이번
+  // EPIC에서 신설, 관리자 전용이 아닌 일반 회원용 인라인 설문 생성 경로)에
+  // POST한 뒤 반환된 poll id로 pollEmbed 노드를 삽입한다. 실제 투표 UI는
+  // 에디터 안이 아니라(글쓴이 본인만 보는 화면이라 투표 대상이 없음) 발행된
+  // 글에서 UniversalBlockRenderer(src/lib/pollEmbed.ts)가 그린다.
+  async function createInlinePoll(question: string, options: string[]) {
+    if (!editor || !pollPrompt) return;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      alert("로그인이 필요해요.");
+      return;
+    }
+    const res = await fetch("/api/polls/inline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ question, options }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error ?? "설문 생성에 실패했어요.");
+      return;
+    }
+    editor
+      .chain()
+      .focus()
+      .insertContentAt(pollPrompt.from, { type: "pollEmbed", attrs: { pollId: data.id, question } })
+      .run();
+    setPollPrompt(null);
+  }
+
   if (!editor) return null;
 
   return (
@@ -1867,8 +1980,108 @@ export function BlockEditor({
               마지막 저장: {lastSaved.toLocaleTimeString()}
             </div>
           )}
+
+          {/* EPIC-096(요구사항 3.2): 슬래시 커맨드 메뉴 — 커서 바로 아래 뜬다. */}
+          {slashMenu && filteredSlashItems.length > 0 && (
+            <div
+              className="absolute z-30 w-56 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+              style={{ top: slashMenu.top + 4, left: slashMenu.left }}
+            >
+              {filteredSlashItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // contentEditable 포커스가 먼저 빠지지 않게
+                    runSlashItem(item);
+                  }}
+                  className="flex w-full flex-col px-3 py-1.5 text-left hover:bg-gray-50"
+                >
+                  <span className="text-sm text-gray-800">{item.label}</span>
+                  <span className="text-[11px] text-gray-400">{item.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {pollPrompt && <PollPromptForm onSubmit={createInlinePoll} onCancel={() => setPollPrompt(null)} />}
         </div>
       )}
+    </div>
+  );
+}
+
+// EPIC-096(요구사항 3.2): "/" 메뉴에서 "설문"을 고르면 뜨는 작은 작성 폼 —
+// 질문 1개 + 선택지 최소 2개(최대 8개)만 받는다(기존 /admin 설문 만들기
+// 화면과 달리 즉석 인라인 삽입이 목적이라 필드를 최소화).
+function PollPromptForm({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (question: string, options: string[]) => void;
+  onCancel: () => void;
+}) {
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState(["", ""]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const canSubmit = question.trim().length > 0 && options.filter((o) => o.trim()).length >= 2;
+
+  async function handleSubmit() {
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    await onSubmit(question.trim(), options);
+    setSubmitting(false);
+  }
+
+  return (
+    <div className="absolute inset-0 z-40 flex items-start justify-center bg-black/20 p-4">
+      <div className="mt-8 w-full max-w-sm rounded-lg border border-gray-200 bg-white p-4 shadow-xl">
+        <p className="mb-3 text-sm font-medium text-gray-700">📊 설문 만들기</p>
+        <input
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="질문을 입력하세요"
+          className="mb-2 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+        />
+        <div className="space-y-1.5">
+          {options.map((opt, idx) => (
+            <input
+              key={idx}
+              value={opt}
+              onChange={(e) => setOptions((prev) => prev.map((o, i) => (i === idx ? e.target.value : o)))}
+              placeholder={`선택지 ${idx + 1}`}
+              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            />
+          ))}
+        </div>
+        {options.length < 8 && (
+          <button
+            type="button"
+            onClick={() => setOptions((prev) => [...prev, ""])}
+            className="mt-1.5 text-xs text-gray-500 hover:underline"
+          >
+            + 선택지 추가
+          </button>
+        )}
+        <div className="mt-3 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            disabled={!canSubmit || submitting}
+            onClick={handleSubmit}
+            className="rounded-md bg-gray-900 px-3 py-1.5 text-xs text-white hover:bg-gray-800 disabled:opacity-50"
+          >
+            {submitting ? "만드는 중..." : "만들기"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

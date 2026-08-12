@@ -860,6 +860,62 @@ export const SourceAttributionBlock = Node.create({
 });
 
 // ============================================================
+// PollEmbed — EPIC-096(요구사항 3.2): 슬래시 메뉴에서 만든 인라인 설문을
+// 본문에 심는 atom 노드. SourceAttribution과 동일하게 데이터를 HTML
+// 속성(data-*)으로만 라운드트립한다 — 실제 투표 UI(선택지 버튼/득표수)는
+// 여기서 그리지 않는다. 에디터 안에서는 정적 placeholder 카드만 보이고
+// (작성 중엔 아직 아무도 투표하지 않았으므로 실시간 집계를 보여줄 이유가
+// 없다), 실제 투표는 발행된 게시글에서 UniversalBlockRenderer가
+// processPollEmbeds()(src/lib/pollEmbed.ts)로 이 자리를 살아있는 투표
+// 위젯으로 바꿔치기한다 — polls/poll_options/poll_votes(기존 "설문
+// [우리들 맴]" 기능과 동일 테이블)를 그대로 재사용, 새 스키마 없음.
+export type PollEmbedAttrs = { pollId: string; question: string };
+
+export const PollEmbedBlock = Node.create({
+  name: "pollEmbed",
+  group: "block",
+  atom: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      pollId: { default: "" },
+      question: { default: "" },
+    };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: "div[data-type='poll-embed']",
+        getAttrs: (el) => {
+          const div = el as HTMLElement;
+          return {
+            pollId: div.getAttribute("data-poll-id") ?? "",
+            question: div.getAttribute("data-question") ?? "",
+          };
+        },
+      },
+    ];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const { pollId, question } = HTMLAttributes as PollEmbedAttrs;
+    return renderSpec([
+      "div",
+      mergeAttributes({
+        "data-type": "poll-embed",
+        "data-poll-id": pollId,
+        "data-question": question,
+        class: "poll-embed",
+      }),
+      ["span", { class: "poll-embed-icon" }, "📊"],
+      ["span", {}, question],
+    ]);
+  },
+});
+
+// ============================================================
 // 공유 확장 목록 — 서버(generateHTML)와 클라이언트(BlockEditor)가
 // 동일 스키마를 쓰도록 단일 소스로 관리한다. BlockEditor.tsx는 이 배열에
 // NodeView만 추가로 붙인다(스키마 자체는 여기서 바뀌지 않음).
@@ -906,6 +962,7 @@ export function coreExtensions() {
     EmbedBlock,
     LinkCardBlock,
     SourceAttributionBlock,
+    PollEmbedBlock,
   ];
 }
 

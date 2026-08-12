@@ -6,7 +6,9 @@ import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
 import { processInstagramEmbeds } from "@/lib/instagramEmbed";
 import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
 import { processGalleryCarousels } from "@/lib/galleryCarousel";
+import { processPollEmbeds } from "@/lib/pollEmbed";
 import { useCustomFonts } from "@/lib/useCustomFonts";
+import { useAuth } from "@/lib/AuthProvider";
 
 // EPIC-085: Tiptap JSON 블록(posts.body_json)이 저장 시점(renderPostHtml,
 // blockEditorCore.ts)에 변환된 HTML(posts.body)을 순수 읽기 전용으로
@@ -40,6 +42,7 @@ export function UniversalBlockRenderer({
   // 에디터 툴바(BlockEditor.tsx)와 동일한 훅 — 같은 <style id="custom-fonts-style">
   // 태그를 공유해 본문에 쓰인 커스텀 폰트를 항상 최신 목록으로 주입한다.
   useCustomFonts();
+  const { session } = useAuth();
   const looksLikeHtml = /<[a-z][\s\S]*>/i.test(body);
   const [lightbox, setLightbox] = useState<{ images: LightboxImage[]; index: number } | null>(null);
 
@@ -57,7 +60,15 @@ export function UniversalBlockRenderer({
     if (body.includes("gallery-carousel")) {
       processGalleryCarousels();
     }
-  }, [body, looksLikeHtml]);
+    // EPIC-096(요구사항 3.2): 인라인 설문 placeholder를 실제 투표 위젯으로.
+    // session.access_token이 나중에(로그인 완료 후) 채워지면 재실행되도록
+    // 의존성에 넣는다 — 처음엔 비로그인으로 그리고 로그인되면 투표 버튼이
+    // 살아난다(dataset.pollInit 가드가 있어 매번 새로 fetch하진 않도록,
+    // 토큰이 바뀌는 시점에만 자연히 다시 그려짐).
+    if (body.includes("poll-embed")) {
+      processPollEmbeds(session?.access_token ?? null);
+    }
+  }, [body, looksLikeHtml, session?.access_token]);
 
   function handleClick(e: MouseEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;

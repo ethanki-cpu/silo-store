@@ -70,6 +70,8 @@ const ALLOWED_ATTR = [
   "colspan", "rowspan",
   // EPIC-083: 출처(SourceAttribution) 라운드트립용.
   "data-source-url", "data-source-name",
+  // EPIC-096(요구사항 3.2): 인라인 설문(PollEmbed) 라운드트립용.
+  "data-poll-id", "data-question",
 ];
 
 export function sanitizeHtml(html: string): string {

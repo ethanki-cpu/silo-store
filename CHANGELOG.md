@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-12 (EPIC-096 후속 5차 — 폰트 자유 텍스트 입력을 실제 업로드+미리보기 픽커로 교체)
+- **사용자 신고**: 후속 4차에서 추가한 폰트 필드가 CSS `font-family` 문자열을 손으로 입력하는 빈 텍스트박스였다 — 실제로 그 폰트가 사이트에 없으면(호스팅/등록된 적 없으면) 브라우저가 조용히 기본 폰트로 대체해 아무 효과가 없었다. "폰트를 추가할 수 있게", "미리보기를 볼 수 있게" 해달라는 요청.
+- **`FontPicker` 컴포넌트 신설**: 이 프로젝트에 이미 있던 커스텀 폰트 인프라(EPIC-083 `/admin/fonts`, `custom_fonts` 테이블, `useCustomFonts()`의 `@font-face` 자동 주입 — 에디터 폰트 드롭다운이 쓰던 것과 동일)를 그대로 재사용했다. 드롭다운을 열면 (1) 이미 등록된 폰트들을 **그 폰트로 실제 렌더링된 미리보기 텍스트**("Silo Store 사일로 다람쥐")와 함께 목록으로 보여주고, (2) 목록 맨 아래에 그 자리에서 바로 새 폰트를 업로드(이름 입력 + .woff2/.woff/.ttf/.otf 파일)할 수 있는 미니 폼이 있다 — 업로드하면 즉시 그 폰트가 선택되고 목록에도 추가된다. "게시물 출력방식"의 글번호/날짜/작성자/제목/좋아요·조회·댓글 5개 폰트 필드 전부 이 픽커로 교체.
+- **`useCustomFonts()`에 `refetch` 추가**: 지금까지 마운트 시 1회만 조회했는데, FontPicker가 업로드 직후 목록을 새로고침하려면 다시 부를 방법이 필요해 뺐다(다른 호출부인 에디터/PostBody는 영향 없음 — 추가된 반환값일 뿐).
+- **검증**: `npx tsc --noEmit` 0 errors, `npm run lint` 0 errors(새 경고 1건 — `useCustomFonts`의 `load()` 호출이 이 저장소에 이미 수십 곳 있는 "effect 안에서 setState" 패턴과 동일한 종류, 정책상 비차단). 로컬 dev에서 게시글 상세와 `/admin/fonts` 둘 다 콘솔 에러 없이 로드 확인. **다음 세션에서 확인 필요(관리자 로그인 세션)**: 실제로 폰트를 업로드해 미리보기가 그 폰트로 렌더링되는지, 선택 후 게시글 상세에 실제 적용되는지.
+- **변경 파일**: `src/components/admin/FontPicker.tsx`(신설), `src/lib/useCustomFonts.ts`, `src/components/admin/BoardForm.tsx`.
+
 ## 2026-08-12 (EPIC-096 후속 4차 — "게시물 출력방식" 확장: 수정일 숨기기 + 항목별 폰트 + 통계 스타일)
 - **"수정 YYYY.MM.DD" 숨기기**: `postMetaStyle.hideUpdatedDate` 추가 — 체크하면 게시글 상세에서 수정일 줄 자체가 렌더링되지 않는다.
 - **항목별 폰트 지정**: 글번호/날짜/작성자/제목 4곳에 폰트 입력 필드 추가(`postNumberFontFamily`/`dateFontFamily`/`authorNameFontFamily`/`titleFontFamily`) — Navbar.tsx의 커스텀 폰트 입력과 동일하게 CSS `font-family` 문자열을 자유 입력받는다(별도 폰트 선택 UI 없음, 이 프로젝트의 기존 관례). 제목은 크기/색상은 그대로 두고(반응형 h1이라 임의 크기를 허용하면 레이아웃이 깨지기 쉬움) 폰트만 열었다.

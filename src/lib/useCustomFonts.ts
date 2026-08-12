@@ -29,45 +29,45 @@ function buildFontFaceCss(fonts: CustomFont[]): string {
  * 주입한다. 에디터 툴바(폰트 드롭다운)와 글 상세 페이지(PostBody) 양쪽이
  * 이 훅을 호출해 같은 <style id="custom-fonts-style"> 태그를 공유한다 —
  * 어느 쪽이 먼저 마운트되든 최신 목록으로 덮어써 항상 최신 상태를 유지한다.
+ *
+ * 사용자 지시(2026-08-12): "게시물 출력방식"의 FontPicker(src/components/
+ * admin/FontPicker.tsx)가 그 자리에서 바로 새 폰트를 업로드할 수 있어야
+ * 해서, 마운트 시 1회만 조회하던 것을 refetch()로 다시 부를 수 있게 뺐다
+ * — 업로드 직후 그 결과(새 폰트 포함 @font-face)를 다시 로드해 미리보기에
+ * 즉시 반영한다.
  */
-export function useCustomFonts(): { fonts: CustomFont[]; loading: boolean } {
+export function useCustomFonts(): { fonts: CustomFont[]; loading: boolean; refetch: () => Promise<void> } {
   const [fonts, setFonts] = useState<CustomFont[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  async function load() {
+    const { data, error } = await supabase
+      .from("custom_fonts")
+      .select("*")
+      .order("font_name", { ascending: true })
+      .returns<CustomFontRow[]>();
 
-    async function load() {
-      const { data, error } = await supabase
-        .from("custom_fonts")
-        .select("*")
-        .order("font_name", { ascending: true })
-        .returns<CustomFontRow[]>();
-
-      if (cancelled) return;
-      if (error || !data) {
-        setLoading(false);
-        return;
-      }
-
-      const assets = data.map(customFontFromRow);
-      setFonts(assets);
+    if (error || !data) {
       setLoading(false);
-
-      let styleTag = document.getElementById(STYLE_TAG_ID) as HTMLStyleElement | null;
-      if (!styleTag) {
-        styleTag = document.createElement("style");
-        styleTag.id = STYLE_TAG_ID;
-        document.head.appendChild(styleTag);
-      }
-      styleTag.textContent = buildFontFaceCss(assets);
+      return;
     }
 
+    const assets = data.map(customFontFromRow);
+    setFonts(assets);
+    setLoading(false);
+
+    let styleTag = document.getElementById(STYLE_TAG_ID) as HTMLStyleElement | null;
+    if (!styleTag) {
+      styleTag = document.createElement("style");
+      styleTag.id = STYLE_TAG_ID;
+      document.head.appendChild(styleTag);
+    }
+    styleTag.textContent = buildFontFaceCss(assets);
+  }
+
+  useEffect(() => {
     load();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  return { fonts, loading };
+  return { fonts, loading, refetch: load };
 }

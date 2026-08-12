@@ -11,6 +11,7 @@ import { CategoryBranchPicker } from "@/components/common/CategoryBranchPicker";
 import { RANK_OPTIONS } from "@/lib/membershipTiers";
 import { DEFAULT_POST_LAYOUT_ORDER, type PostLayoutBlock } from "@/lib/postLayout";
 import { PostLayoutOrderEditor } from "@/components/admin/PostLayoutOrderEditor";
+import { FontPicker } from "@/components/admin/FontPicker";
 import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
 
 export { RANK_OPTIONS };
@@ -902,16 +903,11 @@ export function BoardForm({
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">날짜 폰트</label>
-              <input
-                type="text"
-                value={values.post_meta_date_font_family}
-                onChange={(e) => update("post_meta_date_font_family", e.target.value)}
-                placeholder="예: 'Pretendard', sans-serif"
-                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              />
-            </div>
+            <FontPicker
+              label="날짜 폰트"
+              value={values.post_meta_date_font_family}
+              onChange={(v) => update("post_meta_date_font_family", v)}
+            />
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">폰트 웨이트</label>
               <select
@@ -978,16 +974,11 @@ export function BoardForm({
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">글 번호 폰트</label>
-              <input
-                type="text"
-                value={values.post_meta_post_number_font_family}
-                onChange={(e) => update("post_meta_post_number_font_family", e.target.value)}
-                placeholder="예: 'Pretendard', sans-serif"
-                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              />
-            </div>
+            <FontPicker
+              label="글 번호 폰트"
+              value={values.post_meta_post_number_font_family}
+              onChange={(v) => update("post_meta_post_number_font_family", v)}
+            />
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">작성자 이름 크기 (px)</label>
               <input
@@ -1010,29 +1001,21 @@ export function BoardForm({
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">작성자 이름 폰트</label>
-              <input
-                type="text"
-                value={values.post_meta_author_name_font_family}
-                onChange={(e) => update("post_meta_author_name_font_family", e.target.value)}
-                placeholder="예: 'Pretendard', sans-serif"
-                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              />
-            </div>
+            <FontPicker
+              label="작성자 이름 폰트"
+              value={values.post_meta_author_name_font_family}
+              onChange={(v) => update("post_meta_author_name_font_family", v)}
+            />
           </div>
 
           {/* 사용자 지시(2026-08-12): 제목 폰트 — 크기/색상은 반응형 h1
               스타일을 그대로 유지한다(임의 크기를 허용하면 레이아웃이
               쉽게 깨져서 폰트만 열어둔다). */}
-          <div className="mt-4 border-t border-gray-100 pt-3">
-            <label className="block text-xs font-medium text-gray-600 mb-1">제목 폰트</label>
-            <input
-              type="text"
+          <div className="mt-4 max-w-xs border-t border-gray-100 pt-3">
+            <FontPicker
+              label="제목 폰트"
               value={values.post_meta_title_font_family}
-              onChange={(e) => update("post_meta_title_font_family", e.target.value)}
-              placeholder="예: 'Pretendard', sans-serif"
-              className="w-full max-w-xs rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              onChange={(v) => update("post_meta_title_font_family", v)}
             />
           </div>
 
@@ -1063,16 +1046,11 @@ export function BoardForm({
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">좋아요·조회·댓글 폰트</label>
-              <input
-                type="text"
-                value={values.post_meta_stat_font_family}
-                onChange={(e) => update("post_meta_stat_font_family", e.target.value)}
-                placeholder="예: 'Pretendard', sans-serif"
-                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              />
-            </div>
+            <FontPicker
+              label="좋아요·조회·댓글 폰트"
+              value={values.post_meta_stat_font_family}
+              onChange={(v) => update("post_meta_stat_font_family", v)}
+            />
           </div>
         </details>
 

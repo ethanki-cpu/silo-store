@@ -35,7 +35,12 @@ export function PageModuleRenderer({ modules }: { modules: PageModuleConfig[] })
       {modules.map((module) => {
         switch (module.kind) {
           case "hero":
-            return <HeroSlideshow key={module.id} {...module.props} />;
+            // EPIC-094(요구사항 1.2): 이 Page Builder "hero" 모듈은
+            // site_settings.hero_slideshow(PC/모바일 분리된 그 설정)와는
+            // 별개의 단일 슬라이드 세트다 — 기기별 분기가 없으므로
+            // device="both"로 넘겨 <picture> 기기 분기 트릭을 끄고 항상
+            // 실제 이미지를 그대로 내려준다(기존 동작과 동일).
+            return <HeroSlideshow key={module.id} device="both" {...module.props} />;
 
           case "story_board":
           case "gallery_board":

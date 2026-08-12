@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { inputClass, primaryButtonClass, smallButtonClass } from "../shared";
+import { MobilePreviewFrame } from "@/components/admin/MobilePreviewFrame";
 import {
   normalizeHeroSlideshow,
   defaultHeroSlideshowValue,
@@ -280,6 +281,18 @@ export default function AdminNavigationSettingsPage() {
   function updateActiveHero(patch: Partial<HeroSlideshowConfig>) {
     setHeroSlideshow((prev) => ({ ...prev, [heroTab]: { ...prev[heroTab], ...patch } }));
   }
+
+  // EPIC-094(요구사항 1.3): 우측 실시간 모바일 프리뷰어에 넘길 "첫 번째
+  // 유효 모바일 슬라이드" — heroSlideshow.mobile 참조가 실제로 바뀔 때만
+  // (즉 모바일 탭을 편집할 때만) 새로 계산한다. PC 탭만 편집 중일 때는
+  // heroSlideshow.mobile 참조가 그대로라 이 useMemo도, 그 아래
+  // React.memo(MobilePreviewFrame)도 재계산/재렌더링되지 않는다.
+  const mobilePreviewSlide = useMemo(() => {
+    const slides = heroSlideshow.mobile.slides.filter(
+      (s) => s.imageUrl || s.title || s.description,
+    );
+    return slides[0] ?? null;
+  }, [heroSlideshow.mobile]);
   const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
     DEFAULT_SIDEBAR_ICONS,
   );
@@ -535,14 +548,18 @@ export default function AdminNavigationSettingsPage() {
   }
 
   return (
-    <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
+    <main className="flex-1 px-8 pb-8 max-w-6xl mx-auto w-full">
       {error && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-700 mb-6">
           {error}
         </div>
       )}
 
-      <div className="space-y-8">
+      {/* EPIC-094(요구사항 1.3): 2단 스플릿 — 좌측은 기존 폼 그대로, 우측은
+          스크롤과 무관하게 고정된(sticky) 아이폰 프레임 실시간 프리뷰.
+          xl 미만(좁은 화면)에서는 프리뷰를 숨겨 폼 입력 공간을 우선한다. */}
+      <div className="flex items-start gap-8">
+        <div className="min-w-0 flex-1 space-y-8">
         {/* 메인 로고 */}
         <section className="rounded-lg border border-gray-200 p-4">
           <h2 className="text-lg font-semibold mb-3">메인 로고</h2>
@@ -1232,6 +1249,20 @@ export default function AdminNavigationSettingsPage() {
             )}
           </div>
         </section>
+        </div>
+
+        <aside className="sticky top-6 hidden w-[320px] shrink-0 xl:block">
+          <p className="mb-2 text-sm font-medium text-gray-600">실시간 모바일 프리뷰</p>
+          <MobilePreviewFrame
+            slide={mobilePreviewSlide}
+            objectFit={heroSlideshow.mobile.objectFit}
+            mainLogo={mainLogo}
+            marginTopPx={heroSlideshow.mobile.marginTopPx}
+            marginBottomPx={heroSlideshow.mobile.marginBottomPx}
+            marginLeftPx={heroSlideshow.mobile.marginLeftPx}
+            marginRightPx={heroSlideshow.mobile.marginRightPx}
+          />
+        </aside>
       </div>
     </main>
   );

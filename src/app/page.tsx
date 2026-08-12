@@ -36,11 +36,18 @@ function slidesOf(config: HeroSlideshowConfig) {
 // 렌더링이라, matchMedia 등 클라이언트 JS 없이 Server Component에서 그대로
 // 동작하는 이 방식을 택했다(Navbar.tsx 등 다른 곳에도 반응형 분기가 전혀
 // 없음 — 새 선례가 되는 지점).
-function HeroSlideshowSection({ config }: { config: HeroSlideshowConfig }) {
+function HeroSlideshowSection({
+  config,
+  device,
+}: {
+  config: HeroSlideshowConfig;
+  device: "pc" | "mobile";
+}) {
   const slides = slidesOf(config);
   if (slides.length === 0) return null;
   return (
     <HeroSlideshow
+      device={device}
       slides={slides}
       autoAdvanceSeconds={config.autoAdvanceSeconds}
       objectFit={config.objectFit}
@@ -76,10 +83,10 @@ export default async function Home() {
       {hasAnySlides ? (
         <>
           <div className="hidden md:block">
-            <HeroSlideshowSection config={pcConfig} />
+            <HeroSlideshowSection config={pcConfig} device="pc" />
           </div>
           <div className="md:hidden">
-            <HeroSlideshowSection config={mobileConfig} />
+            <HeroSlideshowSection config={mobileConfig} device="mobile" />
           </div>
         </>
       ) : (

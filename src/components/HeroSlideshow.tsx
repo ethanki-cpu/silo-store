@@ -6,7 +6,20 @@ type SlideItem = { imageUrl: string; title: string; description: string };
 
 const DEFAULT_AUTO_ADVANCE_SECONDS = 5;
 
+// EPIC-094(요구사항 1.2): page.tsx가 PC/모바일용으로 이 컴포넌트를 각각
+// 한 번씩(hidden md:block / md:hidden 래퍼로) 렌더링한다. 래퍼가 display:none
+// 이어도 loading="eager"+fetchPriority="high"인 슬라이드 0번 이미지는 그
+// 기기에서 보이지도 않을 원본 파일까지 그대로 내려받는 문제가 있었다(=CSS로
+// "숨기기"만 할 뿐 실제로는 두 기기 이미지를 전부 받는 셈이라 "완전히 다른
+// 파일을 렌더링"하라는 요구사항과 어긋남). <picture>의 <source media>가
+// 매칭되면 그 media에서는 img 자신의 src 대신 source의 srcSet(여기서는
+// 투명 1x1 픽셀)을 내려받으므로, "이 인스턴스가 담당하지 않는 기기"의
+// media에서 실제 이미지 대신 투명 픽셀만 받도록 소스를 뒤집어 끼워 넣는다.
+const TRANSPARENT_PIXEL =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7";
+
 export function HeroSlideshow({
+  device,
   slides,
   autoAdvanceSeconds = DEFAULT_AUTO_ADVANCE_SECONDS,
   objectFit = "cover",
@@ -16,6 +29,12 @@ export function HeroSlideshow({
   marginLeftPx = 0,
   marginRightPx = 0,
 }: {
+  // EPIC-094(요구사항 1.2): 이 인스턴스가 어느 기기용 래퍼 안에 있는지 —
+  // "반대쪽" 기기의 media query에서는 실제 이미지를 내려받지 않도록 픽처
+  // 소스를 뒤집는 데만 쓰인다(레이아웃 자체는 여전히 부모의 hidden 클래스가 담당).
+  // "both"는 기기 분기 자체가 없는 호출부(Page Builder의 단일 "hero" 모듈)용 —
+  // 픽처 트릭을 아예 적용하지 않고 항상 실제 이미지를 그대로 내려준다(기존 동작 유지).
+  device: "pc" | "mobile" | "both";
   slides: SlideItem[];
   autoAdvanceSeconds?: number;
   objectFit?: "cover" | "contain";
@@ -30,6 +49,10 @@ export function HeroSlideshow({
   marginLeftPx?: number;
   marginRightPx?: number;
 }) {
+  // md: Tailwind 기본 브레이크포인트(768px) — page.tsx의 hidden md:block/
+  // md:hidden과 정확히 같은 경계여야 두 소스가 서로 어긋나지 않는다.
+  const oppositeDeviceMediaQuery =
+    device === "pc" ? "(max-width: 767px)" : device === "mobile" ? "(min-width: 768px)" : null;
   const [current, setCurrent] = useState(0);
   // 버그 수정(EPIC-079-FINAL-FIX): 첫 로드 시 이미지가 아직 안 뜬 짧은
   // 순간(~0.5초) wrapper의 배경색(bg-gray-900, 사실상 검정)이 그대로
@@ -112,26 +135,30 @@ export function HeroSlideshow({
           }
         >
           {slide.imageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={slide.imageUrl}
-              alt={slide.title || "사일로 스토어"}
-              // 첫 슬라이드(idx 0)는 화면에 즉시 노출되는 LCP 후보라 최우선
-              // 로딩시키고, 나머지는 필요할 때까지 미룬다.
-              loading={idx === 0 ? "eager" : "lazy"}
-              fetchPriority={idx === 0 ? "high" : undefined}
-              // 버그 수정: 브라우저 캐시에 이미 있는 이미지는 React가 onLoad
-              // 리스너를 붙이기 전에 이미 로드가 끝나있어 onLoad가 아예 안
-              // 뜨는 경우가 있다(그러면 opacity-0에 영원히 갇힘) — DOM에
-              // 붙는 시점(callback ref)에 이미 .complete면 즉시 처리한다.
-              ref={(node) => {
-                if (node?.complete) markLoaded(idx);
-              }}
-              onLoad={() => markLoaded(idx)}
-              className={`w-full h-full transition-opacity duration-500 ${
-                loadedIndices.has(idx) ? "opacity-100" : "opacity-0"
-              } ${objectFit === "contain" ? "object-contain" : "object-cover"}`}
-            />
+            <picture>
+              {oppositeDeviceMediaQuery && (
+                <source media={oppositeDeviceMediaQuery} srcSet={TRANSPARENT_PIXEL} />
+              )}
+              <img
+                src={slide.imageUrl}
+                alt={slide.title || "사일로 스토어"}
+                // 첫 슬라이드(idx 0)는 화면에 즉시 노출되는 LCP 후보라 최우선
+                // 로딩시키고, 나머지는 필요할 때까지 미룬다.
+                loading={idx === 0 ? "eager" : "lazy"}
+                fetchPriority={idx === 0 ? "high" : undefined}
+                // 버그 수정: 브라우저 캐시에 이미 있는 이미지는 React가 onLoad
+                // 리스너를 붙이기 전에 이미 로드가 끝나있어 onLoad가 아예 안
+                // 뜨는 경우가 있다(그러면 opacity-0에 영원히 갇힘) — DOM에
+                // 붙는 시점(callback ref)에 이미 .complete면 즉시 처리한다.
+                ref={(node) => {
+                  if (node?.complete) markLoaded(idx);
+                }}
+                onLoad={() => markLoaded(idx)}
+                className={`w-full h-full transition-opacity duration-500 ${
+                  loadedIndices.has(idx) ? "opacity-100" : "opacity-0"
+                } ${objectFit === "contain" ? "object-contain" : "object-cover"}`}
+              />
+            </picture>
           )}
           {(slide.title || slide.description) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 bg-black/30">

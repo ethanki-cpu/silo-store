@@ -9,13 +9,32 @@ export type PostMetaStyle = {
   dateColorHex?: string;
   fontWeight?: number;
   position?: "left" | "center" | "right";
+  // 사용자 지시(2026-08-12): "수정 YYYY.MM.DD" 줄을 아예 숨길 수 있게.
+  hideUpdatedDate?: boolean;
+  // 사용자 지시(2026-08-12): 글번호/날짜/제목/작성자/좋아요·조회·댓글 각각
+  // 폰트를 따로 지정할 수 있게 — CSS font-family 문자열을 그대로 받는다
+  // (Navbar.tsx의 커스텀 폰트 입력과 동일한 자유 입력 방식, 이 프로젝트는
+  // 폰트 선택 UI를 만들지 않고 항상 CSS 값을 직접 받는 관례).
+  dateFontFamily?: string;
   // HOTFIX-099(사용자 지시): 글 번호("No. X")/작성자 이름을 날짜와 별도로
   // 크기/색상만 지정할 수 있게 한다(굵기/정렬은 날짜와 공유 — 셋 다 같은
   // 메타 정보 블록이라 서로 다른 정렬을 갖는 경우는 상정하지 않음).
   postNumberSizePx?: number;
   postNumberColorHex?: string;
+  postNumberFontFamily?: string;
   authorNameSizePx?: number;
   authorNameColorHex?: string;
+  authorNameFontFamily?: string;
+  // 사용자 지시(2026-08-12): 제목은 지금까지 크기/색상 없이 폰트만 지정
+  // 가능하게 한다(제목 자체 크기는 이미 반응형 h1 스타일로 고정돼 있어,
+  // 여기서 갑자기 임의 크기를 허용하면 레이아웃이 깨지기 쉽다 — 폰트만).
+  titleFontFamily?: string;
+  // 사용자 지시(2026-08-12): "좋아요 · 조회 · 댓글" 통계 줄 — 지금까지
+  // 전혀 스타일을 지정할 수 없었다. 세 값이 항상 한 줄에 나란히 붙어
+  // 나오므로(statParts.join(" · ")) 하나로 묶어 크기/색상/폰트를 지정한다.
+  statSizePx?: number;
+  statColorHex?: string;
+  statFontFamily?: string;
 };
 
 export function metaStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
@@ -23,6 +42,7 @@ export function metaStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSS
   return {
     ...(metaStyle.dateSizePx ? { fontSize: metaStyle.dateSizePx } : {}),
     ...(metaStyle.dateColorHex ? { color: metaStyle.dateColorHex } : {}),
+    ...(metaStyle.dateFontFamily ? { fontFamily: metaStyle.dateFontFamily } : {}),
     ...(metaStyle.fontWeight ? { fontWeight: metaStyle.fontWeight } : {}),
     ...(metaStyle.position ? { textAlign: metaStyle.position } : {}),
   };
@@ -33,6 +53,7 @@ function postNumberStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSP
   return {
     ...(metaStyle.postNumberSizePx ? { fontSize: metaStyle.postNumberSizePx } : {}),
     ...(metaStyle.postNumberColorHex ? { color: metaStyle.postNumberColorHex } : {}),
+    ...(metaStyle.postNumberFontFamily ? { fontFamily: metaStyle.postNumberFontFamily } : {}),
     ...(metaStyle.fontWeight ? { fontWeight: metaStyle.fontWeight } : {}),
     ...(metaStyle.position ? { textAlign: metaStyle.position } : {}),
   };
@@ -43,8 +64,25 @@ function authorNameStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSP
   return {
     ...(metaStyle.authorNameSizePx ? { fontSize: metaStyle.authorNameSizePx } : {}),
     ...(metaStyle.authorNameColorHex ? { color: metaStyle.authorNameColorHex } : {}),
+    ...(metaStyle.authorNameFontFamily ? { fontFamily: metaStyle.authorNameFontFamily } : {}),
     ...(metaStyle.fontWeight ? { fontWeight: metaStyle.fontWeight } : {}),
     ...(metaStyle.position ? { textAlign: metaStyle.position } : {}),
+  };
+}
+
+function titleStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
+  if (!metaStyle) return {};
+  return {
+    ...(metaStyle.titleFontFamily ? { fontFamily: metaStyle.titleFontFamily } : {}),
+  };
+}
+
+function statStyleToCss(metaStyle: PostMetaStyle | undefined | null): CSSProperties {
+  if (!metaStyle) return {};
+  return {
+    ...(metaStyle.statSizePx ? { fontSize: metaStyle.statSizePx } : {}),
+    ...(metaStyle.statColorHex ? { color: metaStyle.statColorHex } : {}),
+    ...(metaStyle.statFontFamily ? { fontFamily: metaStyle.statFontFamily } : {}),
   };
 }
 
@@ -102,10 +140,13 @@ export function PostDetailHeader({
     ...(showViewCount ? [`조회 ${viewCount ?? 0}`] : []),
     ...(showComments ? [`댓글 ${commentCount}`] : []),
   ];
-  const wasEdited = updatedAt && updatedAt !== createdAt;
+  // 사용자 지시(2026-08-12): "수정 YYYY.MM.DD" 줄 자체를 숨길 수 있게.
+  const wasEdited = updatedAt && updatedAt !== createdAt && !metaStyle?.hideUpdatedDate;
   const metaCss = metaStyleToCss(metaStyle);
   const postNumberCss = postNumberStyleToCss(metaStyle);
   const authorNameCss = authorNameStyleToCss(metaStyle);
+  const titleCss = titleStyleToCss(metaStyle);
+  const statCss = statStyleToCss(metaStyle);
 
   return (
     <div>
@@ -132,11 +173,11 @@ export function PostDetailHeader({
               {badges}
             </div>
           )}
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold leading-snug text-gray-900">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold leading-snug text-gray-900" style={titleCss}>
             {title}
           </h1>
           {statParts.length > 0 && (
-            <p className="text-xs uppercase tracking-wide text-gray-400 mt-3">
+            <p className="text-xs uppercase tracking-wide text-gray-400 mt-3" style={statCss}>
               {statParts.join(" · ")}
             </p>
           )}

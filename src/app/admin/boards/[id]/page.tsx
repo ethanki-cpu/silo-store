@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
-import { BoardForm, DEFAULT_BOARD_FORM_VALUES, type BoardFormValues } from "@/components/admin/BoardForm";
+import { BoardForm, DEFAULT_BOARD_FORM_VALUES, buildPostMetaStyle, type BoardFormValues } from "@/components/admin/BoardForm";
 import { ConfirmModal } from "@/components/admin/ConfirmModal";
 import { DEFAULT_POST_LAYOUT_ORDER, normalizePostLayoutOrder } from "@/lib/postLayout";
 
@@ -60,10 +60,18 @@ export default function AdminBoardEditPage() {
         post_meta_date_color_hex: data.widget_settings?.postMetaStyle?.dateColorHex ?? "",
         post_meta_font_weight: data.widget_settings?.postMetaStyle?.fontWeight ?? 0,
         post_meta_position: data.widget_settings?.postMetaStyle?.position ?? "",
+        post_meta_hide_updated_date: data.widget_settings?.postMetaStyle?.hideUpdatedDate ?? false,
+        post_meta_date_font_family: data.widget_settings?.postMetaStyle?.dateFontFamily ?? "",
         post_meta_post_number_size_px: data.widget_settings?.postMetaStyle?.postNumberSizePx ?? 0,
         post_meta_post_number_color_hex: data.widget_settings?.postMetaStyle?.postNumberColorHex ?? "",
+        post_meta_post_number_font_family: data.widget_settings?.postMetaStyle?.postNumberFontFamily ?? "",
         post_meta_author_name_size_px: data.widget_settings?.postMetaStyle?.authorNameSizePx ?? 0,
         post_meta_author_name_color_hex: data.widget_settings?.postMetaStyle?.authorNameColorHex ?? "",
+        post_meta_author_name_font_family: data.widget_settings?.postMetaStyle?.authorNameFontFamily ?? "",
+        post_meta_title_font_family: data.widget_settings?.postMetaStyle?.titleFontFamily ?? "",
+        post_meta_stat_size_px: data.widget_settings?.postMetaStyle?.statSizePx ?? 0,
+        post_meta_stat_color_hex: data.widget_settings?.postMetaStyle?.statColorHex ?? "",
+        post_meta_stat_font_family: data.widget_settings?.postMetaStyle?.statFontFamily ?? "",
         timeline_orientation: data.widget_settings?.timelineOrientation ?? "",
         timeline_show_preview: data.widget_settings?.timelineShowPreview ?? true,
         timeline_accent_color_hex: data.widget_settings?.timelineAccentColorHex ?? "",
@@ -122,35 +130,7 @@ export default function AdminBoardEditPage() {
           // HOTFIX-093-B(요구사항 1.3)/HOTFIX-099: 값이 전부 미지정이면
           // postMetaStyle 자체를 저장하지 않는다(PostDetailHeader가
           // undefined일 때 기존 기본 스타일을 그대로 쓰도록 이미 구현돼 있음).
-          ...(next.post_meta_date_size_px ||
-          next.post_meta_date_color_hex ||
-          next.post_meta_font_weight ||
-          next.post_meta_position ||
-          next.post_meta_post_number_size_px ||
-          next.post_meta_post_number_color_hex ||
-          next.post_meta_author_name_size_px ||
-          next.post_meta_author_name_color_hex
-            ? {
-                postMetaStyle: {
-                  ...(next.post_meta_date_size_px ? { dateSizePx: next.post_meta_date_size_px } : {}),
-                  ...(next.post_meta_date_color_hex ? { dateColorHex: next.post_meta_date_color_hex } : {}),
-                  ...(next.post_meta_font_weight ? { fontWeight: next.post_meta_font_weight } : {}),
-                  ...(next.post_meta_position ? { position: next.post_meta_position } : {}),
-                  ...(next.post_meta_post_number_size_px
-                    ? { postNumberSizePx: next.post_meta_post_number_size_px }
-                    : {}),
-                  ...(next.post_meta_post_number_color_hex
-                    ? { postNumberColorHex: next.post_meta_post_number_color_hex }
-                    : {}),
-                  ...(next.post_meta_author_name_size_px
-                    ? { authorNameSizePx: next.post_meta_author_name_size_px }
-                    : {}),
-                  ...(next.post_meta_author_name_color_hex
-                    ? { authorNameColorHex: next.post_meta_author_name_color_hex }
-                    : {}),
-                },
-              }
-            : {}),
+          ...(buildPostMetaStyle(next) ? { postMetaStyle: buildPostMetaStyle(next) } : {}),
           // EPIC-096(요구사항 3.1): 기본 순서와 같으면 저장하지 않는다(다른
           // widget_settings 필드들과 동일한 관례 — 값이 없으면
           // PostDetailClient가 하드코딩된 기본 순서를 그대로 쓴다).

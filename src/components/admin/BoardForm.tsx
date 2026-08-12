@@ -11,6 +11,7 @@ import { CategoryBranchPicker } from "@/components/common/CategoryBranchPicker";
 import { RANK_OPTIONS } from "@/lib/membershipTiers";
 import { DEFAULT_POST_LAYOUT_ORDER, type PostLayoutBlock } from "@/lib/postLayout";
 import { PostLayoutOrderEditor } from "@/components/admin/PostLayoutOrderEditor";
+import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
 
 export { RANK_OPTIONS };
 
@@ -49,12 +50,24 @@ export type BoardFormValues = {
   post_meta_date_color_hex: string; // "" = 미지정
   post_meta_font_weight: number; // 0 = 미지정
   post_meta_position: string; // "" | "left" | "center" | "right"
+  // 사용자 지시(2026-08-12): "수정 YYYY.MM.DD" 줄 숨기기 + 각 항목별 폰트.
+  post_meta_hide_updated_date: boolean;
+  post_meta_date_font_family: string; // "" = 미지정
   // HOTFIX-099(사용자 지시): 글 번호/작성자 이름을 날짜와 별도로 크기·색상
   // 지정 — widget_settings.postMetaStyle.postNumber*/authorName*로 저장.
   post_meta_post_number_size_px: number; // 0 = 미지정
   post_meta_post_number_color_hex: string; // "" = 미지정
+  post_meta_post_number_font_family: string; // "" = 미지정
   post_meta_author_name_size_px: number; // 0 = 미지정
   post_meta_author_name_color_hex: string; // "" = 미지정
+  post_meta_author_name_font_family: string; // "" = 미지정
+  // 사용자 지시(2026-08-12): 제목 폰트(크기/색상은 반응형 h1 스타일 유지).
+  post_meta_title_font_family: string; // "" = 미지정
+  // 사용자 지시(2026-08-12): "좋아요 · 조회 · 댓글" 통계 줄 — 지금까지
+  // 스타일 지정 자체가 불가능했다.
+  post_meta_stat_size_px: number; // 0 = 미지정
+  post_meta_stat_color_hex: string; // "" = 미지정
+  post_meta_stat_font_family: string; // "" = 미지정
   // HOTFIX-097(사용자 지시): 타임라인(render_type="timeline")에서만 의미
   // 있음 — widget_settings.timelineOrientation/timelineShowPreview로 저장.
   timeline_orientation: string; // "" | "vertical" | "horizontal" ("" = vertical과 동일)
@@ -140,10 +153,18 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   post_meta_date_color_hex: "",
   post_meta_font_weight: 0,
   post_meta_position: "",
+  post_meta_hide_updated_date: false,
+  post_meta_date_font_family: "",
   post_meta_post_number_size_px: 0,
   post_meta_post_number_color_hex: "",
+  post_meta_post_number_font_family: "",
   post_meta_author_name_size_px: 0,
   post_meta_author_name_color_hex: "",
+  post_meta_author_name_font_family: "",
+  post_meta_title_font_family: "",
+  post_meta_stat_size_px: 0,
+  post_meta_stat_color_hex: "",
+  post_meta_stat_font_family: "",
   timeline_orientation: "",
   timeline_show_preview: true,
   timeline_accent_color_hex: "",
@@ -152,6 +173,66 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   timeline_card_theme: "",
   post_layout_order: DEFAULT_POST_LAYOUT_ORDER,
 };
+
+// 사용자 지시(2026-08-12): postMetaStyle 조립 로직이 저장(2곳: 생성/수정
+// 페이지)·전체 게시판 기본값 저장·실시간 프리뷰까지 4곳에서 완전히
+// 똑같이 반복되고 있었다 — 필드를 늘릴 때마다 4곳을 매번 손으로 맞추면
+// 어긋나기 쉬워 하나로 뽑았다. 값이 전부 미지정이면 undefined를 반환해
+// widget_settings에 아예 postMetaStyle 키 자체를 안 남기는 기존 관례를
+// 그대로 유지한다.
+export function buildPostMetaStyle(values: BoardFormValues): PostMetaStyle | undefined {
+  const hasAny =
+    values.post_meta_date_size_px ||
+    values.post_meta_date_color_hex ||
+    values.post_meta_font_weight ||
+    values.post_meta_position ||
+    values.post_meta_hide_updated_date ||
+    values.post_meta_date_font_family ||
+    values.post_meta_post_number_size_px ||
+    values.post_meta_post_number_color_hex ||
+    values.post_meta_post_number_font_family ||
+    values.post_meta_author_name_size_px ||
+    values.post_meta_author_name_color_hex ||
+    values.post_meta_author_name_font_family ||
+    values.post_meta_title_font_family ||
+    values.post_meta_stat_size_px ||
+    values.post_meta_stat_color_hex ||
+    values.post_meta_stat_font_family;
+  if (!hasAny) return undefined;
+
+  return {
+    ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
+    ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),
+    ...(values.post_meta_font_weight ? { fontWeight: values.post_meta_font_weight } : {}),
+    ...(values.post_meta_position
+      ? { position: values.post_meta_position as "left" | "center" | "right" }
+      : {}),
+    ...(values.post_meta_hide_updated_date ? { hideUpdatedDate: true } : {}),
+    ...(values.post_meta_date_font_family ? { dateFontFamily: values.post_meta_date_font_family } : {}),
+    ...(values.post_meta_post_number_size_px
+      ? { postNumberSizePx: values.post_meta_post_number_size_px }
+      : {}),
+    ...(values.post_meta_post_number_color_hex
+      ? { postNumberColorHex: values.post_meta_post_number_color_hex }
+      : {}),
+    ...(values.post_meta_post_number_font_family
+      ? { postNumberFontFamily: values.post_meta_post_number_font_family }
+      : {}),
+    ...(values.post_meta_author_name_size_px
+      ? { authorNameSizePx: values.post_meta_author_name_size_px }
+      : {}),
+    ...(values.post_meta_author_name_color_hex
+      ? { authorNameColorHex: values.post_meta_author_name_color_hex }
+      : {}),
+    ...(values.post_meta_author_name_font_family
+      ? { authorNameFontFamily: values.post_meta_author_name_font_family }
+      : {}),
+    ...(values.post_meta_title_font_family ? { titleFontFamily: values.post_meta_title_font_family } : {}),
+    ...(values.post_meta_stat_size_px ? { statSizePx: values.post_meta_stat_size_px } : {}),
+    ...(values.post_meta_stat_color_hex ? { statColorHex: values.post_meta_stat_color_hex } : {}),
+    ...(values.post_meta_stat_font_family ? { statFontFamily: values.post_meta_stat_font_family } : {}),
+  };
+}
 
 const PREVIEW_POSTS: BoardPost[] = [
   {
@@ -220,20 +301,7 @@ export function BoardForm({
   async function handleSaveAsSiteDefault() {
     setSavingSiteDefault(true);
     setSiteDefaultSaved(false);
-    const postMetaStyle = {
-      ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
-      ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),
-      ...(values.post_meta_font_weight ? { fontWeight: values.post_meta_font_weight } : {}),
-      ...(values.post_meta_position ? { position: values.post_meta_position } : {}),
-      ...(values.post_meta_post_number_size_px ? { postNumberSizePx: values.post_meta_post_number_size_px } : {}),
-      ...(values.post_meta_post_number_color_hex
-        ? { postNumberColorHex: values.post_meta_post_number_color_hex }
-        : {}),
-      ...(values.post_meta_author_name_size_px ? { authorNameSizePx: values.post_meta_author_name_size_px } : {}),
-      ...(values.post_meta_author_name_color_hex
-        ? { authorNameColorHex: values.post_meta_author_name_color_hex }
-        : {}),
-    };
+    const postMetaStyle = buildPostMetaStyle(values) ?? {};
     const { error: saveError } = await supabase.from("site_settings").upsert(
       {
         setting_key: "default_post_display_style",
@@ -835,6 +903,16 @@ export function BoardForm({
               />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">날짜 폰트</label>
+              <input
+                type="text"
+                value={values.post_meta_date_font_family}
+                onChange={(e) => update("post_meta_date_font_family", e.target.value)}
+                placeholder="예: 'Pretendard', sans-serif"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">폰트 웨이트</label>
               <select
                 value={values.post_meta_font_weight || ""}
@@ -862,11 +940,22 @@ export function BoardForm({
                 <option value="right">오른쪽</option>
               </select>
             </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={values.post_meta_hide_updated_date}
+                  onChange={(e) => update("post_meta_hide_updated_date", e.target.checked)}
+                />
+                &quot;수정 YYYY.MM.DD&quot; 줄 숨기기
+              </label>
+            </div>
           </div>
 
           {/* HOTFIX-099(사용자 지시): 글 번호/작성자 이름도 날짜와 별도로
-              크기·색상을 지정할 수 있게 — 굵기/정렬은 위 값을 그대로 공유. */}
-          <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 pt-3">
+              크기·색상을 지정할 수 있게 — 굵기/정렬은 위 값을 그대로 공유.
+              사용자 지시(2026-08-12): 폰트도 각각 추가. */}
+          <div className="mt-4 grid grid-cols-3 gap-4 border-t border-gray-100 pt-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">글 번호 크기 (px)</label>
               <input
@@ -890,6 +979,16 @@ export function BoardForm({
               />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">글 번호 폰트</label>
+              <input
+                type="text"
+                value={values.post_meta_post_number_font_family}
+                onChange={(e) => update("post_meta_post_number_font_family", e.target.value)}
+                placeholder="예: 'Pretendard', sans-serif"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">작성자 이름 크기 (px)</label>
               <input
                 type="number"
@@ -908,6 +1007,69 @@ export function BoardForm({
                 value={values.post_meta_author_name_color_hex}
                 onChange={(e) => update("post_meta_author_name_color_hex", e.target.value)}
                 placeholder="#1F2937"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">작성자 이름 폰트</label>
+              <input
+                type="text"
+                value={values.post_meta_author_name_font_family}
+                onChange={(e) => update("post_meta_author_name_font_family", e.target.value)}
+                placeholder="예: 'Pretendard', sans-serif"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* 사용자 지시(2026-08-12): 제목 폰트 — 크기/색상은 반응형 h1
+              스타일을 그대로 유지한다(임의 크기를 허용하면 레이아웃이
+              쉽게 깨져서 폰트만 열어둔다). */}
+          <div className="mt-4 border-t border-gray-100 pt-3">
+            <label className="block text-xs font-medium text-gray-600 mb-1">제목 폰트</label>
+            <input
+              type="text"
+              value={values.post_meta_title_font_family}
+              onChange={(e) => update("post_meta_title_font_family", e.target.value)}
+              placeholder="예: 'Pretendard', sans-serif"
+              className="w-full max-w-xs rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          {/* 사용자 지시(2026-08-12): "좋아요 · 조회 · 댓글" 통계 줄 —
+              지금까지 스타일 지정 자체가 불가능했다. 세 값이 항상 한 줄에
+              같이 붙어 나오므로(PostDetailHeader.tsx의 statParts) 하나로
+              묶어 크기/색상/폰트를 지정한다. */}
+          <div className="mt-4 grid grid-cols-3 gap-4 border-t border-gray-100 pt-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">좋아요·조회·댓글 크기 (px)</label>
+              <input
+                type="number"
+                min={8}
+                max={48}
+                value={values.post_meta_stat_size_px || ""}
+                onChange={(e) => update("post_meta_stat_size_px", Number(e.target.value) || 0)}
+                placeholder="기본값(12px)"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">좋아요·조회·댓글 색상 (Hex)</label>
+              <input
+                type="text"
+                value={values.post_meta_stat_color_hex}
+                onChange={(e) => update("post_meta_stat_color_hex", e.target.value)}
+                placeholder="#9CA3AF"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">좋아요·조회·댓글 폰트</label>
+              <input
+                type="text"
+                value={values.post_meta_stat_font_family}
+                onChange={(e) => update("post_meta_stat_font_family", e.target.value)}
+                placeholder="예: 'Pretendard', sans-serif"
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
@@ -1113,14 +1275,7 @@ export function BoardForm({
             timelineLineWidthPx={values.timeline_line_width_px || undefined}
             timelineMarkerSizePx={values.timeline_marker_size_px || undefined}
             timelineCardTheme={values.timeline_card_theme === "dark" ? "dark" : values.timeline_card_theme === "light" ? "light" : undefined}
-            postMetaStyle={{
-              ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
-              ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),
-              ...(values.post_meta_font_weight ? { fontWeight: values.post_meta_font_weight } : {}),
-              ...(values.post_meta_position
-                ? { position: values.post_meta_position as "left" | "center" | "right" }
-                : {}),
-            }}
+            postMetaStyle={buildPostMetaStyle(values) ?? {}}
           />
         </div>
       </div>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
-import { BoardForm, DEFAULT_BOARD_FORM_VALUES, type BoardFormValues } from "@/components/admin/BoardForm";
+import { BoardForm, DEFAULT_BOARD_FORM_VALUES, buildPostMetaStyle, type BoardFormValues } from "@/components/admin/BoardForm";
 import { DEFAULT_POST_LAYOUT_ORDER } from "@/lib/postLayout";
 
 export default function AdminBoardNewPage() {
@@ -48,35 +48,7 @@ export default function AdminBoardNewPage() {
           ...(values.timeline_line_width_px ? { timelineLineWidthPx: values.timeline_line_width_px } : {}),
           ...(values.timeline_marker_size_px ? { timelineMarkerSizePx: values.timeline_marker_size_px } : {}),
           ...(values.timeline_card_theme ? { timelineCardTheme: values.timeline_card_theme } : {}),
-          ...(values.post_meta_date_size_px ||
-          values.post_meta_date_color_hex ||
-          values.post_meta_font_weight ||
-          values.post_meta_position ||
-          values.post_meta_post_number_size_px ||
-          values.post_meta_post_number_color_hex ||
-          values.post_meta_author_name_size_px ||
-          values.post_meta_author_name_color_hex
-            ? {
-                postMetaStyle: {
-                  ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
-                  ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),
-                  ...(values.post_meta_font_weight ? { fontWeight: values.post_meta_font_weight } : {}),
-                  ...(values.post_meta_position ? { position: values.post_meta_position } : {}),
-                  ...(values.post_meta_post_number_size_px
-                    ? { postNumberSizePx: values.post_meta_post_number_size_px }
-                    : {}),
-                  ...(values.post_meta_post_number_color_hex
-                    ? { postNumberColorHex: values.post_meta_post_number_color_hex }
-                    : {}),
-                  ...(values.post_meta_author_name_size_px
-                    ? { authorNameSizePx: values.post_meta_author_name_size_px }
-                    : {}),
-                  ...(values.post_meta_author_name_color_hex
-                    ? { authorNameColorHex: values.post_meta_author_name_color_hex }
-                    : {}),
-                },
-              }
-            : {}),
+          ...(buildPostMetaStyle(values) ? { postMetaStyle: buildPostMetaStyle(values) } : {}),
           ...(values.post_layout_order.join(",") !== DEFAULT_POST_LAYOUT_ORDER.join(",")
             ? { postLayoutOrder: values.post_layout_order }
             : {}),

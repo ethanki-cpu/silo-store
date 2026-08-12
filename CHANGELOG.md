@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-12 (EPIC-096 후속 4차 — "게시물 출력방식" 확장: 수정일 숨기기 + 항목별 폰트 + 통계 스타일)
+- **"수정 YYYY.MM.DD" 숨기기**: `postMetaStyle.hideUpdatedDate` 추가 — 체크하면 게시글 상세에서 수정일 줄 자체가 렌더링되지 않는다.
+- **항목별 폰트 지정**: 글번호/날짜/작성자/제목 4곳에 폰트 입력 필드 추가(`postNumberFontFamily`/`dateFontFamily`/`authorNameFontFamily`/`titleFontFamily`) — Navbar.tsx의 커스텀 폰트 입력과 동일하게 CSS `font-family` 문자열을 자유 입력받는다(별도 폰트 선택 UI 없음, 이 프로젝트의 기존 관례). 제목은 크기/색상은 그대로 두고(반응형 h1이라 임의 크기를 허용하면 레이아웃이 깨지기 쉬움) 폰트만 열었다.
+- **좋아요·조회·댓글 스타일**: 지금까지 이 통계 줄은 스타일 지정 자체가 불가능했다 — `statSizePx`/`statColorHex`/`statFontFamily`를 추가해 세 값(항상 한 줄에 붙어 나옴)을 하나로 묶어 크기/색상/폰트를 지정할 수 있게 했다.
+- **리팩터**: `postMetaStyle` 조립 로직이 저장(생성/수정 페이지 2곳)·"전체 게시판 기본값 저장"·실시간 미리보기까지 4곳에 그대로 복붙돼 있어 필드를 추가할 때마다 어긋나기 쉬웠다 — `BoardForm.tsx`에 `buildPostMetaStyle()` 공용 함수로 뽑아 4곳 모두 이걸 재사용하도록 정리(동작 변경 없음, 순수 리팩터).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 warning 없음). 로컬 dev에서 게시글 상세(`/boards/treasures/urin-02`)와 타임라인(`/about-silo/silo-timeline`) 둘 다 콘솔 에러 없이 렌더링 확인(타임라인은 `metaStyleToCss`를 공유해 새 `dateFontFamily`가 자동으로 반영되지만 이번엔 회귀 없음만 확인, 별도 UI 추가는 게시글 상세에만 국한). **다음 세션에서 확인 필요(관리자 로그인 세션)**: 실제로 각 필드를 입력해 저장 → 게시글 상세에 폰트/숨김/통계 스타일이 반영되는지 왕복.
+- **변경 파일**: `src/components/boards/PostDetailHeader.tsx`, `src/components/admin/BoardForm.tsx`, `src/app/admin/boards/[id]/page.tsx`, `src/app/admin/boards/new/page.tsx`.
+
 ## 2026-08-12 (EPIC-096 후속 3차 — "게시물 출력방식" 버튼 목적지 버그, 썸네일 크기 설정, 전체 게시판 기본값)
 - **"게시물 출력방식" 버튼이 엉뚱한 페이지로 가던 버그 수정**: 게시글 상세의 이 버튼이 실제 설정 화면(`/admin/boards/[id]`)이 아니라 모든 게시판이 공유하는 Page Builder placeholder(`boards-id-postid` slug, `/admin/pages/[공용 id]`)로 보내고 있었다 — `PageEditButton.tsx`에 `hrefOverride` prop을 추가해 호출부가 정확한 목적지를 직접 지정할 수 있게 하고, `PostDetailClient.tsx`가 이미 알고 있는 `board.id`로 `/admin/boards/${board.id}`를 바로 연결한다.
 - **갤러리 썸네일 크기 직접 지정**: "게시판 수정"의 갤러리 설정에 "썸네일 최대 크기 (px)" 입력 필드 추가(`widget_settings.galleryThumbnailMaxPx`) — 비워두면 EPIC-096의 기존 동작(한 행당 개수로 자동 계산) 그대로, 값을 넣으면 그 px를 칸의 목표 너비로 직접 강제한다. `useBoardData.ts` → `BoardModule.tsx` → `types.ts`(BoardRendererProps) → `GalleryRenderer.tsx` → `GalleryModule.tsx`까지 기존 galleryColumns와 동일한 파이프라인으로 배선.

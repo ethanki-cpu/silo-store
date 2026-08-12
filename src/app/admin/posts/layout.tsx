@@ -35,9 +35,13 @@ export default function AdminPostsLayout({
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="max-w-4xl mx-auto w-full px-8 pt-6">
+      {/* 사용자 신고(2026-08-12): 탭이 7개로 늘어나면서 max-w-4xl 폭에
+          가로 스크롤 없이는 다 안 보였다 — 컨테이너를 넓히고(max-w-6xl),
+          가로 스크롤 대신 필요하면 줄바꿈(flex-wrap)되도록 바꿔 스크롤 없이
+          한 화면에서 전부 보이게 한다. */}
+      <div className="max-w-6xl mx-auto w-full px-8 pt-6">
         <h1 className="text-2xl font-bold mb-4">전체 글 관리</h1>
-        <nav className="flex gap-1 overflow-x-auto whitespace-nowrap border-b border-gray-200 mb-6">
+        <nav className="flex flex-wrap gap-1 border-b border-gray-200 mb-6">
           {SUB_NAV.map((item) => (
             <Link
               key={item.href}

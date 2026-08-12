@@ -194,7 +194,7 @@ export default function AdminPostsShopPage() {
   }
 
   return (
-    <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
+    <main className="flex-1 px-8 pb-8 max-w-6xl mx-auto w-full">
       <div className="flex flex-wrap gap-2 mb-4">
         <button
           type="button"

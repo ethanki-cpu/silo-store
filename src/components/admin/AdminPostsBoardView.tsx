@@ -114,10 +114,22 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
     // 도메인 제한 없이 전체 게시판 목록에서 고를 수 있게 한다(다른 도메인
     // 게시판으로 옮기는 것도 유효한 관리 작업이라 이 화면의 domain 필터로
     // 좁히지 않는다).
+    // 사용자 신고(2026-08-12): 가나다순 정렬이면 About Silo/사일로상점/
+    // 온라인도슨트/살롱데상/스튜디오/마이페이지 순서가 다 흩어진다 —
+    // HOTFIX-101이 WriteBoardForm의 게시판 선택기에 적용했던 것과 동일하게,
+    // 실제 사이트 메뉴 트리 순서(navBranches, sort_order 기준 depth-first)를
+    // 그대로 따르게 한다. 어느 브랜치에도 안 걸린 게시판(미분류)은 맨 뒤에
+    // 이름순으로 모아둔다.
+    const branchOrderIndex = new Map(navBranches.map((b, i) => [b.id, i]));
     setAllBoardOptions(
       (allBoards ?? [])
-        .map((b) => ({ id: b.id, name: (b as { name?: string }).name ?? "(이름 없음)" }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+        .map((b) => ({
+          id: b.id,
+          name: (b as { name?: string }).name ?? "(이름 없음)",
+          order: branchMap.has(b.id) ? (branchOrderIndex.get(branchMap.get(b.id)!) ?? Infinity) : Infinity,
+        }))
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+        .map(({ id, name }) => ({ id, name })),
     );
 
     // 사이트 내비게이션 트리에서 이 도메인(4대 탭 중 하나)에 속하는 것으로
@@ -340,7 +352,7 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
 
   if (noBoardsInDomain && !fetching) {
     return (
-      <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
+      <main className="flex-1 px-8 pb-8 max-w-6xl mx-auto w-full">
         <p className="text-gray-400 text-sm">
           {ADMIN_DOMAIN_LABELS[domain]} 도메인에 속한 게시판이 아직 없어요.
         </p>
@@ -349,7 +361,7 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
   }
 
   return (
-    <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
+    <main className="flex-1 px-8 pb-8 max-w-6xl mx-auto w-full">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex flex-wrap gap-2">
           <button

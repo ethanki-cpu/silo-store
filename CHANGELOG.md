@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-12 (EPIC-096 후속 2차 — 사용자 신고: 탭/표 가로 스크롤, 게시판 선택 정렬)
+- **탭/표 가로 스크롤 제거**: "전체 글 관리" 탭 바(`layout.tsx`)가 `max-w-4xl`(896px) 안에서 7개 탭을 `overflow-x-auto whitespace-nowrap`로 욱여넣어 스크롤해야 다 보였다 — 컨테이너를 `max-w-6xl`로 넓히고 `flex-wrap`으로 바꿔 스크롤 없이(필요하면 줄바꿈으로) 한 화면에 다 보이게 했다. 표가 있는 `AdminPostsBoardView.tsx`/`/admin/posts/shop`도 같은 이유로 `max-w-6xl`로 함께 넓힘.
+- **게시판 이동 select 정렬**: 인라인 "카테고리(게시판) 이동" 드롭다운이 가나다순이라 About Silo/사일로상점/온라인도슨트/살롱데상/스튜디오/마이페이지 실제 사이트 구조가 뒤섞여 보였다 — HOTFIX-101이 `WriteBoardForm`의 게시판 선택기에 이미 적용한 것과 동일하게, 실제 사이트 메뉴 트리 순서(`site_navigations` sort_order 기준)를 그대로 따르도록 수정. 어느 브랜치에도 안 걸린 게시판만 맨 뒤에 이름순으로 남는다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 warning 없음). 관리자 로그인 세션이 없어 실제 화면(탭이 한 줄/두 줄로 자연스럽게 보이는지, 드롭다운 순서가 맞는지)은 코드 검증만 완료 — **다음 세션에서 확인 필요(로그인 세션)**.
+- **변경 파일**: `src/app/admin/posts/layout.tsx`, `src/components/admin/AdminPostsBoardView.tsx`, `src/app/admin/posts/shop/page.tsx`.
+
 ## 2026-08-12 (EPIC-096, 5차/최종 — 에디터 슬래시 커맨드 + 인라인 설문(Poll) 블록)
 - **3.2 사실 확인**: 이 에디터는 이미 Tiptap 기반(`blockEditorCore.ts`/`BlockEditor.tsx`)이고 텍스트 포맷팅(굵게/색상 등)·이미지·영상·갤러리 캐러셀·유튜브/인스타/X 임베드·**표(Table, EPIC-083)**까지 전부 있었다 — "빈약한 에디터 폐기 후 재도입"이 아니라, 실제로 빠져 있던 두 가지(슬래시 커맨드 UX, 투표 블록)만 추가했다.
 - **슬래시 커맨드 메뉴**: 문단 맨 앞에서 `/`를 치면 뜬다(새 패키지 없이 매 update마다 "문단 시작~커서" 텍스트를 정규식으로 검사하는 방식 — 이 파일이 이미 쓰는 "가벼운 직접 구현" 관례). 제목2/제목3/글머리 목록/번호 목록/인용구/표/구분선(기존 툴바 버튼과 동일한 chain 커맨드) + 설문(Poll, 신규)을 지원.

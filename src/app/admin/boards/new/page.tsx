@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { BoardForm, DEFAULT_BOARD_FORM_VALUES, type BoardFormValues } from "@/components/admin/BoardForm";
+import { DEFAULT_POST_LAYOUT_ORDER } from "@/lib/postLayout";
 
 export default function AdminBoardNewPage() {
   const { session } = useAuth();
@@ -74,6 +75,9 @@ export default function AdminBoardNewPage() {
                     : {}),
                 },
               }
+            : {}),
+          ...(values.post_layout_order.join(",") !== DEFAULT_POST_LAYOUT_ORDER.join(",")
+            ? { postLayoutOrder: values.post_layout_order }
             : {}),
         },
       }),

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { BoardForm, DEFAULT_BOARD_FORM_VALUES, type BoardFormValues } from "@/components/admin/BoardForm";
 import { ConfirmModal } from "@/components/admin/ConfirmModal";
+import { DEFAULT_POST_LAYOUT_ORDER, normalizePostLayoutOrder } from "@/lib/postLayout";
 
 export default function AdminBoardEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +69,7 @@ export default function AdminBoardEditPage() {
         timeline_line_width_px: data.widget_settings?.timelineLineWidthPx ?? 0,
         timeline_marker_size_px: data.widget_settings?.timelineMarkerSizePx ?? 0,
         timeline_card_theme: data.widget_settings?.timelineCardTheme ?? "",
+        post_layout_order: normalizePostLayoutOrder(data.widget_settings?.postLayoutOrder),
       });
     }
 
@@ -146,6 +148,12 @@ export default function AdminBoardEditPage() {
                     : {}),
                 },
               }
+            : {}),
+          // EPIC-096(요구사항 3.1): 기본 순서와 같으면 저장하지 않는다(다른
+          // widget_settings 필드들과 동일한 관례 — 값이 없으면
+          // PostDetailClient가 하드코딩된 기본 순서를 그대로 쓴다).
+          ...(next.post_layout_order.join(",") !== DEFAULT_POST_LAYOUT_ORDER.join(",")
+            ? { postLayoutOrder: next.post_layout_order }
             : {}),
         },
       }),

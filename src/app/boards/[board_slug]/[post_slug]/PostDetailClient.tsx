@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
@@ -15,6 +15,7 @@ import { resolveBoardDefinition, isRealBoardCategory } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PostFloatingActionBar } from "@/components/boards/PostFloatingActionBar";
 import { guessPostCollectionCategory } from "@/lib/collectionCategory";
+import { normalizePostLayoutOrder, type PostLayoutBlock } from "@/lib/postLayout";
 import type { BreadcrumbItem } from "@/components/PageHeader";
 
 type PostDetail = {
@@ -44,7 +45,8 @@ type Board = {
   category: string | null;
   board_type: string;
   // HOTFIX-093-B(요구사항 1.3): 게시물 출력방식 설정에 저장된 날짜/작성자 스타일.
-  widget_settings?: { postMetaStyle?: PostMetaStyle } | null;
+  // EPIC-096(요구사항 3.1): 5개 블록(메타데이터/태그/본문/좋아요·북마크/댓글) 노출 순서.
+  widget_settings?: { postMetaStyle?: PostMetaStyle; postLayoutOrder?: unknown } | null;
 };
 
 type Comment = {
@@ -281,6 +283,69 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
     post.is_best ? "개념글" : null,
   ].filter((t): t is string => Boolean(t));
 
+  // EPIC-096(요구사항 3.1): 게시글 상세를 5개 블록으로 나눠 admin/boards의
+  // "게시물 출력방식 — 블록 레이아웃 순서"(PostLayoutOrderEditor.tsx)에서
+  // 정한 순서 그대로 렌더링한다 — widget_settings.postLayoutOrder가 없으면
+  // normalizePostLayoutOrder가 기존 하드코딩 순서(DEFAULT_POST_LAYOUT_ORDER)를
+  // 그대로 반환해 회귀가 없다. 이 재배치를 위해 PostDetailHeader("메타데이터")
+  // 도 나머지 4개 블록과 같은 max-w-2xl 폭 안으로 들어왔다(기존엔 더 넓은
+  // max-w-4xl 컨테이너에 바로 있었음 — 순서가 섞일 수 있는 이상 모든 블록이
+  // 같은 폭 규칙을 따라야 자연스럽다).
+  const postLayoutOrder = normalizePostLayoutOrder(board?.widget_settings?.postLayoutOrder);
+  const blockNodes: Record<PostLayoutBlock, ReactNode> = {
+    meta: (
+      <PostDetailHeader
+        postNumber={post.post_number}
+        createdAt={post.created_at}
+        updatedAt={post.updated_at}
+        title={post.title}
+        authorId={post.author_id}
+        authorName={post.author_name}
+        likeCount={post.like_count}
+        viewCount={post.view_count}
+        commentCount={comments.length}
+        showLikes={definition.likes}
+        showComments={definition.comments}
+        showViewCount={definition.showViewCount}
+        metaStyle={board?.widget_settings?.postMetaStyle}
+        editHref={
+          member?.id === post.author_id || member?.is_admin
+            ? `/boards/${boardSlug}/${postSlug}/edit`
+            : undefined
+        }
+        onDelete={member?.id === post.author_id || member?.is_admin ? handleDelete : undefined}
+        deleting={deleting}
+      />
+    ),
+    tags: <PostTags tags={displayTags} />,
+    body: <PostBody body={post.body} />,
+    actions: (
+      <>
+        <PostActions
+          likeCount={post.like_count}
+          likedByMe={likedByMe}
+          onToggleLike={handleLike}
+          likeSubmitting={likeSubmitting}
+          showLike={definition.likes}
+          postId={post.id}
+          showBookmark={definition.bookmarks}
+        />
+        {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+      </>
+    ),
+    comments: definition.comments ? (
+      <CommentSection
+        comments={comments}
+        commentBody={commentBody}
+        onCommentBodyChange={setCommentBody}
+        onSubmit={handleComment}
+        submitting={commentSubmitting}
+        onReply={handleReply}
+        onToggleLike={handleToggleCommentLike}
+      />
+    ) : null,
+  };
+
   return (
     <>
       <main className="flex-1 bg-white px-6 py-12">
@@ -309,57 +374,11 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
             분기한다(EPIC-093 요구사항 1.1). "목록으로"는 항상 떠 있는
             PostFloatingActionBar(좌측 하단)가 담당한다. */}
         <PageEditButton slug="boards-id-postid" label="게시물 출력방식" />
-        <PostDetailHeader
-          postNumber={post.post_number}
-          createdAt={post.created_at}
-          updatedAt={post.updated_at}
-          title={post.title}
-          authorId={post.author_id}
-          authorName={post.author_name}
-          likeCount={post.like_count}
-          viewCount={post.view_count}
-          commentCount={comments.length}
-          showLikes={definition.likes}
-          showComments={definition.comments}
-          showViewCount={definition.showViewCount}
-          metaStyle={board?.widget_settings?.postMetaStyle}
-          editHref={
-            member?.id === post.author_id || member?.is_admin
-              ? `/boards/${boardSlug}/${postSlug}/edit`
-              : undefined
-          }
-          onDelete={member?.id === post.author_id || member?.is_admin ? handleDelete : undefined}
-          deleting={deleting}
-        />
 
         <div className="max-w-2xl mx-auto w-full">
-          <PostTags tags={displayTags} />
-
-          <PostBody body={post.body} />
-
-          <PostActions
-            likeCount={post.like_count}
-            likedByMe={likedByMe}
-            onToggleLike={handleLike}
-            likeSubmitting={likeSubmitting}
-            showLike={definition.likes}
-            postId={post.id}
-            showBookmark={definition.bookmarks}
-          />
-
-          {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
-
-          {definition.comments && (
-            <CommentSection
-              comments={comments}
-              commentBody={commentBody}
-              onCommentBodyChange={setCommentBody}
-              onSubmit={handleComment}
-              submitting={commentSubmitting}
-              onReply={handleReply}
-              onToggleLike={handleToggleCommentLike}
-            />
-          )}
+          {postLayoutOrder.map((block) => (
+            <div key={block}>{blockNodes[block]}</div>
+          ))}
 
           <BoardPostListPanel boardId={boardSlug} currentPostId={postSlug} />
         </div>

@@ -9,6 +9,8 @@ import { ensurePageForSlug } from "@/lib/pageTemplates";
 import { WIDGET_DEFAULT_SETTINGS } from "@/lib/pageBuilder";
 import { CategoryBranchPicker } from "@/components/common/CategoryBranchPicker";
 import { RANK_OPTIONS } from "@/lib/membershipTiers";
+import { DEFAULT_POST_LAYOUT_ORDER, type PostLayoutBlock } from "@/lib/postLayout";
+import { PostLayoutOrderEditor } from "@/components/admin/PostLayoutOrderEditor";
 
 export { RANK_OPTIONS };
 
@@ -61,6 +63,12 @@ export type BoardFormValues = {
   timeline_line_width_px: number; // 0 = 미지정(기본 2px)
   timeline_marker_size_px: number; // 0 = 미지정(기본 14px)
   timeline_card_theme: string; // "" | "light" | "dark" ("" = light과 동일)
+  // EPIC-096(요구사항 3.1): 게시글 상세 페이지의 5개 블록(메타데이터/태그/
+  // 본문/좋아요·북마크/댓글) 노출 순서 — widget_settings.postLayoutOrder로
+  // 저장된다. 기본 순서(DEFAULT_POST_LAYOUT_ORDER)와 같으면 저장하지 않는다
+  // (postMetaStyle과 동일한 관례 — 값이 없으면 PostDetailClient가 기존
+  // 하드코딩 순서를 그대로 쓴다, 회귀 없음).
+  post_layout_order: PostLayoutBlock[];
 };
 
 export const GROUP_OPTIONS: { value: string; label: string }[] = [
@@ -138,6 +146,7 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   timeline_line_width_px: 0,
   timeline_marker_size_px: 0,
   timeline_card_theme: "",
+  post_layout_order: DEFAULT_POST_LAYOUT_ORDER,
 };
 
 const PREVIEW_POSTS: BoardPost[] = [
@@ -842,6 +851,21 @@ export function BoardForm({
                 className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
+          </div>
+        </details>
+
+        {/* EPIC-096(요구사항 3.1): 게시글 상세 블록(메타데이터/태그/본문/
+            좋아요·북마크/댓글) 배치 순서 — 드래그로 바꾸면 우측 프리뷰가
+            바로 다시 그려진다. */}
+        <details className="rounded-md border border-gray-200 p-3" open>
+          <summary className="cursor-pointer text-xs font-medium text-gray-600">
+            게시물 출력방식 — 블록 레이아웃 순서
+          </summary>
+          <div className="mt-3">
+            <PostLayoutOrderEditor
+              order={values.post_layout_order}
+              onChange={(next) => update("post_layout_order", next)}
+            />
           </div>
         </details>
 

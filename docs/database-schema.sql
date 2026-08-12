@@ -3,7 +3,10 @@
 -- 구성: 멤버십 / 사일로상점(1층) / 살롱데상(2층) / 커뮤니티(게시판·포인트)
 --       / 출석체크 / 설문조사 / 자료 다운로드
 --
--- ⚠️ 마지막 동기화: 2026-07-26 (EPIC-023: site_navigations/site_categories 2개
+-- ⚠️ 마지막 동기화: 2026-08-12 (EPIC-095: site_navigations 시드 블록을 가상의
+--    초기 CTE 데이터에서 라이브 DB의 실제 상태(Management API 재조회, id 포함
+--    125행) 그대로의 덤프로 교체 — 아래 site_navigations 시드 섹션 참고).
+--    그 전 동기화는 2026-07-26 (EPIC-023: site_navigations/site_categories 2개
 --    테이블 신규 설계 + navConfig.ts/카테고리 하드코딩 데이터를 옮기는 Seed 포함
 --    — 아직 라이브 DB에는 적용 전. 그 직전 동기화도 같은 날: EPIC-022의
 --    member_collections/member_follows/member_badges/member_visitors 4개 테이블
@@ -861,103 +864,144 @@ create table site_categories (
   created_at  timestamptz not null default now()
 );
 
--- ⚠️ 아래 두 Seed 블록은 기존 navConfig.ts(EPIC-019 기준)와 여러 화면에
--- 하드코딩돼 있던 카테고리 목록을 그대로 옮긴 것 — 이 블록 자체는 라이브
--- DB에 한 번도 적용된 적 없다(EPIC-080 조사로 재확인, 2026-08-06). 라이브
--- site_navigations는 이후 여러 EPIC(관리자 CMS로 직접 구성)을 거치며 이
--- 시드와는 완전히 다른, 훨씬 큰 트리(153행, EPIC-080 조사 시점)로 갈라져
--- 나갔다 — 이 파일 전체의 "점-찍은-시점 스냅샷일 뿐, 라이브와 드리프트됨"
--- 경고(파일 상단)가 이 블록에는 특히 강하게 적용된다. 아래 값을 실제
--- 라이브 상태의 근거로 삼지 말 것 — 필요하면 Management API로 직접
--- 재조회할 것. EPIC-080에서 확인/수정한 라이브 상태 diff는
--- docs/sql/EPIC-080-nav-unification.sql 참고(할머니/할아버지 href 정정 +
--- 그림자 중복 nav 항목 17개 삭제 — 아래 g3_i1/g3_i2 두 줄만 그 수정
--- 방향에 맞춰 갱신해뒀다).
+-- site_navigations 시드: EPIC-095(요구사항 1.1) — Management API로 라이브 DB를
+-- 직접 재조회해(2026-08-12) 생성한 실제 상태 그대로의 덤프(id 포함, 총 125행 —
+-- 활성 119행 + 비활성 6행). 이전엔 EPIC-019 초기 하드코딩을 그대로 옮긴 가상의
+-- CTE 시드였고(라이브에 한 번도 적용된 적 없음, EPIC-080에서 이미 이 사실을
+-- 확인해 문서화), 그 사이 라이브는 관리자 CMS로 완전히 다른 트리로 진화했다
+-- (About Silo 최상위 탭 신설, 사일로상점/살롱데상 href 변경, 온라인 도슨트가
+-- 최상위 탭으로 독립 + 하위 트리가 /docent/<era> 평면 구조에서 /online-docent/
+-- <시대구간>/<era> 2단 구조로 재편 등). 아래 값은 id를 그대로 보존한 진짜 라이브
+-- 데이터라 부모->자식 순서로 실행하면 그대로 유효한 INSERT이기도 하지만, 이
+-- 파일의 목적은 재실행이 아니라 정확한 스냅샷 문서화다 -- 다시 드리프트될 수
+-- 있으니 실제 최신 상태가 필요하면 Management API로 재조회할 것.
 
--- site_navigations 시드: 기존 NAV_TABS(사일로상점/살롱데상/스튜디오/마이페이지) 그대로 이식
-with
-tab_silostore as (
-  insert into site_navigations (key, title, target_type, sort_order)
-  values ('silostore', '사일로상점', 'sidebar_left', 1)
-  returning id
-),
-g1 as (
-  insert into site_navigations (parent_id, title, target_type, sort_order)
-  select id, '사일로 보물들', 'sidebar_left', 1 from tab_silostore returning id
-),
-g1_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'보물 목록','/shop','sidebar_left',1 from g1 returning id),
-g1_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'분양 후기','/boards','sidebar_left',2 from g1 returning id),
-g2 as (
-  insert into site_navigations (parent_id, title, target_type, sort_order)
-  select id, '온라인 도슨트 라이브러리', 'sidebar_left', 2 from tab_silostore returning id
-),
-g2_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Renaissance','/docent/collections#era-renaissance','sidebar_left',1 from g2 returning id),
-g2_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Baroque','/docent/collections#era-baroque','sidebar_left',2 from g2 returning id),
-g2_i3 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Rococo','/docent/collections#era-rococo','sidebar_left',3 from g2 returning id),
-g2_i4 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'NeoClassicism','/docent/collections#era-neoclassic','sidebar_left',4 from g2 returning id),
-g2_i5 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Regency','/docent/collections#era-empire','sidebar_left',5 from g2 returning id),
-g2_i6 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Victoria','/docent/collections#era-victorian','sidebar_left',6 from g2 returning id),
-g2_i7 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Art Nouveau','/docent/collections#era-art_nouveau','sidebar_left',7 from g2 returning id),
-g2_i8 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Art Deco','/docent/collections#era-art_deco','sidebar_left',8 from g2 returning id),
-g2_i9 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Beat Generation','/docent/collections#era-beat_generation','sidebar_left',9 from g2 returning id),
-g2_i10 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'CounterCulture','/docent/collections#era-counter_culture','sidebar_left',10 from g2 returning id),
-g2_i11 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Digital','/docent/collections#era-digital','sidebar_left',11 from g2 returning id),
-g3 as (
-  insert into site_navigations (parent_id, title, target_type, sort_order)
-  select id, '사일로 Heritage', 'sidebar_left', 3 from tab_silostore returning id
-),
--- EPIC-080: "준비 중" 정적 placeholder(/shop/heritage/grandma·grandpa,
--- 삭제되고 301 리다이렉트됨) 대신 실제 게시판에 연결된 Page Builder 페이지로.
-g3_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'할머니','/heritage/grandmas','sidebar_left',1 from g3 returning id),
-g3_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'할아버지','/heritage/grandpas','sidebar_left',2 from g3 returning id),
-
-tab_salon as (
-  insert into site_navigations (key, title, target_type, sort_order)
-  values ('salon', '살롱데상', 'sidebar_right', 2)
-  returning id
-),
-s_g1 as (insert into site_navigations (parent_id, title, target_type, sort_order) select id,'Community','sidebar_right',1 from tab_salon returning id),
-s_g1_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'출석체크','/attendance','sidebar_right',1 from s_g1 returning id),
-s_g1_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'자유게시판','/boards','sidebar_right',2 from s_g1 returning id),
-s_g1_i3 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'주제별 소통 게시판','/boards','sidebar_right',3 from s_g1 returning id),
-s_g1_i4 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Mon ~ Sun 클럽모임','/clubs','sidebar_right',4 from s_g1 returning id),
-s_g1_i5 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'월별 모임 [패트론의 살롱]','/salon/monthly-events','sidebar_right',5 from s_g1 returning id),
-s_g1_i6 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'설문 [우리들 맴]','/polls','sidebar_right',6 from s_g1 returning id),
-s_g1_i7 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'Q&A','/boards','sidebar_right',7 from s_g1 returning id),
-s_g1_i8 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'이벤트 공지','/salon/event-notices','sidebar_right',8 from s_g1 returning id),
-s_g2 as (insert into site_navigations (parent_id, title, target_type, sort_order) select id,'Membership','sidebar_right',2 from tab_salon returning id),
-s_g2_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'패트론 게시판','/boards','sidebar_right',1 from s_g2 returning id),
-s_g2_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'한문장 소설 프로젝트','/salon/one-sentence-novel','sidebar_right',2 from s_g2 returning id),
-s_g2_i3 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'마음일기','/salon/mind-diary','sidebar_right',3 from s_g2 returning id),
-s_g2_i4 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'나의 보물 이야기','/salon/my-treasure-story','sidebar_right',4 from s_g2 returning id),
-s_g2_i5 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'비밀의 방 도슨트','/salon/secret-room','sidebar_right',5 from s_g2 returning id),
-s_g2_i6 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'나의 아티스트 소개','/salon/artist-intro','sidebar_right',6 from s_g2 returning id),
-s_g3 as (insert into site_navigations (parent_id, title, target_type, sort_order) select id,'Gallery','sidebar_right',3 from tab_salon returning id),
-s_g3_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'시상식','/salon/gallery/awards','sidebar_right',1 from s_g3 returning id),
-s_g3_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'공연들','/salon/gallery/performances','sidebar_right',2 from s_g3 returning id),
-s_g3_i3 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'파티','/salon/gallery/parties','sidebar_right',3 from s_g3 returning id),
-s_g3_i4 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'운명의 방문자들','/salon/gallery/visitors','sidebar_right',4 from s_g3 returning id),
-s_g3_i5 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'패트론들','/salon/gallery/patrons','sidebar_right',5 from s_g3 returning id),
-s_g4 as (insert into site_navigations (parent_id, title, target_type, sort_order) select id,'Library','sidebar_right',4 from tab_salon returning id),
-s_g4_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'소개지','/downloads','sidebar_right',1 from s_g4 returning id),
-s_g4_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'포스터','/downloads','sidebar_right',2 from s_g4 returning id),
-
-tab_space_inquiry as (
-  insert into site_navigations (key, title, target_type, sort_order)
-  values ('space_inquiry', '스튜디오', 'dropdown', 3)
-  returning id
-),
-sp_i1 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'공간 촬영 대관 (1층 사일로상점)','/rental?floor=1f_silostore','dropdown',1 from tab_space_inquiry returning id),
-sp_i2 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'공간 촬영 대관 (2층 살롱데상)','/rental?floor=2f_salon','dropdown',2 from tab_space_inquiry returning id),
-sp_i3 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'물품 대여','/space-inquiry/item-rental','dropdown',3 from tab_space_inquiry returning id),
-sp_i4 as (insert into site_navigations (parent_id, title, href, target_type, sort_order) select id,'공간 스타일링','/space-inquiry/styling','dropdown',4 from tab_space_inquiry returning id),
-
-tab_mypage as (
-  insert into site_navigations (key, title, href, target_type, sort_order)
-  values ('mypage', '마이페이지', '/mypage', 'tab', 4)
-  returning id
-)
-select 1;
+insert into site_navigations (id, key, title, href, parent_id, target_type, sort_order, is_active, topic, thumbnail_url, description, is_public, created_at) values
+('877a1576-9612-420d-9a99-fb7d48320e3f', null, 'About Silo', '/about-silo', null, 'dropdown', 0, true, null, null, null, true, '2026-07-31 15:03:10.409021+00'),
+('5b468396-a4ce-485c-a534-4be2c9675191', null, 'Silo Timeline 사일로 타임라인', '/about-silo/silo-timeline', '877a1576-9612-420d-9a99-fb7d48320e3f', 'dropdown', 0, true, null, null, null, true, '2026-08-10 02:36:02.659877+00'),
+('a4575b33-a416-471f-942b-e27e29bef906', null, 'Silo daily 사일로의 하루들', '/about-silo/silo-daily', '877a1576-9612-420d-9a99-fb7d48320e3f', 'tab', 1, true, null, null, null, true, '2026-07-31 15:11:10.420932+00'),
+('3afedab2-69cc-4886-b00b-7be4de8d3850', null, '수미의 good n book n ', '/about-silo/sumi-good-n-book-n', '877a1576-9612-420d-9a99-fb7d48320e3f', 'tab', 2, true, null, null, null, true, '2026-07-31 15:11:28.847143+00'),
+('8c8af744-3f00-444f-b0c1-03f2a56dd05c', null, '에단의 블루노트 bluenotes', '/about-silo/ethan-bluenotes', '877a1576-9612-420d-9a99-fb7d48320e3f', 'tab', 3, true, null, null, null, true, '2026-07-31 15:13:09.697807+00'),
+('384d6196-f3fb-433a-816e-a90c0296a784', null, '사일로의 취향 Silo''s Favorites', '/about-silo/silo-favorites', '877a1576-9612-420d-9a99-fb7d48320e3f', 'sidebar_left', 4, true, null, null, null, true, '2026-07-31 14:49:49.094019+00'),
+('a129ce5f-e011-4282-b56a-dda68968b0a0', null, '사일로의 플레이리스트 Playlists', '/about-silo/silo-favorites/silo-playlists', '384d6196-f3fb-433a-816e-a90c0296a784', 'sidebar_left', 0, true, null, null, null, true, '2026-07-31 14:52:11.384075+00'),
+('287c9244-ae9c-4f79-8755-66fd0429bfe6', null, '사일로의 맛집 Restaurants', '/about-silo/silo-favorites/silo-restaurants', '384d6196-f3fb-433a-816e-a90c0296a784', 'sidebar_left', 1, true, null, null, null, true, '2026-07-31 14:52:13.278591+00'),
+('2f0f56d0-c953-4d84-9ae6-28416ff8b23b', null, '사일로의 전시 Exhibitions', '/about-silo/silo-favorites/silo-exhibitions', '384d6196-f3fb-433a-816e-a90c0296a784', 'sidebar_left', 2, true, null, null, null, true, '2026-07-31 14:52:14.460183+00'),
+('007a1b0c-87ba-4882-ba68-99dbc7577bb9', null, '사일로의 책 Book Reviews', '/about-silo/silo-favorites/silo-book-reviews', '384d6196-f3fb-433a-816e-a90c0296a784', 'sidebar_left', 3, true, null, null, null, true, '2026-07-31 14:54:41.546733+00'),
+('856d5b2c-790d-40a4-8091-13b0482fad97', null, '사일로의 장소 Places', '/about-silo/silo-favorites/silo-places', '384d6196-f3fb-433a-816e-a90c0296a784', 'sidebar_left', 4, true, null, null, null, true, '2026-07-31 14:55:58.65531+00'),
+('ffd2838c-3957-497f-ac21-0a2939a16e2e', null, '사일로의 아이템들 items', '/about-silo/silo-favorites/silo-items', '384d6196-f3fb-433a-816e-a90c0296a784', 'sidebar_left', 5, true, null, null, null, true, '2026-07-31 14:56:57.40687+00'),
+('d30d149d-9d53-4342-924d-90e09b756e72', 'silostore', '사일로 상점 Silo Store', '/silo-store', null, 'sidebar_left', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('b7e7e0a7-e8fa-48cb-91c8-49f4f92a99d6', null, '사일로 보물들', '/silo-store/treasures', 'd30d149d-9d53-4342-924d-90e09b756e72', 'sidebar_left', 0, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('2febc40e-0626-4e7f-8bfe-4e7da9c5a574', null, '사일로의 뮤즈 silo''s muses', '/silo-store/treasures/silo-muse', 'd30d149d-9d53-4342-924d-90e09b756e72', 'sidebar_left', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('03a2fb72-9fce-4d27-89cd-ff6571ae4771', null, '사일로의 천사들 Silo Angels', '/silo-store/treasures/silo-angels', 'd30d149d-9d53-4342-924d-90e09b756e72', 'sidebar_left', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('0b7995bc-07cc-4433-97c3-1216ad89827f', null, '보내기 전 마지막 사진 last photos', '/silo-store/treasures/last-photos', 'd30d149d-9d53-4342-924d-90e09b756e72', 'sidebar_left', 3, true, null, null, null, true, '2026-08-08 13:23:50.775966+00'),
+('33ac27f9-8f29-464c-a9ba-aef7d770b3c8', null, '입양신청서 라이브러리', '/silo-store/treasures/shop-adoption-library', 'd30d149d-9d53-4342-924d-90e09b756e72', 'sidebar_left', 4, true, null, null, null, true, '2026-07-27 06:12:54.048041+00'),
+('ef68cab2-9bff-4426-b99b-060cba2ed278', null, '입양 이후 After Adoption', '/silo-store/treasures/after-adoption', 'd30d149d-9d53-4342-924d-90e09b756e72', 'sidebar_left', 5, true, null, null, null, true, '2026-07-29 12:23:54.00107+00'),
+('7ddd52d4-53d4-4b6a-bc6a-116ba78526a2', null, 'Silo''s Original Owners 사일로의 원래 주인들', '/silo-original-owners', 'd30d149d-9d53-4342-924d-90e09b756e72', 'dropdown', 6, true, null, null, null, true, '2026-08-10 13:39:33.600492+00'),
+('88ecbd7b-e700-4a24-941d-53a3b6e72038', null, '할머니 Grandmas', '/silo-store/heritage/grandmas', '7ddd52d4-53d4-4b6a-bc6a-116ba78526a2', 'sidebar_left', 0, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('37f2b93e-15ed-43ce-a3c8-66dc1801f9d8', null, '할아버지 Grandpas', '/silo-store/heritage/grandpas', '7ddd52d4-53d4-4b6a-bc6a-116ba78526a2', 'sidebar_left', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('710a8240-7b38-4480-bb9f-ea421e431d57', 'docent', '온라인 도슨트 Online Docent', '/online-docent', null, 'dropdown', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('f7008a1a-b4fb-46b0-b780-601730794b41', null, '고대 ~ 왕정 Ancient ~ Monarchy ', '/online-docent/ancient-monarchy', '710a8240-7b38-4480-bb9f-ea421e431d57', 'sidebar_left', 0, true, null, null, null, true, '2026-08-11 05:28:27.995243+00'),
+('9238ace9-c444-471f-ac9e-0067075c001d', null, 'BC 1100~146 그리스 Greeks', '/online-docent/ancient-monarchy/greeks', 'f7008a1a-b4fb-46b0-b780-601730794b41', 'sidebar_left', 0, true, null, null, null, true, '2026-07-31 15:06:48.657485+00'),
+('8fa3c1ef-c6aa-405e-a19c-37e9c02dc294', null, '1350~1600 르네상스 Renaissance', '/online-docent/ancient-monarchy/renaissance', 'f7008a1a-b4fb-46b0-b780-601730794b41', 'sidebar_left', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('71afe465-8383-48d7-8e4c-5d831e813b51', null, '1600~1750 바로크 Baroque', '/online-docent/ancient-monarchy/baroque', 'f7008a1a-b4fb-46b0-b780-601730794b41', 'sidebar_left', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('2ce0ba78-a566-4230-baed-8cea2f640011', null, '1715~1780 로코코 Rococo', '/online-docent/ancient-monarchy/rococo', 'f7008a1a-b4fb-46b0-b780-601730794b41', 'sidebar_left', 3, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('44efc420-49d1-45fa-b493-21aff2b93c05', null, '혁명 ~ 제국 Revolution ~ Empire', '/online-docent/revolution-empire', '710a8240-7b38-4480-bb9f-ea421e431d57', 'sidebar_left', 1, true, null, null, null, true, '2026-08-11 06:55:06.612539+00'),
+('1e9928b0-c8a1-4b27-8d70-0af3b5980b0c', null, '1750~1850 신고전주의 NeoClassicism', '/online-docent/revolution-empire/neoclassicism', '44efc420-49d1-45fa-b493-21aff2b93c05', 'sidebar_left', 0, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('69da478e-a3d6-4cc0-8083-8d16542c33fb', null, '1795~1837 리전시 Regency', '/online-docent/revolution-empire/regency', '44efc420-49d1-45fa-b493-21aff2b93c05', 'sidebar_left', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('845698f1-cdfa-4856-b069-18e0fa0b9f97', null, '1837~1901 빅토리안 Victorian', '/online-docent/revolution-empire/victoria', '44efc420-49d1-45fa-b493-21aff2b93c05', 'sidebar_left', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('64472418-cf04-402b-8ab2-81f5b52dc238', null, '1860~1890 인상파 Impressionism', '/online-docent/revolution-empire/impressionism', '44efc420-49d1-45fa-b493-21aff2b93c05', 'sidebar_left', 3, true, null, null, null, true, '2026-08-11 03:54:02.592693+00'),
+('76dfcca8-efee-4b4f-8db8-c2c6337ed002', null, '프로이트~ 인공지능 Freud~A.I.', '/online-docent/freud-ai', '710a8240-7b38-4480-bb9f-ea421e431d57', 'sidebar_left', 2, true, null, null, null, true, '2026-08-11 07:02:28.24872+00'),
+('12c14110-5242-4c43-b1ab-3835b94e987a', null, '1890~1920 아르누보 Art Nouveau', '/online-docent/freud-ai/art-nouveau', '76dfcca8-efee-4b4f-8db8-c2c6337ed002', 'sidebar_left', 0, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('500b09ff-e9cf-4bdd-a83a-aed3fd907bb7', null, '1920~1940 아르데코 Art Deco', '/online-docent/freud-ai/art-deco', '76dfcca8-efee-4b4f-8db8-c2c6337ed002', 'sidebar_left', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('d806e2e9-ccc9-4413-b596-a0157ac4203f', null, '1940~1960 비트 세대 Beat Generation', '/online-docent/freud-ai/beat-generation', '76dfcca8-efee-4b4f-8db8-c2c6337ed002', 'sidebar_left', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('a2909bfd-922d-471d-8586-a20d92275049', null, '1960~1980 반문화 CounterCulture', '/online-docent/freud-ai/counterculture', '76dfcca8-efee-4b4f-8db8-c2c6337ed002', 'sidebar_left', 3, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('bbbae4b3-10e0-4b34-8023-f27bb623ba75', null, '1980~2000 대중 문화 Pop Culture', '/online-docent/freud-ai/pop-culture', '76dfcca8-efee-4b4f-8db8-c2c6337ed002', 'sidebar_left', 4, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('21a3845d-1c5e-4dc3-a928-44269f3e98b6', null, '2020~현재, 디지털 문화 digital culture', '/online-docent/freud-ai/digital-culture', '710a8240-7b38-4480-bb9f-ea421e431d57', 'sidebar_left', 3, true, null, null, null, true, '2026-08-11 07:21:17.697308+00'),
+('e9ab4e8d-a18f-4322-809b-d089b45f49dc', 'salon', '살롱데상 Salon des Cent', '/salon-des-cent', null, 'sidebar_right', 3, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('b6e1117a-4048-44ca-9725-c6fa32843713', null, '커뮤니티 Community', '/salon-des-cent/community', 'e9ab4e8d-a18f-4322-809b-d089b45f49dc', 'sidebar_right', 0, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('18628c35-1515-4a0f-bf6a-48dfdf4b93b4', null, '출석체크 / 예술가의 달력', '/salon-des-cent/community/attendance', 'b6e1117a-4048-44ca-9725-c6fa32843713', 'sidebar_right', 0, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('11fb321e-9d37-4523-abe1-f37c9a9f9583', null, '자유게시판', '/salon-des-cent/community/general', 'b6e1117a-4048-44ca-9725-c6fa32843713', 'sidebar_right', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('dbe9b5e8-75b8-4a4f-9143-6afc7feaad1b', null, '나의 맛집들', '/salon-des-cent/community/my-restaurants', 'b6e1117a-4048-44ca-9725-c6fa32843713', 'sidebar_right', 2, true, null, null, null, true, '2026-08-07 01:35:20.199018+00'),
+('5d53b52d-45ff-4b05-bc9f-56cb4692e859', null, '설문 [우리들 맴]', '/salon-des-cent/community/polls', 'b6e1117a-4048-44ca-9725-c6fa32843713', 'sidebar_right', 3, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('bce2560e-ecf2-4f8b-9f4b-b9a4ffe246e3', null, '공연 / 전시회 소개', '/salon-des-cent/community/events', 'b6e1117a-4048-44ca-9725-c6fa32843713', 'sidebar_right', 4, true, null, null, null, true, '2026-07-27 05:46:11.78328+00'),
+('2ff85bc5-1b6b-4526-baba-0b7c1f88f518', null, '이벤트 공지', '/salon-des-cent/community/event-notices', 'b6e1117a-4048-44ca-9725-c6fa32843713', 'sidebar_right', 5, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('32db4897-72e1-4105-a110-05c5c27ce37b', null, 'Q&A', '/salon-des-cent/community/qna', 'b6e1117a-4048-44ca-9725-c6fa32843713', 'sidebar_right', 6, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('52e90164-5bb4-4fc8-aa1f-8473bc8664b6', null, '주제별 클럽 게시판 A', '/salon-des-cent/community/topics-A', 'e9ab4e8d-a18f-4322-809b-d089b45f49dc', 'sidebar_right', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('56089910-d64e-4e53-b6c9-2e37194d5891', null, '예술 Art', '/salon-des-cent/community/topics-A/art', '52e90164-5bb4-4fc8-aa1f-8473bc8664b6', 'sidebar_right', 0, true, null, null, null, true, '2026-07-29 04:25:37.012689+00'),
+('c5095f38-e04f-4e10-b2e8-3bf0dc85f931', null, '심리 Psychology', '/salon-des-cent/community/topics-A/-psychology', '52e90164-5bb4-4fc8-aa1f-8473bc8664b6', 'sidebar_right', 1, true, null, null, null, true, '2026-07-29 04:25:42.38209+00'),
+('66e0b168-7a30-40fe-82c6-f7c4ef9bf079', null, '문학 Literature', '/salon-des-cent/community/topics-A/literature', '52e90164-5bb4-4fc8-aa1f-8473bc8664b6', 'sidebar_right', 2, true, null, null, null, true, '2026-07-29 04:25:40.851214+00'),
+('7b269815-4a5a-419c-bb95-fa4f688cb689', null, '세계역사 World History', '/salon-des-cent/community/topics-A/world-history', '52e90164-5bb4-4fc8-aa1f-8473bc8664b6', 'sidebar_right', 3, true, null, null, null, true, '2026-07-29 04:25:38.093503+00'),
+('217266bc-2ab0-49b4-9099-1f1907397086', null, '과학 Science', '/salon-des-cent/community/topics-A/science', '52e90164-5bb4-4fc8-aa1f-8473bc8664b6', 'sidebar_right', 4, true, null, null, null, true, '2026-07-29 04:25:38.703846+00'),
+('e502e3ec-74d5-484c-8d6a-5938750273d5', null, '경제 Economy', '/salon-des-cent/community/topics-A/economy', '52e90164-5bb4-4fc8-aa1f-8473bc8664b6', 'sidebar_right', 5, true, null, null, null, true, '2026-07-29 03:17:54.448961+00'),
+('2272a166-592a-4b3d-b89e-97a58783134f', null, '정치 Politics', '/salon-des-cent/community/topics-A/politics', '52e90164-5bb4-4fc8-aa1f-8473bc8664b6', 'sidebar_right', 6, true, null, null, null, true, '2026-07-29 04:25:41.643663+00'),
+('42cbf587-84cc-4eb9-9ed7-e6206bbf4a50', null, '주제별 클럽 게시판 B', '/salon-des-cent/community/topics-B', 'e9ab4e8d-a18f-4322-809b-d089b45f49dc', 'sidebar_right', 2, true, null, null, null, true, '2026-08-06 14:29:16.077505+00'),
+('3ed6ae95-9044-4c4e-80a1-cb4d107f9d1f', null, '영화 & 시리즈 Movies & Series', '/salon-des-cent/community/topics-B/movies-series', '42cbf587-84cc-4eb9-9ed7-e6206bbf4a50', 'sidebar_right', 0, true, null, null, null, true, '2026-08-05 04:38:25.563386+00'),
+('51e3f0d1-7934-4d47-b6d2-06ddbd6fd9e9', null, '스포츠 Sports', '/salon-des-cent/community/topics-B/sports', '42cbf587-84cc-4eb9-9ed7-e6206bbf4a50', 'sidebar_right', 1, true, null, null, null, true, '2026-07-29 12:50:14.855006+00'),
+('814f0b95-8095-4bf9-a432-7c25a888d40b', null, '건강 Health', '/salon-des-cent/community/topics-B/health', '42cbf587-84cc-4eb9-9ed7-e6206bbf4a50', 'sidebar_right', 2, true, null, null, null, true, '2026-07-29 12:50:14.059136+00'),
+('ea4be020-dae9-46cc-9b4c-5ea19609f39d', null, '코메디 Comedy', '/salon-des-cent/community/topics-B/comedy', '42cbf587-84cc-4eb9-9ed7-e6206bbf4a50', 'sidebar_right', 3, true, null, null, null, true, '2026-07-29 04:25:44.001321+00'),
+('875c7d1b-3be3-4dec-8c78-dcb2842a7b20', null, '따뜻한 세상 Warm World', '/salon-des-cent/community/topics-B/warm-world', '42cbf587-84cc-4eb9-9ed7-e6206bbf4a50', 'sidebar_right', 4, true, null, null, null, true, '2026-07-29 12:50:41.630713+00'),
+('d09b82e2-8ae3-4c22-ab10-908fba6d11b4', null, '패션 Fashion', '/salon-des-cent/community/topics-B/fashion', '42cbf587-84cc-4eb9-9ed7-e6206bbf4a50', 'sidebar_right', 5, true, null, null, null, true, '2026-08-06 08:59:57.157634+00'),
+('673e2909-ab23-4b4c-b740-fc0aba111016', null, '인간집사들 Human Butlers', '/salon-des-cent/community/topics-B/human-butlers', '42cbf587-84cc-4eb9-9ed7-e6206bbf4a50', 'sidebar_right', 6, true, null, null, null, true, '2026-07-29 12:50:15.473298+00'),
+('e26ba910-4d09-44c2-9ec1-b05e1829ba22', null, '요일별 클럽 모임', '/salon-des-cent/community/daily-club', 'e9ab4e8d-a18f-4322-809b-d089b45f49dc', 'sidebar_right', 3, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('ba3d1fc6-01c1-4ccf-8c9d-6244b91dea68', null, 'Mon 월요 반란클럽', '/salon-des-cent/community/daily-club/monday', 'e26ba910-4d09-44c2-9ec1-b05e1829ba22', 'sidebar_right', 0, true, null, null, null, true, '2026-07-29 12:52:32.104119+00'),
+('0d0e6536-10ca-4f14-897d-032cae645f85', null, 'Tue 낭송 북클럽', '/salon-des-cent/community/daily-club/read-book-aloud', 'e26ba910-4d09-44c2-9ec1-b05e1829ba22', 'sidebar_right', 1, true, null, null, null, true, '2026-07-29 12:52:33.188104+00'),
+('02bb4dec-50c2-4d28-a563-75b0c01eac9c', null, 'Wed 행간의 조각가들 - 북클럽', '/salon-des-cent/community/daily-club/sentence-sculptors', 'e26ba910-4d09-44c2-9ec1-b05e1829ba22', 'sidebar_right', 2, true, null, null, null, true, '2026-07-29 12:52:33.599214+00'),
+('f219ceb4-94d5-4135-9727-8c9cf1c91b0a', null, 'Thurs 영어로 놀자 클럽', '/salon-des-cent/community/daily-club/play-with-English', 'e26ba910-4d09-44c2-9ec1-b05e1829ba22', 'sidebar_right', 3, true, null, null, null, true, '2026-07-29 12:52:34.014612+00'),
+('d17421b1-f0cc-42ba-9f0f-cf02d9a30bd5', null, 'Fri 비포 선라이즈 클럽', '/salon-des-cent/community/daily-club/before-sunrise', 'e26ba910-4d09-44c2-9ec1-b05e1829ba22', 'sidebar_right', 4, true, null, null, null, true, '2026-07-29 12:52:34.414807+00'),
+('830c1437-8896-4dfc-9aa6-078f098ea3e7', null, 'Sat ''무슨일이든 가능'' 클럽', '/salon-des-cent/community/daily-club/anything-can-happen', 'e26ba910-4d09-44c2-9ec1-b05e1829ba22', 'sidebar_right', 5, true, null, null, null, true, '2026-07-29 12:52:35.14337+00'),
+('3066fb57-327f-4faa-a8e0-474cd4087975', null, 'Sun ''연극이 끝나고 난 뒤'' 클럽', '/community-weekday-after-the-play', 'e26ba910-4d09-44c2-9ec1-b05e1829ba22', 'sidebar_right', 6, true, null, null, null, true, '2026-07-29 12:52:35.699283+00'),
+('3ada21b3-5097-448b-8123-303385227795', null, '멤버십 Membership', '/salon-des-cent/community/membership', 'e9ab4e8d-a18f-4322-809b-d089b45f49dc', 'sidebar_right', 4, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('df1e89cd-21a2-478d-9609-86cf08a83cf6', null, '나의 보물 이야기들', '/salon-des-cent/community/membership/my-treasure-stories', '3ada21b3-5097-448b-8123-303385227795', 'sidebar_right', 0, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('6ae956cf-7226-4d32-9c3b-d2fc3994b95e', null, '나의 마음일기들', '/salon-des-cent/community/membership/mind-diary', '3ada21b3-5097-448b-8123-303385227795', 'sidebar_right', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('0704334e-a99d-42c4-8ae8-3e56350337d1', null, '나의 아티스트 소개들', '/salon-des-cent/community/membership/artist-intro', '3ada21b3-5097-448b-8123-303385227795', 'sidebar_right', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('5561bc43-66e0-4716-abd0-85762801ff6f', null, '월별 모임 [패트론의 살롱]', '/salon-des-cent/community/membership/patrons-salon', '3ada21b3-5097-448b-8123-303385227795', 'sidebar_right', 3, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('fcb159b1-3575-47b5-9ca8-ffd7664c33b6', null, '패트론 게시판', '/salon-des-cent/community/membership/patrons-board', '3ada21b3-5097-448b-8123-303385227795', 'sidebar_right', 4, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('92fc2211-6c61-4394-89a6-a4f8b84ad6b8', null, '한문장 소설 프로젝트', '/salon-des-cent/community/membership/one-sentence-novel', '3ada21b3-5097-448b-8123-303385227795', 'sidebar_right', 5, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('ae7d3fbd-3940-482c-a827-ea6e6ee2ee61', null, '비밀의 방 도슨트', '/salon-des-cent/community/membership/secret-room', '3ada21b3-5097-448b-8123-303385227795', 'sidebar_right', 6, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('9f30ddb5-10e4-44e4-9e76-30c4db7d31da', null, '갤러리 Gallery', '/salon-des-cent/community/gallery', 'e9ab4e8d-a18f-4322-809b-d089b45f49dc', 'sidebar_right', 5, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('40644b5f-2ff9-40cd-9a03-b66dc18c3cd6', null, '연말 시상식', '/salon-des-cent/community/gallery/awards-ceremony', '9f30ddb5-10e4-44e4-9e76-30c4db7d31da', 'sidebar_right', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('0b6e2dbd-c5ca-4564-b89c-e00526af4d9a', null, '살롱데상 공연들', '/salon-des-cent/community/gallery/performances', '9f30ddb5-10e4-44e4-9e76-30c4db7d31da', 'sidebar_right', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('7425f432-4eea-41cc-9017-104423a2e320', null, '살롱데상 파티들', '/salon-des-cent/community/gallery/parties', '9f30ddb5-10e4-44e4-9e76-30c4db7d31da', 'sidebar_right', 3, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('c2db64b3-fe7c-4779-a7a2-cfc98df7be1b', null, '운명의 방문자들', '/salon-des-cent/community/gallery/fateful-visitors', '9f30ddb5-10e4-44e4-9e76-30c4db7d31da', 'sidebar_right', 4, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('abbd4d3a-b444-4f40-8221-c7a395c48bee', null, '역대 패트론들', '/salon-des-cent/community/gallery/patrons', '9f30ddb5-10e4-44e4-9e76-30c4db7d31da', 'sidebar_right', 5, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('a59070b1-3c59-4fc5-acba-748611da4fe3', null, '아카이브 Archives', '/salon-des-cent/community/archives', 'e9ab4e8d-a18f-4322-809b-d089b45f49dc', 'sidebar_right', 6, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('ee484ff9-2a82-49fe-804d-760243d21c18', null, '미디어 / 기사들 Media & Articles', '/salon-des-cent/community/archives/media-articles', 'a59070b1-3c59-4fc5-acba-748611da4fe3', 'sidebar_right', 0, true, null, null, null, true, '2026-07-31 15:09:44.660074+00'),
+('9ef90c32-c4ab-4e13-9978-ae3992293b15', null, '소개지 brochures', '/salon-des-cent/community/archives/downloads', 'a59070b1-3c59-4fc5-acba-748611da4fe3', 'sidebar_right', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('ac10483f-aea7-478f-a158-9e65a7133335', null, '포스터들 posters', '/salon-des-cent/community/archive/posters', 'a59070b1-3c59-4fc5-acba-748611da4fe3', 'sidebar_right', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('e0d6afa3-4246-4f47-9b36-4d9c2c90a3b2', 'space_inquiry', '스튜디오', '/studio', null, 'dropdown', 4, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('bc96ba5b-98b9-4ca7-9373-f33e53ad808e', null, '공간 촬영 대관 (1층 사일로상점)', '/studio/rental_1f_silostore', 'e0d6afa3-4246-4f47-9b36-4d9c2c90a3b2', 'dropdown', 0, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('f29f090a-ab49-44f6-b86c-42778256f7b8', null, '공간 촬영 대관 (2층 살롱데상)', '/studio/rental_2f_salon', 'e0d6afa3-4246-4f47-9b36-4d9c2c90a3b2', 'dropdown', 1, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('147dba24-46f7-42ca-8bef-274d23405c4f', null, '물품 대여 Items Rental', '/studio/items-rental', 'e0d6afa3-4246-4f47-9b36-4d9c2c90a3b2', 'dropdown', 2, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('9c32a00d-b01a-4455-8343-abd444e9d8c4', null, '공간 스타일링 Space Styling', '/studio/space-styling', 'e0d6afa3-4246-4f47-9b36-4d9c2c90a3b2', 'dropdown', 3, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('78753f7f-cf35-4952-962c-e9465049ca83', 'mypage', '마이 페이지 My Page', '/mypage', null, 'dropdown', 5, true, null, null, null, true, '2026-07-25 23:38:27.460307+00'),
+('1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', null, 'My Collections 나의 수집품들', '/mypage/my-collections', '78753f7f-cf35-4952-962c-e9465049ca83', 'tab', 0, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('6d825568-ba0d-4fbf-a7de-e986aa1fd01f', null, 'My Treasures 나의 보물', '/mypage/my-collections/mytreasures', '1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', 'tab', 0, true, null, null, null, true, '2026-08-07 00:51:55.48117+00'),
+('e6544533-0812-427b-bfb5-c182d9e832a3', null, 'My Books 나의 책', '/mypage/my-collections/mybooks', '1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', 'tab', 1, true, null, null, null, true, '2026-08-07 00:51:45.571189+00'),
+('56121587-f9f9-41b7-b499-a9aa005bf834', null, 'My Movies 나의 영화', '/mypage/my-collections/mymovies', '1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', 'tab', 2, true, null, null, null, true, '2026-08-07 00:51:47.442782+00'),
+('f2887cec-a197-45fb-ae32-84e417ddc85e', null, 'My Musics 나의 음악', '/mypage/my-collections/mymusics', '1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', 'tab', 3, true, null, null, null, true, '2026-08-07 00:51:48.526329+00'),
+('13c52222-eaa0-4777-a297-f903a45adb75', null, 'My Artists 나의 아티스트', '/mypage/my-collections/myartists', '1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', 'tab', 4, true, null, null, null, true, '2026-08-07 00:51:49.294169+00'),
+('1c58d862-48f3-465a-8b99-6698f114a798', null, 'My Places 나의 장소', '/mypage/my-collections/myplaces', '1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', 'tab', 5, true, null, null, null, true, '2026-08-07 00:51:49.877048+00'),
+('0b4b8c5d-c351-416e-bc1c-f06cad6c1b19', null, 'My Scents 나의 향기', '/mypage/my-collections/myscents', '1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', 'tab', 6, true, null, null, null, true, '2026-08-07 00:51:50.565574+00'),
+('59d72469-84ce-4157-a89e-5104b4c77a4a', null, 'My Brands 나의 브랜드', '/mypage/my-collections/mybrands', '1107a9f3-2122-457b-85bd-f3ca7ec0cbfd', 'tab', 7, true, null, null, null, true, '2026-08-07 00:51:51.902497+00'),
+('cd597f86-c7de-4913-8bb0-08834b101531', null, 'My Silo Timeline 나의사일로 타임라인', '/mypage/my-silo-timeline', '78753f7f-cf35-4952-962c-e9465049ca83', 'tab', 1, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('b660310f-26d8-4451-bcb2-7723eb47eb11', null, 'My Badges 나의 뱃지', '/mypage/my-silo-timeline/badges', 'cd597f86-c7de-4913-8bb0-08834b101531', 'tab', 0, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('31d8bd56-fd99-428a-be23-502018f1eb72', null, 'My Likes 나의 좋아요', '/mypage/my-silo-timelines/my-likes', 'cd597f86-c7de-4913-8bb0-08834b101531', 'tab', 1, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('e15b6ed3-d2dd-4608-b029-204faa4a9c76', null, 'My Writings 내가 쓴 글', '/mypage/my-silo-timeline/my-writings', 'cd597f86-c7de-4913-8bb0-08834b101531', 'tab', 2, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('05e70df2-8f13-430a-8bb3-bdd55da702c8', null, 'My Comments 나의 댓글', '/mypage/my-silo-timeline/my-comments', 'cd597f86-c7de-4913-8bb0-08834b101531', 'tab', 3, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('39f92e1c-d385-4458-8fb8-84b93e412727', null, 'My Follows 나의 팔로우', '/mypage/my-silo-timeline/my-follows', 'cd597f86-c7de-4913-8bb0-08834b101531', 'tab', 4, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('307dd966-5105-4a4a-b705-07840eb9d9c4', null, 'My Visitors 나를 방문한 사람', '/mypage/my-silo-timeline/my-visitors', 'cd597f86-c7de-4913-8bb0-08834b101531', 'tab', 5, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('3b1eb275-0609-46b2-82cf-9fec748b43db', null, 'My Story 나의 이야기', '/mypage/my-story', '78753f7f-cf35-4952-962c-e9465049ca83', 'dropdown', 2, true, null, null, null, true, '2026-08-07 00:42:11.351283+00'),
+('a8c727df-09f0-438b-b31b-51446cc63b15', null, 'My Exhibition 나의 전시회', '/mypage/my-story/my-exhibition', '3b1eb275-0609-46b2-82cf-9fec748b43db', 'tab', 0, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('b46eabdc-5cf5-4d3b-a170-9c148b49744f', null, 'My Bucketlist 나의 버킷리스트', '/mypage/my-story/my-bucketlist', '3b1eb275-0609-46b2-82cf-9fec748b43db', 'tab', 1, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('cfc3e0d1-d454-468d-9a19-473854f2a304', null, 'My Wishlist 나의 위시리스트', '/mypage/my-story/wishlist', '3b1eb275-0609-46b2-82cf-9fec748b43db', 'tab', 2, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('b129eabc-5788-4717-ac9f-a95a1ddf8c90', null, 'My Space 나의 공간', '/mypage/my-story/my-space', '3b1eb275-0609-46b2-82cf-9fec748b43db', 'tab', 3, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('9021f22c-b97e-465c-ad5c-69a45ee88592', null, 'My Mind Diary 나의 마음 일기장', '/mypage/my-story/my-mind-diary', '3b1eb275-0609-46b2-82cf-9fec748b43db', 'tab', 4, true, null, null, null, true, '2026-08-05 04:38:16.934379+00'),
+('788fa7ac-ca72-4569-8d7a-72f38f477f25', '__unassigned_pages__', '미분류 페이지', null, null, 'tab', 6, false, null, null, null, true, '2026-08-05 04:38:16.86706+00'),
+('31246e05-f296-4e60-ba15-a57a47ca377f', null, '보물 목록 collection', '/silo-store-treasures-collections', '788fa7ac-ca72-4569-8d7a-72f38f477f25', 'tab', 0, false, null, null, '', true, '2026-08-11 09:39:24.248955+00'),
+('cb74cba3-32a3-4a20-912d-427a9453d0ef', null, '미디어 / 기사들 Media / Public Articles', '/salon-des-cent-community-archives-public-articles', '788fa7ac-ca72-4569-8d7a-72f38f477f25', 'tab', 1, false, null, null, '', true, '2026-08-11 15:55:08.86293+00'),
+('de8ff12a-f096-45a1-8f97-9350b8dca19c', null, '사일로에서의 운명적 만남들과 추억들', '/silo-store-treasures-silo-memories', '788fa7ac-ca72-4569-8d7a-72f38f477f25', 'tab', 2, false, null, null, '', true, '2026-08-11 16:12:22.944322+00'),
+('f48dc2bd-af20-4a88-97b9-eceb4449763a', null, '사일로 유산 Heritage', '/silo-store-heritage', '788fa7ac-ca72-4569-8d7a-72f38f477f25', 'tab', 3, false, null, null, '', true, '2026-08-11 17:59:47.381256+00'),
+('67250fc2-6bbd-4135-9f9e-87acea3c0811', null, 'Silo''s old Story 사일로의 오래된 이야기', '/silo-old-story', '788fa7ac-ca72-4569-8d7a-72f38f477f25', 'tab', 4, false, null, null, '', true, '2026-08-11 18:02:13.040963+00');
 
 -- site_categories 시드: 상점(Time Slip)/도슨트(era)/컬렉션(EPIC-022)/살롱(게시판 topic) 4개 도메인
 insert into site_categories (domain, name, slug, sort_order) values

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ScrapButton } from "@/components/common/ScrapButton";
+import { CollectButton } from "@/components/common/CollectButton";
 
 // EPIC-089(요구사항 3): 게시글 상세 좌측 하단에 스크롤해도 항상 떠 있는
 // 플로팅 액션 바 — [목록으로](버튼형) · 좋아요 · 북마크 · 공유 · 댓글
@@ -21,6 +22,9 @@ export function PostFloatingActionBar({
   postId,
   showBookmark,
   showComments,
+  collectTitle,
+  collectImageUrl,
+  collectCategory,
 }: {
   boardSlug: string;
   likeCount: number;
@@ -31,6 +35,13 @@ export function PostFloatingActionBar({
   postId: string;
   showBookmark: boolean;
   showComments: boolean;
+  // EPIC-095(요구사항 1.2): "내 컬렉션에 담기" — 게시글 제목/대표 이미지를
+  // member_collections에 그대로 꽂아 넣을 원본 값. collectCategory는
+  // guessPostCollectionCategory()가 추정한 기본 선택지일 뿐, 최종 카테고리는
+  // CollectButton 팝오버에서 사용자가 고른다.
+  collectTitle: string;
+  collectImageUrl: string | null;
+  collectCategory: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -78,6 +89,13 @@ export function PostFloatingActionBar({
       )}
 
       {showBookmark && <ScrapButton postId={postId} size="sm" />}
+
+      <CollectButton
+        title={collectTitle}
+        imageUrl={collectImageUrl}
+        suggestedCategory={collectCategory}
+        size="sm"
+      />
 
       <button
         type="button"

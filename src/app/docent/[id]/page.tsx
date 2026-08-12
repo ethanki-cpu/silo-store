@@ -6,6 +6,8 @@ import { useAuth } from "@/lib/AuthProvider";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+import { CollectButton } from "@/components/common/CollectButton";
+import { guessDocentCollectionCategory } from "@/lib/collectionCategory";
 
 type ContentDetail = {
   id: string;
@@ -15,6 +17,8 @@ type ContentDetail = {
   price: number;
   cover_image: string | null;
   body_url: string | null;
+  era: string | null;
+  figure_name: string | null;
   purchased: boolean;
 };
 
@@ -135,7 +139,18 @@ export default function DocentDetailPage() {
         />
       )}
 
-      <h1 className="text-2xl font-bold">{content.title}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="text-2xl font-bold">{content.title}</h1>
+        {/* EPIC-095(요구사항 1.2): 도슨트 뷰어의 "내 컬렉션에 담기" —
+            era/figure_name이 있으면 그 축으로, 없으면 'era'를 기본
+            제안한다(guessDocentCollectionCategory). */}
+        <CollectButton
+          title={content.title}
+          imageUrl={content.cover_image}
+          suggestedCategory={guessDocentCollectionCategory(content)}
+          size="sm"
+        />
+      </div>
       {content.keywords && (
         <p className="text-sm text-gray-500 mt-1">{content.keywords}</p>
       )}

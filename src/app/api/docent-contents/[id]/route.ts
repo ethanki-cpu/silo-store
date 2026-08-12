@@ -10,7 +10,7 @@ export async function GET(
 
   const { data: content, error } = await supabase
     .from("docent_contents")
-    .select("id, title, keywords, is_free, price, body_url, cover_image")
+    .select("id, title, keywords, is_free, price, body_url, cover_image, era, figure_name")
     .eq("id", id)
     .single();
 
@@ -50,6 +50,8 @@ export async function GET(
     is_free: content.is_free,
     price: content.price,
     cover_image: content.cover_image,
+    era: content.era,
+    figure_name: content.figure_name,
     body_url: null,
     purchased: false,
   });

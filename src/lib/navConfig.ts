@@ -81,142 +81,427 @@ type SiteNavRow = {
 // FALLBACK_NAV_TABS는 이제 라이브 DB 트리를 그대로 미러링한다 — DB가
 // 응답 못 할 때만 잠깐 보이는 스냅샷이므로 100% 실시간 동기화가 필수는
 // 아니지만, 최소한 "코드에만 있고 DB엔 없는 라우트"는 없어야 한다.
-export const FALLBACK_NAV_TABS_SYNCED_AT = "2026-08-06";
+// EPIC-095(요구사항 1.1): Management API로 라이브 site_navigations(전체
+// 119개 활성 행)를 재조회해 이 스냅샷을 다시 생성 — 2026-08-06 이후
+// 라이브 쪽이 이 파일과 무관하게 계속 진화해(About Silo 최상위 탭 신설,
+// 사일로상점/살롱데상 href가 /shop·/community에서 /silo-store·
+// /salon-des-cent로 변경, "온라인 도슨트" 하위 트리가 /docent/<era> 평면
+// 구조에서 /online-docent/<시대구간>/<era> 2단 구조로 재편 등) 이 파일이
+// 상당히 뒤처져 있었다(Data Drift). 아래 배열은 수작업이 아니라
+// scratchpad 스크립트로 buildNavTree()와 동일한 매핑 로직을 그대로 재구현해
+// 라이브 덤프에서 기계적으로 생성했다(오타/누락 방지).
+export const FALLBACK_NAV_TABS_SYNCED_AT = "2026-08-12";
 
 // site_navigations를 DB에서 아직 읽지 못했을 때(최초 로딩 중, 네트워크 실패 등)
 // 화면에 아무 탭도 뜨지 않는 것을 막기 위한 폴백. SSoT는 항상
 // site_navigations 테이블 — 이 배열은 그 트리의 스냅샷일 뿐이다.
 const FALLBACK_NAV_TABS: NavTab[] = [
   {
-    key: "silostore",
-    label: "사일로상점",
-    type: "sidebar-left",
-    href: "/shop",
-    groups: [
+    key: "877a1576-9612-420d-9a99-fb7d48320e3f",
+    label: "About Silo",
+    type: "dropdown",
+    href: "/about-silo",
+    items: [
       {
-        groupLabel: "사일로 보물들",
-        href: "/treasures",
-        items: [
-          { label: "보물 목록", href: "/shop" },
-          { label: "입양신청서 라이브러리", href: "/shop-adoption-library" },
-          { label: "분양 후기", href: "/shop/reviews" },
-          { label: "After Adoption", href: "/shop-reviews" },
-        ],
+        label: "Silo Timeline 사일로 타임라인",
+        href: "/about-silo/silo-timeline",
       },
       {
-        groupLabel: "온라인 도슨트",
-        href: "/docent",
-        items: [
-          { label: "1350~1600 르네상스", href: "/docent/renaissance" },
-          { label: "1600~1750 바로크", href: "/docent/baroque" },
-          { label: "1715~1780 로코코", href: "/docent/rococo" },
-          { label: "1750~1850 신고전주의", href: "/docent/neoclassicism" },
-          { label: "1795~1837 리전시", href: "/docent/regency" },
-          { label: "1837~1901 빅토리아", href: "/docent/victoria" },
-          { label: "1890~1920 아르누보", href: "/docent/art-nouveau" },
-          { label: "1920~1940 아르데코", href: "/docent/art-deco" },
-          { label: "1940~1960 비트 세대", href: "/docent/beat-generation" },
-          { label: "1960~1980 반문화", href: "/docent/counterculture" },
-          { label: "1960~1980 디지털", href: "/docent/digital" },
-        ],
+        label: "Silo daily 사일로의 하루들",
+        href: "/about-silo/silo-daily",
       },
       {
-        // EPIC-080: 이름별(50+17개) 동적 라우트를 만드는 대신 그 이름들이
-        // 결국 공유하던 실제 게시판(grandmas/grandpas) 링크 하나씩으로
-        // 통합 — /heritage/grandmas·/heritage/grandpas는 Page Builder
-        // 페이지(hero+quote+board+gallery, 각각 grandmas/grandpas
-        // 게시판에 연결됨)로 실제 게시글이 쌓이는 진짜 목적지다.
-        groupLabel: "사일로 유산 Heritage",
-        href: "/heritage",
-        items: [
-          { label: "할머니", href: "/heritage/grandmas" },
-          { label: "할아버지", href: "/heritage/grandpas" },
+        label: "수미의 good n book n ",
+        href: "/about-silo/sumi-good-n-book-n",
+      },
+      {
+        label: "에단의 블루노트 bluenotes",
+        href: "/about-silo/ethan-bluenotes",
+      },
+      {
+        label: "사일로의 취향 Silo's Favorites",
+        href: "/about-silo/silo-favorites",
+        children: [
+          {
+            label: "사일로의 플레이리스트 Playlists",
+            href: "/about-silo/silo-favorites/silo-playlists",
+          },
+          {
+            label: "사일로의 맛집 Restaurants",
+            href: "/about-silo/silo-favorites/silo-restaurants",
+          },
+          {
+            label: "사일로의 전시 Exhibitions",
+            href: "/about-silo/silo-favorites/silo-exhibitions",
+          },
+          {
+            label: "사일로의 책 Book Reviews",
+            href: "/about-silo/silo-favorites/silo-book-reviews",
+          },
+          {
+            label: "사일로의 장소 Places",
+            href: "/about-silo/silo-favorites/silo-places",
+          },
+          {
+            label: "사일로의 아이템들 items",
+            href: "/about-silo/silo-favorites/silo-items",
+          },
         ],
       },
     ],
   },
   {
-    key: "salon",
-    label: "살롱데상",
-    type: "sidebar-right",
-    href: "/community",
+    key: "silostore",
+    label: "사일로 상점 Silo Store",
+    type: "sidebar-left",
+    href: "/silo-store",
     groups: [
       {
-        groupLabel: "Community",
-        href: "/community",
+        groupLabel: "사일로 보물들",
+        href: "/silo-store/treasures",
+        items: [],
+      },
+      {
+        groupLabel: "사일로의 뮤즈 silo's muses",
+        href: "/silo-store/treasures/silo-muse",
+        items: [],
+      },
+      {
+        groupLabel: "사일로의 천사들 Silo Angels",
+        href: "/silo-store/treasures/silo-angels",
+        items: [],
+      },
+      {
+        groupLabel: "보내기 전 마지막 사진 last photos",
+        href: "/silo-store/treasures/last-photos",
+        items: [],
+      },
+      {
+        groupLabel: "입양신청서 라이브러리",
+        href: "/silo-store/treasures/shop-adoption-library",
+        items: [],
+      },
+      {
+        groupLabel: "입양 이후 After Adoption",
+        href: "/silo-store/treasures/after-adoption",
+        items: [],
+      },
+      {
+        groupLabel: "Silo's Original Owners 사일로의 원래 주인들",
+        href: "/silo-original-owners",
         items: [
-          { label: "출석체크 / 예술가의 달력", href: "/attendance" },
-          { label: "자유게시판", href: "/community/general" },
-          { label: "설문 [우리들 맴]", href: "/polls" },
-          { label: "공연 / 전시회 소개", href: "/community/events" },
-          { label: "이벤트 공지", href: "/salon/event-notices" },
-          { label: "Q&A", href: "/community/qna" },
+          {
+            label: "할머니 Grandmas",
+            href: "/silo-store/heritage/grandmas",
+          },
+          {
+            label: "할아버지 Grandpas",
+            href: "/silo-store/heritage/grandpas",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    key: "docent",
+    label: "온라인 도슨트 Online Docent",
+    type: "dropdown",
+    href: "/online-docent",
+    items: [
+      {
+        label: "고대 ~ 왕정 Ancient ~ Monarchy ",
+        href: "/online-docent/ancient-monarchy",
+        children: [
+          {
+            label: "BC 1100~146 그리스 Greeks",
+            href: "/online-docent/ancient-monarchy/greeks",
+          },
+          {
+            label: "1350~1600 르네상스 Renaissance",
+            href: "/online-docent/ancient-monarchy/renaissance",
+          },
+          {
+            label: "1600~1750 바로크 Baroque",
+            href: "/online-docent/ancient-monarchy/baroque",
+          },
+          {
+            label: "1715~1780 로코코 Rococo",
+            href: "/online-docent/ancient-monarchy/rococo",
+          },
         ],
       },
       {
-        // EPIC-080: 주제/요일 이름을 URL 파라미터로 넘기는 동적 라우트
-        // 대신, 라이브 DB와 동일하게 항목마다 고정 slug를 쓴다(Page
-        // Builder catch-all이 서빙 — src/app/[...slug]/page.tsx).
-        groupLabel: "주제별 클럽 게시판",
-        href: "/community/topics",
+        label: "혁명 ~ 제국 Revolution ~ Empire",
+        href: "/online-docent/revolution-empire",
+        children: [
+          {
+            label: "1750~1850 신고전주의 NeoClassicism",
+            href: "/online-docent/revolution-empire/neoclassicism",
+          },
+          {
+            label: "1795~1837 리전시 Regency",
+            href: "/online-docent/revolution-empire/regency",
+          },
+          {
+            label: "1837~1901 빅토리안 Victorian",
+            href: "/online-docent/revolution-empire/victoria",
+          },
+          {
+            label: "1860~1890 인상파 Impressionism",
+            href: "/online-docent/revolution-empire/impressionism",
+          },
+        ],
+      },
+      {
+        label: "프로이트~ 인공지능 Freud~A.I.",
+        href: "/online-docent/freud-ai",
+        children: [
+          {
+            label: "1890~1920 아르누보 Art Nouveau",
+            href: "/online-docent/freud-ai/art-nouveau",
+          },
+          {
+            label: "1920~1940 아르데코 Art Deco",
+            href: "/online-docent/freud-ai/art-deco",
+          },
+          {
+            label: "1940~1960 비트 세대 Beat Generation",
+            href: "/online-docent/freud-ai/beat-generation",
+          },
+          {
+            label: "1960~1980 반문화 CounterCulture",
+            href: "/online-docent/freud-ai/counterculture",
+          },
+          {
+            label: "1980~2000 대중 문화 Pop Culture",
+            href: "/online-docent/freud-ai/pop-culture",
+          },
+        ],
+      },
+      {
+        label: "2020~현재, 디지털 문화 digital culture",
+        href: "/online-docent/freud-ai/digital-culture",
+      },
+    ],
+  },
+  {
+    key: "salon",
+    label: "살롱데상 Salon des Cent",
+    type: "sidebar-right",
+    href: "/salon-des-cent",
+    groups: [
+      {
+        groupLabel: "커뮤니티 Community",
+        href: "/salon-des-cent/community",
         items: [
-          { label: "예술 Art", href: "/community-topics-art" },
-          { label: "심리 Psychology", href: "/community-topics-psychology" },
-          { label: "문학 Literature", href: "/community-topics-literature" },
-          { label: "세계역사 World History", href: "/community-topics-world-history" },
-          { label: "과학 Science", href: "/community-topics-science" },
-          { label: "정치 Politics", href: "/community-topics-politics" },
-          { label: "경제 Economy", href: "/community-topics-economy" },
-          { label: "건강 Health", href: "/community-topics-health" },
-          { label: "스포츠 Sports", href: "/community-topics-sports" },
-          { label: "코메디 Comedy", href: "/community-topics-comedy" },
-          { label: "인간집사들 Human Butlers", href: "/community-topics-pet-owners" },
-          { label: "따뜻한 세상 Warm World", href: "/community-topics-warm-world" },
+          {
+            label: "출석체크 / 예술가의 달력",
+            href: "/salon-des-cent/community/attendance",
+          },
+          {
+            label: "자유게시판",
+            href: "/salon-des-cent/community/general",
+          },
+          {
+            label: "나의 맛집들",
+            href: "/salon-des-cent/community/my-restaurants",
+          },
+          {
+            label: "설문 [우리들 맴]",
+            href: "/salon-des-cent/community/polls",
+          },
+          {
+            label: "공연 / 전시회 소개",
+            href: "/salon-des-cent/community/events",
+          },
+          {
+            label: "이벤트 공지",
+            href: "/salon-des-cent/community/event-notices",
+          },
+          {
+            label: "Q&A",
+            href: "/salon-des-cent/community/qna",
+          },
+        ],
+      },
+      {
+        groupLabel: "주제별 클럽 게시판 A",
+        href: "/salon-des-cent/community/topics-A",
+        items: [
+          {
+            label: "예술 Art",
+            href: "/salon-des-cent/community/topics-A/art",
+          },
+          {
+            label: "심리 Psychology",
+            href: "/salon-des-cent/community/topics-A/-psychology",
+          },
+          {
+            label: "문학 Literature",
+            href: "/salon-des-cent/community/topics-A/literature",
+          },
+          {
+            label: "세계역사 World History",
+            href: "/salon-des-cent/community/topics-A/world-history",
+          },
+          {
+            label: "과학 Science",
+            href: "/salon-des-cent/community/topics-A/science",
+          },
+          {
+            label: "경제 Economy",
+            href: "/salon-des-cent/community/topics-A/economy",
+          },
+          {
+            label: "정치 Politics",
+            href: "/salon-des-cent/community/topics-A/politics",
+          },
+        ],
+      },
+      {
+        groupLabel: "주제별 클럽 게시판 B",
+        href: "/salon-des-cent/community/topics-B",
+        items: [
+          {
+            label: "영화 & 시리즈 Movies & Series",
+            href: "/salon-des-cent/community/topics-B/movies-series",
+          },
+          {
+            label: "스포츠 Sports",
+            href: "/salon-des-cent/community/topics-B/sports",
+          },
+          {
+            label: "건강 Health",
+            href: "/salon-des-cent/community/topics-B/health",
+          },
+          {
+            label: "코메디 Comedy",
+            href: "/salon-des-cent/community/topics-B/comedy",
+          },
+          {
+            label: "따뜻한 세상 Warm World",
+            href: "/salon-des-cent/community/topics-B/warm-world",
+          },
+          {
+            label: "패션 Fashion",
+            href: "/salon-des-cent/community/topics-B/fashion",
+          },
+          {
+            label: "인간집사들 Human Butlers",
+            href: "/salon-des-cent/community/topics-B/human-butlers",
+          },
         ],
       },
       {
         groupLabel: "요일별 클럽 모임",
-        href: "/community/weekday",
+        href: "/salon-des-cent/community/daily-club",
         items: [
-          { label: "Mon 월요 반란클럽", href: "/community-weekday-monday" },
-          { label: "Tue 낭송 북클럽", href: "/community-weekday-book" },
-          { label: "Wed 행간의 조각가들 - 북클럽", href: "/community-weekday-between-lines" },
-          { label: "Thurs 영어로 놀자 클럽", href: "/community-weekday-english-play" },
-          { label: "Fri 비포 선라이즈 클럽", href: "/community-weekday-before-sunrise" },
-          { label: "Sat '무슨일이든 가능' 클럽", href: "/community-weekday-anything-can-happen" },
-          { label: "Sun '연극이 끝나고 난 뒤' 클럽", href: "/community-weekday-after-the-play" },
+          {
+            label: "Mon 월요 반란클럽",
+            href: "/salon-des-cent/community/daily-club/monday",
+          },
+          {
+            label: "Tue 낭송 북클럽",
+            href: "/salon-des-cent/community/daily-club/read-book-aloud",
+          },
+          {
+            label: "Wed 행간의 조각가들 - 북클럽",
+            href: "/salon-des-cent/community/daily-club/sentence-sculptors",
+          },
+          {
+            label: "Thurs 영어로 놀자 클럽",
+            href: "/salon-des-cent/community/daily-club/play-with-English",
+          },
+          {
+            label: "Fri 비포 선라이즈 클럽",
+            href: "/salon-des-cent/community/daily-club/before-sunrise",
+          },
+          {
+            label: "Sat '무슨일이든 가능' 클럽",
+            href: "/salon-des-cent/community/daily-club/anything-can-happen",
+          },
+          {
+            label: "Sun '연극이 끝나고 난 뒤' 클럽",
+            href: "/community-weekday-after-the-play",
+          },
         ],
       },
       {
         groupLabel: "멤버십 Membership",
-        href: "/membership",
+        href: "/salon-des-cent/community/membership",
         items: [
-          { label: "나의 보물 이야기", href: "/salon/my-treasure-story" },
-          { label: "마음일기", href: "/salon/mind-diary" },
-          { label: "나의 아티스트 소개", href: "/salon/artist-intro" },
-          { label: "월별 모임 [패트론의 살롱]", href: "/salon/monthly-events" },
-          { label: "패트론 게시판", href: "/membership/patron" },
-          { label: "한문장 소설 프로젝트", href: "/salon/one-sentence-novel" },
-          { label: "비밀의 방 도슨트", href: "/salon/secret-room" },
+          {
+            label: "나의 보물 이야기들",
+            href: "/salon-des-cent/community/membership/my-treasure-stories",
+          },
+          {
+            label: "나의 마음일기들",
+            href: "/salon-des-cent/community/membership/mind-diary",
+          },
+          {
+            label: "나의 아티스트 소개들",
+            href: "/salon-des-cent/community/membership/artist-intro",
+          },
+          {
+            label: "월별 모임 [패트론의 살롱]",
+            href: "/salon-des-cent/community/membership/patrons-salon",
+          },
+          {
+            label: "패트론 게시판",
+            href: "/salon-des-cent/community/membership/patrons-board",
+          },
+          {
+            label: "한문장 소설 프로젝트",
+            href: "/salon-des-cent/community/membership/one-sentence-novel",
+          },
+          {
+            label: "비밀의 방 도슨트",
+            href: "/salon-des-cent/community/membership/secret-room",
+          },
         ],
       },
       {
         groupLabel: "갤러리 Gallery",
-        href: "/gallery",
+        href: "/salon-des-cent/community/gallery",
         items: [
-          { label: "시상식", href: "/salon/gallery/awards" },
-          { label: "공연들", href: "/salon/gallery/performances" },
-          { label: "파티", href: "/salon/gallery/parties" },
-          { label: "운명의 방문자들", href: "/salon/gallery/visitors" },
-          { label: "패트론들", href: "/salon/gallery/patrons" },
+          {
+            label: "연말 시상식",
+            href: "/salon-des-cent/community/gallery/awards-ceremony",
+          },
+          {
+            label: "살롱데상 공연들",
+            href: "/salon-des-cent/community/gallery/performances",
+          },
+          {
+            label: "살롱데상 파티들",
+            href: "/salon-des-cent/community/gallery/parties",
+          },
+          {
+            label: "운명의 방문자들",
+            href: "/salon-des-cent/community/gallery/fateful-visitors",
+          },
+          {
+            label: "역대 패트론들",
+            href: "/salon-des-cent/community/gallery/patrons",
+          },
         ],
       },
       {
-        groupLabel: "아카이브 Archive",
-        href: "/archive",
+        groupLabel: "아카이브 Archives",
+        href: "/salon-des-cent/community/archives",
         items: [
-          { label: "소개지", href: "/downloads" },
-          { label: "포스터", href: "/downloads" },
+          {
+            label: "미디어 / 기사들 Media & Articles",
+            href: "/salon-des-cent/community/archives/media-articles",
+          },
+          {
+            label: "소개지 brochures",
+            href: "/salon-des-cent/community/archives/downloads",
+          },
+          {
+            label: "포스터들 posters",
+            href: "/salon-des-cent/community/archive/posters",
+          },
         ],
       },
     ],
@@ -227,35 +512,124 @@ const FALLBACK_NAV_TABS: NavTab[] = [
     type: "dropdown",
     href: "/studio",
     items: [
-      { label: "공간 촬영 대관 (1층 사일로상점)", href: "/rental?floor=1f_silostore" },
-      { label: "공간 촬영 대관 (2층 살롱데상)", href: "/rental?floor=2f_salon" },
-      { label: "물품 대여", href: "/space-inquiry/item-rental" },
-      { label: "공간 스타일링", href: "/space-inquiry/styling" },
+      {
+        label: "공간 촬영 대관 (1층 사일로상점)",
+        href: "/studio/rental_1f_silostore",
+      },
+      {
+        label: "공간 촬영 대관 (2층 살롱데상)",
+        href: "/studio/rental_2f_salon",
+      },
+      {
+        label: "물품 대여 Items Rental",
+        href: "/studio/items-rental",
+      },
+      {
+        label: "공간 스타일링 Space Styling",
+        href: "/studio/space-styling",
+      },
     ],
   },
   {
-    // EPIC-080: 라이브 DB에서 이 탭이 13개 "My X" 하위 항목을 가진
-    // dropdown인 것을 확인 후, 의도된 구조인지 사용자에게 확인 —
-    // 의도적으로 원한 구조임을 확인받아(2026-08-06) FALLBACK도 동일하게
-    // 맞춘다(이전엔 하위 항목 없는 단순 link 탭이었음).
     key: "mypage",
     label: "마이 페이지 My Page",
     type: "dropdown",
     href: "/mypage",
     items: [
-      { label: "My Collections Category", href: "/mypage-collections-category" },
-      { label: "My Wishlist", href: "/mypage-wishlist" },
-      { label: "My Follow", href: "/mypage-follow" },
-      { label: "My Salon", href: "/mypage-salon" },
-      { label: "My Docent Certificate", href: "/mypage-docent-certificate" },
-      { label: "My Space", href: "/mypage-space" },
-      { label: "My Exhibition", href: "/mypage-exhibition" },
-      { label: "My Badges", href: "/mypage-badges" },
-      { label: "My Comments", href: "/mypage-comments" },
-      { label: "My Bucketlist", href: "/mypage-bucketlist" },
-      { label: "My Timeline", href: "/mypage-timeline" },
-      { label: "My Visitors", href: "/mypage-visitors" },
-      { label: "My Mind Diary", href: "/my-mind-diary" },
+      {
+        label: "My Collections 나의 수집품들",
+        href: "/mypage/my-collections",
+        children: [
+          {
+            label: "My Treasures 나의 보물",
+            href: "/mypage/my-collections/mytreasures",
+          },
+          {
+            label: "My Books 나의 책",
+            href: "/mypage/my-collections/mybooks",
+          },
+          {
+            label: "My Movies 나의 영화",
+            href: "/mypage/my-collections/mymovies",
+          },
+          {
+            label: "My Musics 나의 음악",
+            href: "/mypage/my-collections/mymusics",
+          },
+          {
+            label: "My Artists 나의 아티스트",
+            href: "/mypage/my-collections/myartists",
+          },
+          {
+            label: "My Places 나의 장소",
+            href: "/mypage/my-collections/myplaces",
+          },
+          {
+            label: "My Scents 나의 향기",
+            href: "/mypage/my-collections/myscents",
+          },
+          {
+            label: "My Brands 나의 브랜드",
+            href: "/mypage/my-collections/mybrands",
+          },
+        ],
+      },
+      {
+        label: "My Silo Timeline 나의사일로 타임라인",
+        href: "/mypage/my-silo-timeline",
+        children: [
+          {
+            label: "My Badges 나의 뱃지",
+            href: "/mypage/my-silo-timeline/badges",
+          },
+          {
+            label: "My Likes 나의 좋아요",
+            href: "/mypage/my-silo-timelines/my-likes",
+          },
+          {
+            label: "My Writings 내가 쓴 글",
+            href: "/mypage/my-silo-timeline/my-writings",
+          },
+          {
+            label: "My Comments 나의 댓글",
+            href: "/mypage/my-silo-timeline/my-comments",
+          },
+          {
+            label: "My Follows 나의 팔로우",
+            href: "/mypage/my-silo-timeline/my-follows",
+          },
+          {
+            label: "My Visitors 나를 방문한 사람",
+            href: "/mypage/my-silo-timeline/my-visitors",
+          },
+        ],
+      },
+      {
+        label: "My Story 나의 이야기",
+        href: "/mypage/my-story",
+        children: [
+          {
+            label: "My Exhibition 나의 전시회",
+            href: "/mypage/my-story/my-exhibition",
+          },
+          {
+            label: "My Bucketlist 나의 버킷리스트",
+            href: "/mypage/my-story/my-bucketlist",
+          },
+          {
+            label: "My Wishlist 나의 위시리스트",
+            href: "/mypage/my-story/wishlist",
+          },
+          {
+            label: "My Space 나의 공간",
+            href: "/mypage/my-story/my-space",
+          },
+          {
+            label: "My Mind Diary 나의 마음 일기장",
+            href: "/mypage/my-story/my-mind-diary",
+          },
+        ],
+      },
     ],
   },
 ];
@@ -383,12 +757,23 @@ export async function fetchNavTabs(): Promise<NavTab[]> {
   return buildNavTree(data as SiteNavRow[], slugToRank);
 }
 
-export function getActiveNavTabKey(
-  pathname: string,
-  categoryParam: string | null,
-): string | null {
+// EPIC-095: 두 번째 인자(category 쿼리)로 /docent를 salon/silostore 중
+// 하나로 흉내내던 마지막 분기를 제거하면서 더 이상 아무 데도 안 쓰여
+// 시그니처에서 뺐다 — 호출부(Navbar.tsx)도 함께 정리.
+export function getActiveNavTabKey(pathname: string): string | null {
   if (pathname.startsWith("/shop")) return "silostore";
-  if (pathname.startsWith("/docent/collections")) return "silostore";
+
+  // EPIC-095(요구사항 1.1): 라이브 site_navigations 재조사 결과 "온라인
+  // 도슨트"는 이미 parent_id=null인 완전히 독립된 최상위 탭이었다(사일로상점
+  // 하위 그룹이라는 옛 전제가 코드/문서 쪽 드리프트였음) — key가 비어있어
+  // (null) 이 함수가 그 탭을 인식 못 하고 있었던 것도 함께 확인해 라이브에서
+  // key='docent'로 채웠다. 두 경로 모두 이 탭으로 매핑한다: /docent(구
+  // 콘텐츠 구매형 도슨트, docent_contents 테이블 기반)와 /online-docent
+  // (이 탭 자체의 href — 라이브 site_navigations 트리가 이미 이 slug로
+  // 재구성되어 있었다, Page Builder catch-all로 서빙).
+  if (pathname.startsWith("/docent") || pathname.startsWith("/online-docent")) {
+    return "docent";
+  }
 
   if (
     pathname.startsWith("/clubs") ||
@@ -403,10 +788,6 @@ export function getActiveNavTabKey(
 
   if (pathname.startsWith("/rental") || pathname.startsWith("/space-inquiry")) {
     return "space_inquiry";
-  }
-
-  if (pathname === "/docent") {
-    return categoryParam === "salon" ? "salon" : "silostore";
   }
 
   if (pathname.startsWith("/mypage")) return "mypage";

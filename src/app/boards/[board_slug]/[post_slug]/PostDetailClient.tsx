@@ -14,6 +14,7 @@ import { BoardPostListPanel } from "@/components/boards/BoardPostListPanel";
 import { resolveBoardDefinition, isRealBoardCategory } from "@/lib/boardLayout";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PostFloatingActionBar } from "@/components/boards/PostFloatingActionBar";
+import { guessPostCollectionCategory } from "@/lib/collectionCategory";
 import type { BreadcrumbItem } from "@/components/PageHeader";
 
 type PostDetail = {
@@ -377,6 +378,9 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
         postId={post.id}
         showBookmark={definition.bookmarks}
         showComments={definition.comments}
+        collectTitle={post.title}
+        collectImageUrl={post.featured_image_url ?? post.photo_url}
+        collectCategory={guessPostCollectionCategory(post)}
       />
     </>
   );

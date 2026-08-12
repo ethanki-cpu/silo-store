@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { fetchNavTabs, getActiveNavTabKey, type NavTab } from "@/lib/navConfig";
@@ -110,12 +110,8 @@ export function Navbar() {
   const { session, member, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
-  const activeTabKey = getActiveNavTabKey(
-    pathname,
-    searchParams.get("category"),
-  );
+  const activeTabKey = getActiveNavTabKey(pathname);
 
   // EPIC-084: Contextual Write — 게시판 상세(/boards/[slug](/...)?)에서 전역
   // "글쓰기" 버튼을 누르면 지금 보고 있던 게시판이 /write?boardId=<slug>로

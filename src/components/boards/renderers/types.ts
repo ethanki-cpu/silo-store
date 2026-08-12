@@ -24,6 +24,9 @@ export type BoardRendererProps = {
   // 동일한 "필요한 것만 골라 쓰는" 관례).
   galleryLayout?: "masonry" | "grid";
   galleryColumns?: number;
+  // 사용자 신고(2026-08-12): "게시판 수정"에서 썸네일 크기를 직접 지정할
+  // 수 있게 — 없으면 galleryColumns 기반 자동 계산(EPIC-096) 그대로.
+  galleryThumbnailMaxPx?: number;
   // EPIC-092 후속 2차: 호버 시 이미지 슬라이드 자동 전환 여부(기본 false —
   // 좌우 화살표로 직접 넘김). 영상은 이 값과 무관하게 항상 자동재생.
   galleryHoverAutoSlide?: boolean;

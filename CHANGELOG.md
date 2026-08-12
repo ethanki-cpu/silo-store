@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-12 (EPIC-096 후속 3차 — "게시물 출력방식" 버튼 목적지 버그, 썸네일 크기 설정, 전체 게시판 기본값)
+- **"게시물 출력방식" 버튼이 엉뚱한 페이지로 가던 버그 수정**: 게시글 상세의 이 버튼이 실제 설정 화면(`/admin/boards/[id]`)이 아니라 모든 게시판이 공유하는 Page Builder placeholder(`boards-id-postid` slug, `/admin/pages/[공용 id]`)로 보내고 있었다 — `PageEditButton.tsx`에 `hrefOverride` prop을 추가해 호출부가 정확한 목적지를 직접 지정할 수 있게 하고, `PostDetailClient.tsx`가 이미 알고 있는 `board.id`로 `/admin/boards/${board.id}`를 바로 연결한다.
+- **갤러리 썸네일 크기 직접 지정**: "게시판 수정"의 갤러리 설정에 "썸네일 최대 크기 (px)" 입력 필드 추가(`widget_settings.galleryThumbnailMaxPx`) — 비워두면 EPIC-096의 기존 동작(한 행당 개수로 자동 계산) 그대로, 값을 넣으면 그 px를 칸의 목표 너비로 직접 강제한다. `useBoardData.ts` → `BoardModule.tsx` → `types.ts`(BoardRendererProps) → `GalleryRenderer.tsx` → `GalleryModule.tsx`까지 기존 galleryColumns와 동일한 파이프라인으로 배선.
+- **"게시물 출력방식"을 전체 게시판 기본값으로 저장**: `BoardForm.tsx`에 "🌐 이 설정을 전체 게시판 기본값으로 저장" 버튼 추가 — 날짜/작성자 스타일 + 블록 레이아웃 순서를 새 `site_settings.default_post_display_style` 키에 저장한다. `PostDetailClient.tsx`는 게시판 자신의 `postMetaStyle`/`postLayoutOrder`가 없을 때만(기존처럼 있으면 그게 항상 우선) 이 사이트 기본값으로 대체한다 — "기본값"이지 다른 게시판이 이미 저장해둔 커스텀 설정을 덮어쓰는 강제 적용이 아니다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 warning 없음). 로컬 dev에서 실제 게시글(`/boards/treasures/urin-02`)과 갤러리 게시판(`/about-silo/silo-daily`) 둘 다 새 fetch/props가 추가된 상태로 콘솔 에러 없이 정상 렌더링 확인. **다음 세션에서 확인 필요(관리자 로그인 세션)**: "게시물 출력방식" 버튼이 실제로 올바른 게시판 설정 화면으로 이동하는지, 썸네일 크기 입력이 실제 갤러리 화면에 반영되는지, "전체 게시판 기본값으로 저장" 후 다른(자기 설정 없는) 게시판의 글에 그 값이 실제로 적용되는지.
+- **변경 파일**: `src/components/admin/PageEditButton.tsx`, `src/app/boards/[board_slug]/[post_slug]/PostDetailClient.tsx`, `src/components/admin/BoardForm.tsx`, `src/lib/useBoardData.ts`, `src/components/modules/BoardModule.tsx`, `src/components/boards/renderers/types.ts`, `src/components/boards/renderers/GalleryRenderer.tsx`, `src/components/modules/GalleryModule.tsx`, `src/app/admin/boards/[id]/page.tsx`, `src/app/admin/boards/new/page.tsx`.
+
 ## 2026-08-12 (EPIC-096 후속 2차 — 사용자 신고: 탭/표 가로 스크롤, 게시판 선택 정렬)
 - **탭/표 가로 스크롤 제거**: "전체 글 관리" 탭 바(`layout.tsx`)가 `max-w-4xl`(896px) 안에서 7개 탭을 `overflow-x-auto whitespace-nowrap`로 욱여넣어 스크롤해야 다 보였다 — 컨테이너를 `max-w-6xl`로 넓히고 `flex-wrap`으로 바꿔 스크롤 없이(필요하면 줄바꿈으로) 한 화면에 다 보이게 했다. 표가 있는 `AdminPostsBoardView.tsx`/`/admin/posts/shop`도 같은 이유로 `max-w-6xl`로 함께 넓힘.
 - **게시판 이동 select 정렬**: 인라인 "카테고리(게시판) 이동" 드롭다운이 가나다순이라 About Silo/사일로상점/온라인도슨트/살롱데상/스튜디오/마이페이지 실제 사이트 구조가 뒤섞여 보였다 — HOTFIX-101이 `WriteBoardForm`의 게시판 선택기에 이미 적용한 것과 동일하게, 실제 사이트 메뉴 트리 순서(`site_navigations` sort_order 기준)를 그대로 따르도록 수정. 어느 브랜치에도 안 걸린 게시판만 맨 뒤에 이름순으로 남는다.

@@ -40,6 +40,7 @@ export default function AdminBoardNewPage() {
         widget_settings: {
           ...(values.gallery_layout ? { galleryLayout: values.gallery_layout } : {}),
           ...(values.gallery_columns ? { galleryColumns: values.gallery_columns } : {}),
+          ...(values.gallery_thumbnail_max_px ? { galleryThumbnailMaxPx: values.gallery_thumbnail_max_px } : {}),
           galleryHoverAutoSlide: values.gallery_hover_auto_slide,
           ...(values.timeline_orientation ? { timelineOrientation: values.timeline_orientation } : {}),
           timelineShowPreview: values.timeline_show_preview,

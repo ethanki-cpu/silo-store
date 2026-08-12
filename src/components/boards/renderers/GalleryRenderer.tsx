@@ -9,6 +9,7 @@ export function GalleryRenderer({
   definition,
   galleryLayout,
   galleryColumns,
+  galleryThumbnailMaxPx,
   galleryHoverAutoSlide,
 }: BoardRendererProps) {
   return (
@@ -21,6 +22,7 @@ export function GalleryRenderer({
       showViewCount={definition.showViewCount}
       layout={galleryLayout}
       columns={galleryColumns}
+      thumbnailMaxPx={galleryThumbnailMaxPx}
       hoverAutoSlide={galleryHoverAutoSlide}
     />
   );

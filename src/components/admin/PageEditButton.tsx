@@ -36,17 +36,27 @@ export function PageEditButton({
   slug,
   className,
   label = "페이지 수정",
+  hrefOverride,
 }: {
   slug: string;
   className?: string;
   label?: string;
+  // 사용자 신고(2026-08-12): 게시글 상세의 "게시물 출력방식" 버튼이 이
+  // slug("boards-id-postid", 모든 게시판이 공유하는 placeholder Page
+  // Builder 위젯 페이지)로 보내고 있었는데, 실제 "게시물 출력방식"
+  // 설정(날짜/작성자 스타일, 블록 레이아웃 순서)은 거기가 아니라
+  // /admin/boards/[id](BoardForm.tsx)에 있다 — 완전히 엉뚱한 화면으로
+  // 보내고 있던 버그. hrefOverride가 있으면 page_builder 조회 자체를
+  // 건너뛰고 그 주소로 바로 연결한다(호출부가 정확한 목적지를 이미 아는
+  // 경우 — PostDetailClient.tsx가 board.id로 board 설정 화면을 직접 지정).
+  hrefOverride?: string;
 }) {
   const { member, memberLoading } = useAuth();
   const [pageId, setPageId] = useState<string | null>(null);
   const [topPx, setTopPx] = useState(DEFAULT_TOP_PX);
 
   useEffect(() => {
-    if (!member?.is_admin) return;
+    if (!member?.is_admin || hrefOverride) return;
     let cancelled = false;
     supabase
       .from("page_builder")
@@ -59,7 +69,7 @@ export function PageEditButton({
     return () => {
       cancelled = true;
     };
-  }, [slug, member?.is_admin]);
+  }, [slug, member?.is_admin, hrefOverride]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,11 +94,12 @@ export function PageEditButton({
     };
   }, []);
 
-  if (memberLoading || !member?.is_admin || !pageId) return null;
+  if (memberLoading || !member?.is_admin) return null;
+  if (!hrefOverride && !pageId) return null;
 
   return (
     <Link
-      href={`/admin/pages/${pageId}`}
+      href={hrefOverride ?? `/admin/pages/${pageId}`}
       className={
         className ??
         "fixed left-4 z-50 rounded-md bg-[#166534] text-white px-3 py-1.5 text-sm shadow-md hover:opacity-90"

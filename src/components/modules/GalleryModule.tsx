@@ -141,6 +141,7 @@ export function GalleryModule({
   showWriteButton = true,
   layout = "grid",
   columns,
+  thumbnailMaxPx,
   hoverAutoSlide = false,
 }: {
   boardId: string;
@@ -157,6 +158,10 @@ export function GalleryModule({
   // (2~6, 기본 3)를 강제한다.
   layout?: "masonry" | "grid";
   columns?: number;
+  // 사용자 신고(2026-08-12): "게시판 수정"에서 썸네일 크기를 직접 px로
+  // 지정할 수 있게 — 있으면 이 값을 칸의 목표 너비(tileTargetPx)로 그대로
+  // 쓰고, 없으면 EPIC-096처럼 columns로 자동 역산한다.
+  thumbnailMaxPx?: number;
   // EPIC-092 후속 2차: 호버 시 이미지 슬라이드를 자동으로 넘길지(true) 아니면
   // 좌우 화살표로 직접 넘기게 할지(기본 false) — 영상은 이 값과 무관하게
   // 항상 자동재생된다.
@@ -172,9 +177,10 @@ export function GalleryModule({
   // 요구사항이 예시로 든 "3열 → 4열 → 5열" 반응형 그대로.
   const GALLERY_REFERENCE_WIDTH_PX = 1200;
   const GALLERY_GAP_PX = 16; // gap-4
-  const tileTargetPx = Math.floor(
-    (GALLERY_REFERENCE_WIDTH_PX - GALLERY_GAP_PX * (gridColumns - 1)) / gridColumns,
-  );
+  const tileTargetPx =
+    thumbnailMaxPx && thumbnailMaxPx > 0
+      ? thumbnailMaxPx
+      : Math.floor((GALLERY_REFERENCE_WIDTH_PX - GALLERY_GAP_PX * (gridColumns - 1)) / gridColumns);
   const tileMinPx = Math.max(140, Math.floor(tileTargetPx * 0.75));
   return (
     <div>

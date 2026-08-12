@@ -36,6 +36,9 @@ export type BoardFormValues = {
   // galleryColumns로 저장된다.
   gallery_layout: string; // "" | "masonry" | "grid"
   gallery_columns: number;
+  // 사용자 신고(2026-08-12): 썸네일 크기를 관리자가 직접 지정할 수 있게 —
+  // 0 = 미지정(한 행당 개수로 자동 계산, EPIC-096 기존 동작 그대로).
+  gallery_thumbnail_max_px: number;
   // EPIC-092 후속 2차: 호버 시 이미지 슬라이드 자동 전환 여부(기본 false —
   // 좌우 화살표로 직접 넘김). 영상은 이 값과 무관하게 항상 자동재생.
   gallery_hover_auto_slide: boolean;
@@ -131,6 +134,7 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   min_rank_to_read: null,
   gallery_layout: "",
   gallery_columns: 3,
+  gallery_thumbnail_max_px: 0,
   gallery_hover_auto_slide: false,
   post_meta_date_size_px: 0,
   post_meta_date_color_hex: "",
@@ -203,6 +207,47 @@ export function BoardForm({
   boardId?: string;
 }) {
   const [values, setValues] = useState<BoardFormValues>(initial);
+  // 사용자 지시(2026-08-12): "게시물 출력방식"(날짜/작성자 스타일 + 블록
+  // 레이아웃 순서)을 이 게시판 하나가 아니라 사이트 전체 게시판의 기본값
+  // 으로 저장하는 기능 — site_settings.default_post_display_style(신설
+  // 키)에 저장하고, 자기 것을 따로 지정하지 않은 다른 모든 게시판이 이
+  // 값을 기본으로 물려받는다(PostDetailClient.tsx 참고). 이 게시판
+  // 자체에도 이미 값이 있으면(post_meta_*/post_layout_order) 그게 여전히
+  // 우선한다 — "기본값"이지 "강제 값"이 아니다.
+  const [savingSiteDefault, setSavingSiteDefault] = useState(false);
+  const [siteDefaultSaved, setSiteDefaultSaved] = useState(false);
+
+  async function handleSaveAsSiteDefault() {
+    setSavingSiteDefault(true);
+    setSiteDefaultSaved(false);
+    const postMetaStyle = {
+      ...(values.post_meta_date_size_px ? { dateSizePx: values.post_meta_date_size_px } : {}),
+      ...(values.post_meta_date_color_hex ? { dateColorHex: values.post_meta_date_color_hex } : {}),
+      ...(values.post_meta_font_weight ? { fontWeight: values.post_meta_font_weight } : {}),
+      ...(values.post_meta_position ? { position: values.post_meta_position } : {}),
+      ...(values.post_meta_post_number_size_px ? { postNumberSizePx: values.post_meta_post_number_size_px } : {}),
+      ...(values.post_meta_post_number_color_hex
+        ? { postNumberColorHex: values.post_meta_post_number_color_hex }
+        : {}),
+      ...(values.post_meta_author_name_size_px ? { authorNameSizePx: values.post_meta_author_name_size_px } : {}),
+      ...(values.post_meta_author_name_color_hex
+        ? { authorNameColorHex: values.post_meta_author_name_color_hex }
+        : {}),
+    };
+    const { error: saveError } = await supabase.from("site_settings").upsert(
+      {
+        setting_key: "default_post_display_style",
+        setting_value: { postMetaStyle, postLayoutOrder: values.post_layout_order },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "setting_key" },
+    );
+    setSavingSiteDefault(false);
+    if (!saveError) {
+      setSiteDefaultSaved(true);
+      setTimeout(() => setSiteDefaultSaved(false), 3000);
+    }
+  }
   const [linkedPages, setLinkedPages] = useState<
     { moduleId: string; pageId: string; slug: string; title: string; moduleType: string }[] | null
   >(null);
@@ -644,6 +689,21 @@ export function BoardForm({
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">썸네일 최대 크기 (px)</label>
+              <input
+                type="number"
+                min={0}
+                max={800}
+                value={values.gallery_thumbnail_max_px || ""}
+                onChange={(e) => update("gallery_thumbnail_max_px", Number(e.target.value) || 0)}
+                placeholder="비우면 위 개수로 자동 계산"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                비워두면 한 행당 개수를 기준으로 자동 계산돼요 — 직접 지정하면 그 값이 항상 우선해요.
+              </p>
+            </div>
             <div className="col-span-2">
               <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
                 <input
@@ -867,6 +927,24 @@ export function BoardForm({
               onChange={(next) => update("post_layout_order", next)}
             />
           </div>
+          {/* 사용자 지시(2026-08-12): 위 "날짜/작성자 스타일" + "블록
+              레이아웃 순서" 두 섹션의 현재 값을 사이트 전체 게시판의
+              기본값으로 저장 — 자기 것을 따로 지정 안 한 다른 게시판들이
+              이 값을 물려받는다(강제 적용이 아니라 기본값). 이 폼 자체의
+              "저장하기"(게시판 하나 저장)와는 별개 동작이라 여기서 바로
+              실행되고 별도 확인 없이 즉시 저장된다(다른 site_settings
+              upsert 버튼들과 동일한 관례).*/}
+          <div className="mt-3 flex items-center gap-3 border-t border-gray-100 pt-3">
+            <button
+              type="button"
+              onClick={handleSaveAsSiteDefault}
+              disabled={savingSiteDefault}
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {savingSiteDefault ? "저장 중..." : "🌐 이 설정을 전체 게시판 기본값으로 저장"}
+            </button>
+            {siteDefaultSaved && <span className="text-xs text-green-600">전체 게시판 기본값으로 저장됐어요.</span>}
+          </div>
         </details>
 
         <div className="grid grid-cols-2 gap-4">
@@ -1027,6 +1105,7 @@ export function BoardForm({
             isQna={false}
             galleryLayout={values.gallery_layout === "grid" ? "grid" : values.gallery_layout === "masonry" ? "masonry" : undefined}
             galleryColumns={values.gallery_columns}
+            galleryThumbnailMaxPx={values.gallery_thumbnail_max_px || undefined}
             galleryHoverAutoSlide={values.gallery_hover_auto_slide}
             timelineOrientation={values.timeline_orientation === "horizontal" ? "horizontal" : values.timeline_orientation === "vertical" ? "vertical" : undefined}
             timelineShowPreview={values.timeline_show_preview}

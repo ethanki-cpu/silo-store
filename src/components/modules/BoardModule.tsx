@@ -228,6 +228,7 @@ export function BoardModule({
         boardCategory={isRealBoardCategory(board?.category) ? board.category : null}
         galleryLayout={board?.widget_settings?.galleryLayout}
         galleryColumns={board?.widget_settings?.galleryColumns}
+        galleryThumbnailMaxPx={board?.widget_settings?.galleryThumbnailMaxPx}
         galleryHoverAutoSlide={board?.widget_settings?.galleryHoverAutoSlide}
         timelineOrientation={board?.widget_settings?.timelineOrientation}
         timelineShowPreview={board?.widget_settings?.timelineShowPreview}

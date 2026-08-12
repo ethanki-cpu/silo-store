@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
+import { supabase } from "@/lib/supabaseClient";
 import type { JSONContent } from "@/lib/blockEditorCore";
 import { PostDetailHeader, type PostMetaStyle } from "@/components/boards/PostDetailHeader";
 import { PostTags } from "@/components/boards/PostTags";
@@ -91,6 +92,33 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
   const [commentBody, setCommentBody] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [likeSubmitting, setLikeSubmitting] = useState(false);
+
+  // 사용자 지시(2026-08-12): "게시물 출력방식"을 특정 게시판에 저장하는
+  // 것과 별개로, "전체 게시판 기본값"(BoardForm.tsx의 "🌐 전체 게시판
+  // 기본값으로 저장" 버튼)도 지원한다 — 이 게시판이 자기만의 값을 명시적
+  // 으로 저장한 적 없으면(post_meta_*/post_layout_order 전부 비어있으면)
+  // 이 사이트 기본값으로 대체한다. site_settings는 글/게시판과 무관한
+  // 전역 값이라 boardSlug/postSlug가 바뀌어도 다시 조회할 필요가 없어
+  // 별도 마운트 1회 effect로 뺐다.
+  const [siteDefaultDisplay, setSiteDefaultDisplay] = useState<{
+    postMetaStyle?: PostMetaStyle;
+    postLayoutOrder?: unknown;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "default_post_display_style")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setSiteDefaultDisplay((data?.setting_value as typeof siteDefaultDisplay) ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function load() {
     setFetching(true);
@@ -291,7 +319,10 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
   // 도 나머지 4개 블록과 같은 max-w-2xl 폭 안으로 들어왔다(기존엔 더 넓은
   // max-w-4xl 컨테이너에 바로 있었음 — 순서가 섞일 수 있는 이상 모든 블록이
   // 같은 폭 규칙을 따라야 자연스럽다).
-  const postLayoutOrder = normalizePostLayoutOrder(board?.widget_settings?.postLayoutOrder);
+  const postLayoutOrder = normalizePostLayoutOrder(
+    board?.widget_settings?.postLayoutOrder ?? siteDefaultDisplay?.postLayoutOrder,
+  );
+  const postMetaStyle = board?.widget_settings?.postMetaStyle ?? siteDefaultDisplay?.postMetaStyle;
   const blockNodes: Record<PostLayoutBlock, ReactNode> = {
     meta: (
       <PostDetailHeader
@@ -307,7 +338,7 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
         showLikes={definition.likes}
         showComments={definition.comments}
         showViewCount={definition.showViewCount}
-        metaStyle={board?.widget_settings?.postMetaStyle}
+        metaStyle={postMetaStyle}
         editHref={
           member?.id === post.author_id || member?.is_admin
             ? `/boards/${boardSlug}/${postSlug}/edit`
@@ -373,7 +404,15 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
             기본값)을 쓰도록 통일한다. 텍스트만 "게시물 출력방식"으로
             분기한다(EPIC-093 요구사항 1.1). "목록으로"는 항상 떠 있는
             PostFloatingActionBar(좌측 하단)가 담당한다. */}
-        <PageEditButton slug="boards-id-postid" label="게시물 출력방식" />
+        {/* 사용자 신고(2026-08-12): 이 버튼이 실제 "게시물 출력방식" 설정
+            화면(/admin/boards/[id])이 아니라 모든 게시판이 공유하는 엉뚱한
+            Page Builder placeholder로 보내고 있었다 — board.id를 알고 있는
+            이 화면에서는 hrefOverride로 정확한 목적지를 직접 지정한다. */}
+        <PageEditButton
+          slug="boards-id-postid"
+          label="게시물 출력방식"
+          hrefOverride={board ? `/admin/boards/${board.id}` : undefined}
+        />
 
         <div className="max-w-2xl mx-auto w-full">
           {postLayoutOrder.map((block) => (

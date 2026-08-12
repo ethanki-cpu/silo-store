@@ -54,6 +54,7 @@ export default function AdminBoardEditPage() {
         min_rank_to_read: data.min_rank_to_read ?? null,
         gallery_layout: data.widget_settings?.galleryLayout ?? "",
         gallery_columns: data.widget_settings?.galleryColumns ?? 3,
+        gallery_thumbnail_max_px: data.widget_settings?.galleryThumbnailMaxPx ?? 0,
         gallery_hover_auto_slide: data.widget_settings?.galleryHoverAutoSlide ?? false,
         post_meta_date_size_px: data.widget_settings?.postMetaStyle?.dateSizePx ?? 0,
         post_meta_date_color_hex: data.widget_settings?.postMetaStyle?.dateColorHex ?? "",
@@ -107,6 +108,7 @@ export default function AdminBoardEditPage() {
         widget_settings: {
           ...(next.gallery_layout ? { galleryLayout: next.gallery_layout } : {}),
           ...(next.gallery_columns ? { galleryColumns: next.gallery_columns } : {}),
+          ...(next.gallery_thumbnail_max_px ? { galleryThumbnailMaxPx: next.gallery_thumbnail_max_px } : {}),
           galleryHoverAutoSlide: next.gallery_hover_auto_slide,
           // HOTFIX-097(사용자 지시): 타임라인 배치 방향/미리보기 여부 —
           // render_type이 "timeline"이 아니어도 그냥 저장해둔다(나중에

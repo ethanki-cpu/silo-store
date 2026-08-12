@@ -15,6 +15,9 @@ type Board = {
     galleryLayout?: "masonry" | "grid";
     galleryColumns?: number;
     galleryHoverAutoSlide?: boolean;
+    // 사용자 신고(2026-08-12): "게시판 수정"에서 썸네일 크기를 직접
+    // 지정할 수 있게 — 없으면 galleryColumns 기반 자동 계산(EPIC-096) 그대로.
+    galleryThumbnailMaxPx?: number;
     // HOTFIX-097(사용자 지시): 타임라인 배치 방향 + hover 미리보기 카드
     // 사용 여부.
     timelineOrientation?: "vertical" | "horizontal";

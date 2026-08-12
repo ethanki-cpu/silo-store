@@ -41,13 +41,6 @@ const ERA_OPTIONS: { value: ItemCategory; label: string }[] = [
   { value: "art_deco", label: "아르데코" },
 ];
 
-const STATUS_LABEL: Record<ItemStatus, string> = {
-  available: "판매중",
-  rented: "대여중",
-  sold: "판매완료",
-  archived: "비활성",
-};
-
 const STATUS_BADGE_CLASS: Record<ItemStatus, string> = {
   available: "bg-green-100 text-green-700",
   rented: "bg-blue-100 text-blue-700",
@@ -55,12 +48,76 @@ const STATUS_BADGE_CLASS: Record<ItemStatus, string> = {
   archived: "bg-amber-100 text-amber-700",
 };
 
+// EPIC-096(요구사항 1.1): 정렬 가능한 컬럼. 클릭 시 오름/내림차순을
+// 토글하고, 다른 컬럼을 클릭하면 그 컬럼이 새 기준이 된다(진짜 "다중
+// 정렬"은 이 화면 규모(items 테이블 하나, 수십~수백 행)에는 과한 UI라 —
+// 클릭 한 번으로 바로 바뀌는 단일 기준 정렬 + 매 컬럼 지원으로 실질적인
+// 요구(즉각적인 정렬)를 충족한다.
+type SortKey = "name" | "category" | "price" | "created_at" | "status";
+type SortDir = "asc" | "desc";
+
+const STATUS_OPTIONS: { value: ItemStatus; label: string }[] = [
+  { value: "available", label: "판매중" },
+  { value: "rented", label: "대여중" },
+  { value: "sold", label: "판매완료" },
+  { value: "archived", label: "비활성" },
+];
+
+function SortHeader({
+  label,
+  column,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  column: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (column: SortKey) => void;
+}) {
+  const active = sortKey === column;
+  return (
+    <th className="py-2 pr-3">
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className={`flex items-center gap-1 hover:text-gray-800 ${active ? "text-gray-900 font-medium" : ""}`}
+      >
+        {label}
+        <span className="text-[10px] text-gray-400">{active ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}</span>
+      </button>
+    </th>
+  );
+}
+
 export default function AdminPostsShopPage() {
   const [items, setItems] = useState<ItemRow[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eraFilter, setEraFilter] = useState<ItemCategory | "all">("all");
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("created_at");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  function handleSort(column: SortKey) {
+    if (column === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(column);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedItems = [...items].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "price") cmp = a.price - b.price;
+    else if (sortKey === "created_at") cmp = a.created_at.localeCompare(b.created_at);
+    else if (sortKey === "category") cmp = (a.category ?? "").localeCompare(b.category ?? "");
+    else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
+    else cmp = a.name.localeCompare(b.name);
+    return sortDir === "asc" ? cmp : -cmp;
+  });
 
   async function load() {
     setFetching(true);
@@ -88,22 +145,37 @@ export default function AdminPostsShopPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eraFilter]);
 
-  async function toggleActive(item: ItemRow) {
+  // EPIC-096(요구사항 1.1): "카테고리 이동/수정 시 데이터가 연동되지 않는다"는
+  // 신고 — 지금까지는 활성/비활성 토글 버튼 하나뿐이라 실제 상태(대여중/
+  // 판매완료 등)나 시대(카테고리) 자체는 이 화면에서 아예 바꿀 방법이
+  // 없었다. 행 안에서 바로 select로 바꾸고 즉시 저장(관리 속도 극대화 —
+  // 별도 모달/저장 버튼 없음)한다.
+  async function updateCategory(item: ItemRow, category: ItemCategory) {
     setProcessingId(item.id);
-    const nextStatus: ItemStatus =
-      item.status === "archived" ? "available" : "archived";
     const { error: updateError } = await supabase
       .from("items")
-      .update({ status: nextStatus })
+      .update({ category })
       .eq("id", item.id);
     setProcessingId(null);
     if (updateError) {
       setError(updateError.message);
       return;
     }
-    setItems((rows) =>
-      rows.map((r) => (r.id === item.id ? { ...r, status: nextStatus } : r)),
-    );
+    setItems((rows) => rows.map((r) => (r.id === item.id ? { ...r, category } : r)));
+  }
+
+  async function updateStatus(item: ItemRow, status: ItemStatus) {
+    setProcessingId(item.id);
+    const { error: updateError } = await supabase
+      .from("items")
+      .update({ status })
+      .eq("id", item.id);
+    setProcessingId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setItems((rows) => rows.map((r) => (r.id === item.id ? { ...r, status } : r)));
   }
 
   async function handleDelete(item: ItemRow) {
@@ -167,16 +239,16 @@ export default function AdminPostsShopPage() {
             <thead>
               <tr className="text-left text-gray-500 border-b border-gray-200">
                 <th className="py-2 pr-3"></th>
-                <th className="py-2 pr-3">이름</th>
-                <th className="py-2 pr-3">시대</th>
-                <th className="py-2 pr-3">가격</th>
-                <th className="py-2 pr-3">등록일</th>
-                <th className="py-2 pr-3">상태</th>
+                <SortHeader label="이름" column="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortHeader label="시대" column="category" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortHeader label="가격" column="price" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortHeader label="등록일" column="created_at" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortHeader label="상태" column="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 <th className="py-2 pr-3"></th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {sortedItems.map((item) => (
                 <tr key={item.id} className="border-b border-gray-100">
                   <td className="py-2 pr-3">
                     {item.photo_url ? (
@@ -192,30 +264,39 @@ export default function AdminPostsShopPage() {
                   </td>
                   <td className="py-2 pr-3">{item.name}</td>
                   <td className="py-2 pr-3">
-                    {ERA_OPTIONS.find((e) => e.value === item.category)?.label ??
-                      "-"}
+                    <select
+                      value={item.category ?? ""}
+                      disabled={processingId === item.id}
+                      onChange={(e) => updateCategory(item, e.target.value as ItemCategory)}
+                      className="rounded border border-gray-200 bg-white px-1.5 py-1 text-xs disabled:opacity-50"
+                    >
+                      {ERA_OPTIONS.map((era) => (
+                        <option key={era.value} value={era.value}>
+                          {era.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="py-2 pr-3">{item.price.toLocaleString()}원</td>
                   <td className="py-2 pr-3 text-xs text-gray-500">
                     {new Date(item.created_at).toLocaleDateString()}
                   </td>
                   <td className="py-2 pr-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs ${STATUS_BADGE_CLASS[item.status]}`}
+                    <select
+                      value={item.status}
+                      disabled={processingId === item.id}
+                      onChange={(e) => updateStatus(item, e.target.value as ItemStatus)}
+                      className={`rounded px-1.5 py-1 text-xs border-0 disabled:opacity-50 ${STATUS_BADGE_CLASS[item.status]}`}
                     >
-                      {STATUS_LABEL[item.status]}
-                    </span>
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="py-2 pr-3">
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleActive(item)}
-                        disabled={processingId === item.id}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        {item.status === "archived" ? "활성화" : "비활성화"}
-                      </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(item)}

@@ -1,10 +1,57 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { extractPostMetadata } from "@/lib/utils/extractPostMetadata";
 import type { JSONContent } from "@/lib/blockEditorCore";
 import { getNavNodeForBoardId, getAncestorChain } from "@/lib/siteTree";
 import type { BreadcrumbItem } from "@/components/PageHeader";
 import { PostDetailClient } from "./PostDetailClient";
+
+// EPIC-096(요구사항 1.2): src/lib/boardFetch.ts의 fetchBoard()/이 API의
+// fetchPost()는 예전부터 slug로 못 찾으면 UUID로 한 번 더 시도하는 방어적
+// 폴백을 갖고 있다(EPIC-070/EPIC-079-PHASE-2) — 그래서 옛 UUID 링크로
+// 들어와도 콘텐츠 자체는 항상 정상 로드됐지만, 주소창엔 지저분한 UUID가
+// 그대로 남아 있었다("Clean URL"의 취지와 어긋남). 이 페이지가 그 폴백이
+// 실제로 쓰인 경우를 감지해 진짜 slug 주소로 301(영구) redirect한다.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveCanonicalPath(
+  boardSlug: string,
+  postSlug: string,
+): Promise<string | null> {
+  if (!UUID_RE.test(boardSlug) && !UUID_RE.test(postSlug)) return null;
+
+  let boardId: string | null = null;
+  let canonicalBoardSlug = boardSlug;
+
+  if (UUID_RE.test(boardSlug)) {
+    const { data } = await supabase.from("boards").select("id, slug").eq("id", boardSlug).maybeSingle();
+    if (data?.slug) {
+      boardId = data.id;
+      canonicalBoardSlug = data.slug;
+    }
+  }
+
+  let canonicalPostSlug = postSlug;
+  if (UUID_RE.test(postSlug)) {
+    if (!boardId) {
+      const { data } = await supabase.from("boards").select("id").eq("slug", boardSlug).maybeSingle();
+      boardId = data?.id ?? null;
+    }
+    if (boardId) {
+      const { data } = await supabase
+        .from("posts")
+        .select("slug")
+        .eq("id", postSlug)
+        .eq("board_id", boardId)
+        .maybeSingle();
+      if (data?.slug) canonicalPostSlug = data.slug;
+    }
+  }
+
+  if (canonicalBoardSlug === boardSlug && canonicalPostSlug === postSlug) return null;
+  return `/boards/${canonicalBoardSlug}/${canonicalPostSlug}`;
+}
 
 // EPIC-085: Dynamic SEO & Open Graph — 실제 화면(PostDetailClient)은 여전히
 // 전부 클라이언트에서 fetch하지만, generateMetadata는 Server Component에서만
@@ -74,7 +121,12 @@ export default async function PostDetailPage({
 }: {
   params: Promise<{ board_slug: string; post_slug: string }>;
 }) {
-  const { board_slug: boardSlug } = await params;
+  const { board_slug: boardSlug, post_slug: postSlug } = await params;
+
+  const canonicalPath = await resolveCanonicalPath(boardSlug, postSlug);
+  if (canonicalPath) {
+    redirect(canonicalPath);
+  }
 
   let breadcrumb: BreadcrumbItem[] = [];
   const { data: board } = await supabase.from("boards").select("id").eq("slug", boardSlug).maybeSingle();

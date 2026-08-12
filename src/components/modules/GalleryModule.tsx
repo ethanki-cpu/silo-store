@@ -163,6 +163,19 @@ export function GalleryModule({
   hoverAutoSlide?: boolean;
 }) {
   const gridColumns = Math.min(MAX_GRID_COLUMNS, Math.max(MIN_GRID_COLUMNS, columns || DEFAULT_GRID_COLUMNS));
+  // EPIC-096(요구사항 1.3): `repeat(N, minmax(0, 1fr))`은 열 "개수"만 고정할
+  // 뿐 각 칸의 너비는 그대로 컨테이너 너비에 비례해 커진다 — 위젯이 폭
+  // 제한 없는 넓은 Page Builder 레이아웃에 배치되면 브라우저 창을 키울 때
+  // 썸네일이 함께 거대해지던 원인. `auto-fill`로 바꿔 칸 "너비"를
+  // 고정하고(GALLERY_REFERENCE_WIDTH_PX 기준 gridColumns가 정확히 들어맞는
+  // 크기로 역산) 열 "개수"는 남는 공간만큼 자동으로 늘어나게 한다 —
+  // 요구사항이 예시로 든 "3열 → 4열 → 5열" 반응형 그대로.
+  const GALLERY_REFERENCE_WIDTH_PX = 1200;
+  const GALLERY_GAP_PX = 16; // gap-4
+  const tileTargetPx = Math.floor(
+    (GALLERY_REFERENCE_WIDTH_PX - GALLERY_GAP_PX * (gridColumns - 1)) / gridColumns,
+  );
+  const tileMinPx = Math.max(140, Math.floor(tileTargetPx * 0.75));
   return (
     <div>
       {showWriteButton && (
@@ -181,7 +194,11 @@ export function GalleryModule({
             ? "grid gap-4"
             : "columns-2 sm:columns-3 gap-4 [column-fill:_balance]"
         }
-        style={layout === "grid" ? { gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` } : undefined}
+        style={
+          layout === "grid"
+            ? { gridTemplateColumns: `repeat(auto-fill, minmax(${tileMinPx}px, ${tileTargetPx}px))` }
+            : undefined
+        }
       >
       {posts.map((post) => {
         const imageUrl = post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null;

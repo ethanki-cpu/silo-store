@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { BoardModule } from "@/components/modules/BoardModule";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
@@ -36,11 +36,36 @@ import { supabase } from "@/lib/supabaseClient";
 // 아직 배정되지 않은 게시판은 전용 페이지가 없으므로 버튼/위젯 영역을
 // 아예 렌더링하지 않는다(공유 placeholder로 폴백하면 다시 같은 문제로
 // 돌아간다).
+// EPIC-096(요구사항 1.2): board_id를 slug 삼아 그대로 들어오는 옛/폴백
+// 링크가 있으면(예: 위젯의 board_slug 누락으로 id로 fallback된 링크) 콘텐츠는
+// 정상 로드되지만 주소창엔 UUID가 남는다 — 진짜 slug로 조용히 302 이동한다.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function BoardPostsPage() {
   const { board_slug: boardSlug } = useParams<{ board_slug: string }>();
+  const router = useRouter();
 
   const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
   const [pageSlug, setPageSlug] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!UUID_RE.test(String(boardSlug))) return;
+    let cancelled = false;
+    supabase
+      .from("boards")
+      .select("slug")
+      .eq("id", boardSlug)
+      .maybeSingle()
+      .then(({ data }) => {
+        const realSlug = (data as { slug: string } | null)?.slug;
+        if (!cancelled && realSlug && realSlug !== boardSlug) {
+          router.replace(`/boards/${realSlug}`);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [boardSlug, router]);
 
   useEffect(() => {
     let cancelled = false;

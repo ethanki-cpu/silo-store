@@ -62,15 +62,29 @@ const BOARD_TYPE_OPTIONS: { value: BoardType; label: string }[] = [
 
 const PAGE_SIZE = 20;
 
+// EPIC-096(요구사항 1.1): "즉각적인 필터링 및 다중 정렬" — 이 화면은
+// board_type 칩 필터에 더해 정렬 기준을 하나 더 고를 수 있게 한다(진짜
+// 다중 컬럼 정렬은 이 규모(도메인별 20건 페이지네이션)엔 과한 UI라, 클릭
+// 한 번으로 즉시 바뀌는 단일 정렬 기준 + 기존 board_type 필터의 조합으로
+// 실질적 요구를 충족한다).
+type SortOption = "latest" | "oldest" | "likes";
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "latest", label: "최신순" },
+  { value: "oldest", label: "오래된순" },
+  { value: "likes", label: "좋아요순" },
+];
+
 export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [branches, setBranches] = useState<NavBranchNode[]>([]);
   const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
+  const [allBoardOptions, setAllBoardOptions] = useState<{ id: string; name: string }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [boardTypeFilter, setBoardTypeFilter] = useState<BoardType | "all">("all");
+  const [sortOption, setSortOption] = useState<SortOption>("latest");
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [noBoardsInDomain, setNoBoardsInDomain] = useState(false);
   // EPIC-087-PHASE-A: 다중 선택 + 일괄 작업. 페이지/필터가 바뀌면 이전 선택은
@@ -82,7 +96,7 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
     setFetching(true);
 
     const [{ data: allBoards, error: boardsError }, navBranches] = await Promise.all([
-      supabase.from("boards").select("id, category, group_key"),
+      supabase.from("boards").select("id, name, category, group_key"),
       fetchNavBranches(),
     ]);
 
@@ -96,6 +110,15 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
     const branchById = new Map(navBranches.map((b) => [b.id, b]));
     setBranches(navBranches);
     setBoardBranchMap(branchMap);
+    // EPIC-096(요구사항 1.1): 인라인 "카테고리(게시판) 이동" select용 —
+    // 도메인 제한 없이 전체 게시판 목록에서 고를 수 있게 한다(다른 도메인
+    // 게시판으로 옮기는 것도 유효한 관리 작업이라 이 화면의 domain 필터로
+    // 좁히지 않는다).
+    setAllBoardOptions(
+      (allBoards ?? [])
+        .map((b) => ({ id: b.id, name: (b as { name?: string }).name ?? "(이름 없음)" }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
 
     // 사이트 내비게이션 트리에서 이 도메인(4대 탭 중 하나)에 속하는 것으로
     // 매칭된 게시판만 이 화면에 노출한다 — 어디에도 매칭 안 되는 게시판은
@@ -131,7 +154,10 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
         count: "exact",
       })
       .in("board_id", domainBoardIds)
-      .order("created_at", { ascending: false })
+      .order(
+        sortOption === "likes" ? "like_count" : "created_at",
+        { ascending: sortOption === "oldest" },
+      )
       .range(from, to);
 
     if (boardTypeFilter !== "all") {
@@ -199,11 +225,33 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domain, boardTypeFilter, page]);
+  }, [domain, boardTypeFilter, sortOption, page]);
 
   function selectBoardTypeFilter(next: BoardType | "all") {
     setBoardTypeFilter(next);
     setPage(1);
+  }
+
+  function selectSortOption(next: SortOption) {
+    setSortOption(next);
+    setPage(1);
+  }
+
+  // EPIC-096(요구사항 1.1): "카테고리 이동" — 인라인 select로 게시글의
+  // 소속 게시판(board_id)을 바로 바꾼다. 이동 후에는 이 도메인에 안 속할
+  // 수도 있어(다른 도메인 게시판으로 옮긴 경우) 목록을 다시 불러와
+  // 자연스럽게 사라지게/유지되게 한다 — 로컬 state만 패치하면 도메인
+  // 경계를 넘어간 이동이 화면에 그대로 남아 실제 상태와 어긋난다.
+  async function moveToBoard(post: PostRow, boardId: string) {
+    if (boardId === post.board_id) return;
+    setProcessingId(post.id);
+    const { error: updateError } = await supabase.from("posts").update({ board_id: boardId }).eq("id", post.id);
+    setProcessingId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    load();
   }
 
   async function toggleHidden(post: PostRow) {
@@ -296,32 +344,45 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
 
   return (
     <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
-      <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          type="button"
-          onClick={() => selectBoardTypeFilter("all")}
-          className={`px-3 py-1.5 rounded-full text-sm border ${
-            boardTypeFilter === "all"
-              ? "bg-gray-800 text-white border-gray-800"
-              : "border-gray-300 text-gray-600 hover:bg-gray-50"
-          }`}
-        >
-          전체
-        </button>
-        {BOARD_TYPE_OPTIONS.map((bt) => (
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex flex-wrap gap-2">
           <button
-            key={bt.value}
             type="button"
-            onClick={() => selectBoardTypeFilter(bt.value)}
+            onClick={() => selectBoardTypeFilter("all")}
             className={`px-3 py-1.5 rounded-full text-sm border ${
-              boardTypeFilter === bt.value
+              boardTypeFilter === "all"
                 ? "bg-gray-800 text-white border-gray-800"
                 : "border-gray-300 text-gray-600 hover:bg-gray-50"
             }`}
           >
-            {bt.label}
+            전체
           </button>
-        ))}
+          {BOARD_TYPE_OPTIONS.map((bt) => (
+            <button
+              key={bt.value}
+              type="button"
+              onClick={() => selectBoardTypeFilter(bt.value)}
+              className={`px-3 py-1.5 rounded-full text-sm border ${
+                boardTypeFilter === bt.value
+                  ? "bg-gray-800 text-white border-gray-800"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {bt.label}
+            </button>
+          ))}
+        </div>
+        <select
+          value={sortOption}
+          onChange={(e) => selectSortOption(e.target.value as SortOption)}
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+        >
+          {SORT_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {error && (
@@ -417,7 +478,21 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
                       />
                     </td>
                     <td className="py-2 pr-3 whitespace-nowrap" style={{ paddingLeft: row.depth * 20 }}>
-                      {row.item.board_name}
+                      <select
+                        value={row.item.board_id}
+                        disabled={processingId === row.item.id}
+                        onChange={(e) => moveToBoard(row.item, e.target.value)}
+                        className="rounded border border-gray-200 bg-white px-1.5 py-1 text-xs disabled:opacity-50"
+                      >
+                        {!allBoardOptions.some((b) => b.id === row.item.board_id) && (
+                          <option value={row.item.board_id}>{row.item.board_name}</option>
+                        )}
+                        {allBoardOptions.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="py-2 pr-3 max-w-xs truncate">
                       {row.item.title || row.item.body || "(내용 없음)"}

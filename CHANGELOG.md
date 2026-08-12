@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-12 (EPIC-096, 2차 — 하이엔드 타임라인: 양방향 교차형 카드 + 스크롤 페이드업)
+- **2.1 타임라인 리마스터링**: 기존 "얇은 단일 스파인 + 왼쪽 라벨" 세로형 레이아웃을 완전히 폐기하고 Common Ninja/Apple류의 양방향 교차형(Alternating) 카드로 재구축(`TimelineView.tsx`의 새 `AlternatingRow`) — 중앙 스파인을 기준으로 짝수/홀수 항목이 좌우로 번갈아 배치되고, `renderPreview`(썸네일+본문 발췌+메타)가 있으면 그 완전한 카드를 처음부터 항상 펼쳐 보여준다(참고 이미지처럼 hover 없이 바로 보임 — 기존 hover-only 미리보기 방식은 가로형(horizontal) 오리엔테이션에만 그대로 남김). 좁은 화면(모바일)에서는 좌우 분할이 카드 폭을 반토막 내 오히려 가독성이 떨어지므로, `md` 미만에서는 기존 단일 스파인 목록(카드 스타일만 업그레이드)으로 우아하게 저하시키고 `md` 이상에서만 교차형을 쓴다(두 버전을 함께 렌더링 후 Tailwind 반응형 클래스로 하나만 노출 — JS 브레이크포인트 감지 없이 SSR 안전).
+- **스크롤 페이드업 애니메이션**: 새 라이브러리 없이 `IntersectionObserver` 하나로 구현(`FadeUpOnScroll`) — 카드가 뷰포트에 10% 이상 들어오면 한 번만 `opacity-0 translate-y-6` → `opacity-100 translate-y-0`로 전환되고 그 뒤로는 유지된다(반복 재생 없음).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 warning 없음). 로컬 dev에서 실제 데이터가 있는 `/about-silo/silo-timeline`으로 확인 — 데스크톱(1280px)에서 교차형 카드 10개가 정확히 렌더링(구조/클래스 DOM으로 확인), 모바일(375px)에서 교차형 컨테이너가 `display:none`으로 감춰지고 단일 스파인 폴백만 노출되는 것 확인. **환경 한계로 못 미침(EPIC-079-PHASE-5와 동일한 종류)**: 이 세션의 헤드리스 브라우저는 컴포지팅을 하지 않아 `IntersectionObserver` 콜백 자체가 전혀 발화하지 않음(직접 만든 테스트 엘리먼트로도 재현 — 코드 문제 아님, 표준 API를 그대로 사용). 실제 브라우저에서 스크롤 시 페이드업이 매끄럽게 보이는지는 다음 세션 실사용 확인 필요.
+- **변경 파일**: `src/components/TimelineView.tsx`.
+
 ## 2026-08-12 (EPIC-096, 1차 — 럭셔리 리마스터링: 사실 확인 + Clean URL/썸네일/관리자 인라인 편집)
 - **범위 확정(사용자 승인, 순차 진행)**: 요청서(7개 대형 항목)를 즉시 착수하기 전 사실 확인부터 했다 — 전제 중 상당수가 이미 구현된 상태와 달랐다. **Clean URL**(요구사항 1.2)은 EPIC-079-PHASE-2 때 이미 `/boards/[board_slug]/[post_slug]` slug 라우팅으로 전면 전환됐고(스크린샷의 UUID는 라우팅 구조 문제가 아니라, EPIC-070/EPIC-079-PHASE-2부터 있던 "slug로 못 찾으면 id로 한 번 더 시도"하는 의도된 하위호환 폴백이 실제로 쓰인 경우였다 — 그 board의 진짜 slug는 `treasures`로 정상). **WYSIWYG 에디터**(요구사항 3.2)도 "폐기 후 도입" 대상이 아니라 이미 Tiptap 기반 블록 에디터(`blockEditorCore.ts`, `BlockEditor.tsx`)가 이미지/영상 드래그앤드롭·갤러리 캐러셀·임베드를 갖추고 있었다. 사용자와 합의해 이번 1차는 작고 확실한 항목(URL 자동 리다이렉트, 썸네일 반응형, 관리자 인라인 편집/정렬)부터 처리하고, 대형 항목(타임라인/캘린더 리디자인, 실시간 프리뷰 테마 에디터, 에디터 슬래시 메뉴 확장)은 다음 세션들로 순차 이어간다.
 - **1.2 Clean URL 자동 리다이렉트**: `/boards/[board_slug]/[post_slug]`(Server Component)에 UUID 감지+301 redirect를 추가 — board_slug/post_slug 세그먼트가 UUID 형태면 진짜 slug를 조회해 `redirect()`한다(스크린샷 사례로 실측: `/boards/8e458557-.../urin-02` → `/boards/treasures/urin-02`). 게시판 목록 페이지(`/boards/[board_slug]`, Client Component)에도 동일한 감지 후 `router.replace()`를 추가.

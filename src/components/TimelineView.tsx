@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { groupByYearMonth, type TimelineEntry } from "@/lib/timelineEngine";
 
 // Timeline Engine의 공용 렌더러(EPIC-050/052) — 연/월 헤더 아래 항목을
@@ -77,6 +77,14 @@ export function TimelineView<T extends TimelineEntry>({
   const spinePositionClass = align === "center" ? "left-1/2 -translate-x-1/2" : spineSide === "right" ? "right-3" : "left-3";
   const contentPaddingClass = align === "right" ? "pr-8 pl-0" : align === "center" ? "px-8" : "pl-8 pr-0";
 
+  // EPIC-096(요구사항 2.1): 기존 "얇은 단일 스파인 + 왼쪽 라벨"을 완전히
+  // 폐기하고 Common Ninja/Apple류의 양방향 교차형(Alternating) 카드로
+  // 재구축한다 — 좁은 화면(모바일)에서는 좌우로 쪼개는 레이아웃이 오히려
+  // 카드 폭을 반토막 내 읽기 어려워지므로, `md` 미만에서는 기존과 같은
+  // 단일 스파인 목록(VerticalRow, 카드 스타일만 업그레이드)으로 우아하게
+  // 저하시키고, `md` 이상에서만 진짜 교차형(AlternatingRow)을 쓴다. 두
+  // 버전을 함께 렌더링하고 Tailwind 반응형 클래스로 하나만 보이게 하는
+  // 방식(SSR 안전, JS 브레이크포인트 감지 불필요)을 택했다.
   return (
     <div className="space-y-12">
       {years.map((year) => {
@@ -93,7 +101,9 @@ export function TimelineView<T extends TimelineEntry>({
               {year}
             </h2>
             <div className="space-y-8">
-              {months.map((month) => (
+              {months.map((month) => {
+                const monthEntries = byMonth.get(month)!;
+                return (
                 <div key={month}>
                   <h3
                     className={`inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-500 mb-4 ${
@@ -102,8 +112,9 @@ export function TimelineView<T extends TimelineEntry>({
                   >
                     {year}년 {Number(month)}월
                   </h3>
-                  <div className={`relative space-y-1 ${contentPaddingClass}`}>
-                    {/* 세로선(spine) — 정렬을 따라 왼쪽/가운데/오른쪽으로 이동. */}
+
+                  {/* 모바일(md 미만): 단일 스파인 목록 */}
+                  <div className={`relative space-y-1 md:hidden ${contentPaddingClass}`}>
                     <div
                       className={`absolute top-1 bottom-1 bg-gray-200 ${spinePositionClass}`}
                       style={{
@@ -112,7 +123,7 @@ export function TimelineView<T extends TimelineEntry>({
                       }}
                       aria-hidden
                     />
-                    {byMonth.get(month)!.map((entry) => (
+                    {monthEntries.map((entry) => (
                       <VerticalRow
                         key={entry.id}
                         entry={entry}
@@ -125,12 +136,75 @@ export function TimelineView<T extends TimelineEntry>({
                       />
                     ))}
                   </div>
+
+                  {/* 데스크톱(md 이상): 양방향 교차형 카드 */}
+                  <div className="relative hidden md:block">
+                    <div
+                      className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 bg-gray-200"
+                      style={{
+                        width: lineWidthPx,
+                        ...(accentColorHex ? { backgroundColor: accentColorHex } : {}),
+                      }}
+                      aria-hidden
+                    />
+                    {monthEntries.map((entry, idx) => (
+                      <AlternatingRow
+                        key={entry.id}
+                        entry={entry}
+                        index={idx}
+                        renderItem={renderItem}
+                        renderPreview={renderPreview}
+                        accentColorHex={accentColorHex}
+                        markerSizePx={markerSizePx}
+                        cardTheme={cardTheme}
+                      />
+                    ))}
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         );
       })}
+    </div>
+  );
+}
+
+// EPIC-096(요구사항 2.1): "스크롤 시 카드가 부드럽게 나타나는 페이드-업
+// 애니메이션" — 외부 애니메이션 라이브러리 없이 IntersectionObserver
+// 하나로 구현한다(이 프로젝트에 이미 있는 관례: 새 의존성보다 순수 CSS/
+// 브라우저 API를 우선). 뷰포트에 10% 이상 들어오면 한 번만 트리거되고
+// 그 뒤로는 계속 보이는 상태를 유지한다(스크롤을 위아래로 왔다갔다 해도
+// 다시 사라지지 않음 — 반복 재생은 오히려 산만하다).
+function FadeUpOnScroll({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -40px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-700 ease-out ${
+        visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+      } ${className ?? ""}`}
+    >
+      {children}
     </div>
   );
 }
@@ -192,6 +266,69 @@ function VerticalRow<T extends TimelineEntry>({
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// EPIC-096(요구사항 2.1): 데스크톱 전용 양방향 교차형 카드 한 행 —
+// 짝수 인덱스는 왼쪽, 홀수 인덱스는 오른쪽에 카드가 놓이고 중앙 스파인의
+// 마커와 짧은 커넥터로 이어진다. renderPreview가 있으면(썸네일+본문
+// 발췌+메타를 담은 완전한 카드) 그것을 그대로 카드 본문으로 쓰고, 없으면
+// (마이페이지 활동 로그처럼 썸네일이 없는 항목) renderItem의 라벨을 카드
+// 안에 넣어 최소한의 카드 형태는 항상 유지한다 — 참고 이미지들처럼
+// "호버해야 보이는 카드"가 아니라 처음부터 늘 펼쳐져 있는 카드다.
+function AlternatingRow<T extends TimelineEntry>({
+  entry,
+  index,
+  renderItem,
+  renderPreview,
+  accentColorHex,
+  markerSizePx,
+  cardTheme,
+}: {
+  entry: T;
+  index: number;
+  renderItem: (entry: T) => ReactNode;
+  renderPreview?: (entry: T) => ReactNode;
+  accentColorHex?: string;
+  markerSizePx: number;
+  cardTheme: "light" | "dark";
+}) {
+  const isLeft = index % 2 === 0;
+  const dotStyle: CSSProperties = {
+    width: markerSizePx,
+    height: markerSizePx,
+    ...(accentColorHex ? { borderColor: accentColorHex } : {}),
+  };
+  const cardBody = renderPreview ? (
+    <div className={`overflow-hidden rounded-2xl ${CARD_THEME_CLASS[cardTheme]}`}>{renderPreview(entry)}</div>
+  ) : (
+    <div className={`rounded-2xl p-4 ${CARD_THEME_CLASS[cardTheme]}`}>{renderItem(entry)}</div>
+  );
+
+  return (
+    <div className="relative grid grid-cols-[1fr_2.5rem_1fr] items-center py-5">
+      <div className={isLeft ? "flex justify-end pr-8" : ""}>
+        {isLeft && (
+          <FadeUpOnScroll className="w-full max-w-sm transition-transform hover:-translate-y-1 hover:shadow-2xl">
+            {cardBody}
+          </FadeUpOnScroll>
+        )}
+      </div>
+      <div className="flex justify-center">
+        <span
+          className="rounded-full border-2 border-gray-400 bg-white shadow-sm"
+          style={dotStyle}
+          aria-hidden
+        />
+      </div>
+      <div className={!isLeft ? "flex justify-start pl-8" : ""}>
+        {!isLeft && (
+          <FadeUpOnScroll className="w-full max-w-sm transition-transform hover:-translate-y-1 hover:shadow-2xl">
+            {cardBody}
+          </FadeUpOnScroll>
+        )}
       </div>
     </div>
   );

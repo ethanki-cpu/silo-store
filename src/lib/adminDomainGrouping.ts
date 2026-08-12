@@ -11,10 +11,20 @@
 // 아니라 "관리자가 한눈에 훑어보기 위한" 분류라는 점을 감안할 것 — 새
 // 카테고리/게시판을 추가했는데 여기 안 잡히면 아래 테이블에 추가한다.
 
-export type AdminDomain = "silostore" | "salon" | "studio" | "mypage" | "common";
+// EPIC-096 후속(사용자 신고, 2026-08-12): EPIC-095가 라이브 site_navigations를
+// 재조사해 "About Silo"(최상위 신설 탭)와 "온라인 도슨트"(예전엔 사일로상점
+// 하위 그룹이라는 잘못된 전제였는데 실제로는 이미 독립 최상위 탭)를
+// 확인했는데, 이 파일의 4대 도메인 분류는 그 발견 이전 상태(EPIC-072)에
+// 머물러 있었다 — "About Silo"/"온라인 도슨트" 소속 게시판/게시글이 전부
+// "공통/기타"로 떨어지고, 전체 글 관리에 그 둘만을 위한 탭도 없어서 사실상
+// 안 보였다. 라이브 최상위 탭 6개(About Silo/사일로상점/온라인도슨트/
+// 살롱데상/스튜디오/마이페이지) 그대로 6개 도메인으로 맞춘다.
+export type AdminDomain = "about_silo" | "silostore" | "docent" | "salon" | "studio" | "mypage" | "common";
 
 export const ADMIN_DOMAIN_ORDER: AdminDomain[] = [
+  "about_silo",
   "silostore",
+  "docent",
   "salon",
   "studio",
   "mypage",
@@ -22,16 +32,18 @@ export const ADMIN_DOMAIN_ORDER: AdminDomain[] = [
 ];
 
 export const ADMIN_DOMAIN_LABELS: Record<AdminDomain, string> = {
+  about_silo: "About Silo",
   silostore: "사일로상점",
+  docent: "온라인 도슨트",
   salon: "살롱데상",
   studio: "스튜디오",
   mypage: "마이페이지",
   common: "공통/기타",
 };
 
-// boards.group_key(EPIC-066, populated된 게시판만) → 4대 도메인.
+// boards.group_key(EPIC-066, populated된 게시판만) → 도메인.
 const GROUP_KEY_TO_DOMAIN: Record<string, AdminDomain> = {
-  docent: "silostore",
+  docent: "docent",
   heritage: "silostore",
   silo_store: "silostore",
   community: "salon",
@@ -47,7 +59,9 @@ const GROUP_KEY_TO_DOMAIN: Record<string, AdminDomain> = {
 const PAGE_SLUG_PREFIXES: { prefixes: string[]; domain: AdminDomain }[] = [
   { prefixes: ["mypage", "me", "u"], domain: "mypage" },
   { prefixes: ["studio", "rental", "space-inquiry"], domain: "studio" },
-  { prefixes: ["shop", "treasures", "heritage", "docent"], domain: "silostore" },
+  { prefixes: ["online-docent", "docent"], domain: "docent" },
+  { prefixes: ["about-silo"], domain: "about_silo" },
+  { prefixes: ["shop", "treasures", "heritage"], domain: "silostore" },
   {
     prefixes: [
       "community", "salon", "membership", "gallery", "archive", "clubs",

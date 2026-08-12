@@ -9,14 +9,19 @@ import { usePathname } from "next/navigation";
 // 일관되게 확장 — 물품(items)과 게시판 글(posts)은 서로 다른 데이터라
 // 사일로상점만 두 탭으로 나뉜다. 스튜디오/마이페이지는 아직 연결된
 // 게시판이 없어 빈 목록으로 뜨지만, 게시판이 생기면 자동으로 채워진다.
+// EPIC-096 후속(사용자 신고): "About Silo"/"온라인 도슨트" 탭이 여기 없어서
+// 그 소속 게시글이 관리 화면에서 아예 안 보이던 문제 — adminDomainGrouping.ts
+// 참고(라이브 최상위 탭 6개 그대로 도메인화).
 const SUB_NAV = [
   { href: "/admin/posts/shop", label: "[사일로상점] 물품 관리" },
+  { href: "/admin/posts/about-silo", label: "[About Silo] 게시글 관리" },
   { href: "/admin/posts/silostore", label: "[사일로상점] 게시글 관리" },
+  { href: "/admin/posts/docent", label: "[온라인 도슨트] 게시글 관리" },
   { href: "/admin/posts/salon", label: "[살롱데상] 게시글 관리" },
   { href: "/admin/posts/studio", label: "[스튜디오] 게시글 관리" },
   { href: "/admin/posts/mypage", label: "[마이페이지] 게시글 관리" },
   // EPIC-089: 어느 사이트 메뉴 브랜치에도 아직 안 걸린(=미분류) 게시판의
-  // 글은 위 4개 탭 어디에도 안 뜬다(AdminPostsBoardView의 domain==="common"
+  // 글은 위 탭들 어디에도 안 뜬다(AdminPostsBoardView의 domain==="common"
   // 분기) — 이 탭이 없으면 그런 글은 관리 화면에서 영원히 안 보였다.
   { href: "/admin/posts/common", label: "[기타] 미분류 게시글 관리" },
 ];

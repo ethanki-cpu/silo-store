@@ -39,7 +39,15 @@ type RawNavRow = {
   sort_order: number;
 };
 
+// EPIC-096 후속(사용자 신고): 라이브 최상위 탭 6개 실제 제목 그대로 매칭
+// (EPIC-095가 Management API로 재조회해 확인한 값 — "About Silo", "온라인
+// 도슨트 Online Docent" 등). "도슨트"를 "사일로"보다 먼저 검사해야 한다 —
+// 순서를 바꾸면 "온라인 도슨트..."가 먼저 "사일로" 포함 여부를 체크당해
+// 틀리진 않지만(포함 안 하므로 통과), 이후 실수로 다른 제목이 추가될 때도
+// 안전하도록 더 구체적인 규칙(도슨트/About)을 먼저 둔다.
 function classifyRootTitle(title: string): AdminDomain {
+  if (title.includes("도슨트") || title.toLowerCase().includes("docent")) return "docent";
+  if (title.toLowerCase().includes("about silo")) return "about_silo";
   if (title.includes("사일로")) return "silostore";
   if (title.includes("살롱")) return "salon";
   if (title.includes("스튜디오")) return "studio";

@@ -142,8 +142,14 @@ export function AdminPostsBoardView({ domain }: { domain: AdminDomain }) {
 
     // board_type으로도 필터링할 때는 boards!inner로 join해야 embedded 테이블
     // 컬럼 기준 .eq()가 동작한다(그냥 boards(...)는 left join이라 필터 무시됨).
+    // HOTFIX-095에서 이미 겪은 것과 동일한 원인(post_boards N:M 테이블이
+    // posts/boards 사이에 두 번째 관계 경로를 만들어 PostgREST가 "more than
+    // one relationship" 에러로 embed 자체를 거부) — 명시적 FK 이름
+    // (posts_board_id_fkey, "주 게시판" 직접 FK)으로 어느 경로인지 못박는다.
     const boardsSelect =
-      boardTypeFilter === "all" ? "boards(name, board_type)" : "boards!inner(name, board_type)";
+      boardTypeFilter === "all"
+        ? "boards!posts_board_id_fkey(name, board_type)"
+        : "boards!posts_board_id_fkey!inner(name, board_type)";
 
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;

@@ -27,7 +27,7 @@ type Board = {
     postMetaStyle?: PostMetaStyle;
   } | null;
 };
-type FetchResult = { board: Board | null; posts: BoardPost[] };
+type FetchResult = { board: Board | null; posts: BoardPost[]; availableCategories: string[] };
 
 // EPIC-070: 같은 페이지 안에 같은 게시판을 가리키는 위젯이 여러 개
 // 있으면(예: Board+Gallery+Timeline이 전부 자유게시판을 가리키는 Hub
@@ -41,12 +41,14 @@ function fetchBoardPosts(
   boardId: string,
   sort: SortOption,
   accessToken: string | undefined,
+  category: string | null,
 ): Promise<FetchResult> {
-  const key = `${boardId}|${sort}|${accessToken ?? "anon"}`;
+  const key = `${boardId}|${sort}|${category ?? ""}|${accessToken ?? "anon"}`;
   const existing = inFlightRequests.get(key);
   if (existing) return existing;
 
   const params = new URLSearchParams({ page: "1", sort, q: "" });
+  if (category) params.set("category", category);
   const promise = fetch(`/api/boards/${boardId}/posts?${params.toString()}`, {
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
   })
@@ -54,6 +56,7 @@ function fetchBoardPosts(
     .then((data) => ({
       board: (data.board ?? null) as Board | null,
       posts: (Array.isArray(data.posts) ? data.posts : []) as BoardPost[],
+      availableCategories: (Array.isArray(data.availableCategories) ? data.availableCategories : []) as string[],
     }))
     .finally(() => {
       inFlightRequests.delete(key);
@@ -75,10 +78,14 @@ export function useBoardPosts(
   boardId: string | null,
   limit = 12,
   sort: SortOption = "latest",
+  // EPIC-106: post.category(게시글 하나하나의 자유 텍스트 분류) 기준
+  // 필터 — null/undefined면 기존과 동일하게 전체를 가져온다(하위 호환).
+  category: string | null = null,
 ) {
   const { session, loading: authLoading } = useAuth();
   const [board, setBoard] = useState<Board | null>(null);
   const [posts, setPosts] = useState<BoardPost[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -90,11 +97,12 @@ export function useBoardPosts(
     let cancelled = false;
     setLoading(true);
 
-    fetchBoardPosts(boardId, sort, session?.access_token)
+    fetchBoardPosts(boardId, sort, session?.access_token, category)
       .then((data) => {
         if (cancelled) return;
         setBoard(data.board);
         setPosts(data.posts.slice(0, limit));
+        setAvailableCategories(data.availableCategories);
         setLoading(false);
       })
       .catch(() => {
@@ -105,7 +113,7 @@ export function useBoardPosts(
     return () => {
       cancelled = true;
     };
-  }, [boardId, session, authLoading, limit, sort]);
+  }, [boardId, session, authLoading, limit, sort, category]);
 
-  return { board, posts, loading };
+  return { board, posts, availableCategories, loading };
 }

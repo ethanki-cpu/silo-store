@@ -204,7 +204,15 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-105
+EPIC-106
+게시판 연동 블록 카테고리 필터 — `GET /api/boards/[board_slug]/posts`에
+`category` 파라미터+`availableCategories` 응답 신설(기존 tag/year 필터와
+동일 패턴), `useBoardPosts.ts` 4번째 인자로 노출, `BoardEmbedBlock`/
+`TimelineEmbedBlock` 설정 패널에 카테고리 드롭다운 추가. `tsc`/`lint`/
+`build` 0 errors, 존재하지 않는 카테고리 필터로 0건 확인(실제 적용 검증).
+브랜치 `feature/EPIC-106`.
+
+직전 EPIC-105
 하단 Footer를 Craft.js 비주얼 에디터로 전환 — 기존 폼 기반 `/admin/footer`를
 다른 Craft 페이지와 동일한 자유 레이아웃 에디터로 교체. 신규 Craft 페밀리
 (`FooterCompanyInfoBlock`/`FooterLinksRowBlock`), `GlobalFooter.tsx`(신규

@@ -55,7 +55,14 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-105(하단 Footer를 Craft.js 비주얼 에디터로 전환) — 기존 폼 기반
+EPIC-106(게시판 연동 블록 카테고리 필터) — `GET .../posts`에 `category`
+파라미터+`availableCategories` 응답 추가(기존 tag/year 필터와 동일 패턴),
+`BoardEmbedBlock`/`TimelineEmbedBlock` 설정 패널에 카테고리 드롭다운 신설.
+`tsc`/`lint`/`build` 0 errors, 존재하지 않는 카테고리 필터 → 0건으로 파라미터
+실제 적용 확인(라이브에 카테고리 채운 글이 아직 없어 양성 케이스는 추후
+확인). 브랜치 `feature/EPIC-106`.
+
+직전 EPIC-105(하단 Footer를 Craft.js 비주얼 에디터로 전환) — 기존 폼 기반
 `/admin/footer`를 다른 Craft 페이지와 동일한 자유 레이아웃 에디터로 교체.
 `GlobalFooter.tsx`(신규)가 `Footer.tsx`(삭제)를 대체, 기존 `footer_config`
 실데이터를 마이그레이션. `tsc`/`lint`/`build` 0 errors, 클린 서버로 실렌더링

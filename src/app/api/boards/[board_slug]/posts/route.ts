@@ -122,6 +122,12 @@ export async function GET(
   // 수준(어떤 게시판을 보여줄지)에서 걸러야 할 값이라 여기서 다루지 않는다.
   const tagFilter = searchParams.get("tag")?.trim() || null;
   const yearFilter = searchParams.get("year")?.trim() || null;
+  // EPIC-106: 여기서 다루는 category는 게시글 하나하나의 category 컬럼
+  // (post.category, era/주제 같은 자유 텍스트 분류)이지 위 EPIC-066 주석이
+  // 말하는 "게시판 자신의 category(라우팅 slug)"가 아니다 — 서로 다른
+  // 개념이라 이 필터를 추가해도 그 주석과 모순되지 않는다. Craft.js
+  // BoardEmbedBlock이 "카테고리별로만" 보여주고 싶을 때 쓴다.
+  const categoryFilter = searchParams.get("category")?.trim() || null;
 
   if (postsError || !posts) {
     return NextResponse.json(
@@ -218,6 +224,9 @@ export async function GET(
   const availableYears = [
     ...new Set(enriched.map((post) => new Date(post.created_at).getFullYear().toString())),
   ].sort((a, b) => Number(b) - Number(a));
+  const availableCategories = [
+    ...new Set(enriched.map((post) => post.category).filter((c): c is string => !!c)),
+  ].sort();
 
   if (q) {
     enriched = enriched.filter((post) => {
@@ -239,6 +248,10 @@ export async function GET(
     enriched = enriched.filter(
       (post) => new Date(post.created_at).getFullYear().toString() === yearFilter,
     );
+  }
+
+  if (categoryFilter) {
+    enriched = enriched.filter((post) => post.category === categoryFilter);
   }
 
   // sort는 definition.sortable이 false면 이미 defaultSort로 고정돼 있으므로,
@@ -283,6 +296,7 @@ export async function GET(
     pageSize,
     availableTags,
     availableYears,
+    availableCategories,
   });
 }
 

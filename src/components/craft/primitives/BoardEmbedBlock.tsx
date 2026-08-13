@@ -22,6 +22,9 @@ export type BoardEmbedBlockProps = {
   boardId: string;
   cardStyle: "list" | "thumbnail" | "gallery" | "dragRow" | "spotlight";
   count: number;
+  // EPIC-106: post.category(게시글 하나하나의 자유 텍스트 분류) 기준 필터
+  // — 빈 문자열/미지정이면 전체(기존 동작과 동일, 하위 호환).
+  category?: string;
   motion?: MotionConfig;
 };
 
@@ -138,11 +141,11 @@ function SpotlightPost({ post, boardId }: { post: BoardPost; boardId: string }) 
   );
 }
 
-export function BoardEmbedBlock({ boardId, cardStyle, count, motion = DEFAULT_MOTION }: BoardEmbedBlockProps) {
+export function BoardEmbedBlock({ boardId, cardStyle, count, category = "", motion = DEFAULT_MOTION }: BoardEmbedBlockProps) {
   const {
     connectors: { connect },
   } = useNode();
-  const { posts, loading } = useBoardPosts(boardId || null, count);
+  const { posts, loading } = useBoardPosts(boardId || null, count, "latest", category || null);
   const slice = posts.slice(0, count);
 
   return (
@@ -176,6 +179,10 @@ function BoardEmbedSettings() {
   const { props, setProp } = useNode((node) => ({ props: node.data.props as BoardEmbedBlockProps }));
   const editable = useCraftEditable();
   const [boards, setBoards] = useState<BoardOption[]>([]);
+  // EPIC-106: 선택된 게시판의 실제 post.category 값 목록 — count와 무관하게
+  // API가 페이지네이션 전 전체 게시글 기준으로 계산해주므로 limit=1로도
+  // 정확하다(불필요한 데이터 전송만 줄임).
+  const { availableCategories } = useBoardPosts(editable ? props.boardId || null : null, 1);
 
   useEffect(() => {
     if (!editable) return;
@@ -191,7 +198,7 @@ function BoardEmbedSettings() {
         게시판
         <select
           value={props.boardId}
-          onChange={(e) => setProp((p) => { p.boardId = e.target.value; })}
+          onChange={(e) => setProp((p) => { p.boardId = e.target.value; p.category = ""; })}
           className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
         >
           <option value="">선택 안 함</option>
@@ -202,6 +209,23 @@ function BoardEmbedSettings() {
           ))}
         </select>
       </label>
+      {props.boardId && (
+        <label className="block text-xs text-gray-600">
+          카테고리 필터
+          <select
+            value={props.category ?? ""}
+            onChange={(e) => setProp((p) => { p.category = e.target.value; })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="">전체</option>
+            {availableCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="block text-xs text-gray-600">
         카드 스타일
         <select
@@ -238,6 +262,7 @@ BoardEmbedBlock.craft = {
     boardId: "",
     cardStyle: "thumbnail",
     count: 6,
+    category: "",
     motion: DEFAULT_MOTION,
   } satisfies BoardEmbedBlockProps,
   related: { settings: BoardEmbedSettings },

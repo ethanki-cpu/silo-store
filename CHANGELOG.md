@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-106 — 게시판 연동 블록 카테고리 필터)
+- **배경**: EPIC-102/103의 `BoardEmbedBlock`/`TimelineEmbedBlock`은 게시판 하나를 통째로 가져올 뿐, 그 안에서 카테고리(주제/연대 등 `posts.category` — 게시판 자체의 라우팅 슬러그인 `board.category`와는 다른, 게시글 하나하나의 자유 텍스트 분류)로 좁혀볼 수 없었다. `GET /api/boards/[board_slug]/posts`에 이미 `tag`/`year` 필터가 있던 것과 같은 자리에 `category` 필터를 추가.
+- **`GET .../posts` 라우트**: `categoryFilter`(쿼리 파라미터 `category`) 추가 — `tagFilter`/`yearFilter`와 동일한 위치·패턴으로 적용. 응답에 `availableCategories`(해당 게시판에 실제 존재하는 카테고리 값 목록, 페이지네이션 전 전체 기준이라 count와 무관하게 정확) 필드 신설.
+- **`src/lib/useBoardPosts.ts`**: 4번째 인자로 `category: string | null`(기본 `null`, 하위 호환 — 기존 3개 호출부 `DbFeedModules.tsx`는 무변경) 추가, 캐시 키에도 포함. 반환값에 `availableCategories` 추가.
+- **`BoardEmbedBlock`/`TimelineEmbedBlock`**: `category?: string` prop 추가(기본 `""` = 전체), 설정 패널에 게시판 선택 직후 그 게시판의 실제 카테고리 목록으로 채워지는 드롭다운 신설(게시판을 바꾸면 카테고리 선택은 자동 초기화). 설정 패널은 `useBoardPosts(boardId, 1)`을 별도로 호출해 카테고리 목록만 가볍게 얻는다(count와 무관하게 정확하므로 1이면 충분).
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 통과(0 errors). 로컬 dev에서 실제 게시판에 존재하지 않는 카테고리로 필터링하면 0건, 필터 없이는 정상 건수가 나오는 것을 확인해 파라미터가 서버까지 실제로 전달·적용됨을 검증(라이브 DB에는 아직 `posts.category`를 실제로 채운 글이 하나도 없어 "존재하는 카테고리로 필터링하면 그 카테고리 글만 나온다"는 양성 케이스까지는 실데이터로 확인 못함 — 이미 검증된 tag/year 필터와 완전히 동일한 코드 패턴이라 논리적으로는 동일하게 동작).
+- **변경 파일**: `src/app/api/boards/[board_slug]/posts/route.ts`, `src/lib/useBoardPosts.ts`, `src/components/craft/primitives/{BoardEmbedBlock,TimelineEmbedBlock}.tsx`.
+
 ## 2026-08-13 (EPIC-105 — 하단 Footer를 Craft.js 비주얼 에디터로 전환)
 - **배경**: 기존 "하단 메뉴(Footer) 관리"(`/admin/footer`)는 `site_settings.footer_config`(회사정보+링크 3종+SNS)를 편집하는 평범한 폼이었다. 사용자가 이걸 다른 Craft 페이지들처럼 자유 레이아웃 에디터로 바꾸길 원해(EPIC-102 계획 단계에서 확인) 전환.
 - **신규 Craft 페밀리 `src/components/craft/footer/`**: `FooterCompanyInfoBlock`(회사명/대표자/사업자등록번호/주소/이메일/전화, 전부 인라인 편집)과 `FooterLinksRowBlock`(items+openInNewTab — 법적/FAQ/부가링크 행과 SNS 링크 행 둘 다 이 하나로 커버) 신설. 원자 블록(Container 등)은 EPIC-102의 PRIMITIVE_RESOLVER 자동 병합 덕분에 별도 등록 불필요.

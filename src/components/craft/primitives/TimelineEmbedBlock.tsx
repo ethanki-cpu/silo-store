@@ -17,14 +17,17 @@ import type { TimelineItemSettings } from "@/lib/widgetSchema";
 export type TimelineEmbedBlockProps = {
   boardId: string;
   count: number;
+  // EPIC-106: BoardEmbedBlock과 동일한 post.category 필터(빈 문자열/
+  // 미지정=전체).
+  category?: string;
   motion?: MotionConfig;
 };
 
-export function TimelineEmbedBlock({ boardId, count, motion = DEFAULT_MOTION }: TimelineEmbedBlockProps) {
+export function TimelineEmbedBlock({ boardId, count, category = "", motion = DEFAULT_MOTION }: TimelineEmbedBlockProps) {
   const {
     connectors: { connect },
   } = useNode();
-  const { posts, loading } = useBoardPosts(boardId || null, count);
+  const { posts, loading } = useBoardPosts(boardId || null, count, "latest", category || null);
 
   const items: TimelineItemSettings[] = posts.slice(0, count).map((post) => ({
     id: post.id,
@@ -60,6 +63,7 @@ function TimelineEmbedSettings() {
   const { props, setProp } = useNode((node) => ({ props: node.data.props as TimelineEmbedBlockProps }));
   const editable = useCraftEditable();
   const [boards, setBoards] = useState<BoardOption[]>([]);
+  const { availableCategories } = useBoardPosts(editable ? props.boardId || null : null, 1);
 
   useEffect(() => {
     if (!editable) return;
@@ -75,7 +79,7 @@ function TimelineEmbedSettings() {
         게시판
         <select
           value={props.boardId}
-          onChange={(e) => setProp((p) => { p.boardId = e.target.value; })}
+          onChange={(e) => setProp((p) => { p.boardId = e.target.value; p.category = ""; })}
           className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
         >
           <option value="">선택 안 함</option>
@@ -86,6 +90,23 @@ function TimelineEmbedSettings() {
           ))}
         </select>
       </label>
+      {props.boardId && (
+        <label className="block text-xs text-gray-600">
+          카테고리 필터
+          <select
+            value={props.category ?? ""}
+            onChange={(e) => setProp((p) => { p.category = e.target.value; })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="">전체</option>
+            {availableCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="block text-xs text-gray-600">
         개수
         <input
@@ -107,6 +128,7 @@ TimelineEmbedBlock.craft = {
   props: {
     boardId: "",
     count: 10,
+    category: "",
     motion: DEFAULT_MOTION,
   } satisfies TimelineEmbedBlockProps,
   related: { settings: TimelineEmbedSettings },

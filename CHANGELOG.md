@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-099, 3/3 Phase 2 — 온라인 도슨트(/online-docent) 전용 Craft 블록)
+- **배경**: Phase 2 두 번째 대상 페이지. `/silo-store`에서 확립한 패턴(공용 셸 재사용 + 페이지 전용 블록 3종 + 범용 블록 재사용)을 그대로 따른다.
+- **온라인 도슨트 전용 블록 3종**(`src/components/craft/docent/blocks/`): `DocentHeroBlock`(ShopHeroBlock과 동일 레이아웃, 태그를 시대 구간 라벨로), `EraGridBlock`(TreasureGridBlock과 동일 형태의 아이콘+라벨 그리드, 항목은 실제 nav 구조(`navConfig.ts` `FALLBACK_NAV_TABS` key:"docent")의 4개 시대 구간 — 고대~왕정/혁명~제국/프로이트~인공지능/디지털 문화), `FeaturedEraBlock`(SpotlightItemBlock과 동일한 어두운 카드형, "이달의 시대" 스포트라이트). 범용 블록(Text Directory/Newsletter/Footer)은 홈페이지 것 재사용, Text Directory 기본값만 도슨트 하위 카테고리로 채움.
+- **라우팅**: `src/app/[...slug]/page.tsx`의 `CRAFT_RENDERERS`와 `src/app/admin/pages/[id]/page.tsx`의 `CRAFT_EDITORS`에 각각 `"online-docent"` 한 줄만 추가(공용 셸이 이미 일반화돼 있어 이 두 줄 외 다른 변경 불필요).
+- **`docs/sql/EPIC-099-online-docent-craft.sql`**: `page_builder` slug='online-docent' 행을 `builder_type='craft'`로 전환. 이번 세션은 자동 분류기가 Supabase Management API `curl` 호출(읽기 포함)을 전부 차단해 agent가 직접 실행하지 못했고, 사용자가 Supabase SQL Editor에서 직접 실행 — Management API로 재조회해 라이브 반영 확인 완료(`/online-docent`가 이제 Craft 렌더링으로 노출).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(새 경고 없음, 기존 경고 57개는 이 변경과 무관). **다음에 확인 필요**: 실제 브라우저로 공개 페이지 6섹션 렌더링과 관리자 에디터("Craft 에디터 — 온라인 도슨트") 열기, 이번 세션은 로컬 dev 포트가 다른 세션 점유 중이라 실측 못함.
+- **변경 파일**: `src/components/craft/docent/**`(신설: `resolver.ts`/`defaultTree.tsx`/`CraftDocentRenderer.tsx`/`blocks/DocentHeroBlock.tsx`/`blocks/EraGridBlock.tsx`/`blocks/FeaturedEraBlock.tsx`), `src/components/admin/craft/CraftDocentEditor.tsx`(신설), `src/app/[...slug]/page.tsx`, `src/app/admin/pages/[id]/page.tsx`, `docs/sql/EPIC-099-online-docent-craft.sql`(신설, 실행 완료).
+
 ## 2026-08-13 (EPIC-099, 3/3 Phase 2 — 사일로 상점(/silo-store) 전용 Craft 블록)
 - **배경**: 사용자 확인으로 범위가 확대됨 — 대상 5개 허브 페이지(사일로 상점/온라인 도슨트/살롱데상/스튜디오/마이 페이지)에 "페이지별 전용 블록"을 새로 만들기로 결정. 첫 페이지로 `/silo-store` 진행.
 - **Craft 셸 일반화**: 지금까지 홈페이지 전용이던 `CraftHomeRenderer`/`CraftHomeEditor`(EPIC-098)는 이미 검증·병합된 코드라 손대지 않고 그대로 둔 채, `src/components/craft/shared/CraftPageRenderer.tsx`/`CraftPageEditor.tsx`를 새로 만들어 resolver/defaultTree/블록 목록을 파라미터로 받게 했다 — 앞으로 페이지를 추가할 때마다 이 공용 셸에 얇은 wrapper 하나씩만 만들면 된다.

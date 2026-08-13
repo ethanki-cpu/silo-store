@@ -7,6 +7,7 @@ import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 import { usePageRankGate } from "@/lib/pageRankGate";
 import { CraftShopRenderer } from "@/components/craft/shop/CraftShopRenderer";
+import { CraftDocentRenderer } from "@/components/craft/docent/CraftDocentRenderer";
 
 // EPIC-099(항목 3, Phase 2): 이 catch-all이 담당하는 slug 중 일부는
 // builder_type='craft'일 수 있다 — 슬러그별로 어느 Craft 렌더러를 쓸지
@@ -15,6 +16,7 @@ import { CraftShopRenderer } from "@/components/craft/shop/CraftShopRenderer";
 // 아니라 별도 파일이라 여기 포함되지 않는다.
 const CRAFT_RENDERERS: Record<string, React.ComponentType<{ craftState?: string | null }>> = {
   "silo-store": CraftShopRenderer,
+  "online-docent": CraftDocentRenderer,
 };
 
 // EPIC-068: 이 파일 이전까지는 src/app 전체가 138개의 손으로 만든 정적

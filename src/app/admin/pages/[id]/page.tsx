@@ -35,6 +35,7 @@ import { WidgetInspectorForm } from "@/components/admin/WidgetInspectorForm";
 import { TimelineWidgetEditor } from "@/components/admin/TimelineWidgetEditor";
 import { CraftHomeEditor } from "@/components/admin/craft/CraftHomeEditor";
 import { CraftShopEditor } from "@/components/admin/craft/CraftShopEditor";
+import { CraftDocentEditor } from "@/components/admin/craft/CraftDocentEditor";
 
 // EPIC-099(항목 3, Phase 2): 페이지 slug별로 어느 Craft 에디터를 열지 —
 // src/app/[...slug]/page.tsx의 CRAFT_RENDERERS와 같은 목적의 목록, 새 허브
@@ -48,6 +49,7 @@ type CraftEditorComponent = React.ComponentType<{
 const CRAFT_EDITORS: Record<string, CraftEditorComponent> = {
   home: CraftHomeEditor,
   "silo-store": CraftShopEditor,
+  "online-docent": CraftDocentEditor,
 };
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {

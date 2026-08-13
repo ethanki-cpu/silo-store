@@ -59,21 +59,35 @@ export function EditableText({
   );
 }
 
+// EPIC-100(항목 2, LCP 최적화): 화면 최상단 히어로 이미지만 `priority`를
+// true로 넘긴다 — 그 이미지는 lazy 로딩을 걸면 오히려 LCP가 늦어지므로
+// `fetchPriority="high"` + `loading="eager"`(기본값과 같지만 명시)로 우선
+// 로드하고, 스크롤을 내려야 보이는 나머지 전부(Grid/Directory/Spotlight 등)는
+// `loading="lazy" decoding="async"`로 초기 로딩 비용에서 제외한다.
+function imgLoadingProps(priority: boolean) {
+  return priority
+    ? { loading: "eager" as const, fetchPriority: "high" as const, decoding: "async" as const }
+    : { loading: "lazy" as const, decoding: "async" as const };
+}
+
 export function EditableImage({
   src,
   onCommit,
   alt = "",
   className,
   uploadFolder = "craft-home",
+  priority = false,
 }: {
   src: string;
   onCommit: (nextUrl: string) => void;
   alt?: string;
   className?: string;
   uploadFolder?: string;
+  priority?: boolean;
 }) {
   const editable = useCraftEditable();
   const [uploading, setUploading] = useState(false);
+  const loadingProps = imgLoadingProps(priority);
 
   async function handleFile(file: File | null) {
     if (!file) return;
@@ -85,13 +99,13 @@ export function EditableImage({
 
   if (!editable) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={alt} className={className} />;
+    return <img src={src} alt={alt} className={className} {...loadingProps} />;
   }
 
   return (
     <label className={`group relative block cursor-pointer ${className ?? ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={alt} className="h-full w-full object-cover" />
+      <img src={src} alt={alt} className="h-full w-full object-cover" {...loadingProps} />
       <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-xs font-medium uppercase tracking-wide text-transparent transition-colors group-hover:bg-black/40 group-hover:text-white">
         {uploading ? "업로드 중..." : "이미지 변경"}
       </span>
@@ -122,6 +136,7 @@ export function EditableResponsiveImage({
   alt = "",
   className,
   uploadFolder = "craft-home",
+  priority = false,
 }: {
   srcDesktop: string;
   srcMobile?: string;
@@ -130,10 +145,12 @@ export function EditableResponsiveImage({
   alt?: string;
   className?: string;
   uploadFolder?: string;
+  priority?: boolean;
 }) {
   const editable = useCraftEditable();
   const [uploadingDesktop, setUploadingDesktop] = useState(false);
   const [uploadingMobile, setUploadingMobile] = useState(false);
+  const loadingProps = imgLoadingProps(priority);
 
   async function handleFile(file: File | null, target: "desktop" | "mobile") {
     if (!file) return;
@@ -150,7 +167,7 @@ export function EditableResponsiveImage({
     return (
       <picture>
         {srcMobile && <source media={MOBILE_MEDIA_QUERY} srcSet={srcMobile} />}
-        <img src={srcDesktop} alt={alt} className={className} />
+        <img src={srcDesktop} alt={alt} className={className} {...loadingProps} />
       </picture>
     );
   }
@@ -158,7 +175,7 @@ export function EditableResponsiveImage({
   return (
     <div className={`group relative block ${className ?? ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={srcDesktop} alt={alt} className="h-full w-full object-cover" />
+      <img src={srcDesktop} alt={alt} className="h-full w-full object-cover" {...loadingProps} />
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/0 opacity-0 transition-opacity group-hover:bg-black/40 group-hover:opacity-100">
         <label className="cursor-pointer rounded bg-white/90 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-gray-900">
           {uploadingDesktop ? "업로드 중..." : "PC 이미지 변경"}

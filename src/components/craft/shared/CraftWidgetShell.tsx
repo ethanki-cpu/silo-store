@@ -14,8 +14,11 @@ import { RootContainer } from "@/components/craft/home/RootContainer";
 import { editorialSerif } from "@/components/craft/home/font";
 
 export function CraftWidgetShell({ resolver, children }: { resolver: Resolver; children: ReactNode }) {
+  // EPIC-100: 블록 내부 반응형은 컨테이너 쿼리 기준(CraftPageRenderer.tsx
+  // 주석 참고) — 이 래퍼도 `@container`를 걸어 Native 페이지 안에 심어져도
+  // 동일하게 동작하게 한다.
   return (
-    <div className={`craft-home ${editorialSerif.variable}`}>
+    <div className={`craft-home @container ${editorialSerif.variable}`}>
       <Editor resolver={resolver} enabled={false}>
         <Frame>
           <Element is={RootContainer} canvas id="ROOT">

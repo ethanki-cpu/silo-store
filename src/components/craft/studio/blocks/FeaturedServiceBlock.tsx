@@ -36,12 +36,12 @@ export function FeaturedServiceBlock({
     <div ref={(dom) => { if (dom) connect(dom); }}>
       <EditableBlockFrame label="Featured Service">
         <section className="mx-auto max-w-5xl px-6 py-20">
-          <div className="grid grid-cols-1 overflow-hidden rounded-2xl bg-gray-900 text-white md:grid-cols-2">
+          <div className="grid grid-cols-1 overflow-hidden rounded-2xl bg-gray-900 text-white @[768px]:grid-cols-2">
             <EditableResponsiveImage
               srcDesktop={imageUrl}
               srcMobile={imageUrlMobile}
               alt={title}
-              className="aspect-[4/3] w-full object-cover md:aspect-auto md:h-full"
+              className="aspect-[4/3] w-full object-cover @[768px]:aspect-auto @[768px]:h-full"
               onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
               onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
             />

@@ -30,12 +30,13 @@ export function MypageHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle
             srcDesktop={imageUrl}
             srcMobile={imageUrlMobile}
             alt={title}
+            priority
             className="absolute inset-0 h-full w-full object-cover"
             onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
             onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
-          <div className="absolute inset-y-0 left-0 flex max-w-lg flex-col justify-center gap-4 px-8 text-white md:px-16">
+          <div className="absolute inset-y-0 left-0 flex max-w-lg flex-col justify-center gap-4 px-8 text-white @[768px]:px-16">
             <EditableText
               as="span"
               value={tag}
@@ -45,7 +46,7 @@ export function MypageHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle
             <EditableText
               as="h1"
               value={title}
-              className="font-serif text-4xl font-normal leading-tight md:text-5xl"
+              className="font-serif text-4xl font-normal leading-tight @[768px]:text-5xl"
               onCommit={(next) => setProp((p) => (p.title = next))}
             />
             <EditableText

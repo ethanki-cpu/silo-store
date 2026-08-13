@@ -42,7 +42,7 @@ export function TreasureGridBlock({ heading, subheading, items }: TreasureGridPr
               onCommit={(next) => setProp((p) => (p.subheading = next))}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 @[768px]:grid-cols-3">
             {items.map((item, i) => (
               <a
                 key={i}

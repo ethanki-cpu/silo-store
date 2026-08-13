@@ -30,7 +30,7 @@ export function TextDirectoryBlock({ heading, items }: TextDirectoryProps) {
             className="mb-10 block text-xs font-medium uppercase tracking-[0.25em] text-gray-400"
             onCommit={(next) => setProp((p) => (p.heading = next))}
           />
-          <div className="mx-auto grid max-w-4xl grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
+          <div className="mx-auto grid max-w-4xl grid-cols-2 gap-x-6 gap-y-8 @[768px]:grid-cols-4">
             {items.map((item, i) => (
               <a key={i} href={item.href} className="block">
                 <EditableText

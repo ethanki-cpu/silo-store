@@ -29,6 +29,7 @@ export function EditorialHeroBlock({ imageUrl, imageUrlMobile, eyebrow, title, s
             srcDesktop={imageUrl}
             srcMobile={imageUrlMobile}
             alt={title}
+            priority
             className="absolute inset-0 h-full w-full object-cover"
             onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
             onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
@@ -44,7 +45,7 @@ export function EditorialHeroBlock({ imageUrl, imageUrlMobile, eyebrow, title, s
             <EditableText
               as="h1"
               value={title}
-              className="font-serif text-4xl font-normal tracking-wide md:text-6xl"
+              className="font-serif text-4xl font-normal tracking-wide @[768px]:text-6xl"
               onCommit={(next) => setProp((p) => (p.title = next))}
             />
             <EditableText

@@ -25,8 +25,8 @@ export function LatestIssueBlock({ label, heading, body, ctaText, ctaHref, image
   return (
     <div ref={(dom) => { if (dom) connect(dom); }}>
       <EditableBlockFrame label="Latest Issue">
-        <section className="grid grid-cols-1 md:grid-cols-2">
-          <div className="flex flex-col justify-center gap-6 px-10 py-24 md:px-16">
+        <section className="grid grid-cols-1 @[768px]:grid-cols-2">
+          <div className="flex flex-col justify-center gap-6 px-10 py-24 @[768px]:px-16">
             <EditableText
               as="span"
               value={label}
@@ -36,7 +36,7 @@ export function LatestIssueBlock({ label, heading, body, ctaText, ctaHref, image
             <EditableText
               as="h2"
               value={heading}
-              className="font-serif text-3xl font-normal leading-snug text-gray-900 md:text-4xl"
+              className="font-serif text-3xl font-normal leading-snug text-gray-900 @[768px]:text-4xl"
               onCommit={(next) => setProp((p) => (p.heading = next))}
             />
             <EditableText
@@ -60,7 +60,7 @@ export function LatestIssueBlock({ label, heading, body, ctaText, ctaHref, image
             srcDesktop={imageUrl}
             srcMobile={imageUrlMobile}
             alt={heading}
-            className="aspect-[4/5] w-full object-cover md:aspect-auto md:h-full"
+            className="aspect-[4/5] w-full object-cover @[768px]:aspect-auto @[768px]:h-full"
             onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
             onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
           />

@@ -15,16 +15,49 @@ import { editorialSerif } from "@/components/craft/home/font";
 // 실제 엘리먼트만 받기 때문(null/문자열 등은 애초에 유효한 블록이 아님).
 export type CraftBlockOption = { label: string; buildElement: () => ReactElement };
 
+// EPIC-100(항목 3): 관리자 PC/모바일 반응형 빌더 모드 — 캔버스(Frame)를 감싼
+// 컨테이너의 실제 렌더링 너비만 바꾼다. 블록 내부 반응형이 뷰포트 미디어쿼리
+// (`md:`)가 아니라 컨테이너 쿼리(`@[768px]:`)로 동작하도록 CraftPageRenderer.tsx
+// 등에서 이미 바꿔뒀기 때문에, 이 너비 변경만으로 그리드/스플릿이 실시간으로
+// 다시 계산된다 — 실제 브라우저 창 크기는 그대로라 뷰포트 미디어쿼리였다면
+// 아무 효과가 없었을 것.
+export type DeviceMode = "pc" | "mobile";
+
+function DeviceModeToggle({ value, onChange }: { value: DeviceMode; onChange: (mode: DeviceMode) => void }) {
+  return (
+    <div className="flex items-center rounded-md border border-gray-300 p-0.5 text-xs">
+      <button
+        type="button"
+        onClick={() => onChange("pc")}
+        className={`rounded px-2 py-1 ${value === "pc" ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+      >
+        🖥️ PC 모드
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("mobile")}
+        className={`rounded px-2 py-1 ${value === "mobile" ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+      >
+        📱 모바일 모드
+      </button>
+    </div>
+  );
+}
+
 function EditorToolbar({
   title,
   pageId,
   blockOptions,
+  deviceMode,
+  onDeviceModeChange,
   onClose,
   onSaved,
 }: {
   title: string;
   pageId: string;
   blockOptions: CraftBlockOption[];
+  deviceMode: DeviceMode;
+  onDeviceModeChange: (mode: DeviceMode) => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -65,6 +98,7 @@ function EditorToolbar({
       </div>
       <div className="flex items-center gap-2">
         {error && <span className="text-xs text-red-600">{error}</span>}
+        <DeviceModeToggle value={deviceMode} onChange={onDeviceModeChange} />
         <div className="relative">
           <button
             type="button"
@@ -127,12 +161,34 @@ export function CraftPageEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [deviceMode, setDeviceMode] = useState<DeviceMode>("pc");
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
       <Editor resolver={resolver} enabled>
-        <EditorToolbar title={title} pageId={pageId} blockOptions={blockOptions} onClose={onClose} onSaved={onSaved} />
-        <div className={`craft-home ${editorialSerif.variable} flex-1 overflow-y-auto`}>
-          <Frame data={initialState ?? undefined}>{!initialState && defaultTree}</Frame>
+        <EditorToolbar
+          title={title}
+          pageId={pageId}
+          blockOptions={blockOptions}
+          deviceMode={deviceMode}
+          onDeviceModeChange={setDeviceMode}
+          onClose={onClose}
+          onSaved={onSaved}
+        />
+        {/* EPIC-100(항목 3): 모바일 모드일 때 캔버스를 실제 폰 너비(390px)로
+            좁히고 가운데 정렬 + 기기 프레임처럼 보이는 테두리/그림자를 얹는다.
+            바깥 회색 배경은 캔버스가 전체 폭이 아닐 때 경계를 눈으로 구분하기
+            위함(PC 모드에서는 배경이 그대로 흰색 캔버스에 가려짐). */}
+        <div className="flex-1 overflow-y-auto bg-gray-100">
+          <div
+            className={`craft-home @container mx-auto ${editorialSerif.variable} ${
+              deviceMode === "mobile"
+                ? "w-[390px] border-x border-gray-300 bg-white shadow-lg"
+                : "w-full bg-white"
+            }`}
+          >
+            <Frame data={initialState ?? undefined}>{!initialState && defaultTree}</Frame>
+          </div>
         </div>
       </Editor>
     </div>

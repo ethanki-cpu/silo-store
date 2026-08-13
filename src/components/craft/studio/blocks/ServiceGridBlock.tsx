@@ -42,7 +42,7 @@ export function ServiceGridBlock({ heading, subheading, items }: ServiceGridProp
               onCommit={(next) => setProp((p) => (p.subheading = next))}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 @[768px]:grid-cols-4">
             {items.map((item, i) => (
               <a
                 key={i}

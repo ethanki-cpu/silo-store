@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## AI Working Rules
 
-이 저장소에서 작업할 때 지켜야 하는 Git 브랜치 전략 및 동기화 규칙이다. 아래 규칙 4번(WIP Push)과 7번(Multi-Device Sync)은 "Git operating rules" 절의 "커밋/푸시는 사용자 승인 후에만" 원칙에 대한 명시적 예외다 — 4번은 사용자가 작업 중단/퇴근을 알리는 시점에, 7번은 커밋이 이미 승인되어 만들어진 직후에, 각각 push 자체에 대해서는 별도로 승인을 다시 구하지 않는다. 5번·6번(develop/main fast-forward)도 마찬가지로 push 자체는 매번 다시 확인받지 않는다.
+이 저장소에서 작업할 때 지켜야 하는 Git 브랜치 전략 및 동기화 규칙이다. **(2026-08-13 갱신)** "Git operating rules" 절의 커밋 승인 원칙 자체가 바뀌어(해당 절 참고), 이제 작업 단위가 끝나면 커밋/푸시/develop·main fast-forward 전부 별도 승인 없이 이어서 진행하는 것이 기본이다 — 아래 4번(WIP Push)·7번(Multi-Device Sync)·5·6번(fast-forward)은 그 흐름 안에서 push/fast-forward 시점에 대한 세부 규칙으로 남는다.
 
 1. **No Direct Commits to Main** — `main` 브랜치에서 직접 코드를 수정하거나 커밋하지 않는다.
 2. **Feature Branch Workflow** — 새로운 EPIC이나 작업을 시작할 때는 반드시 `main`을 최신 상태로 pull 받은 후, `feature/EPIC-<번호>` 또는 `feature/<작업명>` 형식의 새 브랜치를 생성해 이동한 뒤 작업한다.
@@ -85,7 +85,7 @@ This project maintains dedicated design/ops documents in `docs/` — treat each 
 These apply to every session in this repo, in addition to the general Git Safety Protocol — see also [`docs/git-sync.md`](docs/git-sync.md) for the full workflow.
 
 - **Start of work**: always sync in this order — `git status` first, then `git pull` (only if the working tree is clean; report to the user instead of pulling if there are local changes).
-- **Committing**: only run `git add` / `git commit` after the user has explicitly approved the change — never on your own initiative.
+- **Committing (2026-08-13, 사용자 지시로 갱신)** — 이전에는 "매 커밋마다 사용자가 명시적으로 승인한 뒤에만 `git add`/`git commit`"이 원칙이었으나, 사용자가 "merge, commit, push, forward는 항상 해줘 작업 끝나면"이라고 명시적으로 요청해 이 예외를 없앤다. 이제부터 하나의 작업 단위(기능/수정 등)가 완료되고 `tsc`/`lint` 등 검증까지 끝나면, 별도로 커밋 승인을 다시 구하지 않고 바로 `git add`(관련 파일만, `-A`/`.` 금지)+`git commit`을 진행한다 — 이어서 아래 Pushing 규칙대로 push/fast-forward까지 자동으로 이어간다. 단, Git Safety Protocol(민감 파일 포함 여부 확인 등)과 커밋 메시지 작성 관례는 그대로 지킨다. 위험도가 높거나 되돌리기 어려운 작업(스키마 파괴적 변경, 대량 삭제 등)은 이 자동 승인 밖이니 평소대로 먼저 확인한다.
 - **Every commit updates `CHANGELOG.md` and `NEXT_TASK.md`(2026-07-30, 사용자 지시)** — not just at EPIC completion (rule 4 above still applies for the fuller `docs/EPIC.md`/`docs/PROJECT_DASHBOARD.md`/`docs/STAGES.md` sync). Include both in the same commit: `CHANGELOG.md`에 오늘 날짜로 무엇을·왜 바꿨는지 한 항목 추가, `NEXT_TASK.md`는 완료 항목 반영 + 다음 할 일 갱신. 아주 사소한 수정(오타, 주석)까지는 아니더라도 사용자가 요청해서 만든 실질적 변경은 전부 대상.
 - **Pushing**: once a commit is made, push it to `origin` right away by default (see "AI Working Rules" #7, Multi-Device Sync) — don't wait for a separate approval or for end-of-session, unless the user says otherwise for that change. Also fast-forward `develop` and `main` per rules #5–6 whenever they're ancestors of the new commit.
 - **Git identity is already configured** (`user.name`/`user.email` set locally in this repo) — don't ask the user for it again or re-prompt for identity setup.

@@ -34,7 +34,7 @@ export function EditorialGridBlock({ heading, items }: EditorialGridProps) {
             className="mb-10 font-serif text-2xl font-normal text-gray-900"
             onCommit={(next) => setProp((p) => (p.heading = next))}
           />
-          <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-10 @[768px]:grid-cols-3">
             {items.map((item, i) => (
               <a key={i} href={item.href} className="block">
                 <EditableImage

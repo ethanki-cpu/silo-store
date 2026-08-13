@@ -22,7 +22,7 @@ export function MinimalFooterBlock({ items, copyright }: MinimalFooterProps) {
   return (
     <div ref={(dom) => { if (dom) connect(dom); }}>
       <EditableBlockFrame label="Footer">
-        <footer className="flex flex-col items-center gap-4 border-t border-gray-200 px-6 py-10 text-xs uppercase tracking-wide text-gray-400 md:flex-row md:justify-between">
+        <footer className="flex flex-col items-center gap-4 border-t border-gray-200 px-6 py-10 text-xs uppercase tracking-wide text-gray-400 @[768px]:flex-row @[768px]:justify-between">
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
             {items.map((item, i) => (
               <a key={i} href={item.href}>

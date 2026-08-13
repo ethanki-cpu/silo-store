@@ -1543,6 +1543,11 @@ type LinkedPageInfo = {
   // /admin/pages/[id]에 있는 page_builder.min_rank_to_read와 동일한 값 —
   // 새 컬럼을 추가하지 않고 그 값을 여기서도 편집한다.
   min_rank_to_read: number | null;
+  // EPIC-099(항목 3, 사용자 지시): "사이트 구성 관리 > 사이트 메뉴"에서
+  // 카테고리(페이지)마다 native/craft 빌더 엔진을 바로 토글할 수 있어야
+  // 한다는 요구 — /admin/pages/[id]에 있는 page_builder.builder_type과
+  // 동일한 값을 여기서도 편집(EPIC-098에서 신설).
+  builder_type: "native" | "craft";
 } | null;
 
 type BoardDraft = {
@@ -1591,6 +1596,13 @@ function CategoryDetailModal({
   const [pageMinRankSaving, setPageMinRankSaving] = useState(false);
   const [pageMinRankSaved, setPageMinRankSaved] = useState(false);
   const [pageMinRankError, setPageMinRankError] = useState<string | null>(null);
+  // EPIC-099(항목 3): min_rank_to_read와 완전히 동일한 draft/저장 패턴 —
+  // pageInfo와 별도 state로 둬서 "저장" 버튼을 누르기 전엔 다른 값에
+  // 영향을 주지 않는다.
+  const [pageBuilderType, setPageBuilderType] = useState<"native" | "craft">("native");
+  const [pageBuilderTypeSaving, setPageBuilderTypeSaving] = useState(false);
+  const [pageBuilderTypeSaved, setPageBuilderTypeSaved] = useState(false);
+  const [pageBuilderTypeError, setPageBuilderTypeError] = useState<string | null>(null);
 
   async function savePageMinRank() {
     if (!pageInfo) return;
@@ -1610,6 +1622,24 @@ function CategoryDetailModal({
     setPageMinRankSaved(true);
   }
 
+  async function savePageBuilderType() {
+    if (!pageInfo) return;
+    setPageBuilderTypeSaving(true);
+    setPageBuilderTypeError(null);
+    setPageBuilderTypeSaved(false);
+    const { error: updateError } = await supabase
+      .from("page_builder")
+      .update({ builder_type: pageBuilderType, updated_at: new Date().toISOString() })
+      .eq("id", pageInfo.id);
+    setPageBuilderTypeSaving(false);
+    if (updateError) {
+      setPageBuilderTypeError(updateError.message);
+      return;
+    }
+    setPageInfo((prev) => (prev ? { ...prev, builder_type: pageBuilderType } : prev));
+    setPageBuilderTypeSaved(true);
+  }
+
   useEffect(() => {
     if (!row.href) {
       setPageInfo(null);
@@ -1619,13 +1649,14 @@ function CategoryDetailModal({
     setPageLoading(true);
     supabase
       .from("page_builder")
-      .select("id, slug, status, min_rank_to_read")
+      .select("id, slug, status, min_rank_to_read, builder_type")
       .eq("slug", hrefToSlug(row.href))
       .maybeSingle()
       .then(({ data }) => {
         if (cancelled) return;
         setPageInfo((data as LinkedPageInfo) ?? null);
         setPageMinRank((data as LinkedPageInfo)?.min_rank_to_read ?? null);
+        setPageBuilderType((data as LinkedPageInfo)?.builder_type ?? "native");
         setPageLoading(false);
       });
     return () => {
@@ -1970,6 +2001,32 @@ function CategoryDetailModal({
               </div>
             )}
             {pageMinRankError && <p className="text-xs text-red-600 mt-1">{pageMinRankError}</p>}
+            {/* EPIC-099(항목 3): 빌더 엔진 토글 — 'craft'로 바꾸면 이 페이지는
+                /admin/pages/[id]에서 일반 위젯 목록 대신 Craft 에디터로
+                편집하게 된다(src/app/page.tsx의 홈페이지와 동일한 분기,
+                PAGE_BUILDER.md/EPIC-098 참고). */}
+            {pageInfo && (
+              <div className="mt-2 flex items-center gap-2">
+                <select
+                  className={inputClass}
+                  value={pageBuilderType}
+                  onChange={(e) => setPageBuilderType(e.target.value === "craft" ? "craft" : "native")}
+                >
+                  <option value="native">빌더 엔진: Native(위젯)</option>
+                  <option value="craft">빌더 엔진: Craft(에디토리얼)</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={savePageBuilderType}
+                  disabled={pageBuilderTypeSaving}
+                  className={smallButtonClass}
+                >
+                  {pageBuilderTypeSaving ? "저장 중..." : "저장"}
+                </button>
+                {pageBuilderTypeSaved && <span className="text-xs text-green-600">저장됨</span>}
+              </div>
+            )}
+            {pageBuilderTypeError && <p className="text-xs text-red-600 mt-1">{pageBuilderTypeError}</p>}
           </div>
 
           {/* EPIC-077: 연결된 게시판 — 어느 게시판을 연결할지 여기서 직접

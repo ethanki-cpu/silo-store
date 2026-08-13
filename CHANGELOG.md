@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-099, 3/3 Phase 1 — 사이트 구성 관리 트리에 빌더 엔진 토글)
+- **배경**: EPIC-098에서 도입한 `page_builder.builder_type`은 지금까지 `/admin/pages/[id]`(개별 페이지 편집 화면)에서만 볼 수 있었다 — 사용자 지시로 "사이트 구성 관리 > 사이트 메뉴" 트리의 "관리" 모달에서 카테고리(페이지)마다 바로 native/craft를 토글할 수 있게 한다.
+- **`CategoryTreeManager.tsx`**: 기존 "최소 접근 가능 티어"(min_rank_to_read) 편집과 완전히 동일한 draft/저장 패턴(별도 state, 저장 버튼 누르기 전엔 다른 값에 영향 없음)으로 `builder_type` select + 저장 버튼을 그 바로 아래에 추가. `LinkedPageInfo` 타입/조회 쿼리에 `builder_type` 컬럼 포함.
+- **참고**: 이 토글은 데이터(`page_builder.builder_type`)만 바꾼다 — 실제로 Craft 렌더링이 적용되려면 그 페이지의 Server Component 라우트에도 홈페이지(`src/app/page.tsx`)와 같은 분기 로직이 있어야 한다(지금은 홈페이지만). 다른 허브 페이지 라우트에 분기를 추가하는 건 Phase 2(페이지별 전용 블록 제작)에서 함께 진행.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(새 경고 없음). 로컬 dev 관리자 세션에서 "관리" 모달에 select가 실제 DB 값(native)을 정확히 불러오는 것 확인.
+- **변경 파일**: `src/components/admin/CategoryTreeManager.tsx`.
+
 ## 2026-08-13 (EPIC-099, 2/3 — Craft 에디터 Toolbox UI: 복제/삭제/드래그 재정렬/섹션 추가)
 - **배경**: EPIC-098에서 "정해진 6종 안에서 복제/삭제/순서변경"으로 스코프를 좁혀뒀던 항목(제안서 순서 2번째) — 자유 컴포넌트 팔레트가 아니라 정해진 6개 블록만 다루는 범위 그대로.
 - **`EditableBlockFrame`(editable.tsx) 확장**: 편집 모드일 때 각 블록 우측 상단에 드래그 핸들(⠿)/복제(⧉)/삭제(🗑) 버튼을 추가. `useNode()`가 이 컴포넌트를 감싸는 블록의 노드 컨텍스트를 그대로 물려받는 Craft.js 특성 덕분에 6개 블록 파일은 전혀 안 건드리고 이 파일 하나만 고쳐 전 블록에 배선됐다.

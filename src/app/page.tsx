@@ -5,6 +5,7 @@ import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { fetchPublishedPageBySlug } from "@/lib/pageBuilder";
 import { normalizeHeroSlideshow, type HeroSlideshowConfig } from "@/lib/heroSlideshow";
+import { CraftHomeRenderer } from "@/components/craft/home/CraftHomeRenderer";
 
 // EPIC-092 후속(버그 수정): 이 Server Component에 dynamic 지정이 없어
 // Next.js가 site_settings 조회 결과를 캐싱해, "홈페이지 설정 관리"에서
@@ -75,6 +76,20 @@ export default async function Home() {
   // 없어 관리자가 위젯을 구성해도 화면에 반영되지 않던 결함(EPIC-066 발견)을
   // 수정. 기존 히어로 콘텐츠는 그대로 유지하고 그 아래에 배치한다.
   const homePage = await fetchPublishedPageBySlug("home");
+
+  // EPIC-098: 홈페이지 한정 Two-Track 빌더 분기 — builder_type이 'craft'면
+  // 기존 히어로 슬라이드쇼(site_settings)/Native Page Builder는 전혀 쓰지
+  // 않고 Craft.js 렌더러 하나가 페이지 전체를 그린다. 'native'(기본값)면
+  // 이 분기가 생기기 전과 완전히 동일하게 동작한다(다른 모든 페이지도
+  // 여전히 'native'라 영향 없음).
+  if (homePage?.page.builder_type === "craft") {
+    return (
+      <>
+        <PageEditButton slug="home" />
+        <CraftHomeRenderer craftState={homePage.page.craft_state} />
+      </>
+    );
+  }
 
   return (
     <>

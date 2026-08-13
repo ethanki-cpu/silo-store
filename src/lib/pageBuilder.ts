@@ -50,6 +50,16 @@ export type PageBuilderRow = {
   // EPIC-087-PHASE-C: 이 페이지를 열람할 수 있는 최소 멤버십 등급 —
   // null/미지정이면 게이트 없음(전체 공개, 기존과 동일).
   min_rank_to_read?: number | null;
+  // EPIC-098: 이 페이지를 어느 빌더 엔진으로 렌더링할지 — 'native'(기본값,
+  // 기존 23종 위젯 시스템)면 이 필드가 생기기 전과 완전히 동일하게 동작한다.
+  // 'craft'는 홈페이지 전용 Craft.js 에디토리얼 빌더(EPIC-098) — 이 페이지의
+  // modules(page_modules)는 아예 조회/렌더링하지 않고 craft_state 하나로
+  // 페이지 전체를 그린다.
+  builder_type: "native" | "craft";
+  // Craft.js query.serialize()가 만든 JSON 문자열 그대로 저장 — 관리자가
+  // 한 번도 저장한 적 없으면 null(공개/관리자 렌더러 둘 다 Default State
+  // 스켈레톤으로 폴백, CraftHomeRenderer.tsx 참고).
+  craft_state?: string | null;
 };
 
 export type PageModuleRow = {

@@ -33,6 +33,7 @@ import {
 import { WidgetPalette } from "@/components/admin/WidgetPalette";
 import { WidgetInspectorForm } from "@/components/admin/WidgetInspectorForm";
 import { TimelineWidgetEditor } from "@/components/admin/TimelineWidgetEditor";
+import { CraftHomeEditor } from "@/components/admin/craft/CraftHomeEditor";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {
   fetchNavBranches,
@@ -107,6 +108,9 @@ function AdminPageEditorPageInner() {
   const [draftSaving, setDraftSaving] = useState(false);
   const [devJsonText, setDevJsonText] = useState("");
   const [devJsonError, setDevJsonError] = useState<string | null>(null);
+  // EPIC-098: 홈페이지(builder_type='craft') 전용 Craft.js 에디터 오버레이
+  // 열림 상태 — 다른 모든 위젯 draft state와 완전히 독립적이다.
+  const [craftEditorOpen, setCraftEditorOpen] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -528,6 +532,11 @@ function AdminPageEditorPageInner() {
     m.id === editingId ? { ...m, board_id: draftBoardId || null, settings: draftSettings } : m,
   );
 
+  // EPIC-098: 이 페이지가 'craft'면 아래 위젯 목록/팔레트/미리보기 패널을
+  // 전부 Craft 전용 진입점으로 바꾼다 — 다른 모든 페이지는 builder_type이
+  // 기본값 'native'라 이 분기가 없던 때와 동일하게 렌더링된다.
+  const isCraft = page.builder_type === "craft";
+
   return (
     <main className="flex-1 px-4 sm:px-8 pb-8 w-full">
       <div className="flex items-center justify-between max-w-6xl mx-auto mb-4">
@@ -623,91 +632,130 @@ function AdminPageEditorPageInner() {
             </button>
           </section>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-700">위젯 ({modules.length})</h2>
-              <div className="flex items-center gap-2">
-                {/* EPIC-088: 이 페이지에 board 위젯이 하나도 없을 때만 노출 —
-                    이미 board 위젯이 있으면(연결 여부와 무관하게) 그 위젯의
-                    "게시판 선택"에서 고르거나 위 게시판 수정 버튼을 쓰면 된다. */}
-                {!modules.some((m) => m.module_type === "board") && (
+          {isCraft ? (
+            <section className="space-y-3 rounded-lg border border-gray-200 p-4">
+              <h2 className="text-sm font-semibold text-gray-700">Craft 에디터</h2>
+              <p className="text-xs text-gray-500">
+                이 페이지는 홈페이지 전용 Craft.js 에디토리얼 빌더로 렌더링돼요(EPIC-098) —
+                일반 위젯 목록 대신 전체화면 에디터에서 텍스트/이미지를 더블클릭으로 바꿉니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => setCraftEditorOpen(true)}
+                className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
+              >
+                Craft 에디터 열기
+              </button>
+            </section>
+          ) : (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700">위젯 ({modules.length})</h2>
+                <div className="flex items-center gap-2">
+                  {/* EPIC-088: 이 페이지에 board 위젯이 하나도 없을 때만 노출 —
+                      이미 board 위젯이 있으면(연결 여부와 무관하게) 그 위젯의
+                      "게시판 선택"에서 고르거나 위 게시판 수정 버튼을 쓰면 된다. */}
+                  {!modules.some((m) => m.module_type === "board") && (
+                    <button
+                      type="button"
+                      onClick={handleCreateEmptyBoard}
+                      disabled={creatingBoard}
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {creatingBoard ? "만드는 중..." : "게시판 추가"}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={handleCreateEmptyBoard}
-                    disabled={creatingBoard}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+                    onClick={() => setPaletteOpen(true)}
+                    className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
                   >
-                    {creatingBoard ? "만드는 중..." : "게시판 추가"}
+                    + 위젯 추가
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setPaletteOpen(true)}
-                  className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
-                >
-                  + 위젯 추가
-                </button>
+                </div>
               </div>
-            </div>
-            {createBoardError && <p className="text-xs text-red-600">{createBoardError}</p>}
+              {createBoardError && <p className="text-xs text-red-600">{createBoardError}</p>}
 
-            {modules.length === 0 ? (
-              <p className="text-gray-400 text-sm">아직 위젯이 없어요. “+ 위젯 추가”로 시작하세요.</p>
-            ) : (
-              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-2">
-                    {modules.map((module) => (
-                      <WidgetRow
-                        key={module.id}
-                        module={module}
-                        boards={boards}
-                        navBranches={navBranches}
-                        boardBranchMap={boardBranchMap}
-                        editing={editingId === module.id}
-                        devMode={devMode}
-                        draftBoardId={draftBoardId}
-                        draftSettings={draftSettings}
-                        draftSaving={draftSaving}
-                        devJsonText={devJsonText}
-                        devJsonError={devJsonError}
-                        onOpenEditor={() => (editingId === module.id ? closeEditor() : openEditor(module))}
-                        onDraftBoardIdChange={setDraftBoardId}
-                        onDraftSettingsChange={handleDraftSettingsChange}
-                        onDevJsonTextChange={setDevJsonText}
-                        onApplyDevJson={handleApplyDevJson}
-                        onSaveDraft={() => handleSaveDraft(module.id)}
-                        onCancelDraft={closeEditor}
-                        onDuplicate={() => handleDuplicate(module)}
-                        onToggleHidden={() => handleToggleHidden(module)}
-                        onDelete={() => handleDeleteModule(module.id)}
-                        onBoardRenderTypeChange={handleBoardRenderTypeChange}
-                        onAddNewBoard={() => handleAddNewBoardForModule(module.id)}
-                        addingBoard={addingBoardModuleId === module.id}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )}
-          </section>
+              {modules.length === 0 ? (
+                <p className="text-gray-400 text-sm">아직 위젯이 없어요. “+ 위젯 추가”로 시작하세요.</p>
+              ) : (
+                <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                  <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {modules.map((module) => (
+                        <WidgetRow
+                          key={module.id}
+                          module={module}
+                          boards={boards}
+                          navBranches={navBranches}
+                          boardBranchMap={boardBranchMap}
+                          editing={editingId === module.id}
+                          devMode={devMode}
+                          draftBoardId={draftBoardId}
+                          draftSettings={draftSettings}
+                          draftSaving={draftSaving}
+                          devJsonText={devJsonText}
+                          devJsonError={devJsonError}
+                          onOpenEditor={() => (editingId === module.id ? closeEditor() : openEditor(module))}
+                          onDraftBoardIdChange={setDraftBoardId}
+                          onDraftSettingsChange={handleDraftSettingsChange}
+                          onDevJsonTextChange={setDevJsonText}
+                          onApplyDevJson={handleApplyDevJson}
+                          onSaveDraft={() => handleSaveDraft(module.id)}
+                          onCancelDraft={closeEditor}
+                          onDuplicate={() => handleDuplicate(module)}
+                          onToggleHidden={() => handleToggleHidden(module)}
+                          onDelete={() => handleDeleteModule(module.id)}
+                          onBoardRenderTypeChange={handleBoardRenderTypeChange}
+                          onAddNewBoard={() => handleAddNewBoardForModule(module.id)}
+                          addingBoard={addingBoardModuleId === module.id}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </section>
+          )}
         </div>
 
         {/* 우측: Live Preview — 설정을 바꾸면 새로고침 없이 즉시 반영 */}
         <div className="lg:sticky lg:top-4">
-          <div className="rounded-lg border border-gray-200 overflow-hidden">
-            <div className="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500">
-              미리보기 (숨긴 위젯도 흐리게 표시됨 — 공개 페이지에는 안 보임)
+          {isCraft ? (
+            <div className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
+              Craft 에디터 안에서 실시간으로 미리 보여요. 실제 배포된 화면은{" "}
+              <a href="/" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                홈페이지에서 새 탭으로
+              </a>{" "}
+              확인할 수 있어요.
             </div>
-            <div className="max-h-[80vh] overflow-y-auto p-6 bg-white">
-              <PageBuilderRenderer modules={previewModules} includeHidden />
+          ) : (
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <div className="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500">
+                미리보기 (숨긴 위젯도 흐리게 표시됨 — 공개 페이지에는 안 보임)
+              </div>
+              <div className="max-h-[80vh] overflow-y-auto p-6 bg-white">
+                <PageBuilderRenderer modules={previewModules} includeHidden />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
       {paletteOpen && (
         <WidgetPalette onSelect={handleSelectWidget} onClose={() => setPaletteOpen(false)} />
+      )}
+
+      {isCraft && craftEditorOpen && (
+        <CraftHomeEditor
+          pageId={page.id}
+          initialState={page.craft_state}
+          onClose={() => setCraftEditorOpen(false)}
+          onSaved={() => {
+            setCraftEditorOpen(false);
+            load();
+          }}
+        />
       )}
     </main>
   );

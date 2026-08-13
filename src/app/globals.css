@@ -23,6 +23,15 @@
 }
 */
 
+/* EPIC-098: 홈페이지 Craft.js 에디토리얼 블록 전용 세리프 폰트 override —
+   .craft-home 안의 Tailwind font-serif 유틸(각 요소에 직접 font-family를
+   지정)만 next/font가 로드한 EB Garamond로 바꾼다. 전역 body 폰트(및 다른
+   font-serif 사용처)는 건드리지 않는다 — 블라스트 반경을 홈페이지 Craft
+   렌더러/에디터 하나로 좁힌다. */
+.craft-home .font-serif {
+  font-family: var(--font-editorial-serif), ui-serif, Georgia, "Times New Roman", serif;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

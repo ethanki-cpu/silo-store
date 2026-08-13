@@ -204,7 +204,14 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-108
+EPIC-109
+자유 배치 이미지 리사이즈에 비율 유지/직접입력/프리셋 추가 — `ImageBlock`에
+`lockAspectRatio` 토글+비율 프리셋 드롭다운+직접입력, `FreePositionHandles`가
+컨테이너 실제 픽셀 크기로 환산해 정사각형이 아닌 컨테이너에서도 정확한
+픽셀 비율을 유지하도록 확장. `tsc`/`lint`/`build` 0 errors, 클린 세션에서
+1:1 잠금 리사이즈 검증. 브랜치 `feature/EPIC-109`.
+
+직전 EPIC-108
 자유 배치(콜라주) + 홈페이지 슬라이드쇼 위젯 관리자 연동 — 컨테이너/텍스트/
 이미지/버튼/영상/슬라이드쇼/게시판연동 7종에 이미지 위에 이미지처럼 자유롭게
 겹쳐 드래그하는 배치 기능(`useFreePosition.ts`+`FreePositionHandles`/

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-14 (EPIC-109 — 자유 배치 이미지 리사이즈에 비율 유지/직접입력/프리셋 추가)
+- **배경**: EPIC-108에서 이미지 위에 이미지를 자유롭게 겹쳐 놓는 기능은 됐는데, 겹쳐진 이미지의 크기 조절 시 가로세로 비율을 유지할 방법이 없었다("비율유지/유지안함 기능", "가로세로 비율을 직접 입력", "드랍다운에서 비율을 여러가지 샘플에서 선택").
+- **`src/lib/useFreePosition.ts`**: `parseAspectRatio("4/3" | "16:9" | "1.5")` 파서와 `ASPECT_RATIO_PRESETS`(자유/1:1/4:3/3:4/3:2/2:3/16:9/9:16/21:9/5:4) 목록 추가.
+- **`FreePositionHandles`**: `lockedAspectRatio?: number` prop 신설 — 켜져 있으면 리사이즈 핸들 드래그 시 가로 이동량으로 너비(%)를 정하고, 세로는 **컨테이너의 실제 픽셀 너비/높이로 환산**해 그 비율에 맞는 높이(%)를 자동 계산한다(컨테이너가 정사각형이 아니면 같은 %라도 실제 픽셀 비율이 달라지므로, %만으로는 비율을 못 맞춘다 — 픽셀 환산이 핵심). 부수적으로 `setPointerCapture` 실패(드문 케이스)를 `try/catch`로 방어해 드래그 시작 자체가 막히지 않게 함.
+- **`ImageBlock`**: `lockAspectRatio: boolean` prop 신설(기존 `aspectRatio` 텍스트 필드를 그대로 재사용해 잠글 목표 비율로 삼음). 설정 패널에 (1) 비율 프리셋 드롭다운, (2) 비율 직접 입력 텍스트 필드(둘 다 같은 `aspectRatio` 값을 공유), (3) "자유 배치로 크기 조절할 때 비율 유지" 체크박스를 추가.
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 통과(0 errors). 클린 서버+새 탭에서 1:1 비율 잠금 상태로 리사이즈 핸들을 드래그해, 너비(%)·높이(%)가 서로 다른데도 실제 픽셀 환산 시 정확히 1:1(예: 274.9px × 274.8px)로 유지되는 것을 확인, 콘솔 에러 없음(이전 `setPointerCapture` NotFoundError는 합성 이벤트로 반복 테스트할 때만 발생하던 테스트 산출물이었음을 클린 세션으로 재확인 + 그래도 try/catch로 방어).
+- **변경 파일**: `src/lib/useFreePosition.ts`, `src/components/craft/shared/FreePositionHandles.tsx`, `src/components/craft/primitives/ImageBlock.tsx`.
+
 ## 2026-08-13 (EPIC-108 — 자유 배치(콜라주) + 홈페이지 슬라이드쇼 위젯 관리자 연동)
 - **배경**: 사용자가 Kinfolk 실제 화면(1번 블록)을 다시 보여주며 "화면을 꽉 채우는 슬라이드쇼만 있는 게 아니라, 이미지 안에 이미지를 넣는 콜라주처럼 컨테이너/텍스트/이미지/버튼/영상/슬라이드쇼/게시판을 자유롭게 겹쳐 드래그로 놓을 수 있게" 요청, 그리고 `HeroSlideshowWidgetBlock`(EPIC-107)에 이미 존재하는 관리자 "홈페이지 설정 관리" 슬라이드쇼와 연동하는 옵션이 없다고 지적.
 - **자유 배치(콜라주) — 신규 공용 인프라**:

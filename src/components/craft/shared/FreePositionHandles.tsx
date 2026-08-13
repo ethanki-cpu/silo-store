@@ -15,10 +15,16 @@ export function FreePositionHandles({
   position,
   onChange,
   anchorRef,
+  // EPIC-109: 켜져 있으면 리사이즈 핸들이 가로 이동량만 반영하고, 세로는
+  // 컨테이너 실제 픽셀 크기를 기준으로 이 비율에 맞춰 자동 계산한다(가로/
+  // 세로 % 자체는 컨테이너가 정사각형이 아니면 같은 %라도 실제 픽셀 비율이
+  // 다르므로, 픽셀 단위로 환산해야 눈으로 보이는 비율이 정확히 유지된다).
+  lockedAspectRatio = null,
 }: {
   position: FreePosition;
   onChange: (next: FreePosition) => void;
   anchorRef: RefObject<HTMLElement | null>;
+  lockedAspectRatio?: number | null;
 }) {
   const editable = useCraftEditable();
   const dragRef = useRef<DragState | null>(null);
@@ -33,7 +39,17 @@ export function FreePositionHandles({
   function start(mode: DragState["mode"], e: ReactPointerEvent<HTMLButtonElement>) {
     e.stopPropagation();
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // 드래그 시작 시점에 이 포인터가 이미 "활성"이 아니면(트랙패드/터치
+    // 이벤트가 겹치는 등 드문 경우) setPointerCapture가 NotFoundError를
+    // 던진다 — 캡처가 안 잡혀도 dragRef는 그대로 세팅해 move/up 핸들러가
+    // 계속 동작하도록 한다(캡처는 "포인터가 버튼 밖으로 나가도 계속 이
+    // 버튼이 받는다"는 편의 기능일 뿐, 없어도 핸들 위에서의 드래그 자체는
+    // 정상 동작).
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // no-op — 아래 dragRef 세팅은 그대로 진행
+    }
     dragRef.current = { mode, startX: e.clientX, startY: e.clientY, start: position };
   }
 
@@ -51,11 +67,16 @@ export function FreePositionHandles({
         yPct: clampPct(drag.start.yPct + dyPct, 0, 100 - drag.start.heightPct),
       });
     } else {
-      onChange({
-        ...position,
-        widthPct: clampPct(drag.start.widthPct + dxPct, 5, 100 - drag.start.xPct),
-        heightPct: clampPct(drag.start.heightPct + dyPct, 5, 100 - drag.start.yPct),
-      });
+      const widthPct = clampPct(drag.start.widthPct + dxPct, 5, 100 - drag.start.xPct);
+      let heightPct: number;
+      if (lockedAspectRatio) {
+        const widthPx = (widthPct / 100) * rect.width;
+        const heightPx = widthPx / lockedAspectRatio;
+        heightPct = clampPct((heightPx / rect.height) * 100, 5, 100 - drag.start.yPct);
+      } else {
+        heightPct = clampPct(drag.start.heightPct + dyPct, 5, 100 - drag.start.yPct);
+      }
+      onChange({ ...position, widthPct, heightPct });
     }
   }
 

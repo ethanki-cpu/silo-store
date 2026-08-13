@@ -8,7 +8,13 @@ import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsS
 import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
 import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
-import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
+import {
+  DEFAULT_FREE_POSITION,
+  freePositionStyle,
+  parseAspectRatio,
+  ASPECT_RATIO_PRESETS,
+  type FreePosition,
+} from "@/lib/useFreePosition";
 
 export type ImageBlockProps = {
   imageUrl: string;
@@ -16,6 +22,10 @@ export type ImageBlockProps = {
   href: string;
   objectFit: "cover" | "contain";
   aspectRatio: string;
+  // EPIC-109: 자유 배치(position.enabled) 상태에서 리사이즈 핸들을 끌 때
+  // 이 이미지의 가로세로 비율(aspectRatio 값 재사용)을 유지할지 여부.
+  // 꺼져 있으면(기본) 가로/세로를 완전히 독립적으로 자유롭게 조절한다.
+  lockAspectRatio?: boolean;
   // EPIC-103(Kinfolk 5th/8th/10th/13th 블록): 이미지 위에 카테고리/제목/요약을
   // 그라데이션 오버레이로 얹는다 — 전부 비어 있으면 아무것도 렌더링하지
   // 않아 기존(EPIC-102) 사용처는 그대로 동작한다(하위 호환).
@@ -32,6 +42,7 @@ export function ImageBlock({
   href,
   objectFit,
   aspectRatio,
+  lockAspectRatio = false,
   overlayCategory,
   overlayTitle,
   overlaySummary,
@@ -43,6 +54,7 @@ export function ImageBlock({
     setProp,
   } = useNode();
   const boxRef = useRef<HTMLDivElement>(null);
+  const lockedAspectRatio = lockAspectRatio ? parseAspectRatio(aspectRatio) : null;
 
   const hasOverlay = overlayCategory || overlayTitle || overlaySummary;
 
@@ -104,6 +116,7 @@ export function ImageBlock({
         position={position}
         onChange={(next) => setProp((p) => { p.position = next; })}
         anchorRef={boxRef}
+        lockedAspectRatio={lockedAspectRatio}
       />
       <EditableBlockFrame label="이미지">
         <RevealWrapper motion={motion} className={position.enabled ? "block h-full" : undefined}>
@@ -147,13 +160,41 @@ function ImageSettings() {
         </select>
       </label>
       <label className="block text-xs text-gray-600">
-        가로세로 비율(CSS aspect-ratio, 예: 4/3)
+        비율 선택(샘플)
+        <select
+          value={ASPECT_RATIO_PRESETS.some((p) => p.value === props.aspectRatio) ? props.aspectRatio : ""}
+          onChange={(e) => {
+            if (!e.target.value) return;
+            setProp((p) => { p.aspectRatio = e.target.value; });
+          }}
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        >
+          {ASPECT_RATIO_PRESETS.map((preset) => (
+            <option key={preset.label} value={preset.value}>
+              {preset.label}
+            </option>
+          ))}
+          {!ASPECT_RATIO_PRESETS.some((p) => p.value === props.aspectRatio) && (
+            <option value={props.aspectRatio}>직접 입력값({props.aspectRatio})</option>
+          )}
+        </select>
+      </label>
+      <label className="block text-xs text-gray-600">
+        가로세로 비율 직접 입력(예: 4/3, 16:9, 1.5)
         <input
           type="text"
           value={props.aspectRatio}
           onChange={(e) => setProp((p) => { p.aspectRatio = e.target.value; })}
           className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
         />
+      </label>
+      <label className="flex items-center gap-2 text-xs text-gray-600">
+        <input
+          type="checkbox"
+          checked={props.lockAspectRatio ?? false}
+          onChange={(e) => setProp((p) => { p.lockAspectRatio = e.target.checked; })}
+        />
+        자유 배치로 크기 조절할 때 위 비율 유지(끄면 가로/세로 완전 자유)
       </label>
       <div className="border-t border-gray-200 pt-3">
         <h4 className="mb-1.5 text-xs font-semibold text-gray-500">오버레이 캡션(선택)</h4>
@@ -195,6 +236,7 @@ ImageBlock.craft = {
     href: "",
     objectFit: "cover",
     aspectRatio: "4/3",
+    lockAspectRatio: false,
     overlayCategory: "",
     overlayTitle: "",
     overlaySummary: "",

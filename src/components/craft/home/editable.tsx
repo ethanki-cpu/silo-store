@@ -105,6 +105,84 @@ export function EditableImage({
   );
 }
 
+// EPIC-098 후속(사용자 지시): 기존 히어로 슬라이드쇼(HeroSlideshow.tsx,
+// EPIC-092/094)처럼 PC/모바일용 이미지를 따로 둘 수 있게 한다. 그쪽은 부모가
+// PC/모바일 두 인스턴스를 각각 mount하고 <picture>로 "반대쪽 기기에는 투명
+// 픽셀만" 트릭을 썼지만, 여기는 애초에 desktop/mobile URL을 한 컴포넌트가
+// 동시에 알고 있어 더 간단하다 — <source media>가 모바일 뷰포트에서 모바일
+// 파일을, 그 외엔 <img src>(데스크톱 파일)를 그대로 받는다. 모바일 URL이
+// 없으면(기본값) source 자체를 안 그려 데스크톱 파일 하나로 자연히 폴백.
+const MOBILE_MEDIA_QUERY = "(max-width: 767px)"; // Tailwind md 브레이크포인트와 동일
+
+export function EditableResponsiveImage({
+  srcDesktop,
+  srcMobile,
+  onCommitDesktop,
+  onCommitMobile,
+  alt = "",
+  className,
+  uploadFolder = "craft-home",
+}: {
+  srcDesktop: string;
+  srcMobile?: string;
+  onCommitDesktop: (nextUrl: string) => void;
+  onCommitMobile: (nextUrl: string) => void;
+  alt?: string;
+  className?: string;
+  uploadFolder?: string;
+}) {
+  const editable = useCraftEditable();
+  const [uploadingDesktop, setUploadingDesktop] = useState(false);
+  const [uploadingMobile, setUploadingMobile] = useState(false);
+
+  async function handleFile(file: File | null, target: "desktop" | "mobile") {
+    if (!file) return;
+    const setUploading = target === "desktop" ? setUploadingDesktop : setUploadingMobile;
+    setUploading(true);
+    const { url, error } = await uploadFile(file, "post-images", uploadFolder);
+    setUploading(false);
+    if (error || !url) return;
+    if (target === "desktop") onCommitDesktop(url);
+    else onCommitMobile(url);
+  }
+
+  if (!editable) {
+    return (
+      <picture>
+        {srcMobile && <source media={MOBILE_MEDIA_QUERY} srcSet={srcMobile} />}
+        <img src={srcDesktop} alt={alt} className={className} />
+      </picture>
+    );
+  }
+
+  return (
+    <div className={`group relative block ${className ?? ""}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={srcDesktop} alt={alt} className="h-full w-full object-cover" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/0 opacity-0 transition-opacity group-hover:bg-black/40 group-hover:opacity-100">
+        <label className="cursor-pointer rounded bg-white/90 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-gray-900">
+          {uploadingDesktop ? "업로드 중..." : "PC 이미지 변경"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleFile(e.target.files?.[0] ?? null, "desktop")}
+          />
+        </label>
+        <label className="cursor-pointer rounded bg-white/90 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-gray-900">
+          {uploadingMobile ? "업로드 중..." : srcMobile ? "모바일 이미지 변경" : "모바일 이미지 추가"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleFile(e.target.files?.[0] ?? null, "mobile")}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
 // 편집 모드일 때만 블록 전체에 얇은 점선 테두리를 둘러 "여기가 하나의
 // 블록"임을 관리자에게 알려주는 래퍼 — 선택/드래그 UI는 없어도 최소한
 // 블록 경계는 보여야 어디를 더블클릭해야 할지 가늠할 수 있다.

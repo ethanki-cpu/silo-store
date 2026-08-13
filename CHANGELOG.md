@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-098 후속 — Craft 히어로/Latest Issue 블록 PC·모바일 이미지 분리)
+- **사용자 지시**: 기존 히어로 슬라이드쇼(EPIC-092/094)처럼 Craft 블록도 PC/모바일용 이미지를 따로 둘 수 있게 해달라.
+- **`EditableResponsiveImage` 신설**(`editable.tsx`): 편집 모드에선 이미지 위 호버 오버레이에 "PC 이미지 변경"/"모바일 이미지 변경(또는 추가)" 버튼 2개를 따로 노출, 공개 렌더링에선 `<picture><source media="(max-width:767px)">` 로 모바일 URL이 있으면 그 파일을, 없으면 데스크톱 파일 하나로 자연히 폴백 — 기존 `HeroSlideshow.tsx`의 "반대쪽 기기엔 투명 픽셀" 트릭과 달리 desktop/mobile URL을 한 컴포넌트가 동시에 알고 있어 더 단순한 구현으로 동일한 효과(기기별 다른 파일 다운로드)를 낸다. `EditorialHeroBlock`/`LatestIssueBlock`에 `imageUrlMobile?` prop 추가해 배선(둘 다 큰 단일 이미지를 쓰는 블록만 — Editorial Grid 카드 썸네일은 작아서 이번 스코프에서 제외).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(새 경고 없음). 로컬 dev 관리자 세션에서 Craft 에디터를 열어 히어로 블록에 "PC 이미지 변경"/"모바일 이미지 추가" 버튼이 정상 노출되는 것 확인.
+- **변경 파일**: `src/components/craft/home/editable.tsx`, `src/components/craft/home/blocks/EditorialHeroBlock.tsx`, `src/components/craft/home/blocks/LatestIssueBlock.tsx`.
+
 ## 2026-08-13 (EPIC-098 — 홈페이지 전용 Craft.js 에디토리얼 빌더, Two-Track 아키텍처)
 - **요청**: 홈페이지(`/`)에 Craft.js 기반 빌더를 도입하되, 초기 렌더링 화면이 킨포크류 매거진 사이트의 레이아웃 흐름(풀블리드 히어로 → 비대칭 스플릿 → 3열 에디토리얼 그리드 → 텍스트 디렉토리 → 뉴스레터 → 미니멀 푸터)과 동일하게 채워진 상태로 시작하고, 관리자는 텍스트/이미지를 더블클릭으로만 바꾼다.
 - **범위 조율(사용자 확인)**: (1) 기존 Native Page Builder(EPIC-060/065)는 폐기하지 않고 다른 모든 페이지에서 그대로 유지 — `page_builder.builder_type`('native'|'craft')으로 페이지 단위 분기하는 Two-Track 구조, 이번 EPIC은 홈페이지 하나만 'craft'로 전환(허브 페이지 확장은 후속). (2) 저작권 문제를 피하기 위해 킨포크 실제 사진/문구는 가져오지 않고 레이아웃 구조·비율·타이포그래피 리듬만 재현 — 이미지는 Unsplash 스톡, 텍스트는 사일로 플레이스홀더 카피. 컴포넌트 이름도 브랜드명 대신 중립적인 `Editorial*`을 사용.

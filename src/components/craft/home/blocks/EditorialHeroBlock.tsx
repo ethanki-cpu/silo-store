@@ -5,16 +5,17 @@
 // 실제 사진/문구는 쓰지 않고 구조(전면 이미지, 좌하단 소형 텍스트 오버레이,
 // 그라디언트로 가독성 확보)만 재현한다.
 import { useNode } from "@craftjs/core";
-import { EditableText, EditableImage, EditableBlockFrame } from "../editable";
+import { EditableText, EditableResponsiveImage, EditableBlockFrame } from "../editable";
 
 export type EditorialHeroProps = {
   imageUrl: string;
+  imageUrlMobile?: string;
   eyebrow: string;
   title: string;
   subtitle: string;
 };
 
-export function EditorialHeroBlock({ imageUrl, eyebrow, title, subtitle }: EditorialHeroProps) {
+export function EditorialHeroBlock({ imageUrl, imageUrlMobile, eyebrow, title, subtitle }: EditorialHeroProps) {
   const {
     connectors: { connect },
     setProp,
@@ -24,11 +25,13 @@ export function EditorialHeroBlock({ imageUrl, eyebrow, title, subtitle }: Edito
     <div ref={(dom) => { if (dom) connect(dom); }}>
       <EditableBlockFrame label="Hero">
         <section className="relative h-[92vh] min-h-[560px] w-full overflow-hidden bg-gray-900">
-          <EditableImage
-            src={imageUrl}
+          <EditableResponsiveImage
+            srcDesktop={imageUrl}
+            srcMobile={imageUrlMobile}
             alt={title}
             className="absolute inset-0 h-full w-full object-cover"
-            onCommit={(next) => setProp((p) => (p.imageUrl = next))}
+            onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
+            onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 px-6 pb-16 text-center text-white">

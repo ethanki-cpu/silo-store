@@ -4,7 +4,7 @@
 // 큰 이미지 하나. 매거진 "최신호 소개" 섹션의 구조(텍스트:이미지 = 1:1
 // 컬럼이지만 좌측은 내용이 짧고 여백이 지배적)만 재현한다.
 import { useNode } from "@craftjs/core";
-import { EditableText, EditableImage, EditableBlockFrame } from "../editable";
+import { EditableText, EditableResponsiveImage, EditableBlockFrame } from "../editable";
 
 export type LatestIssueProps = {
   label: string;
@@ -13,9 +13,10 @@ export type LatestIssueProps = {
   ctaText: string;
   ctaHref: string;
   imageUrl: string;
+  imageUrlMobile?: string;
 };
 
-export function LatestIssueBlock({ label, heading, body, ctaText, ctaHref, imageUrl }: LatestIssueProps) {
+export function LatestIssueBlock({ label, heading, body, ctaText, ctaHref, imageUrl, imageUrlMobile }: LatestIssueProps) {
   const {
     connectors: { connect },
     setProp,
@@ -55,11 +56,13 @@ export function LatestIssueBlock({ label, heading, body, ctaText, ctaHref, image
               />
             </a>
           </div>
-          <EditableImage
-            src={imageUrl}
+          <EditableResponsiveImage
+            srcDesktop={imageUrl}
+            srcMobile={imageUrlMobile}
             alt={heading}
             className="aspect-[4/5] w-full object-cover md:aspect-auto md:h-full"
-            onCommit={(next) => setProp((p) => (p.imageUrl = next))}
+            onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
+            onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
           />
         </section>
       </EditableBlockFrame>

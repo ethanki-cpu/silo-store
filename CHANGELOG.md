@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-099, 1/3 — 뉴스레터 실제 구독 저장(최소 범위))
+- **배경**: EPIC-098에서 장식용으로만 남겨뒀던 `NewsletterBlock` 이메일 폼을, 제안서(EPIC-099) 순서대로 가장 먼저 실제로 동작하게 만든다. 발송 채널(Resend 등) 연동은 이번 스코프 밖 — 이메일 저장까지만.
+- **`newsletter_subscribers` 테이블 신설**(`docs/sql/EPIC-099-newsletter-subscribers.sql`, Management API로 즉시 실행 완료): 로그인 여부와 무관하게 누구나 구독할 수 있어야 해서 `members`에 옵트인 플래그를 추가하는 대신 독립 테이블로 분리. RLS: 공개 insert 허용, select는 관리자 전용(`is_admin` exists 서브쿼리, `members` 자기 참조 아니라 재귀 문제 없음).
+- **`POST /api/newsletter/subscribe`**: 서버에서 이메일 형식 재검증 후 저장. **트러블슈팅**: 처음엔 `upsert(onConflict: "email")`로 구현했는데 로컬 실측에서 anon 요청이 42501(RLS 위반)로 막혔다 — Postgres의 `INSERT ... ON CONFLICT DO UPDATE`는 충돌 행을 확인하려고 내부적으로 SELECT RLS까지 통과해야 하는데, SELECT가 관리자 전용이라 막힌 것(SQL로 직접 재현해 원인 확정). 관리자만 이메일 목록을 볼 수 있어야 한다는 요구사항은 그대로 유지하면서, 라우트는 평범한 `insert`만 하고 unique 위반(23505, 이미 구독 중)을 에러가 아니라 성공으로 처리하도록 우회 — SELECT 정책을 건드리지 않는 훨씬 단순한 해법.
+- **`NewsletterBlock.tsx`**: Craft 편집 모드에서는 입력을 막아 실수로 제출되지 않게 하고(장식용 프리뷰 그대로), 공개 렌더링에서만 실제 controlled form으로 동작 — 제출 성공 시 "구독해주셔서 감사해요" 메시지로 폼을 대체, 실패 시 인라인 에러 문구.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(새 경고 없음). 로컬 dev에서 실제 폼 제출→저장→같은 이메일 재제출(멱등)→잘못된 형식 이메일(400) 전부 실측 확인, 테스트 데이터는 정리 완료.
+- **변경 파일**: `docs/sql/EPIC-099-newsletter-subscribers.sql`(신설), `src/app/api/newsletter/subscribe/route.ts`(신설), `src/components/craft/home/blocks/NewsletterBlock.tsx`.
+
 ## 2026-08-13 (EPIC-098 후속 — Craft 히어로/Latest Issue 블록 PC·모바일 이미지 분리)
 - **사용자 지시**: 기존 히어로 슬라이드쇼(EPIC-092/094)처럼 Craft 블록도 PC/모바일용 이미지를 따로 둘 수 있게 해달라.
 - **`EditableResponsiveImage` 신설**(`editable.tsx`): 편집 모드에선 이미지 위 호버 오버레이에 "PC 이미지 변경"/"모바일 이미지 변경(또는 추가)" 버튼 2개를 따로 노출, 공개 렌더링에선 `<picture><source media="(max-width:767px)">` 로 모바일 URL이 있으면 그 파일을, 없으면 데스크톱 파일 하나로 자연히 폴백 — 기존 `HeroSlideshow.tsx`의 "반대쪽 기기엔 투명 픽셀" 트릭과 달리 desktop/mobile URL을 한 컴포넌트가 동시에 알고 있어 더 단순한 구현으로 동일한 효과(기기별 다른 파일 다운로드)를 낸다. `EditorialHeroBlock`/`LatestIssueBlock`에 `imageUrlMobile?` prop 추가해 배선(둘 다 큰 단일 이미지를 쓰는 블록만 — Editorial Grid 카드 썸네일은 작아서 이번 스코프에서 제외).

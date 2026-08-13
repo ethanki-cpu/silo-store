@@ -85,89 +85,133 @@ export function TimelineView<T extends TimelineEntry>({
   // 저하시키고, `md` 이상에서만 진짜 교차형(AlternatingRow)을 쓴다. 두
   // 버전을 함께 렌더링하고 Tailwind 반응형 클래스로 하나만 보이게 하는
   // 방식(SSR 안전, JS 브레이크포인트 감지 불필요)을 택했다.
+  //
+  // HOTFIX-097(사용자 신고 — "연대 선이 끊어진다"): 데스크톱 스파인을 월별
+  // 블록마다 따로 그리고 있었다(top-0/bottom-0가 그 월 블록 높이로만
+  // 한정됨) — 월/년 사이 간격(space-y-8/space-y-12)과 헤더 때문에 실제로는
+  // 선이 매 그룹 경계마다 끊겨 보였다. 데스크톱 렌더링을 통째로 하나의
+  // relative 컨테이너로 감싸고 스파인도 그 전체 높이에 하나만 그려, 헤더
+  // 뒤로 선이 계속 이어지도록 고쳤다(모바일 목록은 정렬에 따라 스파인
+  // 위치가 달라지는 기존 구조를 그대로 유지). 카드 좌우 교대(isLeft)도
+  // 월 경계에서 리셋되지 않도록 전체 항목에 걸친 연속 인덱스를 쓴다.
+  let globalIndex = 0;
+
   return (
-    <div className="space-y-12">
-      {years.map((year) => {
-        const byMonth = grouped.get(year)!;
-        const months = [...byMonth.keys()].sort((a, b) => Number(b) - Number(a));
+    <>
+      {/* 모바일(md 미만): 월별로 나뉜 단일 스파인 목록 */}
+      <div className="space-y-12 md:hidden">
+        {years.map((year) => {
+          const byMonth = grouped.get(year)!;
+          const months = [...byMonth.keys()].sort((a, b) => Number(b) - Number(a));
+          return (
+            <section key={year}>
+              <h2
+                className={`font-serif text-2xl font-bold text-gray-900 mb-6 ${
+                  align === "center" ? "text-center" : align === "right" ? "text-right" : ""
+                }`}
+              >
+                {year}
+              </h2>
+              <div className="space-y-8">
+                {months.map((month) => {
+                  const monthEntries = byMonth.get(month)!;
+                  return (
+                    <div key={month}>
+                      <h3
+                        className={`inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-500 mb-4 ${
+                          align === "center" ? "mx-auto flex justify-center" : align === "right" ? "ml-auto" : ""
+                        }`}
+                      >
+                        {year}년 {Number(month)}월
+                      </h3>
+                      <div className={`relative space-y-1 ${contentPaddingClass}`}>
+                        <div
+                          className={`absolute top-1 bottom-1 bg-gray-200 ${spinePositionClass}`}
+                          style={{
+                            width: lineWidthPx,
+                            ...(accentColorHex ? { backgroundColor: accentColorHex } : {}),
+                          }}
+                          aria-hidden
+                        />
+                        {monthEntries.map((entry) => (
+                          <VerticalRow
+                            key={entry.id}
+                            entry={entry}
+                            renderItem={renderItem}
+                            renderPreview={renderPreview}
+                            align={align}
+                            accentColorHex={accentColorHex}
+                            markerSizePx={markerSizePx}
+                            cardTheme={cardTheme}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
 
-        return (
-          <section key={year}>
-            <h2
-              className={`font-serif text-2xl font-bold text-gray-900 mb-6 ${
-                align === "center" ? "text-center" : align === "right" ? "text-right" : ""
-              }`}
-            >
-              {year}
-            </h2>
-            <div className="space-y-8">
-              {months.map((month) => {
-                const monthEntries = byMonth.get(month)!;
-                return (
-                <div key={month}>
-                  <h3
-                    className={`inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-500 mb-4 ${
-                      align === "center" ? "mx-auto flex justify-center" : align === "right" ? "ml-auto" : ""
-                    }`}
-                  >
-                    {year}년 {Number(month)}월
-                  </h3>
-
-                  {/* 모바일(md 미만): 단일 스파인 목록 */}
-                  <div className={`relative space-y-1 md:hidden ${contentPaddingClass}`}>
-                    <div
-                      className={`absolute top-1 bottom-1 bg-gray-200 ${spinePositionClass}`}
-                      style={{
-                        width: lineWidthPx,
-                        ...(accentColorHex ? { backgroundColor: accentColorHex } : {}),
-                      }}
-                      aria-hidden
-                    />
-                    {monthEntries.map((entry) => (
-                      <VerticalRow
-                        key={entry.id}
-                        entry={entry}
-                        renderItem={renderItem}
-                        renderPreview={renderPreview}
-                        align={align}
-                        accentColorHex={accentColorHex}
-                        markerSizePx={markerSizePx}
-                        cardTheme={cardTheme}
-                      />
-                    ))}
-                  </div>
-
-                  {/* 데스크톱(md 이상): 양방향 교차형 카드 */}
-                  <div className="relative hidden md:block">
-                    <div
-                      className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 bg-gray-200"
-                      style={{
-                        width: lineWidthPx,
-                        ...(accentColorHex ? { backgroundColor: accentColorHex } : {}),
-                      }}
-                      aria-hidden
-                    />
-                    {monthEntries.map((entry, idx) => (
-                      <AlternatingRow
-                        key={entry.id}
-                        entry={entry}
-                        index={idx}
-                        renderItem={renderItem}
-                        renderPreview={renderPreview}
-                        accentColorHex={accentColorHex}
-                        markerSizePx={markerSizePx}
-                        cardTheme={cardTheme}
-                      />
-                    ))}
-                  </div>
+      {/* 데스크톱(md 이상): 전체 타임라인에 걸친 하나의 연속 스파인 + 교차형 카드 */}
+      <div className="relative hidden md:block">
+        <div
+          className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 bg-gray-200"
+          style={{
+            width: lineWidthPx,
+            ...(accentColorHex ? { backgroundColor: accentColorHex } : {}),
+          }}
+          aria-hidden
+        />
+        <div className="space-y-12">
+          {years.map((year) => {
+            const byMonth = grouped.get(year)!;
+            const months = [...byMonth.keys()].sort((a, b) => Number(b) - Number(a));
+            return (
+              <section key={year}>
+                <h2
+                  className={`relative font-serif text-2xl font-bold text-gray-900 mb-6 ${
+                    align === "center" ? "text-center" : align === "right" ? "text-right" : ""
+                  }`}
+                >
+                  {year}
+                </h2>
+                <div className="space-y-8">
+                  {months.map((month) => {
+                    const monthEntries = byMonth.get(month)!;
+                    return (
+                      <div key={month}>
+                        <h3
+                          className={`relative inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-500 mb-4 ${
+                            align === "center" ? "mx-auto flex justify-center" : align === "right" ? "ml-auto" : ""
+                          }`}
+                        >
+                          {year}년 {Number(month)}월
+                        </h3>
+                        {monthEntries.map((entry) => (
+                          <AlternatingRow
+                            key={entry.id}
+                            entry={entry}
+                            index={globalIndex++}
+                            renderItem={renderItem}
+                            renderPreview={renderPreview}
+                            accentColorHex={accentColorHex}
+                            markerSizePx={markerSizePx}
+                            cardTheme={cardTheme}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-    </div>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 

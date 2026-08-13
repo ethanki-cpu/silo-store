@@ -27,7 +27,9 @@ import { AudioWidget } from "@/components/modules/AudioWidget";
 import { FaqWidget } from "@/components/modules/FaqWidget";
 import { StatisticsWidget } from "@/components/modules/StatisticsWidget";
 import { BadgeWidget } from "@/components/modules/BadgeWidget";
-import { DbSlideModule, DbGalleryModule, DbTimelineModule } from "@/components/modules/DbFeedModules";
+import { DbSlideModule, DbGalleryModule } from "@/components/modules/DbFeedModules";
+import { AlternatingTimelineCanvas } from "@/components/modules/AlternatingTimelineCanvas";
+import type { TimelineItemSettings } from "@/lib/pageBuilder";
 import { EmptyState } from "@/components/modules/EmptyState";
 import type { SortOption } from "@/lib/boardLayout";
 
@@ -139,6 +141,10 @@ function BadgeFromSettings({ settings }: { settings: Record<string, unknown> }) 
   return <BadgeWidget items={arr<{ label: string }>(settings.items)} />;
 }
 
+function TimelineFromSettings({ settings }: { settings: Record<string, unknown> }) {
+  return <AlternatingTimelineCanvas items={arr<TimelineItemSettings>(settings.items)} />;
+}
+
 // EPIC-092(요구사항 5)/HOTFIX-093-B: board_id 연결 여부와 무관하게 항상
 // CalendarBoardWidget으로 렌더링한다 — 이전에는 board_id가 비어 있으면
 // 필터 체크박스/"+ 글 등록" 버튼이 아예 없는 순수 셸(CalendarGrid)로
@@ -209,7 +215,7 @@ function renderModule(module: PageModuleRow) {
     case "gallery":
       return <DbGalleryModule boardId={board_id} />;
     case "timeline":
-      return <DbTimelineModule boardId={board_id} />;
+      return <TimelineFromSettings settings={settings} />;
     case "application":
       return <ApplicationFromSettings settings={settings} />;
     case "survey":

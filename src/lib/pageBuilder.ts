@@ -8,6 +8,7 @@ import {
   WIDGET_FIELDS,
   WIDGET_DEFAULT_SETTINGS,
   type PageModuleType,
+  type TimelineItemSettings,
 } from "@/lib/widgetSchema";
 
 // EPIC-060: Page Builder CMS — Page(page_builder) → Module(page_modules,
@@ -31,7 +32,7 @@ export {
   WIDGET_FIELDS,
   WIDGET_DEFAULT_SETTINGS,
 };
-export type { PageModuleType };
+export type { PageModuleType, TimelineItemSettings };
 
 export type PageBuilderRow = {
   id: string;

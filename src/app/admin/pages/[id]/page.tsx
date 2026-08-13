@@ -28,9 +28,11 @@ import {
   type PageBuilderRow,
   type PageModuleRow,
   type PageModuleType,
+  type TimelineItemSettings,
 } from "@/lib/pageBuilder";
 import { WidgetPalette } from "@/components/admin/WidgetPalette";
 import { WidgetInspectorForm } from "@/components/admin/WidgetInspectorForm";
+import { TimelineWidgetEditor } from "@/components/admin/TimelineWidgetEditor";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {
   fetchNavBranches,
@@ -785,6 +787,9 @@ function WidgetRow({
   const type = module.module_type as PageModuleType;
   const needsBoard = BOARD_LINKED_MODULE_TYPES.includes(type);
   const fields = WIDGET_FIELDS[type] ?? [];
+  const isTimeline = type === "timeline";
+  const [timelineEditorOpen, setTimelineEditorOpen] = useState(false);
+  const timelineItems = Array.isArray(draftSettings.items) ? (draftSettings.items as TimelineItemSettings[]) : [];
 
   return (
     <div
@@ -921,7 +926,26 @@ function WidgetRow({
             </div>
           )}
 
-          <WidgetInspectorForm fields={fields} settings={draftSettings} onChange={onDraftSettingsChange} />
+          {isTimeline ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => setTimelineEditorOpen(true)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
+              >
+                타임라인 위젯 설정 열기 ({timelineItems.length}개 항목)
+              </button>
+              {timelineEditorOpen && (
+                <TimelineWidgetEditor
+                  items={timelineItems}
+                  onChange={(nextItems) => onDraftSettingsChange({ ...draftSettings, items: nextItems })}
+                  onClose={() => setTimelineEditorOpen(false)}
+                />
+              )}
+            </div>
+          ) : (
+            <WidgetInspectorForm fields={fields} settings={draftSettings} onChange={onDraftSettingsChange} />
+          )}
 
           {devMode && (
             <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-2">

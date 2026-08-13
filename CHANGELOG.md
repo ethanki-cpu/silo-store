@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-097 — 타임라인 위젯: 수동 항목 입력 + 프로 레벨 2단 Split 편집기)
+- **요청**: "타임라인 위젯 설정" 클릭 시 좌측(다크) 항목 입력 폼 + 우측(라이트) 실시간 프리뷰로 화면을 통째로 분할하는 웹 빌더급 UI. `dnd-kit`으로 항목 드래그 정렬, 아코디언으로 항목별 펼침(Title/Title Color/Subtitle/Card Image/Card Title/Card Description/Card Link/Link Target), `Tiptap` 미니 에디터로 카드 설명 입력.
+- **timeline 위젯을 board_id 연동에서 수동 항목 목록으로 전환**: 기존엔 `timeline` PageModuleType이 `BOARD_LINKED_MODULE_TYPES`에 포함돼 게시판 글을 그대로 받아 그렸다 — 참고 이미지의 데이터 모델(연도/타이틀/카드 이미지/설명/링크를 운영자가 직접 입력)과 맞지 않아 `BOARD_LINKED_MODULE_TYPES`에서 제거하고 `settings.items: TimelineItemSettings[]`(신설, `widgetSchema.ts`)로 바꿨다. 카드 설명은 Block Editor와 동일하게 Tiptap JSON을 원본으로, HTML은 편집 시점에 파생해 함께 저장(공개 렌더링이 에디터 없이 바로 그릴 수 있게, `sanitizeHtml` 적용).
+- **신규 컴포넌트**: `AlternatingTimelineCanvas.tsx`(관리자 프리뷰/공개 렌더링 공용, 연속 단일 스파인 + 좌우 교차 카드), `TimelineDescriptionEditor.tsx`(Bold/Italic/Underline/Strike/목록/링크만 남긴 미니 Tiptap, `BlockEditor.tsx`에서 축소), `TimelineWidgetEditor.tsx`(전체 화면 오버레이 2단 Split UI — WidgetInspectorForm의 generic FieldDef 파이프라인이 이미지 업로드/리치텍스트를 표현 못해 이 위젯 타입만 특수 처리). 이미지 업로드는 기존 `uploadFile()`(`src/lib/storage.ts`, `post-images/timeline-widget` 버킷·서브폴더) 재사용.
+- **사용자 신고 수정(HOTFIX-097, "연대 선이 끊어진다")**: `TimelineView.tsx`(게시판 타임라인, timeline 위젯과는 별개 컴포넌트)의 데스크톱 스파인이 월/년 그룹마다 따로 그려져 그룹 경계에서 끊겨 보였다 — 전체를 하나의 relative 컨테이너로 감싸고 스파인도 그 높이에 하나만 그리도록 수정, 카드 좌우 교대 인덱스도 월 경계에서 리셋되지 않게 전체 항목 연속 인덱스로 변경.
+- **검증**: `npx tsc --noEmit` 0 errors, `npm run lint` 0 errors(새 경고 없음). **다음 세션에서 확인 필요(관리자 로그인 세션)**: `/admin/pages/[id]`에서 Timeline 위젯 "설정 열기" → 항목 추가/드래그 재정렬/이미지 업로드/설명 입력 → 저장 → 공개 페이지에 실제 반영, 게시판 타임라인 데스크톱 뷰에서 스파인이 실제로 끊기지 않고 이어지는지.
+- **변경 파일**: `src/components/modules/AlternatingTimelineCanvas.tsx`(신설), `src/components/admin/TimelineDescriptionEditor.tsx`(신설), `src/components/admin/TimelineWidgetEditor.tsx`(신설), `src/components/TimelineView.tsx`, `src/components/PageBuilderRenderer.tsx`, `src/app/admin/pages/[id]/page.tsx`, `src/lib/pageBuilder.ts`, `src/lib/widgetSchema.ts`.
+
 ## 2026-08-12 (EPIC-096 후속 5차 — 폰트 자유 텍스트 입력을 실제 업로드+미리보기 픽커로 교체)
 - **사용자 신고**: 후속 4차에서 추가한 폰트 필드가 CSS `font-family` 문자열을 손으로 입력하는 빈 텍스트박스였다 — 실제로 그 폰트가 사이트에 없으면(호스팅/등록된 적 없으면) 브라우저가 조용히 기본 폰트로 대체해 아무 효과가 없었다. "폰트를 추가할 수 있게", "미리보기를 볼 수 있게" 해달라는 요청.
 - **`FontPicker` 컴포넌트 신설**: 이 프로젝트에 이미 있던 커스텀 폰트 인프라(EPIC-083 `/admin/fonts`, `custom_fonts` 테이블, `useCustomFonts()`의 `@font-face` 자동 주입 — 에디터 폰트 드롭다운이 쓰던 것과 동일)를 그대로 재사용했다. 드롭다운을 열면 (1) 이미 등록된 폰트들을 **그 폰트로 실제 렌더링된 미리보기 텍스트**("Silo Store 사일로 다람쥐")와 함께 목록으로 보여주고, (2) 목록 맨 아래에 그 자리에서 바로 새 폰트를 업로드(이름 입력 + .woff2/.woff/.ttf/.otf 파일)할 수 있는 미니 폼이 있다 — 업로드하면 즉시 그 폰트가 선택되고 목록에도 추가된다. "게시물 출력방식"의 글번호/날짜/작성자/제목/좋아요·조회·댓글 5개 폰트 필드 전부 이 픽커로 교체.

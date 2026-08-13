@@ -137,12 +137,38 @@ export const WIDGET_GROUPS: { label: string; types: PageModuleType[] }[] = [
 
 // board_id 컬럼을 실제로 쓰는 위젯 — 관리자 UI가 이 목록으로 "게시판 선택"
 // 드롭다운을 보여줄지 결정한다(EPIC-060부터 유지).
+//
+// EPIC-097(사용자 지시): timeline은 더 이상 게시판 글을 그대로 받아 그리는
+// board_id 연동 위젯이 아니다 — 운영자가 직접 연/타이틀/이미지/카드
+// 설명/링크를 입력하는 수동 항목 목록(settings.items, 아래 TimelineItemSettings)
+// 으로 바뀌었다. 그래서 이 목록에서 제거한다(게시판 선택 드롭다운도, 기존
+// 게시판 데이터 조회도 더 이상 없음) — 대신 전용 편집기(TimelineWidgetEditor)
+// 가 settings를 직접 다룬다.
 export const BOARD_LINKED_MODULE_TYPES: PageModuleType[] = [
   "board",
   "slide",
   "gallery",
-  "timeline",
 ];
+
+// EPIC-097: 타임라인 위젯 항목 하나 — TimelineWidgetEditor(관리자)가 만들고
+// AlternatingTimelineCanvas(미리보기/공개 렌더링 공용)가 읽는다. 카드
+// 설명은 Block Editor와 동일하게 Tiptap JSON을 원본으로 저장하고, HTML은
+// generateHTML로 뽑아낸 파생값을 함께 저장해(JSON만으로는 서버/클라 양쪽에서
+// 매번 에디터를 마운트해야 렌더링할 수 있음) 공개 페이지가 에디터 없이도
+// 바로 렌더링할 수 있게 한다.
+export type TimelineItemSettings = {
+  id: string;
+  title: string;
+  titleColorHex?: string;
+  subtitle?: string;
+  imageUrl?: string;
+  cardTitle?: string;
+  descriptionJson?: unknown;
+  descriptionHtml?: string;
+  linkUrl?: string;
+  linkText?: string;
+  linkTarget?: "_self" | "_blank";
+};
 
 // ---- Inspector 필드 스키마: 체크박스/드롭다운/텍스트/숫자/목록만 사용 ----
 
@@ -366,7 +392,7 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
   },
   slide: { title: "", sort: "latest" },
   gallery: {},
-  timeline: {},
+  timeline: { items: [] },
   calendar: {},
   application: { actions: [{ label: "신청하기", href: "/" }] },
   survey: { question: "질문을 입력하세요", options: [{ label: "선택지 1" }, { label: "선택지 2" }] },

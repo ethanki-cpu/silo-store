@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-099, 2/3 — Craft 에디터 Toolbox UI: 복제/삭제/드래그 재정렬/섹션 추가)
+- **배경**: EPIC-098에서 "정해진 6종 안에서 복제/삭제/순서변경"으로 스코프를 좁혀뒀던 항목(제안서 순서 2번째) — 자유 컴포넌트 팔레트가 아니라 정해진 6개 블록만 다루는 범위 그대로.
+- **`EditableBlockFrame`(editable.tsx) 확장**: 편집 모드일 때 각 블록 우측 상단에 드래그 핸들(⠿)/복제(⧉)/삭제(🗑) 버튼을 추가. `useNode()`가 이 컴포넌트를 감싸는 블록의 노드 컨텍스트를 그대로 물려받는 Craft.js 특성 덕분에 6개 블록 파일은 전혀 안 건드리고 이 파일 하나만 고쳐 전 블록에 배선됐다.
+- **`CraftHomeEditor.tsx`에 "+ 섹션 추가"**: 툴바에 드롭다운으로 6종 블록 목록을 보여주고, 고르면 캔버스 끝에 그 블록의 기본값으로 새 인스턴스를 추가.
+- **버그 발견 및 수정(로컬 실측 중 재현)**: 처음 구현은 `query.node(id).toNodeTree()`로 복제 트리를 만들었는데, 이 API가 원본과 **같은 id**를 그대로 들고 있는 트리를 반환한다는 걸 몰랐다 — `addNodeTree`에 그대로 넘기면 내부 노드 맵에 같은 id가 두 개 생기고, 겉보기엔 복제가 성공한 것처럼 보이지만 **아무 블록이나 삭제하는 순간 전체 렌더 트리가 깨지며 페이지가 크래시**했다("Cannot read properties of undefined (reading 'children')", craft.js에 `ERROR_DUPLICATE_NODEID`라는 전용 에러가 있는 이유). `query.parseReactElement()`(+ 섹션 추가가 이미 쓰던, 항상 새 id를 발급하는 API)로 현재 라이브 props를 복사한 새 element를 만들어 우회 — 로컬에서 복제→삭제 반복해도 크래시 없음을 재확인했다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(새 경고 없음). 로컬 dev 관리자 세션에서 복제→삭제(크래시 재현 후 수정 확인)→"+ 섹션 추가"→정리, 전부 실측.
+- **변경 파일**: `src/components/craft/home/editable.tsx`, `src/components/admin/craft/CraftHomeEditor.tsx`.
+
 ## 2026-08-13 (EPIC-099, 1/3 — 뉴스레터 실제 구독 저장(최소 범위))
 - **배경**: EPIC-098에서 장식용으로만 남겨뒀던 `NewsletterBlock` 이메일 폼을, 제안서(EPIC-099) 순서대로 가장 먼저 실제로 동작하게 만든다. 발송 채널(Resend 등) 연동은 이번 스코프 밖 — 이메일 저장까지만.
 - **`newsletter_subscribers` 테이블 신설**(`docs/sql/EPIC-099-newsletter-subscribers.sql`, Management API로 즉시 실행 완료): 로그인 여부와 무관하게 누구나 구독할 수 있어야 해서 `members`에 옵트인 플래그를 추가하는 대신 독립 테이블로 분리. RLS: 공개 insert 허용, select는 관리자 전용(`is_admin` exists 서브쿼리, `members` 자기 참조 아니라 재귀 문제 없음).

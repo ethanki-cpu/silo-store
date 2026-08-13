@@ -3,9 +3,12 @@
 // EPIC-098: 홈페이지 Craft.js 에디터 — TimelineWidgetEditor.tsx와 동일한
 // 전체화면 오버레이 UX 패턴. 상호작용 범위는 사용자가 명시한 대로 "완성된
 // 뼈대 위에서 텍스트/이미지를 더블클릭으로 바꾸는" 것까지만(EditableText/
-// EditableImage, src/components/craft/home/editable.tsx) — 드래그로 블록을
-// 추가/재배치하는 Toolbox/Layers 패널은 이번 스코프 밖.
-import { useState } from "react";
+// EditableImage, src/components/craft/home/editable.tsx).
+// EPIC-099(항목 2, "Toolbox UI"): 여기에 "정해진 6종 안에서" 복제/삭제/
+// 순서변경(드래그)/추가를 더한다 — 자유 컴포넌트 팔레트가 아니라 아래
+// BLOCK_OPTIONS 6개 중 하나를 캔버스 끝에 새로 붙이는 것까지만(복제/삭제/
+// 드래그 자체는 EditableBlockFrame, editable.tsx에 구현).
+import { createElement, useState } from "react";
 import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 import { supabase } from "@/lib/supabaseClient";
 import { craftHomeResolver } from "@/components/craft/home/resolver";
@@ -18,6 +21,17 @@ import { NewsletterBlock } from "@/components/craft/home/blocks/NewsletterBlock"
 import { MinimalFooterBlock } from "@/components/craft/home/blocks/MinimalFooterBlock";
 import { editorialSerif } from "@/components/craft/home/font";
 
+// EPIC-099(항목 2): "+ 섹션 추가"가 고를 수 있는 유일한 목록 — 여기 없는
+// 컴포넌트는 애초에 추가할 방법이 없다(자유 팔레트 아님, 계획서 스코프 그대로).
+const BLOCK_OPTIONS = [
+  { label: "Hero", Component: EditorialHeroBlock },
+  { label: "Latest Issue", Component: LatestIssueBlock },
+  { label: "Editorial Grid", Component: EditorialGridBlock },
+  { label: "Text Directory", Component: TextDirectoryBlock },
+  { label: "Newsletter", Component: NewsletterBlock },
+  { label: "Footer", Component: MinimalFooterBlock },
+] as const;
+
 function EditorToolbar({
   pageId,
   onClose,
@@ -27,9 +41,23 @@ function EditorToolbar({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { query } = useEditor();
+  const { query, actions } = useEditor();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+
+  function handleAddBlock(option: (typeof BLOCK_OPTIONS)[number]) {
+    // Craft.js User Component마다 props 타입이 전부 달라 정적으로 표현하기
+    // 어렵다 — 각 컴포넌트의 static craft.props(이미 그 타입에 맞게
+    // satisfies로 검증된 기본값)를 그대로 되돌려주는 것뿐이라 런타임에는
+    // 항상 안전하다. createElement를 쓰는 이유는 JSX 스프레드가 유니온
+    // props 타입에서 구조적으로 안 맞다고 판단하는 걸 피하기 위함.
+    const Component = option.Component as unknown as React.ComponentType<Record<string, unknown>>;
+    const element = createElement(Component, option.Component.craft.props);
+    const tree = query.parseReactElement(element).toNodeTree();
+    actions.addNodeTree(tree, "ROOT");
+    setAddMenuOpen(false);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -57,6 +85,29 @@ function EditorToolbar({
       </div>
       <div className="flex items-center gap-2">
         {error && <span className="text-xs text-red-600">{error}</span>}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setAddMenuOpen((v) => !v)}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50"
+          >
+            + 섹션 추가
+          </button>
+          {addMenuOpen && (
+            <div className="absolute right-0 top-full z-10 mt-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+              {BLOCK_OPTIONS.map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => handleAddBlock(option)}
+                  className="block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-50"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={onClose}

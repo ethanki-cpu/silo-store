@@ -8,15 +8,20 @@ import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder"
 import { usePageRankGate } from "@/lib/pageRankGate";
 import { CraftShopRenderer } from "@/components/craft/shop/CraftShopRenderer";
 import { CraftDocentRenderer } from "@/components/craft/docent/CraftDocentRenderer";
+import { CraftSalonRenderer } from "@/components/craft/salon/CraftSalonRenderer";
 
 // EPIC-099(항목 3, Phase 2): 이 catch-all이 담당하는 slug 중 일부는
 // builder_type='craft'일 수 있다 — 슬러그별로 어느 Craft 렌더러를 쓸지
 // 여기 한 곳에만 등록한다(새 허브 페이지를 Craft로 옮길 때마다 이 목록에
-// 한 줄만 추가하면 된다). 홈페이지(src/app/page.tsx)는 이 catch-all이
-// 아니라 별도 파일이라 여기 포함되지 않는다.
+// 한 줄만 추가하면 된다). 홈페이지(src/app/page.tsx)처럼 정적 라우트 파일이
+// 따로 있는 slug(studio/mypage)는 Next.js가 이 catch-all보다 먼저 그 파일을
+// 매칭해 여기 등록해도 절대 호출되지 않는다 — 그런 slug는 각자의
+// page.tsx(src/app/studio/page.tsx 등)에 직접 분기를 넣었으므로 여기 포함하지
+// 않는다(죽은 코드 방지).
 const CRAFT_RENDERERS: Record<string, React.ComponentType<{ craftState?: string | null }>> = {
   "silo-store": CraftShopRenderer,
   "online-docent": CraftDocentRenderer,
+  "salon-des-cent": CraftSalonRenderer,
 };
 
 // EPIC-068: 이 파일 이전까지는 src/app 전체가 138개의 손으로 만든 정적

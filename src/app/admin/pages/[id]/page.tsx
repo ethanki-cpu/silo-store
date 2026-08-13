@@ -36,6 +36,9 @@ import { TimelineWidgetEditor } from "@/components/admin/TimelineWidgetEditor";
 import { CraftHomeEditor } from "@/components/admin/craft/CraftHomeEditor";
 import { CraftShopEditor } from "@/components/admin/craft/CraftShopEditor";
 import { CraftDocentEditor } from "@/components/admin/craft/CraftDocentEditor";
+import { CraftSalonEditor } from "@/components/admin/craft/CraftSalonEditor";
+import { CraftStudioEditor } from "@/components/admin/craft/CraftStudioEditor";
+import { CraftMypageEditor } from "@/components/admin/craft/CraftMypageEditor";
 
 // EPIC-099(항목 3, Phase 2): 페이지 slug별로 어느 Craft 에디터를 열지 —
 // src/app/[...slug]/page.tsx의 CRAFT_RENDERERS와 같은 목적의 목록, 새 허브
@@ -50,6 +53,9 @@ const CRAFT_EDITORS: Record<string, CraftEditorComponent> = {
   home: CraftHomeEditor,
   "silo-store": CraftShopEditor,
   "online-docent": CraftDocentEditor,
+  "salon-des-cent": CraftSalonEditor,
+  studio: CraftStudioEditor,
+  mypage: CraftMypageEditor,
 };
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {

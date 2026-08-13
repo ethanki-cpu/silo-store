@@ -204,19 +204,23 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-099
-EPIC-098에서 미룬 3개 후속(제안서 기준) — **1/3** 뉴스레터 실제 구독 저장
-(`newsletter_subscribers` 신규 테이블). **2/3** Craft 에디터 Toolbox UI(복제/
-삭제/드래그 재정렬/"+ 섹션 추가"). **3/3** Craft.js 에디토리얼 빌더(EPIC-098
-에서 홈페이지 하나에만 적용됐던)를 5개 허브 페이지(`/silo-store`/
-`/online-docent`/`/salon-des-cent`/`/studio`/`/mypage`)로 확장 — Phase 1
-사이트 구성 관리 트리에 `builder_type`(native/craft) 토글, Phase 2 공용 Craft
-셸(`CraftPageRenderer`/`CraftPageEditor`) 일반화 + 페이지별 전용 블록 각 3종
-(총 15종), Phase 3 공용 Craft 블록 4종(Editorial Hero/Text Directory/
-Newsletter/Minimal Footer)을 `CraftWidgetShell`로 감싸 Native Page Builder
-위젯 타입으로도 노출. `tsc`/`lint` 매 단계 0 errors, 로컬 dev 실측(5개 허브
-페이지 공개 렌더링 + 관리자 Craft 에디터 + Native 페이지에 Craft 위젯 추가)
-확인. 브랜치 `feature/EPIC-099`, `main`/`develop` 병합 완료.
+EPIC-102
+Craft.js 프리폼 에디터 코어 — Kinfolk 홈페이지 16블록 재현 요청을 계기로,
+"정해진 섹션 블록만 추가" 방식이던 Craft 에디터를 "컨테이너 안에 원자 블록을
+자유롭게 드래그앤드롭 + 개별 설정 패널 + 공통 모션"으로 전환하는 기반 작업.
+원자 블록 8종(Container/Text/Image/Button/Video/Slideshow/BoardEmbed/
+TimelineEmbed, `src/components/craft/primitives/`), `craft.related` 설정
+패널 패턴 최초 도입(`SettingsSidebar.tsx`), 공통 모션(fade/slide-up/
+slide-left, `useScrollReveal.ts`+`MotionSettingsSection.tsx`), Craft.js 공식
+`connectors.create()` 기반 진짜 드래그 툴박스(`Toolbox.tsx`), 홈페이지 전용
+독자 구현이던 CraftHomeEditor/Renderer를 공용 셸로 마이그레이션. `tsc`/
+`lint`/`build` 0 errors, 로컬 dev 공개 홈페이지 무회귀 확인. 관리자 로그인
+세션 없어 Toolbox 드래그/설정 패널/모션 저장 왕복은 다음 세션 확인 필요.
+직전 EPIC-101(홈페이지 Craft.js 이미지 크기 버그 수정, `@container` 누락)도
+같은 세션에 완료. 브랜치 `feature/EPIC-102`. Kinfolk 16블록 조합(EPIC-103)/
+헤더 스크롤 모션(EPIC-104)/하단메뉴 Craft 전환(EPIC-105)/게시판 연동
+다듬기(EPIC-106)/슬라이드쇼 위젯화(EPIC-107)는 이 기반 위에서 다음 세션에
+순차 진행 예정.
 직전 EPIC-089([Stage 2] Floating Action UX, YouTube-style Nested Comments, &
 Admin/Sidebar Control)/EPIC-087(Admin Dashboard Overhaul 등)/EPIC-088(Admin
 Detail Corrections 등)은 브랜치 `feature/EPIC-089`(등)에 완료돼 있으나

@@ -4,7 +4,7 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-08-13 (EPIC-099 기준). EPIC-090~098 구간은 CHANGELOG.md/docs/EPIC.md에는
+> 최종 확인: 2026-08-13 (EPIC-102 기준). EPIC-090~101 구간은 CHANGELOG.md/docs/EPIC.md에는
 > 기록돼 있으나 이 대시보드 최상단 블록 갱신이 밀려 있었음(다음에 시간 날 때 소급 정리 권장).
 
 =====================================
@@ -55,22 +55,27 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-099(EPIC-098 후속 3건, main/develop 병합 완료) — **1/3** 뉴스레터 실제 구독
-저장. **2/3** Craft 에디터 Toolbox UI(복제/삭제/드래그 재정렬/"+ 섹션 추가").
-**3/3** Craft.js 에디토리얼 빌더(EPIC-098에서 홈페이지 하나에만 있던)를 5개 허브
-페이지(`/silo-store`/`/online-docent`/`/salon-des-cent`/`/studio`/`/mypage`)로
-확장(Phase 1: 사이트 구성 관리 토글, Phase 2: 페이지별 전용 블록 각 3종, Phase 3:
-공용 Craft 블록 4종을 Native Page Builder 위젯 타입으로도 노출). 상세는
-[docs/EPIC.md](EPIC.md)/CHANGELOG.md 참고. 브랜치 `feature/EPIC-099`, main/develop
-병합 완료.
+EPIC-102(Craft.js 프리폼 에디터 코어) — Kinfolk 홈페이지 16블록 재현 요청을 계기로,
+"정해진 6~7종 섹션 블록만 추가" 방식이던 Craft 에디터를 "컨테이너 안에 원자 블록을
+자유롭게 드래그앤드롭 + 개별 설정 패널(`craft.related`, 이 코드베이스 최초 도입) +
+공통 모션"으로 전환하는 기반 작업. 원자 블록 8종(Container/Text/Image/Button/Video/
+Slideshow/BoardEmbed/TimelineEmbed) + 진짜 드래그 툴박스(`connectors.create`) +
+SettingsSidebar + MotionSettingsSection, 홈페이지 전용 독자 구현이던
+CraftHomeEditor/Renderer도 공용 셸로 마이그레이션. `tsc`/`lint`/`build` 0 errors,
+관리자 로그인 세션 없어 실제 드래그/저장 왕복은 다음 세션 확인 필요. 직전
+EPIC-101(홈페이지 Craft.js 이미지 크기 버그 수정)도 같은 세션에 완료. 상세는
+[docs/EPIC.md](EPIC.md)/CHANGELOG.md 참고. 브랜치 `feature/EPIC-102`.
 
 =====================================
 
 ## Next EPIC
 
-미정 — 다음 지시 대기. `PROJECT_ARCHITECTURE.md` §Stage 2 기술 전략에 기록된 항목
-(Event Telemetry, Paywall Routing)이 실제 구현 후보 — Frictionless Archiving은
-EPIC-085로 구현 완료.
+EPIC-103~107(계획 파일 `C:\Users\nasdo\.claude\plans\fancy-mapping-eich.md`) —
+EPIC-103 Kinfolk 16블록 홈 레이아웃, EPIC-104 헤더 스크롤 모션(hide on scroll down/
+show on scroll up), EPIC-105 `/admin/footer` → Craft.js 비주얼 에디터 전환,
+EPIC-106 게시판 연동 카테고리 필터, EPIC-107 히어로 슬라이드쇼 위젯화. 이 5개는
+EPIC-102가 만든 프리미티브 위에서 순차 진행 예정. `PROJECT_ARCHITECTURE.md` §Stage 2
+기술 전략의 Event Telemetry/Paywall Routing도 별도 후보로 남아있음.
 
 =====================================
 

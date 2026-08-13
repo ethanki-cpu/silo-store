@@ -1,42 +1,15 @@
 "use client";
 
-// EPIC-098: 공개 홈페이지가 쓰는 읽기 전용 Craft.js 렌더러. craft_state가
-// 있으면 그 직렬화된 트리를, 없으면(관리자가 한 번도 저장한 적 없음)
-// DefaultHomeSkeleton을 그대로 보여준다 — 배포 직후에도 "빈 화면"이 아니라
-// 완성된 에디토리얼 레이아웃이 즉시 보인다(요구사항 4).
-import { Editor, Frame, Element } from "@craftjs/core";
+// EPIC-098: 공개 홈페이지가 쓰는 읽기 전용 Craft.js 렌더러.
+// EPIC-102: 다른 5개 페밀리와 동일한 공용 셸(CraftPageRenderer)에 위임하도록
+// 마이그레이션 — 기본 트리는 defaultTree.tsx의 homeDefaultTree(다른 페밀리와
+// 동일한 "컴포넌트가 아니라 값" 패턴)를 그대로 재사용한다. 동작은 이전과
+// 동일(craft_state 있으면 그 트리, 없으면 6블록 기본 스켈레톤)하고, EPIC-101이
+// 고친 `@container`도 CraftPageRenderer가 이미 갖고 있어 계속 유지된다.
+import { CraftPageRenderer } from "@/components/craft/shared/CraftPageRenderer";
 import { craftHomeResolver } from "./resolver";
-import { RootContainer } from "./RootContainer";
-import { EditorialHeroBlock } from "./blocks/EditorialHeroBlock";
-import { LatestIssueBlock } from "./blocks/LatestIssueBlock";
-import { EditorialGridBlock } from "./blocks/EditorialGridBlock";
-import { TextDirectoryBlock } from "./blocks/TextDirectoryBlock";
-import { NewsletterBlock } from "./blocks/NewsletterBlock";
-import { MinimalFooterBlock } from "./blocks/MinimalFooterBlock";
-import { editorialSerif } from "./font";
+import { homeDefaultTree } from "./defaultTree";
 
 export function CraftHomeRenderer({ craftState }: { craftState?: string | null }) {
-  return (
-    // EPIC-101 hotfix: EPIC-100이 블록들을 @[768px]: 컨테이너 쿼리로 바꾸면서
-    // CraftPageRenderer/CraftPageEditor/CraftWidgetShell 3곳에는 @container를
-    // 추가했지만 이 렌더러(홈페이지 전용, 다른 셋과 별도 구현)는 빠뜨렸다 —
-    // 그 결과 컨테이너 쿼리가 매치되지 않아 데스크톱에서도 모바일 1열로
-    // 고정되고 이미지가 카드 폭이 아닌 풀 폭으로 렌더링됐다.
-    <div className={`craft-home @container ${editorialSerif.variable}`}>
-      <Editor resolver={craftHomeResolver} enabled={false}>
-        <Frame data={craftState ?? undefined}>
-          {!craftState && (
-            <Element is={RootContainer} canvas id="ROOT">
-              <EditorialHeroBlock {...EditorialHeroBlock.craft.props} />
-              <LatestIssueBlock {...LatestIssueBlock.craft.props} />
-              <EditorialGridBlock {...EditorialGridBlock.craft.props} />
-              <TextDirectoryBlock {...TextDirectoryBlock.craft.props} />
-              <NewsletterBlock {...NewsletterBlock.craft.props} />
-              <MinimalFooterBlock {...MinimalFooterBlock.craft.props} />
-            </Element>
-          )}
-        </Frame>
-      </Editor>
-    </div>
-  );
+  return <CraftPageRenderer resolver={craftHomeResolver} craftState={craftState} defaultTree={homeDefaultTree} />;
 }

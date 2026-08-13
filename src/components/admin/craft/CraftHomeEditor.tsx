@@ -1,132 +1,13 @@
 "use client";
 
-// EPIC-098: 홈페이지 Craft.js 에디터 — TimelineWidgetEditor.tsx와 동일한
-// 전체화면 오버레이 UX 패턴. 상호작용 범위는 사용자가 명시한 대로 "완성된
-// 뼈대 위에서 텍스트/이미지를 더블클릭으로 바꾸는" 것까지만(EditableText/
-// EditableImage, src/components/craft/home/editable.tsx).
-// EPIC-099(항목 2, "Toolbox UI"): 여기에 "정해진 6종 안에서" 복제/삭제/
-// 순서변경(드래그)/추가를 더한다 — 자유 컴포넌트 팔레트가 아니라 아래
-// BLOCK_OPTIONS 6개 중 하나를 캔버스 끝에 새로 붙이는 것까지만(복제/삭제/
-// 드래그 자체는 EditableBlockFrame, editable.tsx에 구현).
-import { createElement, useState } from "react";
-import { Editor, Frame, Element, useEditor } from "@craftjs/core";
-import { supabase } from "@/lib/supabaseClient";
+// EPIC-102: 홈페이지 전용 독자 구현이던 이 파일을 다른 5개 페밀리(shop 등)와
+// 동일한 공용 셸(CraftPageEditor)로 마이그레이션 — Toolbox(원자 블록 드래그
+// 추가)/SettingsSidebar(설정 패널)를 홈페이지 에디터도 그대로 받는다.
+// 기존 "+ 섹션 추가" 목록(6종)은 homeBlockOptions로 옮겨 Toolbox의 "섹션"
+// 그룹으로 계속 노출된다 — 동작 자체는 바뀌지 않고 진입점만 통일된다.
+import { CraftPageEditor } from "@/components/craft/shared/CraftPageEditor";
 import { craftHomeResolver } from "@/components/craft/home/resolver";
-import { RootContainer } from "@/components/craft/home/RootContainer";
-import { EditorialHeroBlock } from "@/components/craft/home/blocks/EditorialHeroBlock";
-import { LatestIssueBlock } from "@/components/craft/home/blocks/LatestIssueBlock";
-import { EditorialGridBlock } from "@/components/craft/home/blocks/EditorialGridBlock";
-import { TextDirectoryBlock } from "@/components/craft/home/blocks/TextDirectoryBlock";
-import { NewsletterBlock } from "@/components/craft/home/blocks/NewsletterBlock";
-import { MinimalFooterBlock } from "@/components/craft/home/blocks/MinimalFooterBlock";
-import { editorialSerif } from "@/components/craft/home/font";
-
-// EPIC-099(항목 2): "+ 섹션 추가"가 고를 수 있는 유일한 목록 — 여기 없는
-// 컴포넌트는 애초에 추가할 방법이 없다(자유 팔레트 아님, 계획서 스코프 그대로).
-const BLOCK_OPTIONS = [
-  { label: "Hero", Component: EditorialHeroBlock },
-  { label: "Latest Issue", Component: LatestIssueBlock },
-  { label: "Editorial Grid", Component: EditorialGridBlock },
-  { label: "Text Directory", Component: TextDirectoryBlock },
-  { label: "Newsletter", Component: NewsletterBlock },
-  { label: "Footer", Component: MinimalFooterBlock },
-] as const;
-
-function EditorToolbar({
-  pageId,
-  onClose,
-  onSaved,
-}: {
-  pageId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const { query, actions } = useEditor();
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
-
-  function handleAddBlock(option: (typeof BLOCK_OPTIONS)[number]) {
-    // Craft.js User Component마다 props 타입이 전부 달라 정적으로 표현하기
-    // 어렵다 — 각 컴포넌트의 static craft.props(이미 그 타입에 맞게
-    // satisfies로 검증된 기본값)를 그대로 되돌려주는 것뿐이라 런타임에는
-    // 항상 안전하다. createElement를 쓰는 이유는 JSX 스프레드가 유니온
-    // props 타입에서 구조적으로 안 맞다고 판단하는 걸 피하기 위함.
-    const Component = option.Component as unknown as React.ComponentType<Record<string, unknown>>;
-    const element = createElement(Component, option.Component.craft.props);
-    const tree = query.parseReactElement(element).toNodeTree();
-    actions.addNodeTree(tree, "ROOT");
-    setAddMenuOpen(false);
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setError(null);
-    const serialized = query.serialize();
-    const { error: updateError } = await supabase
-      .from("page_builder")
-      .update({ craft_state: serialized, updated_at: new Date().toISOString() })
-      .eq("id", pageId);
-    setSaving(false);
-    if (updateError) {
-      setError(updateError.message);
-      return;
-    }
-    onSaved();
-  }
-
-  return (
-    <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold">Craft 에디터 — 홈페이지</h2>
-        <span className="hidden text-xs text-gray-400 sm:inline">
-          텍스트/이미지를 더블클릭하면 바로 수정할 수 있어요
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        {error && <span className="text-xs text-red-600">{error}</span>}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setAddMenuOpen((v) => !v)}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50"
-          >
-            + 섹션 추가
-          </button>
-          {addMenuOpen && (
-            <div className="absolute right-0 top-full z-10 mt-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-              {BLOCK_OPTIONS.map((option) => (
-                <button
-                  key={option.label}
-                  type="button"
-                  onClick={() => handleAddBlock(option)}
-                  className="block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-50"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50"
-        >
-          닫기
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-md bg-gray-800 px-3 py-1.5 text-xs text-white disabled:opacity-50"
-        >
-          {saving ? "저장 중..." : "저장"}
-        </button>
-      </div>
-    </div>
-  );
-}
+import { homeDefaultTree, homeBlockOptions } from "@/components/craft/home/defaultTree";
 
 export function CraftHomeEditor({
   pageId,
@@ -140,24 +21,15 @@ export function CraftHomeEditor({
   onSaved: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white">
-      <Editor resolver={craftHomeResolver} enabled>
-        <EditorToolbar pageId={pageId} onClose={onClose} onSaved={onSaved} />
-        <div className={`craft-home ${editorialSerif.variable} flex-1 overflow-y-auto`}>
-          <Frame data={initialState ?? undefined}>
-            {!initialState && (
-              <Element is={RootContainer} canvas id="ROOT">
-                <EditorialHeroBlock {...EditorialHeroBlock.craft.props} />
-                <LatestIssueBlock {...LatestIssueBlock.craft.props} />
-                <EditorialGridBlock {...EditorialGridBlock.craft.props} />
-                <TextDirectoryBlock {...TextDirectoryBlock.craft.props} />
-                <NewsletterBlock {...NewsletterBlock.craft.props} />
-                <MinimalFooterBlock {...MinimalFooterBlock.craft.props} />
-              </Element>
-            )}
-          </Frame>
-        </div>
-      </Editor>
-    </div>
+    <CraftPageEditor
+      title="홈페이지"
+      pageId={pageId}
+      resolver={craftHomeResolver}
+      defaultTree={homeDefaultTree}
+      blockOptions={homeBlockOptions}
+      initialState={initialState}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
   );
 }

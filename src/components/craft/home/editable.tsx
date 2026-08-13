@@ -8,7 +8,7 @@
 // EPIC-099(항목 2)부터는 EditableBlockFrame이 복제/삭제/드래그 컨트롤을
 // 위해 useNode()도 직접 부른다(아래 해당 함수 주석 참고).
 import { useEditor, useNode } from "@craftjs/core";
-import { createElement, useState, type ReactNode } from "react";
+import { createElement, useState, type CSSProperties, type ReactNode } from "react";
 import { uploadFile } from "@/lib/storage";
 
 export function useCraftEditable(): boolean {
@@ -21,12 +21,14 @@ export function EditableText({
   onCommit,
   as = "span",
   className,
+  style,
   placeholder = "텍스트를 입력하세요",
 }: {
   value: string;
   onCommit: (next: string) => void;
   as?: "span" | "p" | "h1" | "h2" | "h3";
   className?: string;
+  style?: CSSProperties;
   placeholder?: string;
 }) {
   const editable = useCraftEditable();
@@ -34,7 +36,7 @@ export function EditableText({
   const Tag = as;
 
   if (!editable) {
-    return <Tag className={className}>{value || placeholder}</Tag>;
+    return <Tag className={className} style={style}>{value || placeholder}</Tag>;
   }
 
   return (
@@ -44,6 +46,7 @@ export function EditableText({
           ? "outline outline-2 outline-blue-400 outline-offset-2"
           : "cursor-text outline-offset-2 hover:outline hover:outline-1 hover:outline-blue-300"
       }`}
+      style={style}
       contentEditable={editing}
       suppressContentEditableWarning
       onDoubleClick={() => setEditing(true)}

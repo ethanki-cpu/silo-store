@@ -8,6 +8,7 @@
 import { Editor, Frame, type Resolver } from "@craftjs/core";
 import type { ReactNode } from "react";
 import { editorialSerif } from "@/components/craft/home/font";
+import { PRIMITIVE_RESOLVER } from "@/components/craft/primitives";
 
 // EPIC-100(항목 1·3): 블록 내부의 그리드/스플릿 레이아웃은 뷰포트 기준
 // `md:`가 아니라 컨테이너 쿼리(`@[768px]:` 등, Tailwind v4 내장 기능)로
@@ -29,7 +30,7 @@ export function CraftPageRenderer({
 }) {
   return (
     <div className={`craft-home @container ${editorialSerif.variable}`}>
-      <Editor resolver={resolver} enabled={false}>
+      <Editor resolver={{ ...PRIMITIVE_RESOLVER, ...resolver }} enabled={false}>
         <Frame data={craftState ?? undefined}>{!craftState && defaultTree}</Frame>
       </Editor>
     </div>

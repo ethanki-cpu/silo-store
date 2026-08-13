@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-099, 3/3 Phase 2 — 사일로 상점(/silo-store) 전용 Craft 블록)
+- **배경**: 사용자 확인으로 범위가 확대됨 — 대상 5개 허브 페이지(사일로 상점/온라인 도슨트/살롱데상/스튜디오/마이 페이지)에 "페이지별 전용 블록"을 새로 만들기로 결정. 첫 페이지로 `/silo-store` 진행.
+- **Craft 셸 일반화**: 지금까지 홈페이지 전용이던 `CraftHomeRenderer`/`CraftHomeEditor`(EPIC-098)는 이미 검증·병합된 코드라 손대지 않고 그대로 둔 채, `src/components/craft/shared/CraftPageRenderer.tsx`/`CraftPageEditor.tsx`를 새로 만들어 resolver/defaultTree/블록 목록을 파라미터로 받게 했다 — 앞으로 페이지를 추가할 때마다 이 공용 셸에 얇은 wrapper 하나씩만 만들면 된다.
+- **사일로 상점 전용 블록 3종**(`src/components/craft/shop/blocks/`): `ShopHeroBlock`(좌측 정렬 태그+타이틀+CTA, 홈 히어로의 중앙 오버레이형과 구조 자체가 다름), `TreasureGridBlock`(사진 대신 이모지+라벨 6칸 촘촘한 그리드, 홈의 3열 사진 그리드와 다른 형태), `SpotlightItemBlock`("이 주의 물건" 어두운 카드형 단일 아이템 스포트라이트). 범용 블록(Text Directory/Newsletter/Footer)은 홈페이지 것을 그대로 재사용(중복 생성 금지 원칙 — 레이아웃이 페이지마다 다를 이유가 없는 블록까지 복제하지 않음), 다만 Text Directory의 기본 카테고리 목록은 사일로 상점 맥락(사일로 유산/할머니/할아버지/보물 목록)으로 채움.
+- **라우팅**: 사일로 상점은 catch-all(`src/app/[...slug]/page.tsx`, 클라이언트 컴포넌트)이 담당 — 홈페이지(`src/app/page.tsx`, 별도 Server Component)와 다른 파일이라 분기를 따로 추가. slug→Craft 렌더러 매핑(`CRAFT_RENDERERS`)을 하나 두어 앞으로 페이지를 추가할 때 한 줄만 더하면 되게 했다. 관리자 에디터(`src/app/admin/pages/[id]/page.tsx`)도 slug→에디터 매핑(`CRAFT_EDITORS`)으로 같은 패턴 — 등록 안 된 slug가 실수로 craft가 되면 조용히 깨지는 대신 안내 문구를 보여준다.
+- **`docs/sql/EPIC-099-silo-store-craft.sql`**: `page_builder` slug='silo-store' 행을 `builder_type='craft'`로 전환. Management API로 즉시 실행 완료(라이브 반영됨).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(새 경고 없음). 로컬 dev 관리자 세션에서 실측 — 공개 페이지 6개 섹션 렌더링, 관리자 에디터 열기(제목 "Craft 에디터 — 사일로 상점" 확인), Treasure Grid 블록 복제→삭제(EPIC-099 Phase 1에서 고친 노드 id 충돌 버그의 재발 여부 확인 목적)까지 크래시 없이 정상 동작 확인. 기존 Native 페이지(About Silo) 회귀 없음도 재확인.
+- **변경 파일**: `src/components/craft/shared/CraftPageRenderer.tsx`(신설), `src/components/craft/shared/CraftPageEditor.tsx`(신설), `src/components/craft/shop/**`(신설), `src/components/admin/craft/CraftShopEditor.tsx`(신설), `src/app/[...slug]/page.tsx`, `src/app/admin/pages/[id]/page.tsx`, `docs/sql/EPIC-099-silo-store-craft.sql`(신설).
+
 ## 2026-08-13 (EPIC-099, 3/3 Phase 1 — 사이트 구성 관리 트리에 빌더 엔진 토글)
 - **배경**: EPIC-098에서 도입한 `page_builder.builder_type`은 지금까지 `/admin/pages/[id]`(개별 페이지 편집 화면)에서만 볼 수 있었다 — 사용자 지시로 "사이트 구성 관리 > 사이트 메뉴" 트리의 "관리" 모달에서 카테고리(페이지)마다 바로 native/craft를 토글할 수 있게 한다.
 - **`CategoryTreeManager.tsx`**: 기존 "최소 접근 가능 티어"(min_rank_to_read) 편집과 완전히 동일한 draft/저장 패턴(별도 state, 저장 버튼 누르기 전엔 다른 값에 영향 없음)으로 `builder_type` select + 저장 버튼을 그 바로 아래에 추가. `LinkedPageInfo` 타입/조회 쿼리에 `builder_type` 컬럼 포함.

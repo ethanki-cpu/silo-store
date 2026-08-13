@@ -34,6 +34,21 @@ import { WidgetPalette } from "@/components/admin/WidgetPalette";
 import { WidgetInspectorForm } from "@/components/admin/WidgetInspectorForm";
 import { TimelineWidgetEditor } from "@/components/admin/TimelineWidgetEditor";
 import { CraftHomeEditor } from "@/components/admin/craft/CraftHomeEditor";
+import { CraftShopEditor } from "@/components/admin/craft/CraftShopEditor";
+
+// EPIC-099(항목 3, Phase 2): 페이지 slug별로 어느 Craft 에디터를 열지 —
+// src/app/[...slug]/page.tsx의 CRAFT_RENDERERS와 같은 목적의 목록, 새 허브
+// 페이지를 Craft로 옮길 때마다 여기 한 줄만 추가한다.
+type CraftEditorComponent = React.ComponentType<{
+  pageId: string;
+  initialState?: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}>;
+const CRAFT_EDITORS: Record<string, CraftEditorComponent> = {
+  home: CraftHomeEditor,
+  "silo-store": CraftShopEditor,
+};
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {
   fetchNavBranches,
@@ -635,17 +650,27 @@ function AdminPageEditorPageInner() {
           {isCraft ? (
             <section className="space-y-3 rounded-lg border border-gray-200 p-4">
               <h2 className="text-sm font-semibold text-gray-700">Craft 에디터</h2>
-              <p className="text-xs text-gray-500">
-                이 페이지는 홈페이지 전용 Craft.js 에디토리얼 빌더로 렌더링돼요(EPIC-098) —
-                일반 위젯 목록 대신 전체화면 에디터에서 텍스트/이미지를 더블클릭으로 바꿉니다.
-              </p>
-              <button
-                type="button"
-                onClick={() => setCraftEditorOpen(true)}
-                className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
-              >
-                Craft 에디터 열기
-              </button>
+              {CRAFT_EDITORS[page.slug] ? (
+                <>
+                  <p className="text-xs text-gray-500">
+                    이 페이지는 Craft.js 에디토리얼 빌더로 렌더링돼요(EPIC-098/099) —
+                    일반 위젯 목록 대신 전체화면 에디터에서 텍스트/이미지를 더블클릭으로 바꿉니다.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCraftEditorOpen(true)}
+                    className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
+                  >
+                    Craft 에디터 열기
+                  </button>
+                </>
+              ) : (
+                <p className="text-xs text-amber-600">
+                  이 페이지는 빌더 엔진이 &apos;craft&apos;로 설정돼 있지만, 아직 이 slug(&quot;{page.slug}&quot;)
+                  전용 Craft 에디터가 없어요 — 사이트 구성 관리에서 다시 &apos;native&apos;로 되돌리거나,
+                  전용 블록/에디터를 먼저 만들어야 해요.
+                </p>
+              )}
             </section>
           ) : (
             <section className="space-y-3">
@@ -724,8 +749,13 @@ function AdminPageEditorPageInner() {
           {isCraft ? (
             <div className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
               Craft 에디터 안에서 실시간으로 미리 보여요. 실제 배포된 화면은{" "}
-              <a href="/" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                홈페이지에서 새 탭으로
+              <a
+                href={page.slug === "home" ? "/" : `/${page.slug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                새 탭으로
               </a>{" "}
               확인할 수 있어요.
             </div>
@@ -746,16 +776,21 @@ function AdminPageEditorPageInner() {
         <WidgetPalette onSelect={handleSelectWidget} onClose={() => setPaletteOpen(false)} />
       )}
 
-      {isCraft && craftEditorOpen && (
-        <CraftHomeEditor
-          pageId={page.id}
-          initialState={page.craft_state}
-          onClose={() => setCraftEditorOpen(false)}
-          onSaved={() => {
-            setCraftEditorOpen(false);
-            load();
-          }}
-        />
+      {isCraft && craftEditorOpen && CRAFT_EDITORS[page.slug] && (
+        (() => {
+          const CraftEditor = CRAFT_EDITORS[page.slug];
+          return (
+            <CraftEditor
+              pageId={page.id}
+              initialState={page.craft_state}
+              onClose={() => setCraftEditorOpen(false)}
+              onSaved={() => {
+                setCraftEditorOpen(false);
+                load();
+              }}
+            />
+          );
+        })()
       )}
     </main>
   );

@@ -6,6 +6,16 @@ import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 import { usePageRankGate } from "@/lib/pageRankGate";
+import { CraftShopRenderer } from "@/components/craft/shop/CraftShopRenderer";
+
+// EPIC-099(항목 3, Phase 2): 이 catch-all이 담당하는 slug 중 일부는
+// builder_type='craft'일 수 있다 — 슬러그별로 어느 Craft 렌더러를 쓸지
+// 여기 한 곳에만 등록한다(새 허브 페이지를 Craft로 옮길 때마다 이 목록에
+// 한 줄만 추가하면 된다). 홈페이지(src/app/page.tsx)는 이 catch-all이
+// 아니라 별도 파일이라 여기 포함되지 않는다.
+const CRAFT_RENDERERS: Record<string, React.ComponentType<{ craftState?: string | null }>> = {
+  "silo-store": CraftShopRenderer,
+};
 
 // EPIC-068: 이 파일 이전까지는 src/app 전체가 138개의 손으로 만든 정적
 // page.tsx뿐이었고, DB(site_navigations)에서 카테고리를 새로 만들어도 그
@@ -26,7 +36,14 @@ import { usePageRankGate } from "@/lib/pageRankGate";
 // setState하지 않고(react-hooks/set-state-in-effect 규칙과 충돌) 렌더링
 // 시점에 state.slug와 현재 slug를 비교하는 방식으로 처리했다.
 type PageState =
-  | { slug: string; status: "ready"; modules: PageModuleRow[]; minRankToRead: number | null }
+  | {
+      slug: string;
+      status: "ready";
+      modules: PageModuleRow[];
+      minRankToRead: number | null;
+      builderType: "native" | "craft";
+      craftState: string | null;
+    }
   | { slug: string; status: "notfound" };
 
 export default function DynamicPage() {
@@ -48,6 +65,8 @@ export default function DynamicPage() {
         status: "ready",
         modules: result.modules ?? [],
         minRankToRead: result.page.min_rank_to_read ?? null,
+        builderType: result.page.builder_type,
+        craftState: result.page.craft_state ?? null,
       });
     });
     return () => {
@@ -66,6 +85,22 @@ export default function DynamicPage() {
       <main className="flex-1 p-8 bg-white">
         <p className="text-gray-500">페이지를 찾을 수 없어요.</p>
       </main>
+    );
+  }
+
+  // EPIC-099(항목 3, Phase 2): builder_type이 'craft'고 이 slug용 Craft
+  // 렌더러가 등록돼 있으면(CRAFT_RENDERERS) 그 렌더러 하나가 페이지 전체를
+  // 그린다 — 홈페이지(src/app/page.tsx)와 동일한 분기 원칙. 등록되지 않은
+  // slug가 실수로 'craft'가 되면(아직 이 catch-all에 렌더러를 안 붙인 페이지)
+  // 조용히 native로 폴백해 빈 화면 대신 기존 위젯이 그대로 보이게 한다.
+  const CraftRenderer = state.builderType === "craft" ? CRAFT_RENDERERS[slug] : undefined;
+
+  if (CraftRenderer) {
+    return (
+      <>
+        <PageEditButton slug={slug} />
+        <CraftRenderer craftState={state.craftState} />
+      </>
     );
   }
 

@@ -204,19 +204,23 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-089
-[Stage 2] Floating Action UX, YouTube-style Nested Comments, & Admin/Sidebar
-Control — 게시글 상세 플로팅 액션 바(목록으로/좋아요/북마크/공유/댓글)와
-"페이지 수정" 버튼 재배치, `comments.parent_id`/`comment_likes`/
-`public_profiles.avatar_url` 신규 스키마로 유튜브 스타일 대댓글(1단계
-들여쓰기+@멘션)/좋아요/아바타, `/admin/posts/common`(미분류 글 관리) 탭,
-위젯 편집기 Board Type 인라인 드롭다운, 사이드바 여닫이 아이콘 Y축 위치
-관리자 설정화, 그리고 게시글을 다른 게시판으로 옮겨 저장할 때 나던 실제
-DB 저장 실패(`posts(board_id, slug)` UNIQUE 충돌) 수정. 코드/스키마 전부
-완료·검증됐으나(`tsc`/`lint` 0 errors, 로컬 dev 로그인 세션 실측 검증)
-`main`/`develop` 병합은 사용자 승인 대기 중(브랜치 `feature/EPIC-089`).
-EPIC-087(Admin Dashboard Overhaul 등)/EPIC-088(Admin Detail Corrections 등)도
-그 직전에 완료됐으나 아직 병합 전.
+EPIC-099
+EPIC-098에서 미룬 3개 후속(제안서 기준) — **1/3** 뉴스레터 실제 구독 저장
+(`newsletter_subscribers` 신규 테이블). **2/3** Craft 에디터 Toolbox UI(복제/
+삭제/드래그 재정렬/"+ 섹션 추가"). **3/3** Craft.js 에디토리얼 빌더(EPIC-098
+에서 홈페이지 하나에만 적용됐던)를 5개 허브 페이지(`/silo-store`/
+`/online-docent`/`/salon-des-cent`/`/studio`/`/mypage`)로 확장 — Phase 1
+사이트 구성 관리 트리에 `builder_type`(native/craft) 토글, Phase 2 공용 Craft
+셸(`CraftPageRenderer`/`CraftPageEditor`) 일반화 + 페이지별 전용 블록 각 3종
+(총 15종), Phase 3 공용 Craft 블록 4종(Editorial Hero/Text Directory/
+Newsletter/Minimal Footer)을 `CraftWidgetShell`로 감싸 Native Page Builder
+위젯 타입으로도 노출. `tsc`/`lint` 매 단계 0 errors, 로컬 dev 실측(5개 허브
+페이지 공개 렌더링 + 관리자 Craft 에디터 + Native 페이지에 Craft 위젯 추가)
+확인. 브랜치 `feature/EPIC-099`, `main`/`develop` 병합 완료.
+직전 EPIC-089([Stage 2] Floating Action UX, YouTube-style Nested Comments, &
+Admin/Sidebar Control)/EPIC-087(Admin Dashboard Overhaul 등)/EPIC-088(Admin
+Detail Corrections 등)은 브랜치 `feature/EPIC-089`(등)에 완료돼 있으나
+main/develop 병합은 아직 별도 승인 대기 중.
 
 **NEXT EPIC**
 

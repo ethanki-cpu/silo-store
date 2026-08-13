@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-099, 3/3 Phase 3 완료 — Craft 공용 블록 4종을 Native Page Builder 위젯으로 노출, 항목 3 전체 완료)
+- **배경**: Phase 3 착수 전 범위가 여러 방향으로 해석될 수 있어(1. 공용 블록 4종만 위젯화, 2. 21종 Craft 블록 전부 위젯화, 3. 이번엔 보류) 사용자에게 확인 — "공용 블록 4종만 위젯화(권장)"를 선택받아 그 범위로 진행. 지금까지의 Craft 블록은 "페이지 전체를 Craft가 그리는" 용도였는데, Phase 3는 반대로 **Native Page Builder(위젯 조합형 페이지) 안에 Craft 블록 하나를 섞어 넣는** 기능.
+- **`PageModuleType` 4종 추가**(`src/lib/widgetSchema.ts`): `craft_hero`/`craft_directory`/`craft_newsletter`/`craft_footer` — EPIC-098부터 5개 허브 페이지가 재사용해온 검증된 컴포넌트(`EditorialHeroBlock`/`TextDirectoryBlock`/`NewsletterBlock`/`MinimalFooterBlock`)를 그대로 렌더링. 페이지 전용 블록(ShopHeroBlock 등 21종)은 이번 범위 밖. 위젯 팔레트에 새 그룹 "Craft 블록"으로 노출, `WIDGET_FIELDS`/`WIDGET_DEFAULT_SETTINGS`는 각 블록의 실제 prop과 1:1 대응(예: craft_directory의 `items` 목록 필드는 기존 cta/faq 위젯과 동일한 `list` 필드 패턴 재사용).
+- **`CraftWidgetShell` 신설**(`src/components/craft/shared/CraftWidgetShell.tsx`): Craft 블록은 `useNode()`로 자기 Craft 노드 컨텍스트를 읽으므로 `<Editor><Frame>` 밖에서 직접 렌더링하면 크래시한다 — 페이지 전체용 `CraftPageRenderer`와 별개로, 단일 블록 하나만을 위한 최소 Editor+Frame 컨텍스트를 제공하는 셸을 새로 만들었다(`enabled={false}` 고정 — 더블클릭 인라인 편집은 Craft 페이지 자체를 열 때만 쓰고, 이 위젯은 기존 위젯들과 동일하게 WidgetInspectorForm 필드 폼으로만 편집).
+- **`PageBuilderRenderer.tsx` 배선**: `CraftHeroFromSettings`/`CraftDirectoryFromSettings`/`CraftNewsletterFromSettings`/`CraftFooterFromSettings` 4개 함수 추가, 각각 `CraftWidgetShell` 안에서 해당 Craft 블록 컴포넌트를 렌더링하고 `renderModule`의 switch에 4개 case 추가.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(새 경고 없음). Native 페이지("About Silo", 실 콘텐츠 보유)에서 실제로 "+ 위젯 추가" → "Craft 블록" 그룹에 4종 노출 확인 → "Craft: Editorial Hero" 추가 → 관리자 미리보기에 실제로 렌더링(기본값 텍스트까지 정확히 표시) → "설정" Inspector 폼 5개 필드 정상 렌더링까지 확인, 콘솔 에러 없음. 테스트로 추가한 위젯 행은 Management API로 정리 완료(브라우저 자동화 환경의 `window.confirm()`이 항상 취소로 처리되어 UI 삭제 버튼으로는 못 지움 — DB에서 직접 삭제, "About Silo" 페이지는 위젯 5개로 원상복구 확인).
+- **EPIC-099(항목 3) 전체 완료**: Phase 1(사이트 구성 관리 토글) + Phase 2(5개 허브 페이지 전용 Craft 블록) + Phase 3(공용 Craft 블록 4종 Native 위젯화) 전부 완료.
+- **변경 파일**: `src/lib/widgetSchema.ts`, `src/components/craft/shared/CraftWidgetShell.tsx`(신설), `src/components/PageBuilderRenderer.tsx`.
+
 ## 2026-08-13 (EPIC-099, 3/3 Phase 2 완료 — 살롱데상/스튜디오/마이 페이지 전용 Craft 블록, 5개 허브 페이지 전부 완료)
 - **배경**: 사용자 지시로 "다음 세션도 알아서 진행"(자율 진행) + "SQL도 Management API로 직접 실행"으로 범위/권한이 확장됨 — 남은 3개 허브 페이지(살롱데상/스튜디오/마이 페이지)를 한 세션에서 이어서 완료.
 - **살롱데상 전용 블록 3종**(`src/components/craft/salon/blocks/`): `SalonHeroBlock`, `GroupGridBlock`(nav 구조 key:"salon"의 7개 그룹 중 6개를 6칸 그리드로), `FeaturedClubBlock`("이달의 클럽" 스포트라이트).

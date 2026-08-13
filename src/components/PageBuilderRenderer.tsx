@@ -32,6 +32,12 @@ import { AlternatingTimelineCanvas } from "@/components/modules/AlternatingTimel
 import type { TimelineItemSettings } from "@/lib/pageBuilder";
 import { EmptyState } from "@/components/modules/EmptyState";
 import type { SortOption } from "@/lib/boardLayout";
+import { CraftWidgetShell } from "@/components/craft/shared/CraftWidgetShell";
+import { RootContainer } from "@/components/craft/home/RootContainer";
+import { EditorialHeroBlock, type EditorialHeroProps } from "@/components/craft/home/blocks/EditorialHeroBlock";
+import { TextDirectoryBlock, type TextDirectoryItem } from "@/components/craft/home/blocks/TextDirectoryBlock";
+import { NewsletterBlock } from "@/components/craft/home/blocks/NewsletterBlock";
+import { MinimalFooterBlock, type MinimalFooterItem } from "@/components/craft/home/blocks/MinimalFooterBlock";
 
 // EPIC-060: Page Builder — page_modules(DB) 행을 순서대로 렌더링하는 조합기.
 // src/components/modules/PageModuleRenderer.tsx(EPIC-054B, compile-time
@@ -184,6 +190,61 @@ function SpacerFromSettings({ settings }: { settings: Record<string, unknown> })
   return <SpacerModule heightPx={num(settings.heightPx, 32)} />;
 }
 
+// EPIC-099(Phase 3): Craft.js 공용 블록 4종을 Native 위젯으로 노출 — 각
+// 블록은 CraftWidgetShell(단일 블록용 Editor+Frame 컨텍스트) 안에서만
+// useNode()가 정상 동작하므로 반드시 그 안에서 렌더링해야 한다.
+function CraftHeroFromSettings({ settings }: { settings: Record<string, unknown> }) {
+  const defaults = EditorialHeroBlock.craft.props;
+  const props: EditorialHeroProps = {
+    imageUrl: str(settings.imageUrl, defaults.imageUrl),
+    imageUrlMobile: settings.imageUrlMobile ? str(settings.imageUrlMobile) : undefined,
+    eyebrow: str(settings.eyebrow, defaults.eyebrow),
+    title: str(settings.title, defaults.title),
+    subtitle: str(settings.subtitle, defaults.subtitle),
+  };
+  return (
+    <CraftWidgetShell resolver={{ RootContainer, EditorialHeroBlock }}>
+      <EditorialHeroBlock {...props} />
+    </CraftWidgetShell>
+  );
+}
+
+function CraftDirectoryFromSettings({ settings }: { settings: Record<string, unknown> }) {
+  const heading = str(settings.heading, "더 알아보기");
+  const items = arr<TextDirectoryItem>(settings.items);
+  return (
+    <CraftWidgetShell resolver={{ RootContainer, TextDirectoryBlock }}>
+      <TextDirectoryBlock heading={heading} items={items} />
+    </CraftWidgetShell>
+  );
+}
+
+function CraftNewsletterFromSettings({ settings }: { settings: Record<string, unknown> }) {
+  const defaults = NewsletterBlock.craft.props;
+  return (
+    <CraftWidgetShell resolver={{ RootContainer, NewsletterBlock }}>
+      <NewsletterBlock
+        heading={str(settings.heading, defaults.heading)}
+        subtitle={str(settings.subtitle, defaults.subtitle)}
+        buttonText={str(settings.buttonText, defaults.buttonText)}
+      />
+    </CraftWidgetShell>
+  );
+}
+
+function CraftFooterFromSettings({ settings }: { settings: Record<string, unknown> }) {
+  const defaults = MinimalFooterBlock.craft.props;
+  const items = arr<MinimalFooterItem>(settings.items);
+  return (
+    <CraftWidgetShell resolver={{ RootContainer, MinimalFooterBlock }}>
+      <MinimalFooterBlock
+        items={items.length > 0 ? items : defaults.items}
+        copyright={str(settings.copyright, defaults.copyright)}
+      />
+    </CraftWidgetShell>
+  );
+}
+
 function renderModule(module: PageModuleRow) {
   const { module_type, settings, board_id } = module;
   switch (module_type as PageModuleType) {
@@ -254,6 +315,14 @@ function renderModule(module: PageModuleRow) {
       return <SpacerFromSettings settings={settings} />;
     case "divider":
       return <DividerModule />;
+    case "craft_hero":
+      return <CraftHeroFromSettings settings={settings} />;
+    case "craft_directory":
+      return <CraftDirectoryFromSettings settings={settings} />;
+    case "craft_newsletter":
+      return <CraftNewsletterFromSettings settings={settings} />;
+    case "craft_footer":
+      return <CraftFooterFromSettings settings={settings} />;
     default:
       return null;
   }

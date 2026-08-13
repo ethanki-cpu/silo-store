@@ -4,7 +4,8 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-08-08 (EPIC-089 기준).
+> 최종 확인: 2026-08-13 (EPIC-099 기준). EPIC-090~098 구간은 CHANGELOG.md/docs/EPIC.md에는
+> 기록돼 있으나 이 대시보드 최상단 블록 갱신이 밀려 있었음(다음에 시간 날 때 소급 정리 권장).
 
 =====================================
 
@@ -54,16 +55,14 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-089([Stage 2] Floating Action UX, YouTube-style Nested Comments, &
-Admin/Sidebar Control) — 게시글 상세 플로팅 액션 바+"페이지 수정" 위치 이동,
-`comments.parent_id`/`comment_likes`/아바타 신규 스키마로 유튜브 스타일
-대댓글/좋아요, `/admin/posts/common`(미분류 글 관리) 신설, 위젯 편집기 Board
-Type 인라인 드롭다운, 사이드바 Y축 위치 관리자 설정화, 그리고 게시글을 다른
-게시판으로 옮겨 저장할 때 나던 실제 DB 저장 실패(slug UNIQUE 충돌) 수정 —
-브랜치 `feature/EPIC-089`, 코드/스키마 전부 완료·검증됐으나 main/develop
-병합은 사용자 승인 대기 중(NEXT_TASK.md). EPIC-088(Admin Detail Corrections,
-Widget Linkage, & Embed Thumbnail Engine)도 브랜치 `feature/EPIC-088`로 그
-직전에 완료됐으나 아직 병합 전.
+EPIC-099(EPIC-098 후속 3건, main/develop 병합 완료) — **1/3** 뉴스레터 실제 구독
+저장. **2/3** Craft 에디터 Toolbox UI(복제/삭제/드래그 재정렬/"+ 섹션 추가").
+**3/3** Craft.js 에디토리얼 빌더(EPIC-098에서 홈페이지 하나에만 있던)를 5개 허브
+페이지(`/silo-store`/`/online-docent`/`/salon-des-cent`/`/studio`/`/mypage`)로
+확장(Phase 1: 사이트 구성 관리 토글, Phase 2: 페이지별 전용 블록 각 3종, Phase 3:
+공용 Craft 블록 4종을 Native Page Builder 위젯 타입으로도 노출). 상세는
+[docs/EPIC.md](EPIC.md)/CHANGELOG.md 참고. 브랜치 `feature/EPIC-099`, main/develop
+병합 완료.
 
 =====================================
 
@@ -122,16 +121,18 @@ Management System까지 완성됐다. EPIC-066 감사에서 "79개 페이지가 
 
 최근 완료 10개(최신순, 상세는 [docs/EPIC.md](EPIC.md)):
 
-1. EPIC-087 — Admin Dashboard Overhaul, Tier-based Access Control, & Global UX(PHASE-0~G, 브랜치 `feature/EPIC-087` — main/develop 병합은 사용자 승인 대기)
-2. EPIC-086 — Slide Module 글쓰기 버튼(main/develop 병합 완료)
-3. EPIC-084-REVISED — Universal Navigation, Contextual Write Flow, 3-Column Category Selector, & Editor UX Overhaul(main/develop 병합 완료)
-4. EPIC-085 — Universal Block Renderer, Frictionless Archiving (Scraping System), & Dynamic OG/SEO Engine(main/develop 병합 완료)
-5. EPIC-084 — Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up(main/develop 병합 완료)
-6. EPIC-083 — Universal Editor Extension(Table/Color/FontFamily/SourceAttribution, main/develop 병합 완료)
-7. EPIC-082 — Universal Media Library Schema & R2 Direct Upload Pipeline
-8. EPIC-079-시리즈(PHASE-1~5, HOTFIX~HOTFIX-3, TIPTAP-FIX-V2, FINAL-FIX 등) — Tiptap Editor/Post CRUD 안정화, 임베드(Youtube/Vimeo/Instagram/X/네이버) 확장, 인스타그램 스타일 갤러리 캐러셀, 대표 이미지/본문 분리 — 상세 요약은 CHANGELOG.md에 있으나 `docs/EPIC.md` 개별 항목은 아직 소급 작성 전(P2, 아래 Technical Debt 참고)
-9. EPIC-053(merge) — 오랫동안 미병합이던 Block Editor 브랜치를 `develop`에 정식 병합
-10. EPIC-068 — 카테고리 생성 시 자동 페이지+위젯 템플릿 생성 메커니즘 + 사이트 전반 백필
+1. EPIC-099 — EPIC-098 후속 3건: 뉴스레터 구독 저장 + Craft 에디터 Toolbox UI + Craft.js를 5개 허브 페이지로 확장(전용 블록 15종 + 사이트 구성 관리 토글 + Native 위젯 4종, main/develop 병합 완료)
+2. EPIC-098 — 홈페이지 전용 Craft.js 에디토리얼 빌더(Two-Track, main/develop 병합 완료)
+3. EPIC-089 — Floating Action UX, YouTube-style Nested Comments, & Admin/Sidebar Control(브랜치 `feature/EPIC-089`)
+4. EPIC-087 — Admin Dashboard Overhaul, Tier-based Access Control, & Global UX(PHASE-0~G, 브랜치 `feature/EPIC-087`)
+5. EPIC-086 — Slide Module 글쓰기 버튼(main/develop 병합 완료)
+6. EPIC-084-REVISED — Universal Navigation, Contextual Write Flow, 3-Column Category Selector, & Editor UX Overhaul(main/develop 병합 완료)
+7. EPIC-085 — Universal Block Renderer, Frictionless Archiving (Scraping System), & Dynamic OG/SEO Engine(main/develop 병합 완료)
+8. EPIC-084 — Universal Routing & Contextual Write Flow, Editor Media Control, & Admin Clean-up(main/develop 병합 완료)
+9. EPIC-083 — Universal Editor Extension(Table/Color/FontFamily/SourceAttribution, main/develop 병합 완료)
+10. EPIC-082 — Universal Media Library Schema & R2 Direct Upload Pipeline
+
+(EPIC-090~097 구간은 docs/EPIC.md 소급 작성 대기 — 위 "최종 확인" 각주 참고)
 
 =====================================
 

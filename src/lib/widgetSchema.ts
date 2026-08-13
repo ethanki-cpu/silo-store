@@ -31,6 +31,17 @@ export type PageModuleType =
   | "divider"
   | "spacer"
   | "html"
+  // EPIC-099(Phase 3): Craft.js 에디토리얼 빌더(EPIC-098)의 공용 블록 4종을
+  // Native Page Builder 위젯으로도 노출 — 위젯 조합형 페이지 안에 Craft
+  // 블록 하나를 섞어 쓸 수 있다. 지금까지 5개 허브 페이지가 재사용해온
+  // 검증된 컴포넌트(EditorialHeroBlock/TextDirectoryBlock/NewsletterBlock/
+  // MinimalFooterBlock)를 그대로 렌더링하며(PageBuilderRenderer.tsx의
+  // CraftWidgetShell), 페이지 전용 블록(ShopHeroBlock 등 21종)은 범위 밖 —
+  // 사용자 확인(2026-08-13): "공용 블록 4종만 위젯화".
+  | "craft_hero"
+  | "craft_directory"
+  | "craft_newsletter"
+  | "craft_footer"
   // 레거시(EPIC-060, 팔레트에는 없지만 기존 DB 행이 있으면 계속 렌더링)
   | "sort"
   | "text";
@@ -59,6 +70,10 @@ export const PAGE_MODULE_TYPES: PageModuleType[] = [
   "divider",
   "spacer",
   "html",
+  "craft_hero",
+  "craft_directory",
+  "craft_newsletter",
+  "craft_footer",
 ];
 
 export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
@@ -85,6 +100,10 @@ export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
   divider: "Divider",
   spacer: "Spacer",
   html: "HTML",
+  craft_hero: "Craft: Editorial Hero",
+  craft_directory: "Craft: Text Directory",
+  craft_newsletter: "Craft: Newsletter",
+  craft_footer: "Craft: Minimal Footer",
   sort: "Sort (레거시)",
   text: "Text (레거시)",
 };
@@ -113,6 +132,10 @@ export const PAGE_MODULE_ICONS: Record<PageModuleType, string> = {
   divider: "➖",
   spacer: "⬜",
   html: "🛠️",
+  craft_hero: "🎞️",
+  craft_directory: "🗂️",
+  craft_newsletter: "✉️",
+  craft_footer: "🦶",
   sort: "↕️",
   text: "📝",
 };
@@ -133,6 +156,10 @@ export const WIDGET_GROUPS: { label: string; types: PageModuleType[] }[] = [
   },
   { label: "정보/레이아웃", types: ["statistics", "badge", "divider", "spacer"] },
   { label: "개발자 전용", types: ["html"] },
+  // EPIC-099(Phase 3): Craft.js 공용 블록 4종 — 다른 위젯과 마찬가지로
+  // WidgetInspectorForm의 필드 폼으로만 편집한다(더블클릭 인라인 편집이
+  // 아님, Craft 페이지 자체를 편집할 때만 그 방식을 씀).
+  { label: "Craft 블록", types: ["craft_hero", "craft_directory", "craft_newsletter", "craft_footer"] },
 ];
 
 // board_id 컬럼을 실제로 쓰는 위젯 — 관리자 UI가 이 목록으로 "게시판 선택"
@@ -372,6 +399,44 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
   divider: [],
   spacer: [{ key: "heightPx", label: "높이(px)", kind: "number", min: 4, max: 400 }],
   html: [{ key: "html", label: "HTML 코드", kind: "textarea", placeholder: "<div>...</div>" }],
+  craft_hero: [
+    { key: "imageUrl", label: "이미지 URL(PC)", kind: "text", placeholder: "https://..." },
+    { key: "imageUrlMobile", label: "이미지 URL(모바일, 선택)", kind: "text", placeholder: "https://..." },
+    { key: "eyebrow", label: "작은 상단 문구", kind: "text" },
+    { key: "title", label: "제목", kind: "text" },
+    { key: "subtitle", label: "부제목", kind: "text" },
+  ],
+  craft_directory: [
+    { key: "heading", label: "제목", kind: "text" },
+    {
+      key: "items",
+      label: "링크 목록",
+      kind: "list",
+      addLabel: "+ 링크 추가",
+      itemFields: [
+        { key: "label", label: "이름", kind: "text" },
+        { key: "href", label: "링크", kind: "text", placeholder: "/silo-store" },
+      ],
+    },
+  ],
+  craft_newsletter: [
+    { key: "heading", label: "제목", kind: "text" },
+    { key: "subtitle", label: "부제목", kind: "text" },
+    { key: "buttonText", label: "버튼 문구", kind: "text" },
+  ],
+  craft_footer: [
+    {
+      key: "items",
+      label: "링크 목록",
+      kind: "list",
+      addLabel: "+ 링크 추가",
+      itemFields: [
+        { key: "label", label: "이름", kind: "text" },
+        { key: "href", label: "링크", kind: "text", placeholder: "/about-silo" },
+      ],
+    },
+    { key: "copyright", label: "저작권 문구", kind: "text" },
+  ],
   sort: [],
   text: [{ key: "text", label: "내용", kind: "textarea" }],
 };
@@ -416,6 +481,28 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
   divider: {},
   spacer: { heightPx: 32 },
   html: { html: "" },
+  craft_hero: {
+    imageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&q=80&auto=format",
+    eyebrow: "Silo Store — Issue No. 01",
+    title: "제목을 입력하세요",
+    subtitle: "부제목을 입력하세요",
+  },
+  craft_directory: {
+    heading: "더 알아보기",
+    items: [
+      { label: "사일로 상점", href: "/silo-store" },
+      { label: "온라인 도슨트", href: "/online-docent" },
+    ],
+  },
+  craft_newsletter: {
+    heading: "사일로의 소식을 받아보세요",
+    subtitle: "새로운 컬렉션과 살롱 소식을 가장 먼저 전해드립니다.",
+    buttonText: "구독하기",
+  },
+  craft_footer: {
+    items: [{ label: "About Silo", href: "/about-silo" }],
+    copyright: "© Silo Store. All rights reserved.",
+  },
   sort: {},
   text: { text: "" },
 };

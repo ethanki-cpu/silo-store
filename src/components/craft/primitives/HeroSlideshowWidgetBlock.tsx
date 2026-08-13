@@ -43,6 +43,10 @@ export type HeroSlideshowWidgetProps = {
   marginBottomPx: number;
   marginLeftPx: number;
   marginRightPx: number;
+  // EPIC-110: syncWithSiteSettings가 꺼져 있을 때(수동 모드)만 쓰이는
+  // 섹션 높이(vh) — null이면 HeroSlideshow.tsx의 기존 기본값(모바일
+  // 60vh/PC 70vh)을 그대로 쓴다.
+  heightVh: number | null;
   motion?: MotionConfig;
 };
 
@@ -87,6 +91,7 @@ export function HeroSlideshowWidgetBlock({
   marginBottomPx,
   marginLeftPx,
   marginRightPx,
+  heightVh,
   motion = DEFAULT_MOTION,
 }: HeroSlideshowWidgetProps) {
   const {
@@ -96,7 +101,7 @@ export function HeroSlideshowWidgetBlock({
 
   const resolved = syncWithSiteSettings
     ? synced
-    : { slides, autoAdvanceSeconds, objectFit, wallpaperUrls, marginTopPx, marginBottomPx, marginLeftPx, marginRightPx };
+    : { slides, autoAdvanceSeconds, objectFit, wallpaperUrls, marginTopPx, marginBottomPx, marginLeftPx, marginRightPx, heightVh };
 
   return (
     <div ref={(dom) => { if (dom) connect(dom); }}>
@@ -115,6 +120,7 @@ export function HeroSlideshowWidgetBlock({
               marginBottomPx={resolved.marginBottomPx}
               marginLeftPx={resolved.marginLeftPx}
               marginRightPx={resolved.marginRightPx}
+              heightVh={resolved.heightVh}
             />
           ) : null}
         </RevealWrapper>
@@ -202,6 +208,18 @@ function HeroSlideshowWidgetSettings() {
               min={1}
               value={props.autoAdvanceSeconds}
               onChange={(e) => setProp((p) => { p.autoAdvanceSeconds = Number(e.target.value) || 5; })}
+              className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+            />
+          </label>
+          <label className="block text-xs text-gray-600">
+            섹션 높이(vh, 비우면 자동)
+            <input
+              type="number"
+              min={10}
+              max={100}
+              value={props.heightVh ?? ""}
+              placeholder="자동(모바일 60 / PC 70)"
+              onChange={(e) => setProp((p) => { p.heightVh = e.target.value === "" ? null : Math.max(10, Math.min(100, Number(e.target.value) || 60)); })}
               className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
             />
           </label>
@@ -358,6 +376,7 @@ HeroSlideshowWidgetBlock.craft = {
     marginBottomPx: 0,
     marginLeftPx: 0,
     marginRightPx: 0,
+    heightVh: null,
     motion: DEFAULT_MOTION,
   } satisfies HeroSlideshowWidgetProps,
   related: { settings: HeroSlideshowWidgetSettings },

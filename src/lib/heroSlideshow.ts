@@ -30,6 +30,10 @@ export type HeroSlideshowConfig = {
   marginBottomPx: number;
   marginLeftPx: number;
   marginRightPx: number;
+  // EPIC-110: 슬라이드쇼 섹션 자체의 높이(vh) — null이면 기존 기본값
+  // (모바일 60vh/데스크톱 70vh 반응형)을 그대로 쓴다. 값을 지정하면 두
+  // 브레이크포인트 모두에 동일하게 적용된다(HeroSlideshow.tsx 참고).
+  heightVh: number | null;
 };
 
 export type HeroSlideshowValue = {
@@ -51,6 +55,7 @@ export function defaultHeroSlideshowConfig(): HeroSlideshowConfig {
     marginBottomPx: 0,
     marginLeftPx: 0,
     marginRightPx: 0,
+    heightVh: null,
   };
 }
 

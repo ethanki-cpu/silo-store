@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-14 (EPIC-110 — 자유 배치 리사이즈 UX 개선 + 슬라이드쇼/로고/상단 탭 섹션 높이 설정)
+- **배경**: 사용자가 스크린샷 2장으로 (1) 자유 배치 이미지를 클릭해도 선택 표시(모서리 점)가 안 뜨고 리사이즈가 불편하다는 점, (2) 설정 패널에서 바꾼 값이 캔버스 프리뷰에 반영 안 되는 것 같다는 점을 지적, (3) "홈페이지 설정 관리"의 슬라이드쇼/메인 로고/상단 탭 섹션 높이를 조절할 수 있게 해달라고 요청.
+- **`FreePositionHandles` 전면 개편**: 기존엔 이동(✥)/리사이즈(우하단 점 1개) 버튼 2개가 자유 배치만 켜지면 항상 떠 있었다 — (1) `useNode((node) => node.events.selected)`로 **실제로 클릭해 선택한 블록일 때만** 핸들이 보이도록 변경(여러 자유배치 블록이 화면에 있어도 지금 만지는 것만 표시), (2) 모서리 점을 4개(nw/ne/sw/se)로 늘려 어느 방향에서든 반대쪽 변을 고정한 채 리사이즈 가능, (3) `pointer-events-none` 파란 테두리 박스를 추가해 "선택됨" 상태가 시각적으로 분명하게(더블클릭 편집 등 기존 인라인 동작은 계속 안 가림).
+- **프리뷰 미반영 이슈 조사**: 실제 로컬 dev의 홈페이지 Craft 에디터에서 자유배치 이미지 블록을 선택해 오버레이 캡션 텍스트 입력/좌표 값을 직접 확인한 결과, 설정 패널 값과 캔버스 DOM 스타일이 정확히 일치하고 실시간으로 반영됨을 확인 — 코드 결함은 재현되지 않았다(이전 세션의 스테일 HMR/캐시로 추정). 다만 `FreePositionSettingsSection`의 X/Y/너비/높이/z-index 숫자 입력이 `Number(e.target.value) || 0`이라 입력칸을 지우는 순간(빈 문자열) 값이 0으로 튀는 부수적 버그를 발견해 `valueAsNumber` 기반으로 수정(빈 값일 때는 아무 것도 반영하지 않음).
+- **섹션 높이 설정 3종 신설**:
+  - `src/lib/heroSlideshow.ts`의 `HeroSlideshowConfig`에 `heightVh: number | null` 추가(null이면 기존 기본값 모바일 60vh/PC 70vh 그대로) — `HeroSlideshow.tsx`가 inline style로 override, `src/app/page.tsx`/`HeroSlideshowWidgetBlock.tsx` 양쪽 호출부에 전달, "홈페이지 설정 관리"의 슬라이드쇼 섹션과 Craft `HeroSlideshowWidgetBlock` 설정 패널(수동 모드) 양쪽에 입력 필드 추가.
+  - `MainLogoValue.rowHeightPx`/`TopTabStyleValue.rowHeightPx`(둘 다 `number | null`) 신설 — `Navbar.tsx`의 로고 줄(`p-4` div)/상단 탭 줄(`nav`)에 `minHeight` 인라인 스타일로 적용(null이면 기존처럼 내용물 기준 자동). "홈페이지 설정 관리"의 "메인 로고"/"상단 탭 디자인" 섹션에 각각 입력 필드 추가.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(기존 경고만 남음). 클린 dev 서버+실제 관리자 세션(로그인 유지된 세션)에서: (1) 자유배치 이미지 클릭 시에만 핸들 4개+테두리가 뜨고 선택 해제 시 사라지는 것, (2) 4개 모서리 각각 드래그 시 반대쪽 변이 고정된 채 정확한 %로 리사이즈되는 것(픽셀 좌표 계산으로 검증), (3) "로고 섹션 높이"/"상단 탭 섹션 높이"를 각각 140px/80px로 저장 후 공개 홈페이지 DOM에서 `min-height` 스타일과 실제 렌더 높이가 반영되는 것을 확인 — 확인 후 두 값 모두 자동(빈 값)으로 원상복구해 저장. 슬라이드쇼 `heightVh`는 코드 리뷰로 배선 확인(관리자 세션에서 저장 왕복은 로고/탭과 동일 패턴이라 생략).
+- **변경 파일**: `src/lib/{useFreePosition.ts는 미변경, heroSlideshow.ts}`, `src/components/craft/shared/{FreePositionHandles,FreePositionSettingsSection}.tsx`, `src/components/HeroSlideshow.tsx`, `src/components/craft/primitives/HeroSlideshowWidgetBlock.tsx`, `src/app/page.tsx`, `src/components/Navbar.tsx`, `src/app/admin/navigation/settings/page.tsx`.
+
 ## 2026-08-14 (EPIC-109 — 자유 배치 이미지 리사이즈에 비율 유지/직접입력/프리셋 추가)
 - **배경**: EPIC-108에서 이미지 위에 이미지를 자유롭게 겹쳐 놓는 기능은 됐는데, 겹쳐진 이미지의 크기 조절 시 가로세로 비율을 유지할 방법이 없었다("비율유지/유지안함 기능", "가로세로 비율을 직접 입력", "드랍다운에서 비율을 여러가지 샘플에서 선택").
 - **`src/lib/useFreePosition.ts`**: `parseAspectRatio("4/3" | "16:9" | "1.5")` 파서와 `ASPECT_RATIO_PRESETS`(자유/1:1/4:3/3:4/3:2/2:3/16:9/9:16/21:9/5:4) 목록 추가.

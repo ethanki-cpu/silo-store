@@ -28,6 +28,7 @@ export function HeroSlideshow({
   marginBottomPx = 0,
   marginLeftPx = 0,
   marginRightPx = 0,
+  heightVh = null,
 }: {
   // EPIC-094(요구사항 1.2): 이 인스턴스가 어느 기기용 래퍼 안에 있는지 —
   // "반대쪽" 기기의 media query에서는 실제 이미지를 내려받지 않도록 픽처
@@ -48,6 +49,9 @@ export function HeroSlideshow({
   marginBottomPx?: number;
   marginLeftPx?: number;
   marginRightPx?: number;
+  // EPIC-110: 슬라이드쇼 섹션 자체의 높이(vh) — null/미지정이면 기존
+  // 기본값(모바일 60vh/데스크톱 70vh)을 그대로 쓴다.
+  heightVh?: number | null;
 }) {
   // md: Tailwind 기본 브레이크포인트(768px) — page.tsx의 hidden md:block/
   // md:hidden과 정확히 같은 경계여야 두 소스가 서로 어긋나지 않는다.
@@ -117,7 +121,10 @@ export function HeroSlideshow({
           : undefined),
       }}
     >
-      <div className="relative w-full h-[60vh] sm:h-[70vh] overflow-hidden">
+      <div
+        className={`relative w-full overflow-hidden ${heightVh == null ? "h-[60vh] sm:h-[70vh]" : ""}`}
+        style={heightVh != null ? { height: `${heightVh}vh` } : undefined}
+      >
       {slides.map((slide, idx) => (
         <div
           key={idx}

@@ -1,15 +1,27 @@
 "use client";
 
-// EPIC-108: 자유 배치가 켜진 블록에 얹는 드래그(이동)/리사이즈 핸들 —
-// 블록 전체를 덮는 오버레이가 아니라 모서리의 작은 버튼 2개뿐이라, 더블
-// 클릭으로 텍스트를 고치거나 이미지를 클릭해 업로드하는 기존 인라인 편집
-// 동작을 가리지 않는다. 부모(offsetParent — ContainerBlock/RootContainer가
-// 항상 position:relative라 그 컨테이너가 잡힌다) 기준 %로 좌표를 옮긴다.
+// EPIC-108/110: 자유 배치가 켜진 블록에 얹는 선택 표시 + 드래그(이동)/
+// 리사이즈 핸들. 실제 선택된(클릭한) 블록일 때만 보이도록 해서(EPIC-110)
+// 화면에 여러 자유배치 블록이 있어도 지금 만지는 것만 표시되게 한다.
+// 테두리 박스 자체는 pointer-events-none이라 더블클릭으로 텍스트를 고치거나
+// 이미지를 클릭해 업로드하는 기존 인라인 편집 동작을 가리지 않고, 모서리의
+// 작은 점 4개 + 이동 핸들 1개만 클릭 가능하다. 부모(offsetParent —
+// ContainerBlock/RootContainer가 항상 position:relative라 그 컨테이너가
+// 잡힌다) 기준 %로 좌표를 옮긴다.
+import { useNode } from "@craftjs/core";
 import { useRef, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useCraftEditable } from "@/components/craft/home/editable";
 import { clampPct, type FreePosition } from "@/lib/useFreePosition";
 
-type DragState = { mode: "move" | "resize"; startX: number; startY: number; start: FreePosition };
+type Corner = "nw" | "ne" | "sw" | "se";
+type DragState = { mode: "move" | "resize"; corner?: Corner; startX: number; startY: number; start: FreePosition };
+
+const CORNERS: { corner: Corner; className: string; cursor: string }[] = [
+  { corner: "nw", className: "-top-1.5 -left-1.5", cursor: "cursor-nwse-resize" },
+  { corner: "ne", className: "-top-1.5 -right-1.5", cursor: "cursor-nesw-resize" },
+  { corner: "sw", className: "-bottom-1.5 -left-1.5", cursor: "cursor-nesw-resize" },
+  { corner: "se", className: "-bottom-1.5 -right-1.5", cursor: "cursor-nwse-resize" },
+];
 
 export function FreePositionHandles({
   position,
@@ -27,16 +39,17 @@ export function FreePositionHandles({
   lockedAspectRatio?: number | null;
 }) {
   const editable = useCraftEditable();
+  const { isSelected } = useNode((node) => ({ isSelected: node.events.selected }));
   const dragRef = useRef<DragState | null>(null);
 
-  if (!editable || !position.enabled) return null;
+  if (!editable || !position.enabled || !isSelected) return null;
 
   function containerRect() {
     const parent = anchorRef.current?.offsetParent as HTMLElement | null;
     return parent?.getBoundingClientRect() ?? null;
   }
 
-  function start(mode: DragState["mode"], e: ReactPointerEvent<HTMLButtonElement>) {
+  function start(mode: DragState["mode"], e: ReactPointerEvent<HTMLButtonElement>, corner?: Corner) {
     e.stopPropagation();
     e.preventDefault();
     // 드래그 시작 시점에 이 포인터가 이미 "활성"이 아니면(트랙패드/터치
@@ -50,7 +63,41 @@ export function FreePositionHandles({
     } catch {
       // no-op — 아래 dragRef 세팅은 그대로 진행
     }
-    dragRef.current = { mode, startX: e.clientX, startY: e.clientY, start: position };
+    dragRef.current = { mode, corner, startX: e.clientX, startY: e.clientY, start: position };
+  }
+
+  // EPIC-110: 네 모서리 중 어느 쪽을 잡았는지에 따라 반대쪽 변은 고정하고
+  // 잡은 쪽 x/y와 너비/높이만 조절한다(예: nw는 오른쪽/아래 변 고정).
+  function resizeFromCorner(corner: Corner, dxPct: number, dyPct: number, rect: DOMRect, start: FreePosition) {
+    const west = corner === "nw" || corner === "sw";
+    const north = corner === "nw" || corner === "ne";
+
+    let xPct = start.xPct;
+    let widthPct = start.widthPct;
+    if (west) {
+      const rightEdge = start.xPct + start.widthPct;
+      xPct = clampPct(start.xPct + dxPct, 0, rightEdge - 5);
+      widthPct = rightEdge - xPct;
+    } else {
+      widthPct = clampPct(start.widthPct + dxPct, 5, 100 - start.xPct);
+    }
+
+    let yPct = start.yPct;
+    let heightPct: number;
+    if (lockedAspectRatio) {
+      const widthPx = (widthPct / 100) * rect.width;
+      const heightPx = widthPx / lockedAspectRatio;
+      heightPct = clampPct((heightPx / rect.height) * 100, 5, 100);
+      if (north) yPct = clampPct(start.yPct + start.heightPct - heightPct, 0, 100 - heightPct);
+    } else if (north) {
+      const bottomEdge = start.yPct + start.heightPct;
+      yPct = clampPct(start.yPct + dyPct, 0, bottomEdge - 5);
+      heightPct = bottomEdge - yPct;
+    } else {
+      heightPct = clampPct(start.heightPct + dyPct, 5, 100 - start.yPct);
+    }
+
+    return { xPct, yPct, widthPct, heightPct };
   }
 
   function move(e: ReactPointerEvent<HTMLButtonElement>) {
@@ -66,17 +113,8 @@ export function FreePositionHandles({
         xPct: clampPct(drag.start.xPct + dxPct, 0, 100 - drag.start.widthPct),
         yPct: clampPct(drag.start.yPct + dyPct, 0, 100 - drag.start.heightPct),
       });
-    } else {
-      const widthPct = clampPct(drag.start.widthPct + dxPct, 5, 100 - drag.start.xPct);
-      let heightPct: number;
-      if (lockedAspectRatio) {
-        const widthPx = (widthPct / 100) * rect.width;
-        const heightPx = widthPx / lockedAspectRatio;
-        heightPct = clampPct((heightPx / rect.height) * 100, 5, 100 - drag.start.yPct);
-      } else {
-        heightPct = clampPct(drag.start.heightPct + dyPct, 5, 100 - drag.start.yPct);
-      }
-      onChange({ ...position, widthPct, heightPct });
+    } else if (drag.corner) {
+      onChange({ ...position, ...resizeFromCorner(drag.corner, dxPct, dyPct, rect, drag.start) });
     }
   }
 
@@ -86,6 +124,8 @@ export function FreePositionHandles({
 
   return (
     <>
+      {/* 선택 표시용 테두리 박스 — 클릭을 가로채지 않도록 pointer-events-none */}
+      <div className="pointer-events-none absolute inset-0 z-20 rounded-sm ring-2 ring-blue-500" />
       <button
         type="button"
         onPointerDown={(e) => start("move", e)}
@@ -93,19 +133,22 @@ export function FreePositionHandles({
         onPointerUp={end}
         onPointerLeave={end}
         title="드래그해서 이동"
-        className="absolute -top-2 -left-2 z-30 flex h-5 w-5 cursor-move items-center justify-center rounded bg-blue-500 text-[10px] text-white shadow"
+        className="absolute -top-3 left-1/2 z-30 flex h-5 w-5 -translate-x-1/2 cursor-move items-center justify-center rounded bg-blue-500 text-[10px] text-white shadow"
       >
         ✥
       </button>
-      <button
-        type="button"
-        onPointerDown={(e) => start("resize", e)}
-        onPointerMove={move}
-        onPointerUp={end}
-        onPointerLeave={end}
-        title="드래그해서 크기 조절"
-        className="absolute -bottom-2 -right-2 z-30 h-4 w-4 cursor-nwse-resize rounded-sm bg-blue-500 shadow"
-      />
+      {CORNERS.map(({ corner, className, cursor }) => (
+        <button
+          key={corner}
+          type="button"
+          onPointerDown={(e) => start("resize", e, corner)}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerLeave={end}
+          title="드래그해서 크기 조절"
+          className={`absolute z-30 h-3 w-3 ${cursor} rounded-full border-2 border-white bg-blue-500 shadow ${className}`}
+        />
+      ))}
     </>
   );
 }

@@ -46,6 +46,8 @@ type MainLogoValue = {
   /** @deprecated EPIC-043: customFonts(배열)로 대체. 구버전 데이터 호환용. */
   fontFileUrl: string;
   customFonts: CustomFontEntry[];
+  // EPIC-110: 로고 줄 자체의 높이(px) — null이면 기존처럼 내용물에 맞춰 자동.
+  rowHeightPx: number | null;
 };
 
 // EPIC-078: 기본(default)/호버(hover) 2종 미디어로 확장 — settings/page.tsx
@@ -80,6 +82,8 @@ type TopTabStyleEntry = {
 };
 type TopTabStyleValue = {
   tabs: Record<string, TopTabStyleEntry>;
+  // EPIC-110: 상단 탭 줄(nav) 전체의 높이(px) — null이면 기존처럼 자동.
+  rowHeightPx: number | null;
 };
 
 const DEFAULT_LOGO_TEXT = "사일로 스토어";
@@ -233,6 +237,7 @@ export function Navbar() {
             rightText,
             fontFileUrl: value.fontFileUrl ?? "",
             customFonts,
+            rowHeightPx: value.rowHeightPx ?? null,
           });
         }
       });
@@ -294,7 +299,7 @@ export function Navbar() {
       .then(({ data }) => {
         if (cancelled) return;
         const value = data?.setting_value as Partial<TopTabStyleValue> | null;
-        if (value?.tabs) setTopTabStyle({ tabs: value.tabs });
+        if (value?.tabs) setTopTabStyle({ tabs: value.tabs, rowHeightPx: value.rowHeightPx ?? null });
       });
     return () => {
       cancelled = true;
@@ -451,7 +456,10 @@ export function Navbar() {
         `}</style>
       )}
       {topTabStyleCss && <style>{topTabStyleCss}</style>}
-      <div className="flex items-center p-4 gap-4">
+      <div
+        className="flex items-center p-4 gap-4"
+        style={mainLogo?.rowHeightPx ? { minHeight: mainLogo.rowHeightPx } : undefined}
+      >
         {/* EPIC-039: 로고 이미지를 중앙에 두고 좌/우 텍스트를 대칭으로
             배치 — 양옆을 동일한 flex-1 컨테이너로 감싸 텍스트 길이가 달라도
             로고 자체는 항상 가운데 유지된다. 이 대칭 레이아웃이 EPIC-034의
@@ -576,7 +584,10 @@ export function Navbar() {
           중첩하면 Tailwind가 "가장 가까운 조상"이 아니라 "어떤 조상이든
           .group이고 hover 중이면" 매칭하므로, 상위 탭에 마우스를 올리기만
           해도 모든 하위 그룹의 2차 플라이아웃이 한꺼번에 열려버린다. */}
-      <nav className="flex flex-wrap justify-center gap-1 px-4 border-t border-gray-100">
+      <nav
+        className="flex flex-wrap items-center justify-center gap-1 px-4 border-t border-gray-100"
+        style={topTabStyle?.rowHeightPx ? { minHeight: topTabStyle.rowHeightPx } : undefined}
+      >
         {navTabs.map((tab) => {
           // EPIC-079-PHASE-4: "상단 탭 디자인"에서 저장한 표시 텍스트
           // 오버라이드/커스텀 클래스 — 값이 없으면 완전히 기존과 동일.

@@ -112,6 +112,9 @@ type MainLogoValue = {
   /** @deprecated EPIC-043: customFonts(배열)로 대체. 구버전 데이터 호환용으로만 읽는다. */
   fontFileUrl: string;
   customFonts: CustomFontEntry[];
+  // EPIC-110: 로고가 놓이는 상단 바 첫 줄(로고+좌우 텍스트) 자체의 높이(px)
+  // — null이면 기존처럼 내용물(로고 이미지 높이 등)에 맞춰 자동으로 정해진다.
+  rowHeightPx: number | null;
 };
 // EPIC-078: 기본(default)/호버(hover) 2종 미디어로 확장 — 이미지뿐 아니라
 // 투명 배경 비디오(.webm/.mp4)도 지원해 실제 사이트에서 호버 시 기본
@@ -152,6 +155,9 @@ type TopTabStyleEntry = {
 };
 type TopTabStyleValue = {
   tabs: Record<string, TopTabStyleEntry>;
+  // EPIC-110: 상단 탭 줄(nav) 전체의 높이(px) — null이면 기존처럼 탭
+  // 버튼의 padding에 맞춰 자동으로 정해진다.
+  rowHeightPx: number | null;
 };
 type TopNavRow = { id: string; key: string | null; title: string; sort_order: number };
 
@@ -195,6 +201,7 @@ const DEFAULT_MAIN_LOGO: MainLogoValue = {
   rightText: "",
   fontFileUrl: "",
   customFonts: [],
+  rowHeightPx: null,
 };
 const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
   leftIconDefaultUrl: "",
@@ -296,7 +303,7 @@ export default function AdminNavigationSettingsPage() {
   const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
     DEFAULT_SIDEBAR_ICONS,
   );
-  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue>({ tabs: {} });
+  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue>({ tabs: {}, rowHeightPx: null });
   const [topNavRows, setTopNavRows] = useState<TopNavRow[]>([]);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -383,7 +390,7 @@ export default function AdminNavigationSettingsPage() {
           });
         } else if (row.setting_key === "top_tab_style") {
           const value = row.setting_value as Partial<TopTabStyleValue> | null;
-          setTopTabStyle({ tabs: value?.tabs ?? {} });
+          setTopTabStyle({ tabs: value?.tabs ?? {}, rowHeightPx: value?.rowHeightPx ?? null });
         }
       }
       setFetching(false);
@@ -515,6 +522,7 @@ export default function AdminNavigationSettingsPage() {
   // 키 자체가 없으므로, patch할 때 defaultTopTabStyleEntry()로 채워 넣는다.
   function updateTabStyle(tabId: string, patch: Partial<TopTabStyleEntry>) {
     setTopTabStyle((prev) => ({
+      ...prev,
       tabs: {
         ...prev.tabs,
         [tabId]: { ...defaultTopTabStyleEntry(), ...prev.tabs[tabId], ...patch },
@@ -598,21 +606,40 @@ export default function AdminNavigationSettingsPage() {
                 <p className="text-xs text-gray-400 mt-1">업로드 중...</p>
               )}
             </div>
-            <div>
-              <label className="block text-sm mb-1">로고 높이 (px)</label>
-              <input
-                type="number"
-                min={16}
-                max={200}
-                className={`${inputClass} w-28`}
-                value={mainLogo.heightPx}
-                onChange={(e) =>
-                  setMainLogo({
-                    ...mainLogo,
-                    heightPx: Number(e.target.value) || DEFAULT_MAIN_LOGO.heightPx,
-                  })
-                }
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm mb-1">로고 높이 (px)</label>
+                <input
+                  type="number"
+                  min={16}
+                  max={200}
+                  className={`${inputClass} w-28`}
+                  value={mainLogo.heightPx}
+                  onChange={(e) =>
+                    setMainLogo({
+                      ...mainLogo,
+                      heightPx: Number(e.target.value) || DEFAULT_MAIN_LOGO.heightPx,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">로고 섹션 높이 (px, 비우면 자동)</label>
+                <input
+                  type="number"
+                  min={16}
+                  max={400}
+                  className={`${inputClass} w-28`}
+                  value={mainLogo.rowHeightPx ?? ""}
+                  placeholder="자동"
+                  onChange={(e) =>
+                    setMainLogo({
+                      ...mainLogo,
+                      rowHeightPx: e.target.value === "" ? null : Math.max(16, Number(e.target.value) || 64),
+                    })
+                  }
+                />
+              </div>
             </div>
             {/* EPIC-039: 로고 이미지를 중앙에 두고 양옆에 대칭으로 텍스트를
                 배치하는 레이아웃으로 바뀌어, 기존 "정렬 위치"(좌/중앙/우)는
@@ -879,7 +906,23 @@ export default function AdminNavigationSettingsPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div>
+              <label className="block text-sm mb-1">섹션 높이 (vh, 비우면 자동)</label>
+              <input
+                type="number"
+                min={10}
+                max={100}
+                className={inputClass}
+                value={activeHero.heightVh ?? ""}
+                placeholder="자동(모바일 60 / PC 70)"
+                onChange={(e) =>
+                  updateActiveHero({
+                    heightVh: e.target.value === "" ? null : Math.max(10, Math.min(100, Number(e.target.value) || 60)),
+                  })
+                }
+              />
+            </div>
             <div>
               <label className="block text-sm mb-1">자동 전환 시간 (초)</label>
               <input
@@ -1215,6 +1258,23 @@ export default function AdminNavigationSettingsPage() {
             이름이 그대로 쓰여요. 탭 자체를 추가/삭제/순서 변경하려면
             &quot;사이트 구성 관리&quot; 화면을 이용하세요.
           </p>
+          <div className="mb-3">
+            <label className="block text-sm mb-1">상단 탭 섹션 높이 (px, 비우면 자동)</label>
+            <input
+              type="number"
+              min={16}
+              max={400}
+              className={`${inputClass} w-28`}
+              value={topTabStyle.rowHeightPx ?? ""}
+              placeholder="자동"
+              onChange={(e) =>
+                setTopTabStyle({
+                  ...topTabStyle,
+                  rowHeightPx: e.target.value === "" ? null : Math.max(16, Number(e.target.value) || 40),
+                })
+              }
+            />
+          </div>
           {topNavRows.length === 0 ? (
             <p className="text-sm text-gray-400">아직 등록된 상단 탭이 없어요.</p>
           ) : (

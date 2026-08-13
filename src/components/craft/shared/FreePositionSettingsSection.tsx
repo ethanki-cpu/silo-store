@@ -36,7 +36,7 @@ export function FreePositionSettingsSection() {
               <input
                 type="number"
                 value={Math.round(position.xPct)}
-                onChange={(e) => update({ xPct: Number(e.target.value) || 0 })}
+                onChange={(e) => { if (e.target.value !== "" && Number.isFinite(e.target.valueAsNumber)) update({ xPct: e.target.valueAsNumber }); }}
                 className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
               />
             </label>
@@ -45,7 +45,7 @@ export function FreePositionSettingsSection() {
               <input
                 type="number"
                 value={Math.round(position.yPct)}
-                onChange={(e) => update({ yPct: Number(e.target.value) || 0 })}
+                onChange={(e) => { if (e.target.value !== "" && Number.isFinite(e.target.valueAsNumber)) update({ yPct: e.target.valueAsNumber }); }}
                 className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
               />
             </label>
@@ -54,7 +54,7 @@ export function FreePositionSettingsSection() {
               <input
                 type="number"
                 value={Math.round(position.widthPct)}
-                onChange={(e) => update({ widthPct: Number(e.target.value) || 10 })}
+                onChange={(e) => { if (e.target.value !== "" && Number.isFinite(e.target.valueAsNumber)) update({ widthPct: e.target.valueAsNumber }); }}
                 className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
               />
             </label>
@@ -63,7 +63,7 @@ export function FreePositionSettingsSection() {
               <input
                 type="number"
                 value={Math.round(position.heightPct)}
-                onChange={(e) => update({ heightPct: Number(e.target.value) || 10 })}
+                onChange={(e) => { if (e.target.value !== "" && Number.isFinite(e.target.valueAsNumber)) update({ heightPct: e.target.valueAsNumber }); }}
                 className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
               />
             </label>
@@ -73,7 +73,7 @@ export function FreePositionSettingsSection() {
             <input
               type="number"
               value={position.zIndex}
-              onChange={(e) => update({ zIndex: Number(e.target.value) || 1 })}
+              onChange={(e) => { if (e.target.value !== "" && Number.isFinite(e.target.valueAsNumber)) update({ zIndex: e.target.valueAsNumber }); }}
               className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
             />
           </label>

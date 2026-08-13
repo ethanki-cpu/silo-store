@@ -57,6 +57,7 @@ function HeroSlideshowSection({
       marginBottomPx={config.marginBottomPx}
       marginLeftPx={config.marginLeftPx}
       marginRightPx={config.marginRightPx}
+      heightVh={config.heightVh}
     />
   );
 }

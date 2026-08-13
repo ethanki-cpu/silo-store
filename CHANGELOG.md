@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-107 — 홈페이지 슬라이드쇼를 Craft 위젯으로 전환, EPIC-101~107 로드맵 완결)
+- **배경**: 사용자가 "홈페이지 설정 관리"에 있는 기존 히어로 슬라이드쇼(`HeroSlideshow.tsx`, 크로스페이드+objectFit=contain 시 랜덤 여백 배경+4방향 여백px+자동전환 — "그거 만드느라 시간 오래 쏟았는데")를 새로 만들지 않고 그대로 Craft 캔버스 어디든 넣을 수 있는 위젯으로 만들어달라고 요청. EPIC-099 Phase 3가 이미 4개 공용 Craft 블록을 Native 위젯으로 노출한 선례는 있지만, 거꾸로 "기존 Native 기능을 Craft 블록으로 감싸는" 것은 이번이 처음.
+- **`HeroSlideshowWidgetBlock`(신규 원자 블록)**: `HeroSlideshow.tsx`를 직접 import해 그대로 렌더링(`device="both"` — Native Page Builder의 기존 "hero" 위젯과 동일한 단순화, PC/모바일 분리가 필요하면 기존 사이트 설정 기능을 계속 쓰면 됨). 설정 패널에 슬라이드 목록(이미지 업로드+제목+설명, 추가/삭제), 자동 전환 간격, 이미지 채움 방식(cover/contain), 4방향 여백(px), (`contain` 선택 시만) 여백 배경 이미지 목록(최대 10개, 추가/삭제) — 기존 관리자 폼이 갖고 있던 옵션을 거의 그대로 Craft 설정 패널로 옮겼다(여백 배경 압축 품질만 범위 밖 — 업로드 시점 최적화라 핵심 기능이 아님).
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 통과(0 errors). 로컬 dev에서 임시 진단 라우트(`Editor`+`Frame`으로 이 블록 하나만 직접 렌더링, 확인 후 삭제)로 실제 `HeroSlideshow` 컴포넌트와 완전히 동일한 DOM 구조(`h-[60vh] sm:h-[70vh]` 등 원본 클래스 그대로)가 나오는 것을 확인 — 새로 만든 게 아니라 기존 컴포넌트를 그대로 감싼 것임을 증명. 콘솔에 새 에러 없음.
+- **EPIC-101~107 로드맵 완결**: 이미지 버그 수정 → 프리폼 에디터 코어 → Kinfolk 16블록 → 헤더 스크롤 모션 → Footer Craft 전환 → 게시판 카테고리 필터 → 슬라이드쇼 위젯화까지, 최초 요청서의 전 항목이 이번 세션에 순차 완료됐다.
+- **변경/신규 파일**: `src/components/craft/primitives/HeroSlideshowWidgetBlock.tsx`(신규)+`index.ts`.
+
 ## 2026-08-13 (EPIC-106 — 게시판 연동 블록 카테고리 필터)
 - **배경**: EPIC-102/103의 `BoardEmbedBlock`/`TimelineEmbedBlock`은 게시판 하나를 통째로 가져올 뿐, 그 안에서 카테고리(주제/연대 등 `posts.category` — 게시판 자체의 라우팅 슬러그인 `board.category`와는 다른, 게시글 하나하나의 자유 텍스트 분류)로 좁혀볼 수 없었다. `GET /api/boards/[board_slug]/posts`에 이미 `tag`/`year` 필터가 있던 것과 같은 자리에 `category` 필터를 추가.
 - **`GET .../posts` 라우트**: `categoryFilter`(쿼리 파라미터 `category`) 추가 — `tagFilter`/`yearFilter`와 동일한 위치·패턴으로 적용. 응답에 `availableCategories`(해당 게시판에 실제 존재하는 카테고리 값 목록, 페이지네이션 전 전체 기준이라 count와 무관하게 정확) 필드 신설.

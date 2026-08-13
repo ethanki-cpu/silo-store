@@ -55,7 +55,14 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-106(게시판 연동 블록 카테고리 필터) — `GET .../posts`에 `category`
+EPIC-107(홈페이지 슬라이드쇼를 Craft 위젯으로 전환) — 기존 `HeroSlideshow.tsx`
+(히어로 슬라이드쇼, "홈페이지 설정 관리"가 관리하던 그 기능)를 새로 만들지
+않고 그대로 감싼 `HeroSlideshowWidgetBlock`으로 Craft 캔버스 어디든 삽입
+가능. `tsc`/`lint`/`build` 0 errors, 임시 진단 라우트로 실제 DOM 구조 일치
+확인. 브랜치 `feature/EPIC-107`. **이것으로 EPIC-101~107 로드맵 전체 완료 —
+다음 작업은 사용자 지시 대기.**
+
+직전 EPIC-106(게시판 연동 블록 카테고리 필터) — `GET .../posts`에 `category`
 파라미터+`availableCategories` 응답 추가(기존 tag/year 필터와 동일 패턴),
 `BoardEmbedBlock`/`TimelineEmbedBlock` 설정 패널에 카테고리 드롭다운 신설.
 `tsc`/`lint`/`build` 0 errors, 존재하지 않는 카테고리 필터 → 0건으로 파라미터
@@ -99,12 +106,12 @@ EPIC-101(홈페이지 Craft.js 이미지 크기 버그 수정)도 같은 세션�
 
 ## Next EPIC
 
-EPIC-103~107(계획 파일 `C:\Users\nasdo\.claude\plans\fancy-mapping-eich.md`) —
-EPIC-103 Kinfolk 16블록 홈 레이아웃, EPIC-104 헤더 스크롤 모션(hide on scroll down/
-show on scroll up), EPIC-105 `/admin/footer` → Craft.js 비주얼 에디터 전환,
-EPIC-106 게시판 연동 카테고리 필터, EPIC-107 히어로 슬라이드쇼 위젯화. 이 5개는
-EPIC-102가 만든 프리미티브 위에서 순차 진행 예정. `PROJECT_ARCHITECTURE.md` §Stage 2
-기술 전략의 Event Telemetry/Paywall Routing도 별도 후보로 남아있음.
+미정 — EPIC-101~107(Kinfolk 홈페이지 재현 + Craft.js 프리폼 에디터 로드맵,
+계획 파일 `C:\Users\nasdo\.claude\plans\fancy-mapping-eich.md`)이 전부
+완료되어 다음 지시 대기. 남은 후보: 관리자 로그인 세션으로 EPIC-102~107의
+"다음에 확인 필요" 항목들(Toolbox 드래그/설정 패널 저장 왕복 등, NEXT_TASK.md
+기록) 실사용 검증. `PROJECT_ARCHITECTURE.md` §Stage 2 기술 전략의 Event
+Telemetry/Paywall Routing도 별도 후보로 남아있음.
 
 =====================================
 

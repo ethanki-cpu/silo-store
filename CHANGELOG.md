@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-105 — 하단 Footer를 Craft.js 비주얼 에디터로 전환)
+- **배경**: 기존 "하단 메뉴(Footer) 관리"(`/admin/footer`)는 `site_settings.footer_config`(회사정보+링크 3종+SNS)를 편집하는 평범한 폼이었다. 사용자가 이걸 다른 Craft 페이지들처럼 자유 레이아웃 에디터로 바꾸길 원해(EPIC-102 계획 단계에서 확인) 전환.
+- **신규 Craft 페밀리 `src/components/craft/footer/`**: `FooterCompanyInfoBlock`(회사명/대표자/사업자등록번호/주소/이메일/전화, 전부 인라인 편집)과 `FooterLinksRowBlock`(items+openInNewTab — 법적/FAQ/부가링크 행과 SNS 링크 행 둘 다 이 하나로 커버) 신설. 원자 블록(Container 등)은 EPIC-102의 PRIMITIVE_RESOLVER 자동 병합 덕분에 별도 등록 불필요.
+- **빈 필드 처리**: `FooterCompanyInfoBlock`은 편집 모드가 아니고 값이 비어 있으면 그 필드를 아예 렌더링하지 않는다(기존 `Footer.tsx`의 `company.address && <p>...</p>` 조건부 렌더링과 동일한 동작) — `EditableText` 기본 동작(빈 값이면 방문자에게도 "텍스트를 입력하세요" placeholder를 그대로 보여줌)을 그대로 뒀다면 매 페이지 하단에 깨진 것처럼 보이는 문구가 노출됐을 것을 로컬 확인 중 발견해 수정.
+- **`GlobalFooter.tsx`(신규, Server Component)**: 기존 클라이언트 컴포넌트 `Footer.tsx`(site_settings 직접 조회)를 대체 — 홈페이지 `page.tsx`와 동일한 패턴으로 `fetchPublishedPageBySlug("footer")`를 서버에서 조회해 `CraftPageRenderer`에 넘긴다. `layout.tsx`에서 `<Footer/>` → `<div className="mt-auto"><GlobalFooter/></div>`로 교체(기존 "짧은 페이지에서 화면 바닥에 붙는" 동작 유지 — `CraftPageRenderer`는 다른 5개 Craft 페밀리도 공유하는 셸이라 그쪽에 `mt-auto`를 넣을 수 없어 여기서 감쌈). 다 쓰지 않게 된 `src/components/Footer.tsx`는 삭제(참조하는 곳이 새 `/admin/footer/page.tsx` 하나뿐이라 그 파일도 함께 새로 씀).
+- **`/admin/footer/page.tsx` 전면 재작성**: footer는 URL을 가진 실제 "페이지"가 아니라 `page_builder.slug='footer'` 행 하나만 쓰는 전역 조각이라, 진입 시 그 행이 없으면 자동으로 만든(insert) 뒤 바로 `CraftFooterEditor`(다른 페밀리와 동일한 얇은 `CraftPageEditor` 래퍼)를 전체화면으로 띄운다. "닫기"는 `/admin/site-structure`로 이동(별도 admin 인덱스 페이지가 없어 기존 admin 허브로).
+- **라이브 데이터 마이그레이션**: 기존 `site_settings.footer_config`를 Management API로 직접 조회(`company.name="사일로상점 / 살롱데상"`, `representative="채춘자 / 김수미"`, `email="ethanki@silostore.net"`, 나머지 필드/링크는 전부 비어 있었음)해 `footerDefaultTree`의 초깃값으로 그대로 옮겨 마이그레이션 손실 없음. `page_builder`에 `slug='footer'` 행이 없어 Management API로 직접 생성(`builder_type='craft'`, `status='published'`, `craft_state=null`→기본 트리로 폴백).
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 통과(0 errors). `.next` 캐시 삭제 + 완전 재시작한 클린 dev 서버로 홈페이지/`/shop` 양쪽에서 새 Footer가 회사정보+링크 3개(About Silo/이용약관/개인정보처리방침)까지 정확히 렌더링되는 것을 확인, 서버 로그(신뢰 가능한 소스)에 에러 없음 확인.
+- **변경/신규 파일**: `src/components/craft/footer/{blocks/FooterCompanyInfoBlock.tsx,blocks/FooterLinksRowBlock.tsx,resolver.ts,defaultTree.tsx}`(신규), `src/components/GlobalFooter.tsx`(신규), `src/components/admin/craft/CraftFooterEditor.tsx`(신규), `src/app/admin/footer/page.tsx`(재작성), `src/app/layout.tsx`, `src/components/Footer.tsx`(삭제).
+
 ## 2026-08-13 (EPIC-104 — 헤더 스크롤 모션)
 - **배경**: Kinfolk.com처럼 스크롤을 내리면 헤더가 숨고 올리면 다시 나타나는 모션 요청. 기존 `Navbar.tsx`는 `<header>`가 일반 문서 흐름(static)이라 스크롤에 반응하지 않았고, 이 레포에 스크롤 방향 감지 전례도 없었다.
 - **`src/lib/useHideOnScroll.ts` 신설**: `scrollY` 방향을 비교해 아래로 스크롤하면 `hidden=true`, 위로 스크롤하면 `hidden=false`, `threshold`(기본 80px) 아래에서는 항상 보이게 하는 훅.

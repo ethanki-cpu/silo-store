@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/AuthProvider";
 import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
+import { GlobalFooter } from "@/components/GlobalFooter";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
 const geistSans = Geist({
@@ -66,7 +66,13 @@ export default function RootLayout({
           </Suspense>
           <Breadcrumb />
           {children}
-          <Footer />
+          {/* EPIC-105: 기존 Footer.tsx의 mt-auto(짧은 페이지에서 화면
+              바닥에 붙는 동작)를 유지 — CraftPageRenderer는 다른 5개 Craft
+              페밀리(shop 등, 본문으로 쓰임)도 공유하는 셸이라 그쪽에는
+              mt-auto를 넣을 수 없어 여기서 감싼다. */}
+          <div className="mt-auto">
+            <GlobalFooter />
+          </div>
         </AuthProvider>
       </body>
     </html>

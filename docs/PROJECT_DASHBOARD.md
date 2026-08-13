@@ -55,7 +55,13 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-104(헤더 스크롤 모션) — Kinfolk.com처럼 스크롤 내리면 헤더가 숨고 올리면
+EPIC-105(하단 Footer를 Craft.js 비주얼 에디터로 전환) — 기존 폼 기반
+`/admin/footer`를 다른 Craft 페이지와 동일한 자유 레이아웃 에디터로 교체.
+`GlobalFooter.tsx`(신규)가 `Footer.tsx`(삭제)를 대체, 기존 `footer_config`
+실데이터를 마이그레이션. `tsc`/`lint`/`build` 0 errors, 클린 서버로 실렌더링
+확인. 브랜치 `feature/EPIC-105`.
+
+직전 EPIC-104(헤더 스크롤 모션) — Kinfolk.com처럼 스크롤 내리면 헤더가 숨고 올리면
 다시 나타남. `useHideOnScroll.ts`(신규) + `Navbar.tsx` fixed+transform 전환.
 개발 중 ResizeObserver 되먹임 루프(메뉴가 영원히 로딩 상태로 멈추는 버그)를
 실제로 겪고 원인 특정+수정(rAF+반올림 값 비교로 루프 차단). `tsc`/`lint`/

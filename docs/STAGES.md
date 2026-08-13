@@ -204,7 +204,15 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-104
+EPIC-105
+하단 Footer를 Craft.js 비주얼 에디터로 전환 — 기존 폼 기반 `/admin/footer`를
+다른 Craft 페이지와 동일한 자유 레이아웃 에디터로 교체. 신규 Craft 페밀리
+(`FooterCompanyInfoBlock`/`FooterLinksRowBlock`), `GlobalFooter.tsx`(신규
+Server Component)가 `Footer.tsx`(삭제)를 대체. 기존 `footer_config` 실데이터
+마이그레이션, `page_builder(slug='footer')` 행 신규 생성. `tsc`/`lint`/
+`build` 0 errors, 클린 서버 재시작 후 실렌더링 확인. 브랜치 `feature/EPIC-105`.
+
+직전 EPIC-104
 헤더 스크롤 모션 — Kinfolk.com처럼 스크롤 내리면 헤더가 숨고 올리면 다시
 나타남. `useHideOnScroll.ts`(신규) + `Navbar.tsx` fixed+transform 전환,
 LeftSidebar/RightSidebar는 transform 조상 밖 형제로 분리(containing block

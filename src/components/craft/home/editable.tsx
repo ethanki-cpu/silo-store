@@ -80,6 +80,7 @@ export function EditableImage({
   className,
   uploadFolder = "craft-home",
   priority = false,
+  fit = "cover",
 }: {
   src: string;
   onCommit: (nextUrl: string) => void;
@@ -87,10 +88,15 @@ export function EditableImage({
   className?: string;
   uploadFolder?: string;
   priority?: boolean;
+  // EPIC-111: 편집 모드의 실제 <img>가 항상 object-cover로 하드코딩돼
+  // 있어 호출부가 원하는 채움 방식(contain 등)을 실제로 반영하지 못하던
+  // 버그 수정 — 기본값 "cover"는 이 prop이 없던 기존 호출부와 동일 동작.
+  fit?: "cover" | "contain";
 }) {
   const editable = useCraftEditable();
   const [uploading, setUploading] = useState(false);
   const loadingProps = imgLoadingProps(priority);
+  const fitClass = fit === "contain" ? "object-contain" : "object-cover";
 
   async function handleFile(file: File | null) {
     if (!file) return;
@@ -108,7 +114,7 @@ export function EditableImage({
   return (
     <label className={`group relative block cursor-pointer ${className ?? ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={alt} className="h-full w-full object-cover" {...loadingProps} />
+      <img src={src} alt={alt} className={`h-full w-full ${fitClass}`} {...loadingProps} />
       <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-xs font-medium uppercase tracking-wide text-transparent transition-colors group-hover:bg-black/40 group-hover:text-white">
         {uploading ? "업로드 중..." : "이미지 변경"}
       </span>
@@ -140,6 +146,7 @@ export function EditableResponsiveImage({
   className,
   uploadFolder = "craft-home",
   priority = false,
+  fit = "cover",
 }: {
   srcDesktop: string;
   srcMobile?: string;
@@ -149,11 +156,15 @@ export function EditableResponsiveImage({
   className?: string;
   uploadFolder?: string;
   priority?: boolean;
+  // EPIC-111: EditableImage와 동일한 이유로 추가 — 기본값 "cover"는 이
+  // prop이 없던 기존 호출부와 동일 동작.
+  fit?: "cover" | "contain";
 }) {
   const editable = useCraftEditable();
   const [uploadingDesktop, setUploadingDesktop] = useState(false);
   const [uploadingMobile, setUploadingMobile] = useState(false);
   const loadingProps = imgLoadingProps(priority);
+  const fitClass = fit === "contain" ? "object-contain" : "object-cover";
 
   async function handleFile(file: File | null, target: "desktop" | "mobile") {
     if (!file) return;
@@ -170,7 +181,7 @@ export function EditableResponsiveImage({
     return (
       <picture>
         {srcMobile && <source media={MOBILE_MEDIA_QUERY} srcSet={srcMobile} />}
-        <img src={srcDesktop} alt={alt} className={className} {...loadingProps} />
+        <img src={srcDesktop} alt={alt} className={`${className ?? ""} ${fitClass}`} {...loadingProps} />
       </picture>
     );
   }
@@ -178,7 +189,7 @@ export function EditableResponsiveImage({
   return (
     <div className={`group relative block ${className ?? ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={srcDesktop} alt={alt} className="h-full w-full object-cover" {...loadingProps} />
+      <img src={srcDesktop} alt={alt} className={`h-full w-full ${fitClass}`} {...loadingProps} />
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/0 opacity-0 transition-opacity group-hover:bg-black/40 group-hover:opacity-100">
         <label className="cursor-pointer rounded bg-white/90 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-gray-900">
           {uploadingDesktop ? "업로드 중..." : "PC 이미지 변경"}
@@ -247,8 +258,16 @@ export function EditableBlockFrame({ children, label }: { children: ReactNode; l
     actions.delete(id);
   }
 
+  // EPIC-111 버그 수정: 이 두 wrapper div에 h-full이 없어서, 자유 배치로
+  // 부모 위에 절대 위치+%높이로 뜬 블록(SlideshowBlock/ImageBlock 등)의
+  // 실제 높이가 여기서 끊겨 안쪽 콘텐츠가 0 높이로 무너지는 버그가 있었다
+  // — 편집 모드에서만(공개 페이지는 이 컴포넌트를 아예 안 거침, 위 `if
+  // (!editable)` 참고) 자유 배치 이미지/슬라이드쇼가 안 보이거나 리사이즈가
+  // 이상하게(컨테이너 rect가 실제와 다르게 측정됨) 동작하던 근본 원인.
+  // h-full은 조상이 실제 높이를 안 줄 때는 그냥 auto와 동일하게 동작하므로
+  // 자유 배치가 아닌 블록에는 아무 영향이 없다.
   return (
-    <div className="group/block relative">
+    <div className="group/block relative h-full">
       <div className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/block:opacity-100">
         <span className="rounded bg-gray-900/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
           {label}
@@ -278,7 +297,7 @@ export function EditableBlockFrame({ children, label }: { children: ReactNode; l
           🗑
         </button>
       </div>
-      <div className="outline-dashed outline-1 outline-gray-300 outline-offset-[-1px]">{children}</div>
+      <div className="h-full outline-dashed outline-1 outline-gray-300 outline-offset-[-1px]">{children}</div>
     </div>
   );
 }

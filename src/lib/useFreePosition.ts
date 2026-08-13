@@ -52,6 +52,20 @@ export function parseAspectRatio(value: string): number | null {
   return Number.isFinite(single) && single > 0 ? single : null;
 }
 
+// EPIC-111: "가로세로 비율 직접 입력"(텍스트로 "4/3" 등을 타이핑) 대신
+// 너비(px)/높이(px) 두 숫자 입력으로 대체하면서, 기존 저장값을 그 두
+// 입력창에 최대한 그대로 되비쳐 보여주기 위한 역파서 — "4/3"이면 [4,3]을
+// 그대로, 파싱 불가능한 값이면 프리셋 중 하나로도 안 맞았을 값이니 기본
+// 4:3으로 되돌린다(parseAspectRatio가 null을 주는 경우와 동일 기준).
+export function splitAspectRatio(value: string): [number, number] {
+  const parts = value.split(/[/:]/).map((s) => Number.parseFloat(s.trim()));
+  if (parts.length === 2 && parts.every((n) => Number.isFinite(n) && n > 0)) {
+    return [parts[0], parts[1]];
+  }
+  const single = Number.parseFloat(value);
+  return Number.isFinite(single) && single > 0 ? [single, 1] : [4, 3];
+}
+
 // 자유 배치 리사이즈 프리셋(가로/세로) — 이미지 블록의 "비율 선택" 드롭다운이
 // 이 목록을 그대로 쓴다.
 export const ASPECT_RATIO_PRESETS: { label: string; value: string }[] = [

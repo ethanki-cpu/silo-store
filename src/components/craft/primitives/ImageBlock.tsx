@@ -12,6 +12,7 @@ import {
   DEFAULT_FREE_POSITION,
   freePositionStyle,
   parseAspectRatio,
+  splitAspectRatio,
   ASPECT_RATIO_PRESETS,
   type FreePosition,
 } from "@/lib/useFreePosition";
@@ -58,13 +59,20 @@ export function ImageBlock({
 
   const hasOverlay = overlayCategory || overlayTitle || overlaySummary;
 
+  // 버그 수정(EPIC-111): objectFit(cover/contain)을 예전엔 이 wrapper div에
+  // className으로 얹었는데, object-fit CSS는 <img>/<video> 같은 replaced
+  // element에만 적용되고 div에는 아무 효과가 없다 — 실제 <img>는
+  // EditableResponsiveImage 내부에서 항상 object-cover로 하드코딩돼 있어
+  // "채움 방식"을 contain으로 바꿔도 아무 변화가 없었다. `fit` prop으로
+  // 실제 <img>까지 전달한다(아래 EditableResponsiveImage 정의 참고).
   const image = (
     <EditableResponsiveImage
       srcDesktop={imageUrl}
       srcMobile={imageUrlMobile}
       onCommitDesktop={(next) => setProp((p) => { p.imageUrl = next; })}
       onCommitMobile={(next) => setProp((p) => { p.imageUrlMobile = next; })}
-      className={`w-full ${position.enabled ? "h-full" : ""} ${objectFit === "cover" ? "object-cover" : "object-contain"}`}
+      className="h-full w-full"
+      fit={objectFit}
       uploadFolder="craft-primitives"
     />
   );
@@ -72,8 +80,16 @@ export function ImageBlock({
   // 자유 배치 중에는 바깥 박스(freePositionStyle)가 이미 %로 크기를
   // 정해주므로 aspectRatio를 또 적용하면 서로 충돌한다 — 자유 배치가
   // 꺼져 있을 때만(기존 flow 배치) aspectRatio로 높이를 정한다.
+  // 버그 수정(EPIC-111): 이 div가 예전엔 position.enabled 여부와 상관없이
+  // 항상 h-full이었는데, height:100%가 명시돼 있으면 CSS aspect-ratio는
+  // (조상이 실제 높이를 안 줘서 100%가 사실상 auto로 계산되더라도) 무시된다
+  // — "비율 선택 드롭다운을 바꿔도 프리뷰가 그대로"였던 원인. 자유 배치가
+  // 꺼져 있을 때는 h-full을 아예 빼서 aspect-ratio가 높이를 정하게 한다.
   const body = (
-    <div style={position.enabled ? undefined : { aspectRatio }} className="relative h-full w-full overflow-hidden">
+    <div
+      style={position.enabled ? undefined : { aspectRatio }}
+      className={`relative w-full overflow-hidden ${position.enabled ? "h-full" : ""}`}
+    >
       {image}
       {hasOverlay && (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-6 text-white">
@@ -133,6 +149,50 @@ export function ImageBlock({
   );
 }
 
+// EPIC-111(사용자 지시): "가로세로 비율 직접 입력"(텍스트로 "4/3" 타이핑)을
+// 없애고 너비(px)/높이(px) 두 숫자 입력으로 대체 — 내부적으로는 여전히
+// 같은 aspectRatio 문자열("너비/높이")로 저장해 기존 프리셋 드롭다운과 완전히
+// 호환된다.
+function PixelAspectRatioInputs({
+  aspectRatio,
+  onChange,
+}: {
+  aspectRatio: string;
+  onChange: (next: string) => void;
+}) {
+  const [width, height] = splitAspectRatio(aspectRatio);
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <label className="text-xs text-gray-600">
+        픽셀 직접 입력 — 너비(px)
+        <input
+          type="number"
+          min={1}
+          value={Math.round(width)}
+          onChange={(e) => {
+            const w = e.target.valueAsNumber;
+            if (Number.isFinite(w) && w > 0) onChange(`${w}/${height}`);
+          }}
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        />
+      </label>
+      <label className="text-xs text-gray-600">
+        높이(px)
+        <input
+          type="number"
+          min={1}
+          value={Math.round(height)}
+          onChange={(e) => {
+            const h = e.target.valueAsNumber;
+            if (Number.isFinite(h) && h > 0) onChange(`${width}/${h}`);
+          }}
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        />
+      </label>
+    </div>
+  );
+}
+
 function ImageSettings() {
   const { props, setProp } = useNode((node) => ({ props: node.data.props as ImageBlockProps }));
 
@@ -179,15 +239,10 @@ function ImageSettings() {
           )}
         </select>
       </label>
-      <label className="block text-xs text-gray-600">
-        가로세로 비율 직접 입력(예: 4/3, 16:9, 1.5)
-        <input
-          type="text"
-          value={props.aspectRatio}
-          onChange={(e) => setProp((p) => { p.aspectRatio = e.target.value; })}
-          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
-        />
-      </label>
+      <PixelAspectRatioInputs
+        aspectRatio={props.aspectRatio}
+        onChange={(next) => setProp((p) => { p.aspectRatio = next; })}
+      />
       <label className="flex items-center gap-2 text-xs text-gray-600">
         <input
           type="checkbox"

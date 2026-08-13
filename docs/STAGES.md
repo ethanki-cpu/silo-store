@@ -204,7 +204,15 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-103
+EPIC-104
+헤더 스크롤 모션 — Kinfolk.com처럼 스크롤 내리면 헤더가 숨고 올리면 다시
+나타남. `useHideOnScroll.ts`(신규) + `Navbar.tsx` fixed+transform 전환,
+LeftSidebar/RightSidebar는 transform 조상 밖 형제로 분리(containing block
+보호). 개발 중 ResizeObserver 되먹임 루프(메뉴가 영원히 로딩 상태로 멈추는
+버그)를 실제로 겪고 원인 특정+수정. `tsc`/`lint`/`build` 0 errors, 로컬에서
+scrollY 시퀀스/사이드바 z-index stacking 확인. 브랜치 `feature/EPIC-104`.
+
+직전 EPIC-103
 Kinfolk 16블록 홈 레이아웃 — EPIC-102 원자 블록을 조합해 Kinfolk.com 홈페이지
 1~16번 블록 구조를 재현. `SlideshowBlock.sticky`(1번, 커튼 효과)/
 `BoardEmbedBlock.dragRow`·`spotlight`(3/6/9/4번)/`ImageBlock` 오버레이

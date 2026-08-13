@@ -55,7 +55,14 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-103(Kinfolk 16블록 홈 레이아웃) — EPIC-102 원자 블록을 조합해 Kinfolk.com
+EPIC-104(헤더 스크롤 모션) — Kinfolk.com처럼 스크롤 내리면 헤더가 숨고 올리면
+다시 나타남. `useHideOnScroll.ts`(신규) + `Navbar.tsx` fixed+transform 전환.
+개발 중 ResizeObserver 되먹임 루프(메뉴가 영원히 로딩 상태로 멈추는 버그)를
+실제로 겪고 원인 특정+수정(rAF+반올림 값 비교로 루프 차단). `tsc`/`lint`/
+`build` 0 errors, scrollY 시퀀스/사이드바 z-index stacking 로컬 확인 완료.
+브랜치 `feature/EPIC-104`.
+
+직전 EPIC-103(Kinfolk 16블록 홈 레이아웃) — EPIC-102 원자 블록을 조합해 Kinfolk.com
 홈페이지 1~16번 블록 구조를 재현(`src/components/craft/home/defaultTree.tsx`
 재구성). `SlideshowBlock.sticky`(커튼 효과)/`BoardEmbedBlock.dragRow`·
 `spotlight`/`ImageBlock` 오버레이 캡션/신규 `ShopItemsGridBlock`(가격 있는

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-104 — 헤더 스크롤 모션)
+- **배경**: Kinfolk.com처럼 스크롤을 내리면 헤더가 숨고 올리면 다시 나타나는 모션 요청. 기존 `Navbar.tsx`는 `<header>`가 일반 문서 흐름(static)이라 스크롤에 반응하지 않았고, 이 레포에 스크롤 방향 감지 전례도 없었다.
+- **`src/lib/useHideOnScroll.ts` 신설**: `scrollY` 방향을 비교해 아래로 스크롤하면 `hidden=true`, 위로 스크롤하면 `hidden=false`, `threshold`(기본 80px) 아래에서는 항상 보이게 하는 훅.
+- **`Navbar.tsx` 구조 변경**: 로고 줄+탭 줄만 `position: fixed` + `transform`(translateY)으로 감싸 스크롤에 반응하게 하고, `LeftSidebar`/`RightSidebar`(이미 자체적으로 `position: fixed`)는 그 wrapper **밖**(형제)에 그대로 둔다 — `transform`이 걸린 조상은 자손 `fixed` 요소의 containing block을 바꿔버려 화면 좌표가 어긋나므로, 사이드바를 wrapper 안에 넣지 않는 게 중요했다. `fixed`로 뜬 만큼 문서 흐름에서 빈 자리를 `ResizeObserver`로 실측한 높이의 spacer `<div>`로 대신 채워 본문이 위로 붙지 않게 함(로고 높이/탭 줄바꿈 수에 따라 헤더 높이가 가변적이라 하드코딩 불가). 사이드바 열림 backdrop의 `z-index`를 30→45로 올려(헤더가 이제 `z-40`으로 떠 있어) 사이드바 오픈 시 헤더도 함께 어둡게 덮이도록 함(전에는 static이라 항상 backdrop보다 아래였음).
+- **버그 발견+수정(개발 중 실제 재현)**: `ResizeObserver`가 스페이서 높이를 갱신 → 문서 전체 높이 변화 → 스크롤바 유무/폭 변화 → 헤더 자체 줄바꿈이 미세하게 바뀌어 다시 `ResizeObserver` 발화 → ... 되먹임 루프가 생겨, 리렌더가 쉼 없이 도는 동안 `navTabs`/`mainLogo` 등 다른 데이터 fetch effect의 cleanup(`cancelled=true`)이 응답 오기 전에 계속 실행되면서 헤더 메뉴/로그인 영역 전체가 영원히 "로딩 중" 상태로 멈추는 것을 로컬에서 직접 재현(클린 서버 재시작 + 새 탭에서도 동일 재현, `git stash`로 구버전 코드는 정상 동작함을 대조 확인해 원인을 확정). `requestAnimationFrame`으로 측정을 한 프레임 늦추고, 반올림한 값이 실제로 바뀔 때만 `setState`하도록 고쳐 루프 자체가 발생하지 않게 함.
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 통과(0 errors). 로컬 dev에서 순수 JS로 `scrollTo(0→300→600→300)` 시퀀스를 재현해 각 단계에서 `VISIBLE→HIDDEN→HIDDEN(계속 아래로)→VISIBLE(위로 돌아옴)`이 정확히 논리대로 동작함을 클래스 문자열로 확인, 좌측 사이드바를 열어 backdrop(z-45)/사이드바 패널(z-50)/헤더(z-40) stacking이 의도대로(사이드바가 backdrop 위, backdrop이 헤더 위) 되는 것도 확인. 콘솔에 새 에러 없음(React19 ref 경고는 기존과 동일하게 무관하게 존재).
+- **변경/신규 파일**: `src/lib/useHideOnScroll.ts`(신규), `src/components/Navbar.tsx`.
+
 ## 2026-08-13 (EPIC-103 — Kinfolk 16블록 홈 레이아웃)
 - **배경**: 사용자가 스크린샷 14장으로 요청한 Kinfolk.com 홈페이지 16개 블록 구조를, EPIC-102가 만든 원자 블록을 조합해 실제로 재현. 저작권 문제를 피하기 위해 EPIC-098과 동일한 원칙(구조·레이아웃 리듬만 재현, 텍스트/브랜딩은 플레이스홀더)을 유지.
 - **원자 블록 확장 3건**:

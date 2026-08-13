@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
@@ -10,6 +10,7 @@ import { LeftSidebar } from "@/components/LeftSidebar";
 import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
+import { useHideOnScroll } from "@/lib/useHideOnScroll";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -127,6 +128,44 @@ export function Navbar() {
   // mismatch를 방지한다.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // EPIC-104: 헤더를 fixed로 띄우면서(스크롤 방향에 따라 숨김/노출) 원래
+  // 문서 흐름에서 차지하던 공간이 사라져 본문이 위로 붙어버린다 — 실제
+  // 렌더링된 헤더 높이를 ResizeObserver로 측정해 그만큼의 spacer를 대신
+  // 넣는다. 로고 높이/탭 줄바꿈 수에 따라 높이가 가변적이라(고정값 하드코딩
+  // 불가) 측정 방식을 택했다.
+  const hidden = useHideOnScroll();
+  const topBarRef = useRef<HTMLDivElement>(null);
+  const [topBarHeight, setTopBarHeight] = useState(0);
+  useEffect(() => {
+    const node = topBarRef.current;
+    if (!node) return;
+    // 버그로 겪은 것: 스페이서(topBarHeight) 값이 바뀌면 문서 전체 높이가
+    // 바뀌어 스크롤바 유무/폭이 미세하게 달라지고, 그게 이 헤더 자체의
+    // 줄바꿈(가로폭)에 다시 영향을 줘 ResizeObserver가 또 발화 → 다시
+    // setTopBarHeight → ... 로 이어지는 되먹임 루프가 생겼다. 그 루프가
+    // 리렌더를 쉼 없이 돌리는 동안 다른 이펙트(navTabs fetch 등)의
+    // cleanup(cancelled=true)이 응답이 오기 전에 계속 실행돼, 이 컴포넌트가
+    // 영원히 "로딩 중" 상태로 멈춰버리는 걸 실제로 재현했다(로컬에서
+    // 메뉴/로그인 영역이 전혀 안 뜸). requestAnimationFrame으로 측정을
+    // 한 프레임 늦추고, 값이 실제로(반올림 기준) 바뀔 때만 setState해서
+    // 루프 자체가 발생하지 않게 막는다.
+    let frame = 0;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const next = Math.round(entry.contentRect.height);
+        setTopBarHeight((prev) => (prev === next ? prev : next));
+      });
+    });
+    observer.observe(node);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
 
   // EPIC-087-PHASE-F: GNB "멤버십 등급"/"회원 이름" 클릭 시 여는 팝오버.
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -362,7 +401,19 @@ export function Navbar() {
     .join("\n");
 
   return (
-    <header className="border-b border-gray-200">
+    <header>
+      {/* EPIC-104: 로고 줄+탭 줄만 fixed+transform으로 띄워 스크롤 방향에
+          따라 숨김/노출한다 — LeftSidebar/RightSidebar(자체적으로 이미
+          position:fixed)는 이 wrapper 밖(형제)에 둔다. transform이 걸린
+          조상은 자손 fixed 요소의 containing block을 바꿔버려 화면 좌표가
+          아니라 이 wrapper 기준으로 어긋나게 되므로, 사이드바를 안에 넣지
+          않는 것이 중요하다. */}
+      <div
+        ref={topBarRef}
+        className={`fixed inset-x-0 top-0 z-40 border-b border-gray-200 bg-white transition-transform duration-300 ${
+          hidden ? "-translate-y-full" : "translate-y-0"
+        }`}
+      >
       {/* EPIC-043: "적용" 켜진 커스텀 폰트마다 각각 @font-face를 동적 주입 —
           로고 좌/우 텍스트가 즉시 이 서체들을(폴백 체인으로) 쓸 수 있게 한다. */}
       {activeCustomFonts.length > 0 && (
@@ -753,13 +804,20 @@ export function Navbar() {
           );
         })}
       </nav>
+      </div>
+      {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이
+          위로 붙지 않게 한다(topBarHeight는 ResizeObserver 실측값). */}
+      <div style={{ height: topBarHeight }} />
 
       {/* EPIC-040: 전체 높이 사이드바 열림 중 뒷배경을 어둡게 — 위 상단 탭
           팝업과는 별개 state(leftOpen/rightOpen)이므로 별도 backdrop. */}
+      {/* EPIC-104: topBarRef가 이제 fixed z-40이라, 원래 z-30이던 이 backdrop
+          을 z-45로 올려야 사이드바가 열렸을 때 헤더도 함께 어둡게 덮인다
+          (전에는 헤더가 static이라 backdrop보다 항상 아래였음). */}
       {(leftOpen || rightOpen) && (
         <div
           onClick={closeSidebars}
-          className="fixed inset-0 z-30 bg-black/30"
+          className="fixed inset-0 z-[45] bg-black/30"
         />
       )}
 

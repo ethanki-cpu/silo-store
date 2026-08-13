@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-101 — 홈페이지 Craft.js 이미지 크기 버그 긴급 수정)
+- **신고**: 홈페이지 이미지 크기가 이상하게 너무 크게 보인다는 신고.
+- **원인**: 홈페이지는 `page_builder(slug="home").builder_type = 'craft'`(Management API로 확인)라 `CraftHomeRenderer.tsx`가 렌더링을 담당하는데, EPIC-100에서 3개 공용 셸(`CraftPageRenderer`/`CraftPageEditor`/`CraftWidgetShell`)의 `.craft-home` 래퍼에는 `@container` 클래스를 추가했지만, 홈페이지 전용인 이 렌더러는 별도 구현이라 그 수정에서 빠졌다. 그 결과 `EditorialGridBlock`/`LatestIssueBlock`/`TextDirectoryBlock`/`MinimalFooterBlock`의 `@[768px]:` 컨테이너 쿼리가 데스크톱에서도 전혀 매치되지 않아 모바일 1열 레이아웃으로 고정됐고, 그리드 안 이미지가 카드 폭이 아닌 풀 페이지 폭(`w-full`)으로 렌더링됐다.
+- **수정**: `src/components/craft/home/CraftHomeRenderer.tsx`의 wrapper `<div>`에 `@container` 클래스 추가(다른 3곳과 동일하게).
+- **검증**: 로컬 dev에서 뷰포트 1280px로 확인 — 수정 전 3개 그리드 전부 1열 고정이던 것이 수정 후 각각 2열/3열/4열로 정상 전환됨을 `getComputedStyle().gridTemplateColumns`로 확인.
+- **변경 파일**: `src/components/craft/home/CraftHomeRenderer.tsx`.
+
 ## 2026-08-13 (EPIC-100 — Craft.js 에디토리얼 레이아웃 모바일 반응형 교정 + LCP 최적화 + 관리자 PC/모바일 반응형 빌더 모드)
 - **요청**: EPIC-098~099에서 구축한 Craft.js 에디토리얼 블록(21종 페이지 전용 + 6종 공용)이 모바일에서 찌그러지지 않게 하고, 화보 이미지 로딩 속도(LCP)를 최적화하고, 관리자가 PC/모바일 뷰를 실시간으로 크로스체크할 수 있는 반응형 빌더 모드를 구축.
 - **1. 모바일 스태킹 — 뷰포트 미디어쿼리 대신 컨테이너 쿼리 채택(중요한 기술적 결정)**: 지시문은 `md:`/`lg:` 뷰포트 유틸리티 사용을 명시했지만, 그대로 적용하면 항목 3(관리자 토글)이 무의미해진다는 걸 설계 중 발견했다 — `md:`는 **실제 브라우저 창 너비**를 기준으로 평가되므로, 관리자 에디터에서 미리보기 캔버스 `<div>`의 너비만 390px로 좁혀도(브라우저 창 자체는 그대로 데스크톱 크기) `md:grid-cols-3`는 계속 3열로 남아 캔버스 안에서 짓눌린 모습만 보여줄 뿐 실제로 재배치되지 않는다. 대신 Tailwind v4가 별도 설정 없이 지원하는 **컨테이너 쿼리**(`@container` + `@[768px]:` 등 임의값 변형)로 전환 — 공개 페이지에서는 블록의 실제 렌더링 너비가 사실상 뷰포트 너비와 같아 `md:`와 동일하게 동작하고, 관리자 에디터에서는 캔버스 컨테이너 너비 변경이 즉시 모든 자식 블록에 반영된다. 3개 공용 셸(`CraftPageRenderer`/`CraftPageEditor`/`CraftWidgetShell`)의 `.craft-home` 최상위 래퍼에 `@container` 클래스를 걸고, 21개 페이지 전용 블록 + 6개 공용 블록(EditorialGrid/LatestIssue/MinimalFooter/TextDirectory 등) 전체의 `md:` 접두사를 `@[768px]:`로 일괄 치환(기존 브레이크포인트 숫자 그대로 유지, 컨테이너 쿼리 엔진으로만 전환). 대부분의 그리드/스플릿 블록은 이미 EPIC-099 제작 당시 모바일 우선(`grid-cols-1`/`grid-cols-2` 베이스 + `md:grid-cols-3/4`, `grid-cols-1 md:grid-cols-2` 스플릿)으로 만들어져 있어 실제 구조 변경은 거의 없었다.

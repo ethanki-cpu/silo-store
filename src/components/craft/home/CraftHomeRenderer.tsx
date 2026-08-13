@@ -17,7 +17,12 @@ import { editorialSerif } from "./font";
 
 export function CraftHomeRenderer({ craftState }: { craftState?: string | null }) {
   return (
-    <div className={`craft-home ${editorialSerif.variable}`}>
+    // EPIC-101 hotfix: EPIC-100이 블록들을 @[768px]: 컨테이너 쿼리로 바꾸면서
+    // CraftPageRenderer/CraftPageEditor/CraftWidgetShell 3곳에는 @container를
+    // 추가했지만 이 렌더러(홈페이지 전용, 다른 셋과 별도 구현)는 빠뜨렸다 —
+    // 그 결과 컨테이너 쿼리가 매치되지 않아 데스크톱에서도 모바일 1열로
+    // 고정되고 이미지가 카드 폭이 아닌 풀 폭으로 렌더링됐다.
+    <div className={`craft-home @container ${editorialSerif.variable}`}>
       <Editor resolver={craftHomeResolver} enabled={false}>
         <Frame data={craftState ?? undefined}>
           {!craftState && (

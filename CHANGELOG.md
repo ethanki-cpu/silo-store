@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-108 — 자유 배치(콜라주) + 홈페이지 슬라이드쇼 위젯 관리자 연동)
+- **배경**: 사용자가 Kinfolk 실제 화면(1번 블록)을 다시 보여주며 "화면을 꽉 채우는 슬라이드쇼만 있는 게 아니라, 이미지 안에 이미지를 넣는 콜라주처럼 컨테이너/텍스트/이미지/버튼/영상/슬라이드쇼/게시판을 자유롭게 겹쳐 드래그로 놓을 수 있게" 요청, 그리고 `HeroSlideshowWidgetBlock`(EPIC-107)에 이미 존재하는 관리자 "홈페이지 설정 관리" 슬라이드쇼와 연동하는 옵션이 없다고 지적.
+- **자유 배치(콜라주) — 신규 공용 인프라**:
+  - `src/lib/useFreePosition.ts` — `FreePosition = {enabled, xPct, yPct, widthPct, heightPct, zIndex}`(부모 기준 %, 컨테이너 쿼리 반응형과 호환). `enabled=false`면 항상 `position:relative`만(핸들 앵커용), `true`면 `position:absolute`+%좌표로 부모 위에 뜬다.
+  - `src/components/craft/shared/FreePositionHandles.tsx` — 블록 전체를 덮는 오버레이가 아니라 모서리의 작은 이동(✥)/리사이즈 핸들 2개만 렌더링해, 더블클릭 텍스트 편집·이미지 클릭 업로드 등 기존 인라인 편집을 가리지 않는다. `pointerdown`+`setPointerCapture`로 드래그, 부모(`offsetParent`) 크기 기준 %로 환산해 `onChange`.
+  - `src/components/craft/shared/FreePositionSettingsSection.tsx` — 토글+정확한 수치 입력(X/Y/너비/높이/z-index) 설정 패널 섹션.
+  - **적용 대상(사용자가 나열한 7종 그대로)**: `ContainerBlock`(다른 컨테이너 위에도 자유배치 가능 — 컨테이너 안 컨테이너 중첩도 됨), `TextBlock`, `ImageBlock`, `ButtonBlock`, `VideoBlock`, `SlideshowBlock`, `BoardEmbedBlock`. `ContainerBlock`/`RootContainer`는 항상 `position:relative`가 기본이라 그 안의 자유배치 자식들이 정확히 그 컨테이너 기준으로 겹친다(다른 곳으로 새지 않음).
+  - **검증**: 로컬 dev에서 임시 진단 라우트로 배경 이미지 위에 오버레이 이미지(20%,20%,30%×30%)와 텍스트를 자유배치로 겹쳐 실제 DOM 좌표가 배경 이미지 영역 안에 정확히 들어오는 것을 확인(image over image 성공), 편집 모드에서 이동/리사이즈 핸들이 렌더링되고 실제 pointer 드래그 시퀀스로 좌표(%)가 정확히 갱신되는 것까지 확인(이동 20%→37.96%, 리사이즈 30%→47.96%).
+- **`HeroSlideshowWidgetBlock` 관리자 연동(신규)**: `syncWithSiteSettings`(불리언) + `syncDevice`(pc/mobile) 프롭 추가. 켜면 이 블록 자신의 슬라이드/여백/objectFit을 전부 무시하고 `site_settings.hero_slideshow`(관리자 "홈페이지 설정 관리"가 쓰는 바로 그 설정)를 실시간으로 읽어와 그대로 렌더링 — 즉 관리자 화면에서 슬라이드를 바꾸면 이 위젯이 박힌 모든 Craft 페이지가 자동으로 함께 바뀐다. 켜져 있을 때는 설정 패널에서 로컬 슬라이드 편집 UI를 숨기고 "홈페이지 설정 관리에서 수정하세요" 링크만 보여준다. **검증**: 임시 진단 라우트에서 `syncWithSiteSettings` 켠 채로 렌더링해, 실제 라이브 `public-assets/slides/*` 버킷의 관리자 업로드 이미지("Vogue Vintage Jewelry" 등)가 그대로 불러와지는 것을 확인.
+- **전체 검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 통과(0 errors, 새 경고 없음).
+- **변경/신규 파일**: `src/lib/useFreePosition.ts`(신규), `src/components/craft/shared/{FreePositionHandles,FreePositionSettingsSection}.tsx`(신규), `src/components/craft/primitives/{ContainerBlock,TextBlock,ImageBlock,ButtonBlock,VideoBlock,SlideshowBlock,BoardEmbedBlock,HeroSlideshowWidgetBlock}.tsx`, `src/components/craft/home/RootContainer.tsx`.
+
 ## 2026-08-13 (EPIC-107 — 홈페이지 슬라이드쇼를 Craft 위젯으로 전환, EPIC-101~107 로드맵 완결)
 - **배경**: 사용자가 "홈페이지 설정 관리"에 있는 기존 히어로 슬라이드쇼(`HeroSlideshow.tsx`, 크로스페이드+objectFit=contain 시 랜덤 여백 배경+4방향 여백px+자동전환 — "그거 만드느라 시간 오래 쏟았는데")를 새로 만들지 않고 그대로 Craft 캔버스 어디든 넣을 수 있는 위젯으로 만들어달라고 요청. EPIC-099 Phase 3가 이미 4개 공용 Craft 블록을 Native 위젯으로 노출한 선례는 있지만, 거꾸로 "기존 Native 기능을 Craft 블록으로 감싸는" 것은 이번이 처음.
 - **`HeroSlideshowWidgetBlock`(신규 원자 블록)**: `HeroSlideshow.tsx`를 직접 import해 그대로 렌더링(`device="both"` — Native Page Builder의 기존 "hero" 위젯과 동일한 단순화, PC/모바일 분리가 필요하면 기존 사이트 설정 기능을 계속 쓰면 됨). 설정 패널에 슬라이드 목록(이미지 업로드+제목+설명, 추가/삭제), 자동 전환 간격, 이미지 채움 방식(cover/contain), 4방향 여백(px), (`contain` 선택 시만) 여백 배경 이미지 목록(최대 10개, 추가/삭제) — 기존 관리자 폼이 갖고 있던 옵션을 거의 그대로 Craft 설정 패널로 옮겼다(여백 배경 압축 품질만 범위 밖 — 업로드 시점 최적화라 핵심 기능이 아님).

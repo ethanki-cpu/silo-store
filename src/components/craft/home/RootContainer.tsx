@@ -12,7 +12,7 @@ export function RootContainer({ children }: { children?: ReactNode }) {
     connectors: { connect },
   } = useNode();
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }} className="w-full bg-white">
+    <div ref={(dom) => { if (dom) connect(dom); }} className="relative w-full bg-white">
       {children}
     </div>
   );

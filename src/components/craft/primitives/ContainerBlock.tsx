@@ -5,12 +5,21 @@
 // ContainerBlock을 그 안에 자유롭게 드래그해 넣을 수 있다. isCanvas는
 // RootContainer와 같은 방식(정적 craft.isCanvas가 아니라 `<Element canvas>`
 // 래핑, defaultTree.tsx/Toolbox의 buildElement에서 처리)으로 지정한다.
+//
+// EPIC-108(콜라주): 이 컨테이너의 자식들(텍스트/이미지 등)이 "자유 배치"를
+// 켜면 이 컨테이너를 기준으로 겹쳐서 뜬다 — 그러려면 자식을 담는 내부
+// flex div가 항상 `position: relative`여야 한다(아래 innerRef가 붙는 div).
+// 컨테이너 자기 자신도 더 바깥 컨테이너 위에 자유 배치될 수 있어 동일한
+// FreePositionHandles/freePositionStyle을 그대로 쓴다.
 import { useNode } from "@craftjs/core";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { EditableBlockFrame } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
+import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
+import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
+import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
 
 export type ContainerBlockProps = {
   layout: "row" | "col";
@@ -21,6 +30,7 @@ export type ContainerBlockProps = {
   maxWidthPx: number | null;
   align: "start" | "center" | "end";
   motion?: MotionConfig;
+  position?: FreePosition;
   children?: ReactNode;
 };
 
@@ -33,20 +43,31 @@ export function ContainerBlock({
   maxWidthPx,
   align,
   motion = DEFAULT_MOTION,
+  position = DEFAULT_FREE_POSITION,
   children,
 }: ContainerBlockProps) {
   const {
     connectors: { connect },
+    setProp,
   } = useNode();
+  const boxRef = useRef<HTMLDivElement>(null);
 
   const alignClass = { start: "items-start", center: "items-center", end: "items-end" }[align];
 
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div
+      ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }}
+      style={freePositionStyle(position)}
+    >
+      <FreePositionHandles
+        position={position}
+        onChange={(next) => setProp((p) => { p.position = next; })}
+        anchorRef={boxRef}
+      />
       <EditableBlockFrame label="컨테이너">
         <RevealWrapper motion={motion}>
           <div
-            className={`flex flex-wrap ${layout === "row" ? "flex-row" : "flex-col"} ${alignClass}`}
+            className={`relative flex flex-wrap ${layout === "row" ? "flex-row" : "flex-col"} ${alignClass}`}
             style={{
               gap,
               paddingTop: paddingY,
@@ -147,6 +168,7 @@ function ContainerSettings() {
         />
       </label>
       <MotionSettingsSection />
+      <FreePositionSettingsSection />
     </div>
   );
 }
@@ -162,6 +184,7 @@ ContainerBlock.craft = {
     maxWidthPx: null,
     align: "start",
     motion: DEFAULT_MOTION,
+    position: DEFAULT_FREE_POSITION,
   } satisfies ContainerBlockProps,
   related: { settings: ContainerSettings },
 };

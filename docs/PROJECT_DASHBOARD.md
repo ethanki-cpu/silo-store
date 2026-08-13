@@ -55,7 +55,15 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-107(홈페이지 슬라이드쇼를 Craft 위젯으로 전환) — 기존 `HeroSlideshow.tsx`
+EPIC-108(자유 배치(콜라주) + 홈페이지 슬라이드쇼 위젯 관리자 연동) —
+컨테이너/텍스트/이미지/버튼/영상/슬라이드쇼/게시판연동 7종에 이미지 위에
+이미지처럼 자유롭게 겹쳐 드래그하는 배치 기능(`FreePositionHandles`) 신설,
+`HeroSlideshowWidgetBlock`에 관리자 "홈페이지 설정 관리"와 실시간 연동
+토글 추가. `tsc`/`lint`/`build` 0 errors, 임시 진단 라우트로 겹침·드래그
+이동·리사이즈·실제 관리자 데이터 로딩 전부 실측 확인. 브랜치
+`feature/EPIC-108`.
+
+직전 EPIC-107(홈페이지 슬라이드쇼를 Craft 위젯으로 전환) — 기존 `HeroSlideshow.tsx`
 (히어로 슬라이드쇼, "홈페이지 설정 관리"가 관리하던 그 기능)를 새로 만들지
 않고 그대로 감싼 `HeroSlideshowWidgetBlock`으로 Craft 캔버스 어디든 삽입
 가능. `tsc`/`lint`/`build` 0 errors, 임시 진단 라우트로 실제 DOM 구조 일치

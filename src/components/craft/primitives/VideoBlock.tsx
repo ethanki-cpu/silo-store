@@ -1,10 +1,14 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
+import { useRef } from "react";
 import { EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
+import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
+import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
+import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
 
 export type VideoBlockProps = {
   url: string;
@@ -13,6 +17,7 @@ export type VideoBlockProps = {
   muted: boolean;
   aspectRatio: string;
   motion?: MotionConfig;
+  position?: FreePosition;
 };
 
 function parseEmbed(url: string): { type: "youtube" | "vimeo" | "file" | "empty"; id?: string } {
@@ -24,11 +29,13 @@ function parseEmbed(url: string): { type: "youtube" | "vimeo" | "file" | "empty"
   return { type: "file" };
 }
 
-export function VideoBlock({ url, autoplay, loop, muted, aspectRatio, motion = DEFAULT_MOTION }: VideoBlockProps) {
+export function VideoBlock({ url, autoplay, loop, muted, aspectRatio, motion = DEFAULT_MOTION, position = DEFAULT_FREE_POSITION }: VideoBlockProps) {
   const {
     connectors: { connect },
+    setProp,
   } = useNode();
   const editable = useCraftEditable();
+  const boxRef = useRef<HTMLDivElement>(null);
   const parsed = parseEmbed(url);
 
   let content;
@@ -82,10 +89,15 @@ export function VideoBlock({ url, autoplay, loop, muted, aspectRatio, motion = D
   }
 
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }} style={freePositionStyle(position)} className={position.enabled ? "h-full" : undefined}>
+      <FreePositionHandles
+        position={position}
+        onChange={(next) => setProp((p) => { p.position = next; })}
+        anchorRef={boxRef}
+      />
       <EditableBlockFrame label="영상">
-        <RevealWrapper motion={motion}>
-          <div style={{ aspectRatio }} className="overflow-hidden bg-black">
+        <RevealWrapper motion={motion} className={position.enabled ? "block h-full" : undefined}>
+          <div style={position.enabled ? undefined : { aspectRatio }} className="h-full w-full overflow-hidden bg-black">
             {content}
           </div>
         </RevealWrapper>
@@ -142,6 +154,7 @@ function VideoSettings() {
         />
       </label>
       <MotionSettingsSection />
+      <FreePositionSettingsSection />
     </div>
   );
 }
@@ -155,6 +168,7 @@ VideoBlock.craft = {
     muted: true,
     aspectRatio: "16/9",
     motion: DEFAULT_MOTION,
+    position: DEFAULT_FREE_POSITION,
   } satisfies VideoBlockProps,
   related: { settings: VideoSettings },
 };

@@ -1,10 +1,14 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
+import { useRef } from "react";
 import { EditableText, EditableBlockFrame } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
+import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
+import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
+import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
 
 export type TextBlockProps = {
   text: string;
@@ -13,6 +17,7 @@ export type TextBlockProps = {
   align: "left" | "center" | "right";
   color: string;
   motion?: MotionConfig;
+  position?: FreePosition;
 };
 
 const WEIGHT_CLASS: Record<TextBlockProps["fontWeight"], string> = {
@@ -28,14 +33,20 @@ const ALIGN_CLASS: Record<TextBlockProps["align"], string> = {
   right: "text-right",
 };
 
-export function TextBlock({ text, fontSizePx, fontWeight, align, color, motion = DEFAULT_MOTION }: TextBlockProps) {
+export function TextBlock({ text, fontSizePx, fontWeight, align, color, motion = DEFAULT_MOTION, position = DEFAULT_FREE_POSITION }: TextBlockProps) {
   const {
     connectors: { connect },
     setProp,
   } = useNode();
+  const boxRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }} style={freePositionStyle(position)}>
+      <FreePositionHandles
+        position={position}
+        onChange={(next) => setProp((p) => { p.position = next; })}
+        anchorRef={boxRef}
+      />
       <EditableBlockFrame label="텍스트">
         <RevealWrapper motion={motion}>
           <EditableText
@@ -103,6 +114,7 @@ function TextSettings() {
         />
       </label>
       <MotionSettingsSection />
+      <FreePositionSettingsSection />
     </div>
   );
 }
@@ -116,6 +128,7 @@ TextBlock.craft = {
     align: "left",
     color: "#111111",
     motion: DEFAULT_MOTION,
+    position: DEFAULT_FREE_POSITION,
   } satisfies TextBlockProps,
   related: { settings: TextSettings },
 };

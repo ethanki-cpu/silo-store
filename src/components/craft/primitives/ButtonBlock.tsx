@@ -1,16 +1,21 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
+import { useRef } from "react";
 import { EditableText, EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
+import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
+import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
+import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
 
 export type ButtonBlockProps = {
   label: string;
   href: string;
   variant: "primary" | "outline" | "text";
   motion?: MotionConfig;
+  position?: FreePosition;
 };
 
 const VARIANT_CLASS: Record<ButtonBlockProps["variant"], string> = {
@@ -19,15 +24,21 @@ const VARIANT_CLASS: Record<ButtonBlockProps["variant"], string> = {
   text: "text-gray-900 underline underline-offset-4 hover:text-gray-600",
 };
 
-export function ButtonBlock({ label, href, variant, motion = DEFAULT_MOTION }: ButtonBlockProps) {
+export function ButtonBlock({ label, href, variant, motion = DEFAULT_MOTION, position = DEFAULT_FREE_POSITION }: ButtonBlockProps) {
   const {
     connectors: { connect },
     setProp,
   } = useNode();
   const editable = useCraftEditable();
+  const boxRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }} style={freePositionStyle(position)}>
+      <FreePositionHandles
+        position={position}
+        onChange={(next) => setProp((p) => { p.position = next; })}
+        anchorRef={boxRef}
+      />
       <EditableBlockFrame label="버튼">
         <RevealWrapper motion={motion} className="inline-block">
           {editable ? (
@@ -77,6 +88,7 @@ function ButtonSettings() {
         </select>
       </label>
       <MotionSettingsSection />
+      <FreePositionSettingsSection />
     </div>
   );
 }
@@ -88,6 +100,7 @@ ButtonBlock.craft = {
     href: "/",
     variant: "primary",
     motion: DEFAULT_MOTION,
+    position: DEFAULT_FREE_POSITION,
   } satisfies ButtonBlockProps,
   related: { settings: ButtonSettings },
 };

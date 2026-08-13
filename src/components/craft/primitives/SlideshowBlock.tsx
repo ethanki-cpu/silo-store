@@ -5,12 +5,15 @@
 // 값만 다르고 나머지 구조(slides 배열, 이미지/제목/설명/링크)는 동일하기
 // 때문이다. 드래그-스크롤(mode="drag")은 이 레포에 전례가 없어 mousedown/
 // mousemove/mouseup 기반 scrollLeft 조작을 여기서 새로 구현한다.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNode } from "@craftjs/core";
 import { EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
+import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
+import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
+import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
 import { usePointerDragScroll } from "@/lib/usePointerDragScroll";
 import { uploadFile } from "@/lib/storage";
 
@@ -32,6 +35,7 @@ export type SlideshowBlockProps = {
   // 효과를 별도 JS 스크롤 리스너 없이 순수 CSS로 얻는다.
   sticky?: boolean;
   motion?: MotionConfig;
+  position?: FreePosition;
 };
 
 function AutoOrArrowsSlideshow({
@@ -39,11 +43,13 @@ function AutoOrArrowsSlideshow({
   mode,
   autoAdvanceSeconds,
   heightVh,
+  fillParent,
 }: {
   slides: SlideshowSlide[];
   mode: "auto" | "arrows";
   autoAdvanceSeconds: number;
   heightVh: number;
+  fillParent?: boolean;
 }) {
   const [current, setCurrent] = useState(0);
 
@@ -64,7 +70,7 @@ function AutoOrArrowsSlideshow({
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-gray-900" style={{ height: `${heightVh}vh` }}>
+    <div className="relative h-full w-full overflow-hidden bg-gray-900" style={fillParent ? undefined : { height: `${heightVh}vh` }}>
       {slides.map((slide, i) => (
         <a
           key={i}
@@ -114,7 +120,7 @@ function AutoOrArrowsSlideshow({
   );
 }
 
-function DragSlideshow({ slides, heightVh }: { slides: SlideshowSlide[]; heightVh: number }) {
+function DragSlideshow({ slides, heightVh, fillParent }: { slides: SlideshowSlide[]; heightVh: number; fillParent?: boolean }) {
   const { ref: scrollerRef, onPointerDown, onPointerMove, onPointerUp } = usePointerDragScroll<HTMLDivElement>();
 
   if (slides.length === 0) {
@@ -129,7 +135,7 @@ function DragSlideshow({ slides, heightVh }: { slides: SlideshowSlide[]; heightV
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerUp}
       className="flex cursor-grab select-none gap-3 overflow-x-auto active:cursor-grabbing"
-      style={{ height: `${heightVh}vh`, scrollSnapType: "x proximity" }}
+      style={{ height: fillParent ? "100%" : `${heightVh}vh`, scrollSnapType: "x proximity" }}
     >
       {slides.map((slide, i) => (
         <a
@@ -153,19 +159,38 @@ function DragSlideshow({ slides, heightVh }: { slides: SlideshowSlide[]; heightV
   );
 }
 
-export function SlideshowBlock({ mode, slides, autoAdvanceSeconds, heightVh, sticky = false, motion = DEFAULT_MOTION }: SlideshowBlockProps) {
+export function SlideshowBlock({
+  mode,
+  slides,
+  autoAdvanceSeconds,
+  heightVh,
+  sticky = false,
+  motion = DEFAULT_MOTION,
+  position = DEFAULT_FREE_POSITION,
+}: SlideshowBlockProps) {
   const {
     connectors: { connect },
+    setProp,
   } = useNode();
+  const boxRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }} className={sticky ? "sticky top-0 z-0" : undefined}>
+    <div
+      ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }}
+      style={position.enabled ? freePositionStyle(position) : undefined}
+      className={position.enabled ? "h-full" : sticky ? "sticky top-0 z-0" : undefined}
+    >
+      <FreePositionHandles
+        position={position}
+        onChange={(next) => setProp((p) => { p.position = next; })}
+        anchorRef={boxRef}
+      />
       <EditableBlockFrame label={`슬라이드쇼(${mode})`}>
-        <RevealWrapper motion={motion}>
+        <RevealWrapper motion={motion} className={position.enabled ? "block h-full" : undefined}>
           {mode === "drag" ? (
-            <DragSlideshow slides={slides} heightVh={heightVh} />
+            <DragSlideshow slides={slides} heightVh={heightVh} fillParent={position.enabled} />
           ) : (
-            <AutoOrArrowsSlideshow slides={slides} mode={mode} autoAdvanceSeconds={autoAdvanceSeconds} heightVh={heightVh} />
+            <AutoOrArrowsSlideshow slides={slides} mode={mode} autoAdvanceSeconds={autoAdvanceSeconds} heightVh={heightVh} fillParent={position.enabled} />
           )}
         </RevealWrapper>
       </EditableBlockFrame>
@@ -295,6 +320,7 @@ function SlideshowSettings() {
         </button>
       </div>
       <MotionSettingsSection />
+      <FreePositionSettingsSection />
     </div>
   );
 }
@@ -311,6 +337,7 @@ SlideshowBlock.craft = {
     heightVh: 70,
     sticky: false,
     motion: DEFAULT_MOTION,
+    position: DEFAULT_FREE_POSITION,
   } satisfies SlideshowBlockProps,
   related: { settings: SlideshowSettings },
 };

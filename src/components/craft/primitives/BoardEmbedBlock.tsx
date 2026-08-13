@@ -7,13 +7,16 @@
 // EPIC-103(Kinfolk 3rd/6th/9th/15th/4th 블록): "화면 어디든 클릭+드래그로
 // 좌우 이동하는 목록"(dragRow)과 "게시글 하나만 여백 넉넉하게 돋보이는"
 // (spotlight) 카드 스타일을 추가한다.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNode } from "@craftjs/core";
 import Link from "next/link";
 import { EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
+import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
+import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
+import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
 import { useBoardPosts } from "@/lib/useBoardPosts";
 import { usePointerDragScroll } from "@/lib/usePointerDragScroll";
 import type { BoardPost } from "@/lib/boardLayout";
@@ -26,6 +29,7 @@ export type BoardEmbedBlockProps = {
   // — 빈 문자열/미지정이면 전체(기존 동작과 동일, 하위 호환).
   category?: string;
   motion?: MotionConfig;
+  position?: FreePosition;
 };
 
 const GRID_CLASS: Record<"list" | "thumbnail" | "gallery", string> = {
@@ -141,15 +145,26 @@ function SpotlightPost({ post, boardId }: { post: BoardPost; boardId: string }) 
   );
 }
 
-export function BoardEmbedBlock({ boardId, cardStyle, count, category = "", motion = DEFAULT_MOTION }: BoardEmbedBlockProps) {
+export function BoardEmbedBlock({ boardId, cardStyle, count, category = "", motion = DEFAULT_MOTION, position = DEFAULT_FREE_POSITION }: BoardEmbedBlockProps) {
   const {
     connectors: { connect },
+    setProp,
   } = useNode();
+  const boxRef = useRef<HTMLDivElement>(null);
   const { posts, loading } = useBoardPosts(boardId || null, count, "latest", category || null);
   const slice = posts.slice(0, count);
 
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div
+      ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }}
+      style={freePositionStyle(position)}
+      className={position.enabled ? "h-full" : undefined}
+    >
+      <FreePositionHandles
+        position={position}
+        onChange={(next) => setProp((p) => { p.position = next; })}
+        anchorRef={boxRef}
+      />
       <EditableBlockFrame label="게시판 연동">
         <RevealWrapper motion={motion}>
           {!boardId ? (
@@ -252,6 +267,7 @@ function BoardEmbedSettings() {
         />
       </label>
       <MotionSettingsSection />
+      <FreePositionSettingsSection />
     </div>
   );
 }
@@ -264,6 +280,7 @@ BoardEmbedBlock.craft = {
     count: 6,
     category: "",
     motion: DEFAULT_MOTION,
+    position: DEFAULT_FREE_POSITION,
   } satisfies BoardEmbedBlockProps,
   related: { settings: BoardEmbedSettings },
 };

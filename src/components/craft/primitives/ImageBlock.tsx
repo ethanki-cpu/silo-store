@@ -1,10 +1,14 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
+import { useRef } from "react";
 import { EditableText, EditableResponsiveImage, EditableBlockFrame } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
+import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
+import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
+import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
 
 export type ImageBlockProps = {
   imageUrl: string;
@@ -19,6 +23,7 @@ export type ImageBlockProps = {
   overlayTitle?: string;
   overlaySummary?: string;
   motion?: MotionConfig;
+  position?: FreePosition;
 };
 
 export function ImageBlock({
@@ -31,11 +36,13 @@ export function ImageBlock({
   overlayTitle,
   overlaySummary,
   motion = DEFAULT_MOTION,
+  position = DEFAULT_FREE_POSITION,
 }: ImageBlockProps) {
   const {
     connectors: { connect },
     setProp,
   } = useNode();
+  const boxRef = useRef<HTMLDivElement>(null);
 
   const hasOverlay = overlayCategory || overlayTitle || overlaySummary;
 
@@ -45,13 +52,16 @@ export function ImageBlock({
       srcMobile={imageUrlMobile}
       onCommitDesktop={(next) => setProp((p) => { p.imageUrl = next; })}
       onCommitMobile={(next) => setProp((p) => { p.imageUrlMobile = next; })}
-      className={`w-full ${objectFit === "cover" ? "object-cover" : "object-contain"}`}
+      className={`w-full ${position.enabled ? "h-full" : ""} ${objectFit === "cover" ? "object-cover" : "object-contain"}`}
       uploadFolder="craft-primitives"
     />
   );
 
+  // 자유 배치 중에는 바깥 박스(freePositionStyle)가 이미 %로 크기를
+  // 정해주므로 aspectRatio를 또 적용하면 서로 충돌한다 — 자유 배치가
+  // 꺼져 있을 때만(기존 flow 배치) aspectRatio로 높이를 정한다.
   const body = (
-    <div style={{ aspectRatio }} className="relative overflow-hidden">
+    <div style={position.enabled ? undefined : { aspectRatio }} className="relative h-full w-full overflow-hidden">
       {image}
       {hasOverlay && (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-6 text-white">
@@ -85,11 +95,20 @@ export function ImageBlock({
   );
 
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div
+      ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }}
+      style={freePositionStyle(position)}
+      className={position.enabled ? "h-full" : undefined}
+    >
+      <FreePositionHandles
+        position={position}
+        onChange={(next) => setProp((p) => { p.position = next; })}
+        anchorRef={boxRef}
+      />
       <EditableBlockFrame label="이미지">
-        <RevealWrapper motion={motion}>
+        <RevealWrapper motion={motion} className={position.enabled ? "block h-full" : undefined}>
           {href ? (
-            <a href={href} className="block">
+            <a href={href} className={position.enabled ? "block h-full" : "block"}>
               {body}
             </a>
           ) : (
@@ -163,6 +182,7 @@ function ImageSettings() {
         </div>
       </div>
       <MotionSettingsSection />
+      <FreePositionSettingsSection />
     </div>
   );
 }
@@ -179,6 +199,7 @@ ImageBlock.craft = {
     overlayTitle: "",
     overlaySummary: "",
     motion: DEFAULT_MOTION,
+    position: DEFAULT_FREE_POSITION,
   } satisfies ImageBlockProps,
   related: { settings: ImageSettings },
 };

@@ -35,6 +35,31 @@ import type { TimelineItemSettings } from "@/lib/widgetSchema";
 import { uploadFile } from "@/lib/storage";
 import { AlternatingTimelineCanvas } from "@/components/modules/AlternatingTimelineCanvas";
 import { TimelineDescriptionEditor } from "@/components/admin/TimelineDescriptionEditor";
+import { TimelinePostPicker, type PickedPost } from "@/components/admin/TimelinePostPicker";
+import { sanitizeHtml } from "@/lib/sanitize";
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// EPIC-097 후속("게시글 연결"): PickedPost(제목/요약/썸네일/링크)를 항목
+// 필드로 매핑한다. Card Description은 다른 필드 입력과 동일하게 Tiptap
+// JSON을 원본으로 만들어야 나중에 에디터로 다시 열어도 정상 동작한다 —
+// 발췌 텍스트 하나짜리 최소 문단 문서로 감싼다.
+function mapPickedPostToItem(post: PickedPost): Partial<TimelineItemSettings> {
+  const descriptionJson = {
+    type: "doc",
+    content: [{ type: "paragraph", content: post.excerpt ? [{ type: "text", text: post.excerpt }] : [] }],
+  };
+  return {
+    cardTitle: post.title,
+    imageUrl: post.thumbnailUrl,
+    descriptionJson,
+    descriptionHtml: post.excerpt ? sanitizeHtml(`<p>${escapeHtml(post.excerpt)}</p>`) : "",
+    linkUrl: post.url,
+    linkedPostId: post.postId,
+  };
+}
 
 function newItem(): TimelineItemSettings {
   return { id: crypto.randomUUID(), title: "새 항목" };
@@ -158,6 +183,7 @@ function TimelineItemAccordion({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -193,6 +219,7 @@ function TimelineItemAccordion({
           ⠿
         </button>
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 truncate text-left text-sm">
+          {item.linkedPostId && <span title="게시글에서 가져옴">🔗 </span>}
           {item.title || "(제목 없음)"}
         </button>
         <button
@@ -216,6 +243,23 @@ function TimelineItemAccordion({
 
       {open && (
         <div className="space-y-3 border-t border-white/10 px-3 py-3">
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="w-full rounded-md border border-dashed border-white/20 py-1.5 text-xs text-gray-300 hover:border-white/40 hover:bg-white/5"
+          >
+            📎 게시글에서 가져오기{item.linkedPostId ? " (다시 가져오기)" : ""}
+          </button>
+          {pickerOpen && (
+            <TimelinePostPicker
+              onClose={() => setPickerOpen(false)}
+              onSelect={(post) => {
+                onChange(mapPickedPostToItem(post));
+                setPickerOpen(false);
+              }}
+            />
+          )}
+
           <Field label="Title">
             <input
               value={item.title}

@@ -73,8 +73,14 @@ export function TimelineDescriptionEditor({
     },
   });
 
-  // 아이템을 바꿔 끼울 때(다른 아코디언 항목을 열 때) 에디터 콘텐츠를
-  // 새 content로 갈아끼운다 — key로 컴포넌트를 통째로 리마운트하는 대신
+  // 아이템을 바꿔 끼울 때(다른 아코디언 항목을 열 때)뿐 아니라, "게시글에서
+  // 가져오기"처럼 부모가 content를 프로그래밍적으로 갈아끼울 때도 에디터가
+  // 그걸 반영해야 해서 content도 deps에 넣는다(EPIC-097 후속 — 원래는
+  // [editor]만 있어서 최초 마운트 이후 외부 content 변경이 화면에 전혀
+  // 반영되지 않는 버그가 있었다). JSON 문자열 비교로 "에디터가 이미 그
+  // 상태"인 경우(사용자가 타이핑해서 onUpdate→onChange→content prop이
+  // 그대로 되돌아온 경우)는 setContent를 다시 부르지 않아 무한 루프/커서
+  // 위치 초기화를 막는다 — key로 컴포넌트를 통째로 리마운트하는 대신
   // setContent를 쓰면 포커스/history가 불필요하게 초기화되지 않는다.
   useEffect(() => {
     if (!editor) return;
@@ -83,8 +89,7 @@ export function TimelineDescriptionEditor({
     if (current !== next) {
       editor.commands.setContent(content ?? { type: "doc", content: [{ type: "paragraph" }] }, { emitUpdate: false });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor]);
+  }, [editor, content]);
 
   if (!editor) return null;
 

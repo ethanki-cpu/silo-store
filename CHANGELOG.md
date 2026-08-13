@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-13 (EPIC-097 후속 — 타임라인 항목을 기존 게시글에서 가져오기)
+- **사용자 요청**: 타임라인 항목을 매번 손으로 입력하지 말고, 이미 존재하는 게시글을 연결해서 그 게시글의 썸네일/제목/내용 요약이 타임라인에 자동으로 나오게 해달라.
+- **`TimelinePostPicker` 신설**: 게시판 선택 + 제목 검색(기존 `GET /api/boards/[board_slug]/posts?q=` 그대로 재사용) + 목록(썸네일 미리보기 포함)으로 게시글 하나를 고르는 모달. `TimelineItemAccordion`에 "📎 게시글에서 가져오기" 버튼을 추가해 선택한 게시글의 `featured_image_url`(우선)/`photo_url`(폴백, `thumbnail_visible`가 false면 둘 다 무시) → Card Image, `title` → Card Title, `stripHtml(body).slice(0,120)` → Card Description(Tiptap 문단 하나짜리 문서로 감싸 저장), 게시글 URL(`/boards/[board_slug]/[post_slug]`) → Card Link로 한 번에 채운다. 실시간 동기화가 아니라 "가져오기"(스냅샷 복사) — 가져온 뒤에는 다른 필드처럼 자유롭게 고칠 수 있다. 출처 게시글 id는 `TimelineItemSettings.linkedPostId`에 참고용으로만 남기고(재동기화 로직 없음), 아코디언 헤더에 🔗 배지로 표시.
+- **버그 수정(TimelineDescriptionEditor)**: 콘텐츠 동기화 `useEffect`가 `[editor]`에만 의존해서, 최초 마운트 이후 부모가 `content`를 프로그래밍적으로 바꿔도(이번 "가져오기" 기능처럼) 에디터 화면에 반영되지 않는 버그가 있었다 — deps에 `content`를 추가(무한 루프는 기존의 JSON 문자열 동일성 비교로 방지).
+- **검증**: `npx tsc --noEmit` 0 errors, `npm run lint` 0 errors(새 경고 2건 — `TimelinePostPicker`의 board/posts 조회 `useEffect`가 이 저장소 전역에 이미 있는 "effect 안에서 setState" 패턴과 동일, 정책상 비차단). **다음 세션에서 확인 필요(관리자 로그인 세션)**: 실제로 게시글을 검색·선택해 항목에 채워지는지, 저장 후 공개 페이지에 썸네일/요약/링크가 정확히 반영되는지.
+- **변경 파일**: `src/components/admin/TimelinePostPicker.tsx`(신설), `src/components/admin/TimelineWidgetEditor.tsx`, `src/components/admin/TimelineDescriptionEditor.tsx`, `src/lib/widgetSchema.ts`.
+
 ## 2026-08-13 (EPIC-097 — 타임라인 위젯: 수동 항목 입력 + 프로 레벨 2단 Split 편집기)
 - **요청**: "타임라인 위젯 설정" 클릭 시 좌측(다크) 항목 입력 폼 + 우측(라이트) 실시간 프리뷰로 화면을 통째로 분할하는 웹 빌더급 UI. `dnd-kit`으로 항목 드래그 정렬, 아코디언으로 항목별 펼침(Title/Title Color/Subtitle/Card Image/Card Title/Card Description/Card Link/Link Target), `Tiptap` 미니 에디터로 카드 설명 입력.
 - **timeline 위젯을 board_id 연동에서 수동 항목 목록으로 전환**: 기존엔 `timeline` PageModuleType이 `BOARD_LINKED_MODULE_TYPES`에 포함돼 게시판 글을 그대로 받아 그렸다 — 참고 이미지의 데이터 모델(연도/타이틀/카드 이미지/설명/링크를 운영자가 직접 입력)과 맞지 않아 `BOARD_LINKED_MODULE_TYPES`에서 제거하고 `settings.items: TimelineItemSettings[]`(신설, `widgetSchema.ts`)로 바꿨다. 카드 설명은 Block Editor와 동일하게 Tiptap JSON을 원본으로, HTML은 편집 시점에 파생해 함께 저장(공개 렌더링이 에디터 없이 바로 그릴 수 있게, `sanitizeHtml` 적용).

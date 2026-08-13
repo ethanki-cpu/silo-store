@@ -168,6 +168,12 @@ export type TimelineItemSettings = {
   linkUrl?: string;
   linkText?: string;
   linkTarget?: "_self" | "_blank";
+  // EPIC-097 후속("게시글 연결"): "게시글에서 가져오기"로 기존 게시글의
+  // 썸네일/제목/요약을 이 항목에 한 번 복사해 넣었을 때, 그 출처 게시글
+  // id를 참고용으로 남긴다 — 실시간 동기화(게시글이 나중에 수정돼도 항목이
+  // 따라 바뀜)는 아니다, 가져온 뒤에는 다른 필드처럼 자유롭게 수정 가능한
+  // 독립된 사본. TimelineItemAccordion이 "🔗 연결됨" 배지를 보여주는 용도로만 쓴다.
+  linkedPostId?: string;
 };
 
 // ---- Inspector 필드 스키마: 체크박스/드롭다운/텍스트/숫자/목록만 사용 ----

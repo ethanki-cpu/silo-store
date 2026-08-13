@@ -204,7 +204,17 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-102
+EPIC-103
+Kinfolk 16블록 홈 레이아웃 — EPIC-102 원자 블록을 조합해 Kinfolk.com 홈페이지
+1~16번 블록 구조를 재현. `SlideshowBlock.sticky`(1번, 커튼 효과)/
+`BoardEmbedBlock.dragRow`·`spotlight`(3/6/9/4번)/`ImageBlock` 오버레이
+캡션(5/8/10/13번)/신규 `ShopItemsGridBlock`(12번, 가격 있는 사일로 상점
+데이터). `src/components/craft/home/defaultTree.tsx` 재구성. `tsc`/`lint`/
+`build` 0 errors, 로컬 진단 라우트로 16블록 전체 실데이터 렌더링 확인. 홈
+페이지에 이미 저장된 `craft_state`가 있어 라이브 반영은 사용자 결정 대기.
+브랜치 `feature/EPIC-103`.
+
+직전 EPIC-102
 Craft.js 프리폼 에디터 코어 — Kinfolk 홈페이지 16블록 재현 요청을 계기로,
 "정해진 섹션 블록만 추가" 방식이던 Craft 에디터를 "컨테이너 안에 원자 블록을
 자유롭게 드래그앤드롭 + 개별 설정 패널 + 공통 모션"으로 전환하는 기반 작업.

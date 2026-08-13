@@ -12,6 +12,7 @@ import { VideoBlock } from "./VideoBlock";
 import { SlideshowBlock } from "./SlideshowBlock";
 import { BoardEmbedBlock } from "./BoardEmbedBlock";
 import { TimelineEmbedBlock } from "./TimelineEmbedBlock";
+import { ShopItemsGridBlock } from "./ShopItemsGridBlock";
 
 export {
   ContainerBlock,
@@ -22,6 +23,7 @@ export {
   SlideshowBlock,
   BoardEmbedBlock,
   TimelineEmbedBlock,
+  ShopItemsGridBlock,
 };
 
 export const PRIMITIVE_RESOLVER: Resolver = {
@@ -33,6 +35,7 @@ export const PRIMITIVE_RESOLVER: Resolver = {
   SlideshowBlock,
   BoardEmbedBlock,
   TimelineEmbedBlock,
+  ShopItemsGridBlock,
 };
 
 // ContainerBlock은 canvas(다른 블록을 담는 그릇)라서 `<Element canvas>`로
@@ -50,4 +53,5 @@ export const PRIMITIVE_BLOCK_OPTIONS: CraftBlockOption[] = [
   { label: "슬라이드쇼", buildElement: () => createElement(SlideshowBlock, SlideshowBlock.craft.props) },
   { label: "게시판 연동", buildElement: () => createElement(BoardEmbedBlock, BoardEmbedBlock.craft.props) },
   { label: "타임라인 연동", buildElement: () => createElement(TimelineEmbedBlock, TimelineEmbedBlock.craft.props) },
+  { label: "사일로 상점 목록", buildElement: () => createElement(ShopItemsGridBlock, ShopItemsGridBlock.craft.props) },
 ];

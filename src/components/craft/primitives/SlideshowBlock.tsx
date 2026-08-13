@@ -5,12 +5,13 @@
 // 값만 다르고 나머지 구조(slides 배열, 이미지/제목/설명/링크)는 동일하기
 // 때문이다. 드래그-스크롤(mode="drag")은 이 레포에 전례가 없어 mousedown/
 // mousemove/mouseup 기반 scrollLeft 조작을 여기서 새로 구현한다.
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useState } from "react";
 import { useNode } from "@craftjs/core";
 import { EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
+import { usePointerDragScroll } from "@/lib/usePointerDragScroll";
 import { uploadFile } from "@/lib/storage";
 
 export type SlideshowSlide = {
@@ -25,6 +26,11 @@ export type SlideshowBlockProps = {
   slides: SlideshowSlide[];
   autoAdvanceSeconds: number;
   heightVh: number;
+  // EPIC-103(Kinfolk 2nd 블록): true면 이 슬라이드쇼가 `position: sticky`로
+  // 뷰포트에 고정된다 — 바로 다음 형제 블록(문서 순서상 더 나중, 불투명
+  // 배경)이 스크롤을 따라 그 위로 자연스럽게 덮어 올라오는 "장막이 걷히는"
+  // 효과를 별도 JS 스크롤 리스너 없이 순수 CSS로 얻는다.
+  sticky?: boolean;
   motion?: MotionConfig;
 };
 
@@ -109,27 +115,7 @@ function AutoOrArrowsSlideshow({
 }
 
 function DragSlideshow({ slides, heightVh }: { slides: SlideshowSlide[]; heightVh: number }) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<{ startX: number; startScrollLeft: number; dragging: boolean }>({
-    startX: 0,
-    startScrollLeft: 0,
-    dragging: false,
-  });
-
-  function onPointerDown(e: ReactPointerEvent) {
-    const node = scrollerRef.current;
-    if (!node) return;
-    dragState.current = { startX: e.clientX, startScrollLeft: node.scrollLeft, dragging: true };
-    node.setPointerCapture(e.pointerId);
-  }
-  function onPointerMove(e: ReactPointerEvent) {
-    const node = scrollerRef.current;
-    if (!node || !dragState.current.dragging) return;
-    node.scrollLeft = dragState.current.startScrollLeft - (e.clientX - dragState.current.startX);
-  }
-  function onPointerUp() {
-    dragState.current.dragging = false;
-  }
+  const { ref: scrollerRef, onPointerDown, onPointerMove, onPointerUp } = usePointerDragScroll<HTMLDivElement>();
 
   if (slides.length === 0) {
     return <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs text-gray-400">슬라이드를 추가하세요</div>;
@@ -167,13 +153,13 @@ function DragSlideshow({ slides, heightVh }: { slides: SlideshowSlide[]; heightV
   );
 }
 
-export function SlideshowBlock({ mode, slides, autoAdvanceSeconds, heightVh, motion = DEFAULT_MOTION }: SlideshowBlockProps) {
+export function SlideshowBlock({ mode, slides, autoAdvanceSeconds, heightVh, sticky = false, motion = DEFAULT_MOTION }: SlideshowBlockProps) {
   const {
     connectors: { connect },
   } = useNode();
 
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div ref={(dom) => { if (dom) connect(dom); }} className={sticky ? "sticky top-0 z-0" : undefined}>
       <EditableBlockFrame label={`슬라이드쇼(${mode})`}>
         <RevealWrapper motion={motion}>
           {mode === "drag" ? (
@@ -246,6 +232,14 @@ function SlideshowSettings() {
           className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
         />
       </label>
+      <label className="flex items-center gap-2 text-xs text-gray-600">
+        <input
+          type="checkbox"
+          checked={props.sticky ?? false}
+          onChange={(e) => setProp((p) => { p.sticky = e.target.checked; })}
+        />
+        스크롤 시 뒤 블록이 위로 덮이도록 고정(커튼 효과)
+      </label>
 
       <div className="border-t border-gray-200 pt-3">
         <h4 className="mb-2 text-xs font-semibold text-gray-500">슬라이드 ({props.slides.length})</h4>
@@ -315,6 +309,7 @@ SlideshowBlock.craft = {
     ],
     autoAdvanceSeconds: 5,
     heightVh: 70,
+    sticky: false,
     motion: DEFAULT_MOTION,
   } satisfies SlideshowBlockProps,
   related: { settings: SlideshowSettings },

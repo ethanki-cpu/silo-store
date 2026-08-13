@@ -55,7 +55,16 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-102(Craft.js 프리폼 에디터 코어) — Kinfolk 홈페이지 16블록 재현 요청을 계기로,
+EPIC-103(Kinfolk 16블록 홈 레이아웃) — EPIC-102 원자 블록을 조합해 Kinfolk.com
+홈페이지 1~16번 블록 구조를 재현(`src/components/craft/home/defaultTree.tsx`
+재구성). `SlideshowBlock.sticky`(커튼 효과)/`BoardEmbedBlock.dragRow`·
+`spotlight`/`ImageBlock` 오버레이 캡션/신규 `ShopItemsGridBlock`(가격 있는
+사일로 상점 데이터). `tsc`/`lint`/`build` 0 errors. **아직 라이브에 반영 안
+됨**(홈페이지에 이미 저장된 `craft_state`가 있어 기본 트리 변경만으로는
+실제 사이트가 안 바뀜 — 라이브 전환 여부 사용자 결정 대기). 상세는
+[docs/EPIC.md](EPIC.md)/CHANGELOG.md 참고. 브랜치 `feature/EPIC-103`.
+
+직전 EPIC-102(Craft.js 프리폼 에디터 코어) — Kinfolk 홈페이지 16블록 재현 요청을 계기로,
 "정해진 6~7종 섹션 블록만 추가" 방식이던 Craft 에디터를 "컨테이너 안에 원자 블록을
 자유롭게 드래그앤드롭 + 개별 설정 패널(`craft.related`, 이 코드베이스 최초 도입) +
 공통 모션"으로 전환하는 기반 작업. 원자 블록 8종(Container/Text/Image/Button/Video/

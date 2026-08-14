@@ -152,17 +152,23 @@ type TopTabStyleEntry = {
   bold: boolean;
   color: string;
   customFonts: CustomFontEntry[];
+  // EPIC-117(사용자 지시): 이 탭을 "1단"(로고 줄과 겹치는 자리)에 배치할지
+  // "2단"(기존 탭 줄)에 배치할지 — 없거나 2면 기존과 완전히 동일하게 동작.
+  tier?: 1 | 2;
 };
 type TopTabStyleValue = {
   tabs: Record<string, TopTabStyleEntry>;
   // EPIC-110: 상단 탭 줄(nav) 전체의 높이(px) — null이면 기존처럼 탭
   // 버튼의 padding에 맞춰 자동으로 정해진다.
   rowHeightPx: number | null;
+  // EPIC-117: 1단 탭 줄이 로고 줄 경계선을 기준으로 위로 추가 이동하는
+  // 픽셀 값(기본 0) — Navbar.tsx 참고.
+  tier1OffsetPx: number;
 };
 type TopNavRow = { id: string; key: string | null; title: string; sort_order: number };
 
 function defaultTopTabStyleEntry(): TopTabStyleEntry {
-  return { labelOverride: "", fontFamily: "", fontSizePx: null, bold: false, color: "", customFonts: [] };
+  return { labelOverride: "", fontFamily: "", fontSizePx: null, bold: false, color: "", customFonts: [], tier: 2 };
 }
 
 const MAX_WALLPAPERS = 10;
@@ -303,7 +309,7 @@ export default function AdminNavigationSettingsPage() {
   const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
     DEFAULT_SIDEBAR_ICONS,
   );
-  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue>({ tabs: {}, rowHeightPx: null });
+  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue>({ tabs: {}, rowHeightPx: null, tier1OffsetPx: 0 });
   const [topNavRows, setTopNavRows] = useState<TopNavRow[]>([]);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -390,7 +396,11 @@ export default function AdminNavigationSettingsPage() {
           });
         } else if (row.setting_key === "top_tab_style") {
           const value = row.setting_value as Partial<TopTabStyleValue> | null;
-          setTopTabStyle({ tabs: value?.tabs ?? {}, rowHeightPx: value?.rowHeightPx ?? null });
+          setTopTabStyle({
+            tabs: value?.tabs ?? {},
+            rowHeightPx: value?.rowHeightPx ?? null,
+            tier1OffsetPx: value?.tier1OffsetPx ?? 0,
+          });
         }
       }
       setFetching(false);
@@ -1258,22 +1268,44 @@ export default function AdminNavigationSettingsPage() {
             이름이 그대로 쓰여요. 탭 자체를 추가/삭제/순서 변경하려면
             &quot;사이트 구성 관리&quot; 화면을 이용하세요.
           </p>
-          <div className="mb-3">
-            <label className="block text-sm mb-1">상단 탭 섹션 높이 (px, 비우면 자동)</label>
-            <input
-              type="number"
-              min={16}
-              max={400}
-              className={`${inputClass} w-28`}
-              value={topTabStyle.rowHeightPx ?? ""}
-              placeholder="자동"
-              onChange={(e) =>
-                setTopTabStyle({
-                  ...topTabStyle,
-                  rowHeightPx: e.target.value === "" ? null : Math.max(16, Number(e.target.value) || 40),
-                })
-              }
-            />
+          <div className="mb-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm mb-1">상단 탭 섹션 높이 (px, 비우면 자동)</label>
+              <input
+                type="number"
+                min={16}
+                max={400}
+                className={`${inputClass} w-28`}
+                value={topTabStyle.rowHeightPx ?? ""}
+                placeholder="자동"
+                onChange={(e) =>
+                  setTopTabStyle({
+                    ...topTabStyle,
+                    rowHeightPx: e.target.value === "" ? null : Math.max(16, Number(e.target.value) || 40),
+                  })
+                }
+              />
+            </div>
+            <div>
+              {/* EPIC-117(사용자 지시): 아래 각 탭의 "표시 위치"를 1단으로
+                  지정하면 로고 줄 하단 경계선에 걸치게(로고 줄 절반+2단 탭
+                  줄 절반) 자동 배치되는데, 이 값으로 위/아래 미세 조정을
+                  더한다(양수면 더 위로, 즉 로고 줄 쪽으로 더 겹친다). */}
+              <label className="block text-sm mb-1">1단 겹침 정도 (px, 로고 줄 쪽으로 더 이동)</label>
+              <input
+                type="number"
+                min={-100}
+                max={200}
+                className={`${inputClass} w-28`}
+                value={topTabStyle.tier1OffsetPx}
+                onChange={(e) =>
+                  setTopTabStyle({
+                    ...topTabStyle,
+                    tier1OffsetPx: Number(e.target.value) || 0,
+                  })
+                }
+              />
+            </div>
           </div>
           {topNavRows.length === 0 ? (
             <p className="text-sm text-gray-400">아직 등록된 상단 탭이 없어요.</p>
@@ -1356,6 +1388,21 @@ function TopTabStyleRow({
           onChange={(e) => onChange({ labelOverride: e.target.value })}
           placeholder={originalTitle}
         />
+      </div>
+
+      {/* EPIC-117(사용자 지시): "1단"을 고르면 이 탭이 기존 탭 줄(2단)이
+          아니라 로고 줄과 겹치는 자리에 뜬다 — 위 "1단 겹침 정도"로
+          겹치는 정도를 조절. */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">표시 위치</label>
+        <select
+          className={inputClass}
+          value={entry.tier === 1 ? "1" : "2"}
+          onChange={(e) => onChange({ tier: e.target.value === "1" ? 1 : 2 })}
+        >
+          <option value="2">2단(기본, 기존 탭 줄)</option>
+          <option value="1">1단(로고 섹션과 겹치게 배치)</option>
+        </select>
       </div>
 
       <div>

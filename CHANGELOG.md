@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-15 (EPIC-117 — 상단 탭 1단/2단 배치, 1단은 로고 섹션과 겹치게)
+- **배경**: 사용자가 손그림 스크린샷으로 요청 — "온라인 도슨트/스튜디오/마이 페이지"는 로고 줄(1단)과 겹치는 자리에, "About Silo/사일로 상점/살롱데상"은 기존 탭 줄(2단)에 두는 2단 구조.
+- **`Navbar.tsx`**: `TopTabStyleEntry.tier?: 1 | 2`(탭별 배치 지정, 없으면 2)와 `TopTabStyleValue.tier1OffsetPx`(1단 줄의 위/아래 미세 조정 px) 신설. 기존에 `<nav>` 안 인라인 `.map()` 콜백이던 탭 1개 렌더링 로직(단순 링크/드롭다운/메가메뉴/2차 플라이아웃 전부 포함)을 `renderTab()` 함수로 뽑아 1단/2단 두 자리에서 그대로 재사용 — 로직 중복 없이 동일한 드롭다운/hover 동작을 두 자리 모두에서 유지한다. 1단 탭 줄은 로고 줄 컨테이너(`relative` 추가) 안에 `position: absolute; bottom: 0; translate-y-1/2`로 배치해 **자기 높이의 절반이 항상 로고 줄 하단 경계선에 걸치도록**(로고 줄에 절반, 2단 탭 줄에 절반) 만들고, `tier1OffsetPx`로 추가 조정한다. 1단 오버레이 바깥 wrapper는 `pointer-events-none`(로고/계정 영역 클릭을 가리지 않게), 안쪽 탭 그룹만 `pointer-events-auto`.
+- **`/admin/navigation/settings`**: "상단 탭 디자인" 섹션에 "1단 겹침 정도(px)" 전역 입력 + 탭마다 "표시 위치"(1단/2단) select 추가.
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors. 로컬 dev + Browser pane 실측: 온라인 도슨트/스튜디오/마이 페이지를 1단으로 저장 → 홈페이지에서 실제로 로고 줄 경계선에 걸쳐 뜨는 것을 스크린샷으로 확인(사용자 레퍼런스 이미지와 배치 일치), 2단 `<nav>`에는 About Silo/사일로 상점/살롱데상만 남는 것 확인, "글쓰기" 버튼도 마이 페이지가 옮겨간 1단 쪽에 함께 따라가는 것 확인. **검증 중 겪은 삽질**: 코드 저장 직후 홈페이지 nav가 완전히 빈 채로 뜨는 현상을 봐서 처음엔 내 코드가 깨진 줄 알고 `git stash`까지 해서 원인 조사했으나, 재현이 안 되고(서버 재시작 후 정상) dev 서버/Turbopack HMR 쪽 일시적 현상으로 결론 — 실제 코드 결함 아님(재현 스크립트로 반복 확인).
+- **변경 파일**: `src/components/Navbar.tsx`, `src/app/admin/navigation/settings/page.tsx`.
+
 ## 2026-08-15 (HOTFIX-116 — `next build` 타입 에러로 EPIC-113부터 dev.silostore.net 배포가 전부 실패하던 문제 수정)
 - **배경**: 사용자가 "https://dev.silostore.net/about-silo 에서 (3D 우주가) 안 보인다"고 신고. 실제로 열어보니 `x-matched-path: /[...slug]`(구 catch-all 위젯 페이지)가 뜨고 있었다 — EPIC-113(신규 정적 라우트 `src/app/about-silo/page.tsx`)이 반영 안 된 상태.
 - **근본 원인**: `npm run build`(`next build`)가 `src/components/craft/shared/SettingsSidebar.tsx:35`에서 `Type '{}' is not assignable to type 'never'`로 실패하고 있었다 — `<selected.Settings />`의 `Settings` 타입이 이 저장소에 등록된 모든 Craft 블록의 `related.settings` 컴포넌트 타입을 전부 합쳐 추론되는데, 블록 종류가 계속 늘면서(EPIC-102~115) 그 교집합이 `never`로 붕괴한 것. **`npx tsc --noEmit`은 이 에러를 재현하지 않아**(별도 타입체크 경로/파일 분석 순서 차이로 추정) EPIC-113/114/115 세 번의 CHANGELOG 항목 모두 "무관한 기존 에러, 영향 없음"으로 기록된 채 실제 `next build` 성공 여부는 한 번도 재확인되지 않았다 — Vercel은 `next build`를 쓰므로, **EPIC-113이 머지된 시점부터 develop/main에 대한 모든 배포가 조용히 실패**하고 있었고(빌드 실패 시 Vercel은 마지막 성공 배포를 계속 서빙), dev.silostore.net은 그 이전 커밋에 멈춰 있었던 것으로 추정된다.

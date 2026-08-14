@@ -79,11 +79,18 @@ type TopTabStyleEntry = {
   bold: boolean;
   color: string;
   customFonts: CustomFontEntry[];
+  // EPIC-117(사용자 지시): 이 탭을 "1단"(로고 줄과 겹치는 자리)에 배치할지
+  // "2단"(기존 탭 줄)에 배치할지 — 없거나 2면 기존과 완전히 동일하게 동작.
+  tier?: 1 | 2;
 };
 type TopTabStyleValue = {
   tabs: Record<string, TopTabStyleEntry>;
   // EPIC-110: 상단 탭 줄(nav) 전체의 높이(px) — null이면 기존처럼 자동.
   rowHeightPx: number | null;
+  // EPIC-117: 1단 탭 줄이 로고 줄 경계선을 기준으로 위로 추가 이동하는
+  // 픽셀 값(기본 0) — 1단 탭 줄 자체는 항상 자기 높이의 50%만큼 로고 줄
+  // 쪽으로 겹치도록(straddle) 고정해두고, 이 값으로 미세 조정만 한다.
+  tier1OffsetPx: number;
 };
 
 const DEFAULT_LOGO_TEXT = "사일로 스토어";
@@ -299,7 +306,12 @@ export function Navbar() {
       .then(({ data }) => {
         if (cancelled) return;
         const value = data?.setting_value as Partial<TopTabStyleValue> | null;
-        if (value?.tabs) setTopTabStyle({ tabs: value.tabs, rowHeightPx: value.rowHeightPx ?? null });
+        if (value?.tabs)
+          setTopTabStyle({
+            tabs: value.tabs,
+            rowHeightPx: value.rowHeightPx ?? null,
+            tier1OffsetPx: value.tier1OffsetPx ?? 0,
+          });
       });
     return () => {
       cancelled = true;
@@ -405,6 +417,245 @@ export function Navbar() {
     .filter(Boolean)
     .join("\n");
 
+  // EPIC-117(사용자 지시): 탭을 "1단"(로고 줄과 겹치는 자리)/"2단"(기존
+  // 탭 줄) 중 어디에 배치할지 — /admin/navigation/settings "상단 탭
+  // 디자인"에서 탭별로 지정한다. 지정 안 하면(기존 데이터) 전부 2단.
+  function tabTier(tab: NavTab): 1 | 2 {
+    return topTabEntries[tab.key]?.tier === 1 ? 1 : 2;
+  }
+  const tier1Tabs = navTabs.filter((tab) => tabTier(tab) === 1);
+  const tier2Tabs = navTabs.filter((tab) => tabTier(tab) !== 1);
+
+  // EPIC-079-PHASE-4/EPIC-117: 탭 하나(type이 "link"인 단순 링크, 또는
+  // 드롭다운/메가메뉴가 있는 버튼)를 렌더링 — 원래 <nav> 안의 map 콜백
+  // 이었는데, 1단/2단 두 자리에서 똑같이 재사용하려고 함수로 뽑았다.
+  function renderTab(tab: NavTab) {
+    // EPIC-079-PHASE-4: "상단 탭 디자인"에서 저장한 표시 텍스트
+    // 오버라이드/커스텀 클래스 — 값이 없으면 완전히 기존과 동일.
+    const tabStyleEntry = topTabEntries[tab.key];
+    const tabLabel = tabStyleEntry?.labelOverride || tab.label;
+    const tabStyleClassName = tabStyleEntry ? `silo-top-tab-${topTabClassSuffix(tab.key)}` : "";
+
+    // EPIC-084-REVISED: 전역 "글쓰기" 버튼 — "마이 페이지" 탭 바로
+    // 오른쪽에 노출한다(요구사항 갱신: 기존 EPIC-084는 왼쪽에 뒀었는데
+    // "마이 페이지 오른쪽"으로 정정됨 — 최종 순서 About Silo | 사일로
+    // 상점 | 살롱데상 | 스튜디오 | 마이 페이지 | 글쓰기). 이 탭 순서가
+    // 항상 고정은 아니지만(§1 문서 기준 DOM 순서일 뿐 site_navigations
+    // sort_order로 바뀔 수 있음) key === "mypage"인 탭 바로 뒤에
+    // 끼워 넣는 것이 "마이 페이지 오른쪽"이라는 요구를 가장 안정적으로
+    // 만족한다.
+    const writeButtonEl =
+      tab.key === "mypage" ? (
+        <Link
+          key="global-write-button"
+          href={writeHref}
+          className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}
+        >
+          글쓰기
+        </Link>
+      ) : null;
+
+    if (tab.type === "link") {
+      const className = `${TAB_BUTTON_BASE} ${
+        activeTabKey === tab.key ? TAB_BUTTON_ACTIVE : TAB_BUTTON_INACTIVE
+      } ${tabStyleClassName}`;
+      return (
+        <Fragment key={tab.key}>
+          <GatedNavLink href={tab.href!} minRankToRead={tab.minRankToRead} className={className}>
+            {tabLabel}
+          </GatedNavLink>
+          {writeButtonEl}
+        </Fragment>
+      );
+    }
+
+    const isRouteActive = activeTabKey === tab.key;
+    const hasChildren =
+      (tab.groups && tab.groups.length > 0) ||
+      (tab.items && tab.items.length > 0);
+
+    // hover 중(group-hover/tab)에는 사이드바와 동일한 테마 색상
+    // (green-800)으로, 그 외엔 route-active 여부만 반영한다.
+    const className = [
+      tabStyleClassName,
+      TAB_BUTTON_BASE,
+      isRouteActive ? "border-gray-800 font-medium" : "border-transparent",
+      isRouteActive ? "text-gray-900" : "text-gray-500",
+      "group-hover/tab:bg-green-800 group-hover/tab:text-white group-hover/tab:border-green-800",
+    ].join(" ");
+
+    return (
+      <Fragment key={tab.key}>
+        <div className="relative group/tab">
+        {/* EPIC-058: href가 있는 드롭다운 트리거(예: 스튜디오 →
+            /studio)는 클릭하면 Hub Page로 이동한다 — 펼침(hover)은
+            기존 그대로 별도 동작이라 이동 여부와 섞이지 않는다. href가
+            없는 탭은 기존처럼 클릭 불가한 버튼. */}
+        {tab.href ? (
+          <GatedNavLink
+            href={tab.href}
+            minRankToRead={tab.minRankToRead}
+            onClick={(e) => e.currentTarget.blur()}
+            className={className}
+            aria-haspopup={hasChildren ? "true" : undefined}
+          >
+            {tabLabel}
+          </GatedNavLink>
+        ) : (
+          <button
+            type="button"
+            className={className}
+            aria-haspopup={hasChildren ? "true" : undefined}
+          >
+            {tabLabel}
+          </button>
+        )}
+
+        {hasChildren && (
+          // 브릿지: top-full로 버튼 바로 아래에 붙이고, pt-4를 이
+          // wrapper 자신의 padding으로 둬 hover 시 그 여백까지 hover
+          // 판정 영역에 포함시킨다(마우스가 버튼→메뉴로 내려가는
+          // 동안 hover가 끊기지 않게).
+          // EPIC-054D(접근성 감사 §13): group-focus-within도 함께
+          // 걸어 키보드 Tab만으로도 열리게 한다 — 트리거 버튼에
+          // 포커스가 오면 :focus-within이 매칭돼 패널이 보이고, 그
+          // 다음 Tab이 자연스럽게 안쪽 링크로 이어진다(JS state 없이
+          // 순수 CSS로, EPIC-041-042-HOTFIX가 피하려던 JS hover 버그를
+          // 재도입하지 않음).
+          <div className="hidden group-hover/tab:block group-focus-within/tab:block absolute left-0 top-full pt-4 z-40">
+            <div className="w-64 rounded-md border border-gray-200 bg-white shadow-md py-2">
+              {tab.groups && tab.groups.length > 0
+                ? tab.groups.map((group) => {
+                    // HOTFIX-096(사용자 지시): group.items가 비어있는
+                    // 그룹(예: "Silo's old Story", DB 자식 노드 0개)도
+                    // 이 chevron(›)과 2차 플라이아웃을 무조건 렌더링해,
+                    // 실제로는 펼칠 게 없는데도 화살표가 보이고
+                    // hover하면 빈 흰색 박스만 뜨는("이상한 빈칸") 문제가
+                    // 있었다. tab.items 분기(item.children.length > 0)와
+                    // 동일하게 items가 있을 때만 chevron/플라이아웃을
+                    // 렌더링한다.
+                    const hasItems = group.items.length > 0;
+                    return (
+                    <div key={group.groupLabel} className="relative group/row">
+                      {/* EPIC-054D(접근성 감사 §13): 순수 텍스트 div였던
+                          그룹 라벨을 포커스 가능한 버튼으로 바꿔 Tab으로도
+                          도달 가능하게 한다 — 그래야 group-focus-within/row가
+                          트리거될 수 있다(숨겨진(hidden) 자손은 애초에 Tab으로
+                          포커스를 받을 수 없어, 트리거 자체가 포커스 가능해야
+                          2차 플라이아웃이 키보드로도 열린다).
+                          EPIC-063: group.href가 있으면(사일로 보물들→/treasures,
+                          온라인 도슨트→/docent, 사일로 유산→/heritage,
+                          커뮤니티→/community, 멤버십→/membership,
+                          갤러리→/gallery, 아카이브→/archive 등) 클릭 시 해당
+                          Hub Page로 이동하는 Link로 렌더링 — LeftSidebar.tsx/
+                          RightSidebar.tsx와 동일한 분기(href 없으면 클릭 불가
+                          버튼 그대로 유지). 펼침(hover)은 이동과 무관하게
+                          기존 그대로 group-hover/row로 동작한다.
+                          EPIC-069 후속 핫픽스: 클릭하면 브라우저가 이 Link에
+                          포커스를 주는데, Next.js 클라이언트 사이드 라우팅은
+                          포커스를 초기화하지 않아 이동 후에도 이 Link가 계속
+                          포커스를 쥐고 있었다 — group-focus-within/row(그리고
+                          조상인 group-focus-within/tab)가 계속 참으로 남아
+                          마우스가 벗어나도 이 그룹(과 상위 탭 메가메뉴)이
+                          펼쳐진 채로 "고정"되는 버그의 실제 원인이었다.
+                          onClick에서 즉시 blur()해 해결. */}
+                      {group.href ? (
+                        <GatedNavLink
+                          href={group.href}
+                          minRankToRead={group.minRankToRead}
+                          onClick={(e) => e.currentTarget.blur()}
+                          aria-haspopup={hasItems ? "true" : undefined}
+                          className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                        >
+                          <span>{group.groupLabel}</span>
+                          {hasItems && <span className="text-gray-400 text-xs">›</span>}
+                        </GatedNavLink>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-haspopup={hasItems ? "true" : undefined}
+                          className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50 text-left"
+                        >
+                          <span>{group.groupLabel}</span>
+                          {hasItems && <span className="text-gray-400 text-xs">›</span>}
+                        </button>
+                      )}
+                      {/* 2차 플라이아웃 — group-hover/row 또는
+                          group-focus-within/row로 노출, JS 없음.
+                          pl-2가 그룹 행↔플라이아웃 사이의 브릿지 역할.
+                          hasItems일 때만 렌더링(위 HOTFIX-096 참고). */}
+                      {hasItems && (
+                        <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
+                          <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
+                            {group.items.map((item, idx) => (
+                              <GatedNavLink
+                                key={`${item.href}-${idx}`}
+                                href={item.href}
+                                minRankToRead={item.minRankToRead}
+                                onClick={(e) => e.currentTarget.blur()}
+                                className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                {item.label}
+                              </GatedNavLink>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    );
+                  })
+                : (tab.items ?? []).map((item) =>
+                    item.children && item.children.length > 0 ? (
+                      // EPIC-079-PHASE-2: 드롭다운 항목도 서브카테고리(손자)가
+                      // 있으면 group과 동일한 2차 플라이아웃 패턴으로 렌더링.
+                      <div key={item.href} className="relative group/row">
+                        <GatedNavLink
+                          href={item.href}
+                          minRankToRead={item.minRankToRead}
+                          onClick={(e) => e.currentTarget.blur()}
+                          aria-haspopup="true"
+                          className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                        >
+                          <span>{item.label}</span>
+                          <span className="text-gray-400 text-xs">›</span>
+                        </GatedNavLink>
+                        <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
+                          <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
+                            {item.children.map((child, idx) => (
+                              <GatedNavLink
+                                key={`${child.href}-${idx}`}
+                                href={child.href}
+                                minRankToRead={child.minRankToRead}
+                                onClick={(e) => e.currentTarget.blur()}
+                                className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                {child.label}
+                              </GatedNavLink>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <GatedNavLink
+                        key={item.href}
+                        href={item.href}
+                        minRankToRead={item.minRankToRead}
+                        onClick={(e) => e.currentTarget.blur()}
+                        className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        {item.label}
+                      </GatedNavLink>
+                    ),
+                  )}
+            </div>
+          </div>
+        )}
+        </div>
+        {writeButtonEl}
+      </Fragment>
+    );
+  }
+
   return (
     <header>
       {/* EPIC-104: 로고 줄+탭 줄만 fixed+transform으로 띄워 스크롤 방향에
@@ -457,7 +708,7 @@ export function Navbar() {
       )}
       {topTabStyleCss && <style>{topTabStyleCss}</style>}
       <div
-        className="flex items-center p-4 gap-4"
+        className="relative flex items-center p-4 gap-4"
         style={mainLogo?.rowHeightPx ? { minHeight: mainLogo.rowHeightPx } : undefined}
       >
         {/* EPIC-039: 로고 이미지를 중앙에 두고 좌/우 텍스트를 대칭으로
@@ -563,6 +814,22 @@ export function Navbar() {
             />
           )}
         </div>
+
+        {/* EPIC-117(사용자 지시): "1단" 탭 — 로고 줄 바깥(2단, 아래 nav)이
+            아니라 로고 줄 자체와 겹치는 자리에 배치한다. translate-y-1/2로
+            이 줄 자신의 높이 절반만큼 아래로 밀어 로고 줄 하단 경계선에
+            걸치게(로고 줄에 절반, 2단 탭 줄에 절반 겹치도록) 만들고,
+            tier1OffsetPx로 위/아래 미세 조정을 더한다. */}
+        {tier1Tabs.length > 0 && (
+          <div
+            className="pointer-events-none absolute bottom-0 right-4 z-10 flex translate-y-1/2 items-center gap-1"
+            style={topTabStyle?.tier1OffsetPx ? { transform: `translateY(calc(50% - ${topTabStyle.tier1OffsetPx}px))` } : undefined}
+          >
+            <div className="pointer-events-auto flex items-center gap-1">
+              {tier1Tabs.map(renderTab)}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 상단 탭: DB(site_navigations)에서 조회한 navTabs를 그대로 순회하며
@@ -588,232 +855,7 @@ export function Navbar() {
         className="flex flex-wrap items-center justify-center gap-1 px-4 border-t border-gray-100"
         style={topTabStyle?.rowHeightPx ? { minHeight: topTabStyle.rowHeightPx } : undefined}
       >
-        {navTabs.map((tab) => {
-          // EPIC-079-PHASE-4: "상단 탭 디자인"에서 저장한 표시 텍스트
-          // 오버라이드/커스텀 클래스 — 값이 없으면 완전히 기존과 동일.
-          const tabStyleEntry = topTabEntries[tab.key];
-          const tabLabel = tabStyleEntry?.labelOverride || tab.label;
-          const tabStyleClassName = tabStyleEntry ? `silo-top-tab-${topTabClassSuffix(tab.key)}` : "";
-
-          // EPIC-084-REVISED: 전역 "글쓰기" 버튼 — "마이 페이지" 탭 바로
-          // 오른쪽에 노출한다(요구사항 갱신: 기존 EPIC-084는 왼쪽에 뒀었는데
-          // "마이 페이지 오른쪽"으로 정정됨 — 최종 순서 About Silo | 사일로
-          // 상점 | 살롱데상 | 스튜디오 | 마이 페이지 | 글쓰기). 이 탭 순서가
-          // 항상 고정은 아니지만(§1 문서 기준 DOM 순서일 뿐 site_navigations
-          // sort_order로 바뀔 수 있음) key === "mypage"인 탭 바로 뒤에
-          // 끼워 넣는 것이 "마이 페이지 오른쪽"이라는 요구를 가장 안정적으로
-          // 만족한다.
-          const writeButtonEl =
-            tab.key === "mypage" ? (
-              <Link
-                key="global-write-button"
-                href={writeHref}
-                className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}
-              >
-                글쓰기
-              </Link>
-            ) : null;
-
-          if (tab.type === "link") {
-            const className = `${TAB_BUTTON_BASE} ${
-              activeTabKey === tab.key ? TAB_BUTTON_ACTIVE : TAB_BUTTON_INACTIVE
-            } ${tabStyleClassName}`;
-            return (
-              <Fragment key={tab.key}>
-                <GatedNavLink href={tab.href!} minRankToRead={tab.minRankToRead} className={className}>
-                  {tabLabel}
-                </GatedNavLink>
-                {writeButtonEl}
-              </Fragment>
-            );
-          }
-
-          const isRouteActive = activeTabKey === tab.key;
-          const hasChildren =
-            (tab.groups && tab.groups.length > 0) ||
-            (tab.items && tab.items.length > 0);
-
-          // hover 중(group-hover/tab)에는 사이드바와 동일한 테마 색상
-          // (green-800)으로, 그 외엔 route-active 여부만 반영한다.
-          const className = [
-            tabStyleClassName,
-            TAB_BUTTON_BASE,
-            isRouteActive ? "border-gray-800 font-medium" : "border-transparent",
-            isRouteActive ? "text-gray-900" : "text-gray-500",
-            "group-hover/tab:bg-green-800 group-hover/tab:text-white group-hover/tab:border-green-800",
-          ].join(" ");
-
-          return (
-            <Fragment key={tab.key}>
-              <div className="relative group/tab">
-              {/* EPIC-058: href가 있는 드롭다운 트리거(예: 스튜디오 →
-                  /studio)는 클릭하면 Hub Page로 이동한다 — 펼침(hover)은
-                  기존 그대로 별도 동작이라 이동 여부와 섞이지 않는다. href가
-                  없는 탭은 기존처럼 클릭 불가한 버튼. */}
-              {tab.href ? (
-                <GatedNavLink
-                  href={tab.href}
-                  minRankToRead={tab.minRankToRead}
-                  onClick={(e) => e.currentTarget.blur()}
-                  className={className}
-                  aria-haspopup={hasChildren ? "true" : undefined}
-                >
-                  {tabLabel}
-                </GatedNavLink>
-              ) : (
-                <button
-                  type="button"
-                  className={className}
-                  aria-haspopup={hasChildren ? "true" : undefined}
-                >
-                  {tabLabel}
-                </button>
-              )}
-
-              {hasChildren && (
-                // 브릿지: top-full로 버튼 바로 아래에 붙이고, pt-4를 이
-                // wrapper 자신의 padding으로 둬 hover 시 그 여백까지 hover
-                // 판정 영역에 포함시킨다(마우스가 버튼→메뉴로 내려가는
-                // 동안 hover가 끊기지 않게).
-                // EPIC-054D(접근성 감사 §13): group-focus-within도 함께
-                // 걸어 키보드 Tab만으로도 열리게 한다 — 트리거 버튼에
-                // 포커스가 오면 :focus-within이 매칭돼 패널이 보이고, 그
-                // 다음 Tab이 자연스럽게 안쪽 링크로 이어진다(JS state 없이
-                // 순수 CSS로, EPIC-041-042-HOTFIX가 피하려던 JS hover 버그를
-                // 재도입하지 않음).
-                <div className="hidden group-hover/tab:block group-focus-within/tab:block absolute left-0 top-full pt-4 z-40">
-                  <div className="w-64 rounded-md border border-gray-200 bg-white shadow-md py-2">
-                    {tab.groups && tab.groups.length > 0
-                      ? tab.groups.map((group) => {
-                          // HOTFIX-096(사용자 지시): group.items가 비어있는
-                          // 그룹(예: "Silo's old Story", DB 자식 노드 0개)도
-                          // 이 chevron(›)과 2차 플라이아웃을 무조건 렌더링해,
-                          // 실제로는 펼칠 게 없는데도 화살표가 보이고
-                          // hover하면 빈 흰색 박스만 뜨는("이상한 빈칸") 문제가
-                          // 있었다. tab.items 분기(item.children.length > 0)와
-                          // 동일하게 items가 있을 때만 chevron/플라이아웃을
-                          // 렌더링한다.
-                          const hasItems = group.items.length > 0;
-                          return (
-                          <div key={group.groupLabel} className="relative group/row">
-                            {/* EPIC-054D(접근성 감사 §13): 순수 텍스트 div였던
-                                그룹 라벨을 포커스 가능한 버튼으로 바꿔 Tab으로도
-                                도달 가능하게 한다 — 그래야 group-focus-within/row가
-                                트리거될 수 있다(숨겨진(hidden) 자손은 애초에 Tab으로
-                                포커스를 받을 수 없어, 트리거 자체가 포커스 가능해야
-                                2차 플라이아웃이 키보드로도 열린다).
-                                EPIC-063: group.href가 있으면(사일로 보물들→/treasures,
-                                온라인 도슨트→/docent, 사일로 유산→/heritage,
-                                커뮤니티→/community, 멤버십→/membership,
-                                갤러리→/gallery, 아카이브→/archive 등) 클릭 시 해당
-                                Hub Page로 이동하는 Link로 렌더링 — LeftSidebar.tsx/
-                                RightSidebar.tsx와 동일한 분기(href 없으면 클릭 불가
-                                버튼 그대로 유지). 펼침(hover)은 이동과 무관하게
-                                기존 그대로 group-hover/row로 동작한다.
-                                EPIC-069 후속 핫픽스: 클릭하면 브라우저가 이 Link에
-                                포커스를 주는데, Next.js 클라이언트 사이드 라우팅은
-                                포커스를 초기화하지 않아 이동 후에도 이 Link가 계속
-                                포커스를 쥐고 있었다 — group-focus-within/row(그리고
-                                조상인 group-focus-within/tab)가 계속 참으로 남아
-                                마우스가 벗어나도 이 그룹(과 상위 탭 메가메뉴)이
-                                펼쳐진 채로 "고정"되는 버그의 실제 원인이었다.
-                                onClick에서 즉시 blur()해 해결. */}
-                            {group.href ? (
-                              <GatedNavLink
-                                href={group.href}
-                                minRankToRead={group.minRankToRead}
-                                onClick={(e) => e.currentTarget.blur()}
-                                aria-haspopup={hasItems ? "true" : undefined}
-                                className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
-                              >
-                                <span>{group.groupLabel}</span>
-                                {hasItems && <span className="text-gray-400 text-xs">›</span>}
-                              </GatedNavLink>
-                            ) : (
-                              <button
-                                type="button"
-                                aria-haspopup={hasItems ? "true" : undefined}
-                                className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50 text-left"
-                              >
-                                <span>{group.groupLabel}</span>
-                                {hasItems && <span className="text-gray-400 text-xs">›</span>}
-                              </button>
-                            )}
-                            {/* 2차 플라이아웃 — group-hover/row 또는
-                                group-focus-within/row로 노출, JS 없음.
-                                pl-2가 그룹 행↔플라이아웃 사이의 브릿지 역할.
-                                hasItems일 때만 렌더링(위 HOTFIX-096 참고). */}
-                            {hasItems && (
-                              <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
-                                <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
-                                  {group.items.map((item, idx) => (
-                                    <GatedNavLink
-                                      key={`${item.href}-${idx}`}
-                                      href={item.href}
-                                      minRankToRead={item.minRankToRead}
-                                      onClick={(e) => e.currentTarget.blur()}
-                                      className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                    >
-                                      {item.label}
-                                    </GatedNavLink>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          );
-                        })
-                      : (tab.items ?? []).map((item) =>
-                          item.children && item.children.length > 0 ? (
-                            // EPIC-079-PHASE-2: 드롭다운 항목도 서브카테고리(손자)가
-                            // 있으면 group과 동일한 2차 플라이아웃 패턴으로 렌더링.
-                            <div key={item.href} className="relative group/row">
-                              <GatedNavLink
-                                href={item.href}
-                                minRankToRead={item.minRankToRead}
-                                onClick={(e) => e.currentTarget.blur()}
-                                aria-haspopup="true"
-                                className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
-                              >
-                                <span>{item.label}</span>
-                                <span className="text-gray-400 text-xs">›</span>
-                              </GatedNavLink>
-                              <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
-                                <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
-                                  {item.children.map((child, idx) => (
-                                    <GatedNavLink
-                                      key={`${child.href}-${idx}`}
-                                      href={child.href}
-                                      minRankToRead={child.minRankToRead}
-                                      onClick={(e) => e.currentTarget.blur()}
-                                      className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                    >
-                                      {child.label}
-                                    </GatedNavLink>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <GatedNavLink
-                              key={item.href}
-                              href={item.href}
-                              minRankToRead={item.minRankToRead}
-                              onClick={(e) => e.currentTarget.blur()}
-                              className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                              {item.label}
-                            </GatedNavLink>
-                          ),
-                        )}
-                  </div>
-                </div>
-              )}
-              </div>
-              {writeButtonEl}
-            </Fragment>
-          );
-        })}
+        {tier2Tabs.map(renderTab)}
       </nav>
       </div>
       {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이

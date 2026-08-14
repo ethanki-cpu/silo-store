@@ -1,6 +1,7 @@
 # EPIC LIST
 
 ## 진행중
+- EPIC-113 : /about-silo를 "어린 왕자" 감성의 3D 우주(Universe) 프로토타입으로 개편 — `three`/`@react-three/fiber`/`@react-three/drei` 신설, 피보나치 구면 배치 + 툰 셰이딩 행성 + 클릭 fly-to(`CameraControls`) + 거리 기반 LOD(궤도 사진↔사일로상점/살롱데상/온라인도슨트 노드 전환) + 유저 위성. `tsc`/`lint` 0 errors, Browser pane 실측(휠 dolly는 자동화 한계로 코드 리뷰만). 상세는 CHANGELOG.md 동명 항목 참고. 브랜치 `feature/EPIC-113`, main/develop 병합은 실제 마우스 휠 테스트 확인 후 진행.
 - EPIC-112 : [Stage 2] Universal JSON Editor 도입(Tiptap + SunEditor Classic UI) — 데이터 파이프라인(JSON 정본 저장, 구형 HTML 폴백)은 EPIC-053.1부터 이미 구축돼 있어 신규 작업 없음. `BlockEditor.tsx` 툴바를 SunEditor `buttonList` 그룹핑 문법(`[...]`+`"|"`)으로 재배치(기능 삭제 없음, lucide-react 아이콘화, undo/redo 버튼 신규). `tsc`/`lint` 0 errors. 상세는 CHANGELOG.md 동명 항목 참고. 브랜치 `feature/EPIC-112`, main/develop 병합은 로그인 세션 실사용 확인 후 진행.
 
 ## 완료

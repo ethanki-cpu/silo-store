@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { inputClass, primaryButtonClass, smallButtonClass } from "../shared";
-import { MobilePreviewFrame } from "@/components/admin/MobilePreviewFrame";
+import { LivePreviewFrame } from "@/components/admin/LivePreviewFrame";
 import {
   normalizeHeroSlideshow,
   defaultHeroSlideshowValue,
@@ -164,6 +164,8 @@ type TopTabStyleValue = {
   // EPIC-117: 1단 탭 줄이 로고 줄 경계선을 기준으로 위로 추가 이동하는
   // 픽셀 값(기본 0) — Navbar.tsx 참고.
   tier1OffsetPx: number;
+  // EPIC-118(사용자 지시): 2단(기존 탭 줄)도 위/아래로 미세 이동 — 양수면 위로.
+  tier2OffsetPx: number;
 };
 type TopNavRow = { id: string; key: string | null; title: string; sort_order: number };
 
@@ -295,21 +297,15 @@ export default function AdminNavigationSettingsPage() {
     setHeroSlideshow((prev) => ({ ...prev, [heroTab]: { ...prev[heroTab], ...patch } }));
   }
 
-  // EPIC-094(요구사항 1.3): 우측 실시간 모바일 프리뷰어에 넘길 "첫 번째
-  // 유효 모바일 슬라이드" — heroSlideshow.mobile 참조가 실제로 바뀔 때만
-  // (즉 모바일 탭을 편집할 때만) 새로 계산한다. PC 탭만 편집 중일 때는
-  // heroSlideshow.mobile 참조가 그대로라 이 useMemo도, 그 아래
-  // React.memo(MobilePreviewFrame)도 재계산/재렌더링되지 않는다.
-  const mobilePreviewSlide = useMemo(() => {
-    const slides = heroSlideshow.mobile.slides.filter(
-      (s) => s.imageUrl || s.title || s.description,
-    );
-    return slides[0] ?? null;
-  }, [heroSlideshow.mobile]);
+  // EPIC-118(사용자 지시): 손으로 흉내 낸 가짜 미리보기(MobilePreviewFrame)
+  // 대신 실제 홈페이지("/")를 iframe으로 띄우는 진짜 미리보기로 교체 —
+  // 저장 성공 시(각 섹션 handleSave)마다 이 값을 올려 iframe을 새로
+  // 불러온다(LivePreviewFrame.tsx의 key prop이 이 값을 그대로 씀).
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
   const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
     DEFAULT_SIDEBAR_ICONS,
   );
-  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue>({ tabs: {}, rowHeightPx: null, tier1OffsetPx: 0 });
+  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue>({ tabs: {}, rowHeightPx: null, tier1OffsetPx: 0, tier2OffsetPx: 0 });
   const [topNavRows, setTopNavRows] = useState<TopNavRow[]>([]);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -400,6 +396,7 @@ export default function AdminNavigationSettingsPage() {
             tabs: value?.tabs ?? {},
             rowHeightPx: value?.rowHeightPx ?? null,
             tier1OffsetPx: value?.tier1OffsetPx ?? 0,
+            tier2OffsetPx: value?.tier2OffsetPx ?? 0,
           });
         }
       }
@@ -418,6 +415,10 @@ export default function AdminNavigationSettingsPage() {
       return;
     }
     setSavedKey(key);
+    // EPIC-118: 저장이 실제로 반영된 뒤 미리보기 iframe을 새로 불러온다
+    // (LivePreviewFrame의 key prop이 이 값을 그대로 씀 — 값이 바뀌면
+    // React가 iframe을 통째로 새로 마운트해 최신 페이지를 다시 불러온다).
+    setPreviewRefreshKey((k) => k + 1);
   }
 
   function addSlide() {
@@ -1268,9 +1269,12 @@ export default function AdminNavigationSettingsPage() {
             이름이 그대로 쓰여요. 탭 자체를 추가/삭제/순서 변경하려면
             &quot;사이트 구성 관리&quot; 화면을 이용하세요.
           </p>
-          <div className="mb-3 grid grid-cols-2 gap-3">
+          <div className="mb-3 grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm mb-1">상단 탭 섹션 높이 (px, 비우면 자동)</label>
+              {/* EPIC-118(사용자 지시로 라벨 보강): min-height라 탭 버튼
+                  기본 높이(약 36px)보다 작은 값은 시각적으로 아무 효과가
+                  없다 — "설정해도 변화 없다" 혼동을 막기 위해 명시. */}
+              <label className="block text-sm mb-1">상단 탭 섹션 높이 (px, 비우면 자동 — 기본(~36px)보다 작으면 효과 없음)</label>
               <input
                 type="number"
                 min={16}
@@ -1287,10 +1291,13 @@ export default function AdminNavigationSettingsPage() {
               />
             </div>
             <div>
-              {/* EPIC-117(사용자 지시): 아래 각 탭의 "표시 위치"를 1단으로
+              {/* EPIC-117/118(사용자 지시): 아래 각 탭의 "표시 위치"를 1단으로
                   지정하면 로고 줄 하단 경계선에 걸치게(로고 줄 절반+2단 탭
                   줄 절반) 자동 배치되는데, 이 값으로 위/아래 미세 조정을
-                  더한다(양수면 더 위로, 즉 로고 줄 쪽으로 더 겹친다). */}
+                  더한다(양수면 더 위로, 즉 로고 줄 쪽으로 더 겹친다). 가로
+                  위치는 더 이상 이 화면에서 조절할 필요가 없다 — 계정
+                  영역(로그인/로그아웃 등) 바로 앞자리에 자동으로 배치돼
+                  겹치지 않는다. */}
               <label className="block text-sm mb-1">1단 겹침 정도 (px, 로고 줄 쪽으로 더 이동)</label>
               <input
                 type="number"
@@ -1302,6 +1309,22 @@ export default function AdminNavigationSettingsPage() {
                   setTopTabStyle({
                     ...topTabStyle,
                     tier1OffsetPx: Number(e.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">2단 위치 조정 (px, 위로 이동)</label>
+              <input
+                type="number"
+                min={-100}
+                max={200}
+                className={`${inputClass} w-28`}
+                value={topTabStyle.tier2OffsetPx}
+                onChange={(e) =>
+                  setTopTabStyle({
+                    ...topTabStyle,
+                    tier2OffsetPx: Number(e.target.value) || 0,
                   })
                 }
               />
@@ -1343,17 +1366,33 @@ export default function AdminNavigationSettingsPage() {
         </section>
         </div>
 
-        <aside className="sticky top-6 hidden w-[320px] shrink-0 xl:block">
-          <p className="mb-2 text-sm font-medium text-gray-600">실시간 모바일 프리뷰</p>
-          <MobilePreviewFrame
-            slide={mobilePreviewSlide}
-            objectFit={heroSlideshow.mobile.objectFit}
-            mainLogo={mainLogo}
-            marginTopPx={heroSlideshow.mobile.marginTopPx}
-            marginBottomPx={heroSlideshow.mobile.marginBottomPx}
-            marginLeftPx={heroSlideshow.mobile.marginLeftPx}
-            marginRightPx={heroSlideshow.mobile.marginRightPx}
-          />
+        <aside className="sticky top-6 hidden w-[380px] shrink-0 xl:block">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-600">실시간 미리보기 (실제 홈페이지)</p>
+            <button
+              type="button"
+              onClick={() => setPreviewRefreshKey((k) => k + 1)}
+              className="text-xs text-gray-500 hover:underline"
+            >
+              ↻ 새로고침
+            </button>
+          </div>
+          <p className="mb-3 text-xs text-gray-400">
+            아래는 실제 배포되는 홈페이지를 그대로 축소해 보여줘요 — 100% 실제
+            화면이라 어떤 설정이든 정확히 반영돼요. 단, 타이핑 중인 값이 아니라
+            &quot;저장하기&quot;를 누른 값을 보여주므로(브라우저가 아니라 DB를
+            읽는 실제 페이지라서), 저장할 때마다 자동으로 새로고침돼요.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <p className="mb-1 text-xs font-medium text-gray-500">PC</p>
+              <LivePreviewFrame device="pc" refreshKey={previewRefreshKey} />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium text-gray-500">모바일</p>
+              <LivePreviewFrame device="mobile" refreshKey={previewRefreshKey} />
+            </div>
+          </div>
         </aside>
       </div>
     </main>

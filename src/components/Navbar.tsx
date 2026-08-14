@@ -91,6 +91,9 @@ type TopTabStyleValue = {
   // 픽셀 값(기본 0) — 1단 탭 줄 자체는 항상 자기 높이의 50%만큼 로고 줄
   // 쪽으로 겹치도록(straddle) 고정해두고, 이 값으로 미세 조정만 한다.
   tier1OffsetPx: number;
+  // EPIC-118(사용자 지시 — "1단, 2단 위치를 둘다 정할 수 있게 해줘야지"):
+  // 2단(기존 탭 줄) 자체도 위/아래로 미세 이동할 수 있게 — 양수면 위로.
+  tier2OffsetPx: number;
 };
 
 const DEFAULT_LOGO_TEXT = "사일로 스토어";
@@ -311,6 +314,7 @@ export function Navbar() {
             tabs: value.tabs,
             rowHeightPx: value.rowHeightPx ?? null,
             tier1OffsetPx: value.tier1OffsetPx ?? 0,
+            tier2OffsetPx: value.tier2OffsetPx ?? 0,
           });
       });
     return () => {
@@ -738,6 +742,21 @@ export function Navbar() {
           </div>
         </div>
 
+        {/* EPIC-118(사용자 지시): 이전엔 이 자리를 absolute+right-4로 페이지
+            맨 오른쪽에 고정했는데, 로그인 상태(관리자/등급/이름/로그아웃
+            버튼들)와 겹쳐버리는 버그가 있었다 — 계정 영역 바로 앞에 오는
+            일반 flex 형제로 바꿔 가로 위치는 flexbox가 자동으로(계정 영역과
+            절대 안 겹치게) 잡아주고, translateY만 줘서 세로로는 여전히
+            로고 줄 하단 경계선에 걸치는(straddle) 효과를 낸다. */}
+        {tier1Tabs.length > 0 && (
+          <div
+            className="relative z-10 flex shrink-0 translate-y-1/2 items-center gap-1"
+            style={topTabStyle?.tier1OffsetPx ? { transform: `translateY(calc(50% - ${topTabStyle.tier1OffsetPx}px))` } : undefined}
+          >
+            {tier1Tabs.map(renderTab)}
+          </div>
+        )}
+
         <div className="flex items-center gap-3 shrink-0 relative">
           {mounted && !loading && session && member?.is_admin && (
             <Link
@@ -814,22 +833,6 @@ export function Navbar() {
             />
           )}
         </div>
-
-        {/* EPIC-117(사용자 지시): "1단" 탭 — 로고 줄 바깥(2단, 아래 nav)이
-            아니라 로고 줄 자체와 겹치는 자리에 배치한다. translate-y-1/2로
-            이 줄 자신의 높이 절반만큼 아래로 밀어 로고 줄 하단 경계선에
-            걸치게(로고 줄에 절반, 2단 탭 줄에 절반 겹치도록) 만들고,
-            tier1OffsetPx로 위/아래 미세 조정을 더한다. */}
-        {tier1Tabs.length > 0 && (
-          <div
-            className="pointer-events-none absolute bottom-0 right-4 z-10 flex translate-y-1/2 items-center gap-1"
-            style={topTabStyle?.tier1OffsetPx ? { transform: `translateY(calc(50% - ${topTabStyle.tier1OffsetPx}px))` } : undefined}
-          >
-            <div className="pointer-events-auto flex items-center gap-1">
-              {tier1Tabs.map(renderTab)}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 상단 탭: DB(site_navigations)에서 조회한 navTabs를 그대로 순회하며
@@ -852,8 +855,11 @@ export function Navbar() {
           .group이고 hover 중이면" 매칭하므로, 상위 탭에 마우스를 올리기만
           해도 모든 하위 그룹의 2차 플라이아웃이 한꺼번에 열려버린다. */}
       <nav
-        className="flex flex-wrap items-center justify-center gap-1 px-4 border-t border-gray-100"
-        style={topTabStyle?.rowHeightPx ? { minHeight: topTabStyle.rowHeightPx } : undefined}
+        className="relative flex flex-wrap items-center justify-center gap-1 px-4 border-t border-gray-100"
+        style={{
+          ...(topTabStyle?.rowHeightPx ? { minHeight: topTabStyle.rowHeightPx } : undefined),
+          ...(topTabStyle?.tier2OffsetPx ? { transform: `translateY(-${topTabStyle.tier2OffsetPx}px)` } : undefined),
+        }}
       >
         {tier2Tabs.map(renderTab)}
       </nav>

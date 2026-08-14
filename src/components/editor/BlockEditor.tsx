@@ -5,6 +5,36 @@ import type { EditorView } from "@tiptap/pm/view";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import type { NodeViewProps } from "@tiptap/react";
+import {
+  Undo2,
+  Redo2,
+  Bold as BoldIcon,
+  Italic as ItalicIcon,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  ListChecks,
+  Quote,
+  Minus,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Eraser,
+  Link2,
+  ImagePlus,
+  Images,
+  PlayCircle,
+  ExternalLink,
+  Table as TableIcon,
+  BookMarked,
+  Eye,
+  EyeOff,
+  Save,
+} from "lucide-react";
 import { uploadToR2Media, uploadMultipleToR2Media, uploadExternalUrlToR2Media } from "@/lib/r2Upload";
 import { supabase } from "@/lib/supabaseClient";
 import { useCustomFonts } from "@/lib/useCustomFonts";
@@ -189,6 +219,18 @@ function ToolbarButton({
       {label && <span className="text-[10px] leading-none whitespace-nowrap">{label}</span>}
     </button>
   );
+}
+
+// EPIC-112: SunEditor의 `buttonList` 배열 문법([...]로 묶고 "|"로 그룹을
+// 구분하는 것)을 시각적 스타일로 참고해, 기존 툴바가 이미 갖고 있던 모든
+// 기능은 그대로 둔 채 성격이 비슷한 버튼끼리 묶고 그 사이에 구분선을 넣는
+// "Classic Toolbar" 형태로 재배치한다 — 기능 삭제 없음, 순수 그룹핑/아이콘화.
+function ToolbarGroup({ children }: { children: React.ReactNode }) {
+  return <div className="flex items-center gap-0.5">{children}</div>;
+}
+
+function ToolbarDivider() {
+  return <div className="w-px h-6 bg-gray-300 mx-1" />;
 }
 
 // ============================================================
@@ -1244,80 +1286,89 @@ function Toolbar({
 
   return (
     <div className="flex flex-wrap gap-1 border border-gray-300 border-b-0 rounded-t-md bg-gray-50 p-2 items-center">
-      <div className="flex gap-0.5">
+      {/* [undo, redo] */}
+      <ToolbarGroup>
+        <ToolbarButton title="실행 취소 (Ctrl+Z)" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
+          <Undo2 size={16} />
+        </ToolbarButton>
+        <ToolbarButton title="다시 실행 (Ctrl+Shift+Z)" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}>
+          <Redo2 size={16} />
+        </ToolbarButton>
+      </ToolbarGroup>
+
+      <ToolbarDivider />
+
+      {/* [bold, italic, underline, strike] */}
+      <ToolbarGroup>
         <ToolbarButton title="굵게 (B)" onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}>
-          <span className="font-bold">B</span>
+          <BoldIcon size={16} />
         </ToolbarButton>
         <ToolbarButton title="기울임 (I)" onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")}>
-          <span className="italic">I</span>
+          <ItalicIcon size={16} />
         </ToolbarButton>
         <ToolbarButton title="밑줄 (U)" onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")}>
-          <span className="underline">U</span>
+          <UnderlineIcon size={16} />
         </ToolbarButton>
         <ToolbarButton title="취소선" onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")}>
-          <span className="line-through">S</span>
+          <Strikethrough size={16} />
         </ToolbarButton>
-      </div>
+      </ToolbarGroup>
 
-      <div className="w-px h-6 bg-gray-300 mx-1" />
+      <ToolbarDivider />
 
-      <div className="flex gap-0.5">
-        {[1, 2, 3].map((level) => (
-          <ToolbarButton
-            key={level}
-            title={`제목 ${level}`}
-            onClick={() => editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 }).run()}
-            active={editor.isActive("heading", { level })}
-          >
-            H{level}
-          </ToolbarButton>
-        ))}
-      </div>
+      {/* [heading1, heading2, heading3] */}
+      <ToolbarGroup>
+        <ToolbarButton title="제목 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive("heading", { level: 1 })}>
+          <Heading1 size={16} />
+        </ToolbarButton>
+        <ToolbarButton title="제목 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })}>
+          <Heading2 size={16} />
+        </ToolbarButton>
+        <ToolbarButton title="제목 3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })}>
+          <Heading3 size={16} />
+        </ToolbarButton>
+      </ToolbarGroup>
 
-      <div className="w-px h-6 bg-gray-300 mx-1" />
+      <ToolbarDivider />
 
-      <div className="flex gap-0.5">
+      {/* [bulletList, orderedList, taskList, blockquote, horizontalRule] */}
+      <ToolbarGroup>
         <ToolbarButton title="글머리 목록" onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")}>
-          •_LIST
+          <List size={16} />
         </ToolbarButton>
         <ToolbarButton title="번호 목록" onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")}>
-          1_LIST
+          <ListOrdered size={16} />
         </ToolbarButton>
         <ToolbarButton title="체크리스트" onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive("taskList")}>
-          ☑
+          <ListChecks size={16} />
         </ToolbarButton>
-      </div>
-
-      <div className="w-px h-6 bg-gray-300 mx-1" />
-
-      <div className="flex gap-0.5">
         <ToolbarButton title="인용문" onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")}>
-          &ldquo;
+          <Quote size={16} />
         </ToolbarButton>
         <ToolbarButton title="구분선" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
-          —
+          <Minus size={16} />
         </ToolbarButton>
-      </div>
+      </ToolbarGroup>
 
-      <div className="w-px h-6 bg-gray-300 mx-1" />
+      <ToolbarDivider />
 
-      <div className="flex gap-0.5">
+      {/* [alignLeft, alignCenter, alignRight] */}
+      <ToolbarGroup>
         <ToolbarButton title="왼쪽 정렬" onClick={() => editor.chain().focus().setTextAlign("left").run()} active={editor.isActive({ textAlign: "left" })}>
-          ≡L
+          <AlignLeft size={16} />
         </ToolbarButton>
         <ToolbarButton title="중앙 정렬" onClick={() => editor.chain().focus().setTextAlign("center").run()} active={editor.isActive({ textAlign: "center" })}>
-          ≡C
+          <AlignCenter size={16} />
         </ToolbarButton>
         <ToolbarButton title="오른쪽 정렬" onClick={() => editor.chain().focus().setTextAlign("right").run()} active={editor.isActive({ textAlign: "right" })}>
-          ≡R
+          <AlignRight size={16} />
         </ToolbarButton>
-      </div>
+      </ToolbarGroup>
 
-      <div className="w-px h-6 bg-gray-300 mx-1" />
+      <ToolbarDivider />
 
-      {/* EPIC-083: 글씨 색상 — 기본 색상 칩 + 임의 색상 선택(네이티브
-          <input type="color">, 별도 모달 없이도 "팔레트 모달 또는 기본
-          색상 칩" 요구사항을 만족). */}
+      {/* [textColor chips + custom + reset, fontFamily] — EPIC-083 그대로,
+          그룹 경계만 정리. */}
       <div className="flex items-center gap-0.5">
         {["#111827", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"].map((hex) => (
           <button
@@ -1338,11 +1389,9 @@ function Toolbar({
           className="w-5 h-5 p-0 border-0 bg-transparent cursor-pointer"
         />
         <ToolbarButton title="색상 초기화" onClick={() => editor.chain().focus().unsetColor().run()}>
-          <span className="line-through text-xs">A</span>
+          <Eraser size={16} />
         </ToolbarButton>
       </div>
-
-      <div className="w-px h-6 bg-gray-300 mx-1" />
 
       {/* EPIC-083: 폰트 패밀리 — 기본 폰트 + Admin이 업로드한 custom_fonts가
           실시간(useCustomFonts) 반영된다. */}
@@ -1375,8 +1424,9 @@ function Toolbar({
         )}
       </select>
 
-      <div className="w-px h-6 bg-gray-300 mx-1" />
+      <ToolbarDivider />
 
+      {/* [link] */}
       <ToolbarButton
         title="링크"
         onClick={() => {
@@ -1390,71 +1440,75 @@ function Toolbar({
         }}
         active={editor.isActive("link")}
       >
-        🔗
+        <Link2 size={16} />
       </ToolbarButton>
 
-      <ToolbarButton title="이미지 업로드 (여러 장 가능)" label="이미지 업로드" onClick={() => fileInputRef.current?.click()}>
-        🖼
-      </ToolbarButton>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={async (e) => {
-          const files = Array.from(e.target.files ?? []);
-          if (files.length > 0) await onImageUpload(files);
-          if (fileInputRef.current) fileInputRef.current.value = "";
-        }}
-      />
+      <ToolbarDivider />
 
-      <ToolbarButton
-        title="갤러리 삽입 (여러 장의 이미지/영상 URL → 스와이프 슬라이더)"
-        label="갤러리 삽입"
-        onClick={() => setGalleryModalOpen(true)}
-      >
-        🖼🖼
-      </ToolbarButton>
-      {galleryModalOpen && (
-        <GalleryConfigModal
-          onClose={() => setGalleryModalOpen(false)}
-          onInsert={(items) => {
-            insertGallery(items);
-            setGalleryModalOpen(false);
-          }}
-        />
-      )}
-
-      <ToolbarButton title="외부자료 삽입 (유튜브/인스타/스포티파이/X/지도 등)" label="외부자료 삽입" onClick={() => setEmbedModalOpen(true)}>
-        ▶
-      </ToolbarButton>
-      {embedModalOpen && (
-        <EmbedConfigModal
-          onClose={() => setEmbedModalOpen(false)}
-          onInsert={(result) => {
-            insertEmbedWithConfig(result);
-            setEmbedModalOpen(false);
-          }}
-        />
-      )}
-
-      <ToolbarButton title="외부 링크 카드" onClick={insertLinkCard}>
-        🔗card
-      </ToolbarButton>
-
-      {/* EPIC-083: 표 삽입/수정 — 삽입 버튼 하나 + 커서가 표 안에 있을 때만
-          쓸 수 있는 행/열 추가·삭제 드롭다운. */}
-      <div className="relative">
-        <ToolbarButton
-          title="표 삽입/수정"
-          label="표"
-          active={tableMenuOpen}
-          onClick={() => setTableMenuOpen((v) => !v)}
-        >
-          ▦
+      {/* [image, gallery, embed, linkCard, table, sourceAttribution] — 미디어 삽입 그룹 */}
+      <ToolbarGroup>
+        <ToolbarButton title="이미지 업로드 (여러 장 가능)" label="이미지" onClick={() => fileInputRef.current?.click()}>
+          <ImagePlus size={16} />
         </ToolbarButton>
-        {tableMenuOpen && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={async (e) => {
+            const files = Array.from(e.target.files ?? []);
+            if (files.length > 0) await onImageUpload(files);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+          }}
+        />
+
+        <ToolbarButton
+          title="갤러리 삽입 (여러 장의 이미지/영상 URL → 스와이프 슬라이더)"
+          label="갤러리"
+          onClick={() => setGalleryModalOpen(true)}
+        >
+          <Images size={16} />
+        </ToolbarButton>
+        {galleryModalOpen && (
+          <GalleryConfigModal
+            onClose={() => setGalleryModalOpen(false)}
+            onInsert={(items) => {
+              insertGallery(items);
+              setGalleryModalOpen(false);
+            }}
+          />
+        )}
+
+        <ToolbarButton title="외부자료 삽입 (유튜브/인스타/스포티파이/X/지도 등)" label="외부자료" onClick={() => setEmbedModalOpen(true)}>
+          <PlayCircle size={16} />
+        </ToolbarButton>
+        {embedModalOpen && (
+          <EmbedConfigModal
+            onClose={() => setEmbedModalOpen(false)}
+            onInsert={(result) => {
+              insertEmbedWithConfig(result);
+              setEmbedModalOpen(false);
+            }}
+          />
+        )}
+
+        <ToolbarButton title="외부 링크 카드" label="링크카드" onClick={insertLinkCard}>
+          <ExternalLink size={16} />
+        </ToolbarButton>
+
+        {/* EPIC-083: 표 삽입/수정 — 삽입 버튼 하나 + 커서가 표 안에 있을 때만
+            쓸 수 있는 행/열 추가·삭제 드롭다운. */}
+        <div className="relative">
+          <ToolbarButton
+            title="표 삽입/수정"
+            label="표"
+            active={tableMenuOpen}
+            onClick={() => setTableMenuOpen((v) => !v)}
+          >
+            <TableIcon size={16} />
+          </ToolbarButton>
+          {tableMenuOpen && (
           <div
             className="absolute z-20 top-full mt-1 left-0 bg-white border border-gray-200 rounded-md shadow-lg py-1 w-40"
             onMouseLeave={() => setTableMenuOpen(false)}
@@ -1516,33 +1570,37 @@ function Toolbar({
             </button>
           </div>
         )}
-      </div>
+        </div>
 
-      <ToolbarButton title="출처 입력 (퍼온 글의 원문 표시)" label="출처 입력" onClick={() => setSourceModalOpen(true)}>
-        🔖
-      </ToolbarButton>
-      {sourceModalOpen && (
-        <SourceAttributionModal
-          onClose={() => setSourceModalOpen(false)}
-          onInsert={(attrs) => {
-            insertSourceAttribution(attrs);
-            setSourceModalOpen(false);
-          }}
-        />
-      )}
+        <ToolbarButton title="출처 입력 (퍼온 글의 원문 표시)" label="출처" onClick={() => setSourceModalOpen(true)}>
+          <BookMarked size={16} />
+        </ToolbarButton>
+        {sourceModalOpen && (
+          <SourceAttributionModal
+            onClose={() => setSourceModalOpen(false)}
+            onInsert={(attrs) => {
+              insertSourceAttribution(attrs);
+              setSourceModalOpen(false);
+            }}
+          />
+        )}
+      </ToolbarGroup>
 
       <div className="flex-1" />
 
-      <ToolbarButton title="미리보기" onClick={onTogglePreview} active={isPreview}>
-        {isPreview ? "편집으로" : "미리보기"}
-      </ToolbarButton>
+      {/* [preview, autosave] */}
+      <ToolbarGroup>
+        <ToolbarButton title="미리보기" onClick={onTogglePreview} active={isPreview}>
+          {isPreview ? <EyeOff size={16} /> : <Eye size={16} />}
+        </ToolbarButton>
 
-      {isSaving && <span className="text-xs text-gray-400">저장 중...</span>}
-      {!isSaving && onAutoSave && (
-        <button type="button" onClick={onAutoSave} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">
-          임시저장
-        </button>
-      )}
+        {isSaving && <span className="text-xs text-gray-400">저장 중...</span>}
+        {!isSaving && onAutoSave && (
+          <ToolbarButton title="임시저장" onClick={onAutoSave}>
+            <Save size={16} />
+          </ToolbarButton>
+        )}
+      </ToolbarGroup>
     </div>
   );
 }

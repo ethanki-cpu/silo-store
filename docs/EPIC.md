@@ -1,7 +1,7 @@
 # EPIC LIST
 
 ## 진행중
-(없음)
+- EPIC-112 : [Stage 2] Universal JSON Editor 도입(Tiptap + SunEditor Classic UI) — 데이터 파이프라인(JSON 정본 저장, 구형 HTML 폴백)은 EPIC-053.1부터 이미 구축돼 있어 신규 작업 없음. `BlockEditor.tsx` 툴바를 SunEditor `buttonList` 그룹핑 문법(`[...]`+`"|"`)으로 재배치(기능 삭제 없음, lucide-react 아이콘화, undo/redo 버튼 신규). `tsc`/`lint` 0 errors. 상세는 CHANGELOG.md 동명 항목 참고. 브랜치 `feature/EPIC-112`, main/develop 병합은 로그인 세션 실사용 확인 후 진행.
 
 ## 완료
 - EPIC-109 : 자유 배치 이미지 리사이즈에 비율 유지/직접입력/프리셋 추가 — `ImageBlock`에 `lockAspectRatio` 토글(기존 `aspectRatio` 필드를 잠금 목표비율로 재사용) + 비율 프리셋 드롭다운(`ASPECT_RATIO_PRESETS`: 1:1/4:3/3:4/3:2/2:3/16:9/9:16/21:9/5:4) + 직접입력. `FreePositionHandles`가 컨테이너의 실제 픽셀 너비/높이로 환산해 %가 아니라 진짜 픽셀 비율을 유지하도록 확장(컨테이너가 정사각형이 아니어도 정확). `tsc`/`lint`/`build` 0 errors, 클린 세션에서 1:1 잠금 리사이즈가 픽셀 단위로 정확히 유지됨을 확인. 상세는 CHANGELOG.md 동명 항목 참고. 브랜치 `feature/EPIC-109`.

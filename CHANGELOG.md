@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-14 (EPIC-112 — [Stage 2] 사이트 전체 에디터 툴바를 SunEditor Classic 배열 문법으로 재배치)
+- **배경**: 지시문은 "Tiptap(JSON 블록 구조) 기반 저장 + SunEditor `buttonList`와 100% 동일한 툴바"를 요청했지만, 코드 확인 결과 데이터 파이프라인(`posts.body_json`을 정본으로 저장, `generateHTML`+`sanitizeHtml`로 구형 HTML 폴백 렌더링)은 이미 EPIC-053.1부터 구축돼 있었다. 진짜 작업 대상은 툴바뿐이었는데, 지시문이 예시로 준 6버튼 배열(`undo/redo | bold/italic/underline | list/link/image`)을 문자 그대로 적용하면 EPIC-079~096에 걸쳐 쌓인 기존 고급 기능(표/갤러리/임베드/색상/폰트/출처 등)이 화면에서 사라지는 큰 폭의 기능 축소가 되므로, 진행 전 사용자에게 범위를 확인 — **"6버튼 배열은 SunEditor의 그룹핑+구분선(`|`) 문법을 보여주는 구조적 예시일 뿐, 기존 기능은 절대 삭제하지 말고 전부 그 문법대로 논리적으로 재배치하라"**는 답변을 받아 진행.
+- **`src/components/editor/BlockEditor.tsx`의 `Toolbar` 컴포넌트 전면 리팩토링**(기능 로직은 전혀 안 건드림, 렌더링 구조만 재배치):
+  - 이모지/텍스트 글리프(`B`/`I`/`U`/`🔗`/`🖼`/`▶` 등)를 전부 `lucide-react` 아이콘(신규 설치)으로 교체.
+  - SunEditor `buttonList` 문법(`[...]`로 묶고 `"|"`로 그룹 구분)을 그대로 참고해 논리적 그룹 11개로 재배치: `[undo,redo]` | `[bold,italic,underline,strike]` | `[h1,h2,h3]` | `[bulletList,orderedList,taskList,blockquote,horizontalRule]` | `[alignLeft,center,right]` | `[textColor칩+커스텀+초기화, fontFamily]` | `[link]` | `[image,gallery,embed,linkCard,table,sourceAttribution]` | (spacer) | `[preview,autosave]`. 재사용 가능한 `ToolbarGroup`/`ToolbarDivider` 헬퍼 신설.
+  - **신규 기능**: undo/redo 버튼이 이전엔 아예 없었다(브라우저 기본 Ctrl+Z에만 의존) — StarterKit의 History 확장을 툴바 버튼으로 노출(`editor.chain().undo()/redo()`, `editor.can().undo()/redo()`로 비활성 상태 표시). 이 외 삭제/축소된 기능은 없음.
+  - `npm install lucide-react` 신규 의존성 추가.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(BlockEditor.tsx 관련 경고 없음). 클린 dev 서버 기동 확인(빌드/런타임 에러 없음). **다음에 확인 필요(관리자/회원 로그인 세션)**: `/write`·`/boards/[slug]/write`·게시글 수정 화면에서 실제로 새 아이콘 툴바가 그룹/구분선대로 렌더링되는지, undo/redo 버튼 클릭 동작, 기존처럼 표/갤러리/임베드/색상/폰트/출처 삽입이 전부 정상 동작하는지 육안 클릭 검증(이 세션은 로그인 세션이 없어 `/write` 접근 시 홈으로 리다이렉트됨을 확인만 함).
+- **변경 파일**: `src/components/editor/BlockEditor.tsx`, `package.json`/`package-lock.json`(lucide-react 추가).
+
 ## 2026-08-14 (EPIC-111 — 자유 배치 콘텐츠 사라짐/비율 미적용 근본 원인 수정 + 픽셀 직접 입력)
 - **배경**: 사용자가 (1) 슬라이드쇼 위에 슬라이드쇼를 자유 배치로 겹쳤는데 z-index를 높여도 아무것도 안 보이고 이미지를 업로드해도 안 보인다는 것, (2) 자유 배치 리사이즈에서 "높이(%)"가 이상하게 동작한다는 것, (3) `ImageBlock`의 "비율 선택" 드롭다운을 바꿔도 프리뷰가 전혀 안 바뀐다는 것을 스크린샷 2장으로 재현 — (1)(2)(3) 모두 같은 근본 원인 하나로 귀결됨을 코드 추적으로 확인.
 - **근본 원인 — `EditableBlockFrame`(`src/components/craft/home/editable.tsx`)의 높이 체인 단절**: 편집 모드(Craft 에디터 안, 공개 페이지는 이 컴포넌트를 아예 안 거쳐 무관)에서 이 컴포넌트가 렌더링하는 두 wrapper `<div>`에 `h-full`이 없었다. 자유 배치로 절대 위치+%높이를 가진 블록(예: 슬라이드쇼 위 슬라이드쇼)의 실제 콘텐츠는 `EditableBlockFrame` → `RevealWrapper` → 실제 콘텐츠 순으로 내려가는데, 그 사이의 `EditableBlockFrame` wrapper에서 `height:100%` 체인이 끊겨 안쪽 콘텐츠가 사실상 0 높이로 무너져 있었다(바깥 wrapper 자체의 % 크기는 정상이라 선택 핸들/테두리는 정상 위치에 보이는데 내용물만 안 보이는 증상과 정확히 일치). 리사이즈 핸들의 `containerRect()`가 이 깨진 크기를 기준으로 %→px 환산을 하고 있어 "높이(%) 이상함" 증상도 같은 원인. `h-full`은 조상에 실제 높이가 없을 때는 `auto`와 동일하게 동작하므로 자유 배치가 아닌 일반 블록에는 영향이 없다.

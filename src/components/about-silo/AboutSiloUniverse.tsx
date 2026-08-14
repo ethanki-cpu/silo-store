@@ -1,6 +1,6 @@
 "use client";
 
-// EPIC-113: /about-silo를 "어린 왕자" 감성의 3D 우주(행성+궤도 이미지+
+// EPIC-113/114: /about-silo를 "어린 왕자" 감성의 3D 우주(행성+궤도 이미지+
 // 위성)로 개편하는 프로토타입. React Three Fiber(three.js) 기반.
 //
 // 아키텍처 결정 메모:
@@ -15,17 +15,36 @@
 //   ref(뮤터블 객체)에 거리값을 담아 각 메시가 자기 자신의 useFrame에서
 //   직접 읽어 opacity를 보간한다 — 60fps로 최상위 컴포넌트를 리렌더하는
 //   대신 Three.js 객체를 직접 mutate하는 R3F 성능 관례를 따른다.
-// - 텍스트(제목/폰트)는 3D 지오메트리(troika-three-text 등 추가 의존성)
-//   대신 drei의 `<Html>`으로 렌더링 — 이미 만들어진 사이트 폰트/디자인
-//   시스템을 그대로 재사용할 수 있고 새 폰트 렌더링 파이프라인이 필요 없다.
+// - 사진 캡션 등 사이트 폰트를 그대로 쓰는 텍스트는 drei의 `<Html>`로,
+//   내핵 카테고리 라벨처럼 "3D 공간 안의 사물"로 느껴져야 하는 텍스트는
+//   (EPIC-114 지시문 요구대로) drei `<Text>`(troika-three-text, drei의
+//   기존 의존성이라 별도 설치 불필요)로 그린다 — 용도가 다르다.
+// - EPIC-114: SILO 행성과 유저 행성이 동시에 프레임 안에 들어오도록 두
+//   행성을 원점이 아니라 좌/우로 벌려 고정 배치한다 — 이에 따라 "행성
+//   내부로 들어갔는지"를 판정하는 거리 기준도 세계 원점이 아니라 SILO
+//   행성 중심까지의 거리로 바꿨다(핵심 카테고리는 SILO 행성 소관이라
+//   유저 행성 쪽에서는 반응할 이유가 없다).
 
-import { useEffect, useMemo, useRef, useState, createContext, useContext, Component, Suspense, type RefObject, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  createContext,
+  useContext,
+  Component,
+  Suspense,
+  type RefObject,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { CameraControls, Html, BakeShadows, useTexture, type CameraControls as CameraControlsImpl } from "@react-three/drei";
+import { CameraControls, Html, Text, useTexture, type CameraControls as CameraControlsImpl } from "@react-three/drei";
+import { EffectComposer, Noise, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { fibonacciSphere } from "@/lib/fibonacciSphere";
 import { htmlToExcerpt } from "@/lib/htmlExcerpt";
+import { YoutubeBackground } from "./YoutubeBackground";
 
 // ============================================================
 // 데이터
@@ -66,35 +85,75 @@ async function fetchUniverseImages(): Promise<FeedPost[]> {
   return withPhoto;
 }
 
-// 내핵(內核)에서 드러나는 실제 플랫폼 카테고리 3종.
+// EPIC-114: 내핵(內核)에서 드러나는 실제 플랫폼 카테고리 4종 — 각각
+// 상징하는 임시 3D 형상(아래 CoreCategoryShape)과 짝을 이룬다.
 const CORE_CATEGORIES = [
-  { key: "silostore", label: "사일로 상점", sub: "Silo Store", href: "/silo-store", color: "#e2a76f" },
-  { key: "salon", label: "살롱데상", sub: "Salon des Cent", href: "/salon-des-cent", color: "#c98a9c" },
-  { key: "docent", label: "온라인 도슨트", sub: "Online Docent", href: "/online-docent", color: "#8fb3c9" },
+  {
+    key: "silostore",
+    label: "사일로 상점",
+    sub: "Silo Store",
+    href: "/silo-store",
+    color: "#c99a5b",
+    shape: "chest",
+  },
+  {
+    key: "docent",
+    label: "온라인 도슨트",
+    sub: "Online Docent",
+    href: "/online-docent",
+    color: "#e7ddce",
+    shape: "statue",
+  },
+  {
+    key: "salon",
+    label: "살롱데상",
+    sub: "Salon des Cent",
+    href: "/salon-des-cent",
+    color: "#3f4a3d",
+    shape: "phone",
+  },
+  {
+    key: "studio",
+    label: "스튜디오",
+    sub: "Studio",
+    href: "/studio",
+    color: "#4a3626",
+    shape: "camera",
+  },
 ] as const;
 
 // ============================================================
-// 거리 기반 LOD — 카메라가 원점(행성 중심)에서 얼마나 떨어져 있는지를
-// ref로 공유해, 매 프레임 각 메시가 자기 opacity를 스스로 보간한다.
+// 씬 레이아웃 — EPIC-114: 두 행성을 원점이 아니라 좌/우로 벌려 고정
+// 배치한다("행성 동시 등장" 요구사항).
 // ============================================================
 
 const PLANET_RADIUS = 2.1;
+const SILO_CENTER = new THREE.Vector3(-3.1, 0, 0);
+const USER_PLANET_RADIUS = 1.05;
+const USER_CENTER = new THREE.Vector3(3.3, -0.4, -0.6);
+
 const IMAGE_ORBIT_RADIUS = 2.55;
-const SURFACE_VISIBLE_DISTANCE = 4.2; // 이보다 멀면(또는 같으면) 궤도 사진 완전히 보임
-const CORE_VISIBLE_DISTANCE = 1.55; // 이보다 가까우면(행성 내부) 핵심 카테고리 노드 완전히 보임
-const DEFAULT_CAMERA_DISTANCE = 7;
+const SURFACE_VISIBLE_DISTANCE = 4.2; // 이보다 멀면(SILO 중심 기준) 궤도 사진 완전히 보임
+const CORE_VISIBLE_DISTANCE = 1.55; // 이보다 가까우면(SILO 내부) 핵심 카테고리 노드 완전히 보임
+// 처음 진입 시 카메라 위치/시선 — 두 행성이 동시에 프레임에 들어오도록
+// 두 중심의 중점보다 살짝 위, 충분히 뒤에서 넓은 화각으로 바라본다.
+const HOME_TARGET = new THREE.Vector3(0.1, -0.1, 0);
+const HOME_CAMERA_POS = new THREE.Vector3(0.6, 2.2, 11.5);
+// EPIC-114: 줌아웃 한계 해제 — 우주 전체를 멀리서 조망할 수 있도록.
+const MAX_ZOOM_DISTANCE = 120;
 
 type DistanceRef = { current: number };
-const DistanceContext = createContext<DistanceRef>({ current: DEFAULT_CAMERA_DISTANCE });
+const DistanceContext = createContext<DistanceRef>({ current: HOME_CAMERA_POS.length() });
 
+/** 카메라 ↔ SILO 행성 중심 사이 거리를 매 프레임 ref에 기록(리렌더 없이). */
 function CameraDistanceTracker({ distanceRef }: { distanceRef: DistanceRef }) {
   useFrame(({ camera }) => {
-    distanceRef.current = camera.position.length();
+    distanceRef.current = camera.position.distanceTo(SILO_CENTER);
   });
   return null;
 }
 
-/** 표면 궤도(사진)용 — 멀리서는 1, 행성 내부로 들어가면 0으로 사라진다. */
+/** 표면 궤도(사진)용 — 멀리서는 1, SILO 내부로 들어가면 0으로 사라진다. */
 function surfaceOpacityFor(distance: number): number {
   if (distance >= SURFACE_VISIBLE_DISTANCE) return 1;
   if (distance <= CORE_VISIBLE_DISTANCE) return 0;
@@ -108,12 +167,13 @@ function coreOpacityFor(distance: number): number {
 
 // ============================================================
 // 툰 셰이딩 — MeshToonMaterial용 3단계 명암 그라디언트 맵을 코드로
-// 직접 생성한다(별도 텍스처 에셋 파일 불필요).
+// 직접 생성한다(별도 텍스처 에셋 파일 불필요). EPIC-114: 종이에 그린
+// 듯한 질감을 위해 밴드 값을 더 낮춰(부드러운 파스텔) 대비를 완화.
 // ============================================================
 
 function useToonGradientMap(): THREE.DataTexture {
   return useMemo(() => {
-    const bands = new Uint8Array([70, 170, 255]);
+    const bands = new Uint8Array([110, 190, 245]);
     const texture = new THREE.DataTexture(bands, bands.length, 1, THREE.RedFormat);
     texture.needsUpdate = true;
     texture.magFilter = THREE.NearestFilter;
@@ -124,15 +184,130 @@ function useToonGradientMap(): THREE.DataTexture {
 }
 
 // ============================================================
-// 중심 행성(SILO)
+// 사람 실루엣 플레이스홀더 — 각 행성 가장자리에 걸터앉은 모습(원화 스케치
+// 참고). 상세 리깅 대신 원기둥(몸)+구(머리)로만 구성한 임시 오브젝트.
+// ============================================================
+
+function SittingFigure({
+  position,
+  rotationY = 0,
+  scale = 1,
+  color = "#2b2118",
+}: {
+  position: [number, number, number];
+  rotationY?: number;
+  scale?: number;
+  color?: string;
+}) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]} scale={scale}>
+      {/* 몸(웅크려 앉은 자세를 살짝 기울인 캡슐로 흉내) */}
+      <mesh position={[0, 0.16, 0]} rotation={[0.15, 0, 0]}>
+        <capsuleGeometry args={[0.09, 0.22, 4, 8]} />
+        <meshBasicMaterial color={color} toneMapped={false} />
+      </mesh>
+      {/* 머리 */}
+      <mesh position={[0, 0.38, 0.03]}>
+        <sphereGeometry args={[0.08, 16, 16]} />
+        <meshBasicMaterial color={color} toneMapped={false} />
+      </mesh>
+      {/* 목도리(어린 왕자 실루엣의 상징 — 뒤로 흩날리는 얇은 판) */}
+      <mesh position={[0, 0.3, -0.1]} rotation={[0.3, 0, 0]}>
+        <planeGeometry args={[0.16, 0.22]} />
+        <meshBasicMaterial color="#d98a4a" toneMapped={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
+// ============================================================
+// 중심 행성(SILO) & 유저 행성 — 파스텔 어스톤 + 부드러운 툰 셰이딩.
 // ============================================================
 
 function CentralPlanet() {
   const gradientMap = useToonGradientMap();
   return (
-    <mesh>
-      <sphereGeometry args={[PLANET_RADIUS, 48, 48]} />
-      <meshToonMaterial color="#f2b880" gradientMap={gradientMap} />
+    <group position={SILO_CENTER}>
+      <mesh>
+        <sphereGeometry args={[PLANET_RADIUS, 48, 48]} />
+        <meshToonMaterial color="#e3a874" gradientMap={gradientMap} />
+      </mesh>
+      <SittingFigure position={[0.3, PLANET_RADIUS - 0.05, 0.55]} rotationY={-0.4} scale={1.3} />
+    </group>
+  );
+}
+
+// EPIC-114: 기존 "빠르게 공전하는 위성"에서 "화면 우측에 항상 보이는
+// 유저 행성"으로 변경(요구사항 2 "행성 동시 등장") — 완전히 정적이면
+// 죽어 보이니 아주 느린 제자리 부양(bobbing)만 남겨둔다.
+function UserPlanet() {
+  const gradientMap = useToonGradientMap();
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (groupRef.current) {
+      groupRef.current.position.set(
+        USER_CENTER.x,
+        USER_CENTER.y + Math.sin(t * 0.35) * 0.12,
+        USER_CENTER.z,
+      );
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <mesh>
+        <sphereGeometry args={[USER_PLANET_RADIUS, 32, 32]} />
+        <meshToonMaterial color="#c3d8b8" gradientMap={gradientMap} />
+      </mesh>
+      <SittingFigure position={[-0.15, USER_PLANET_RADIUS - 0.02, 0.4]} rotationY={0.5} scale={0.9} />
+      {/* EPIC-113: 향후 "찜한 아이템" 등 마이페이지 데이터가 이 자리에
+          식물/장식 Object3D로 자라난다 — 지금은 뼈대(빈 그룹)만. */}
+      <group name="user-planet-decoration-bone" />
+      <Html
+        position={[0, -USER_PLANET_RADIUS - 0.35, 0]}
+        center
+        distanceFactor={8}
+        style={{ pointerEvents: "none" }}
+      >
+        <div className="whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-center text-white backdrop-blur-sm">
+          <div className="text-xs font-medium">My Page</div>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+// ============================================================
+// 연결선(실뜨개 끈) — 두 행성 사이를 잇는, 우주를 유영하는 실처럼
+// 부드러운 곡선(CatmullRomCurve3 + TubeGeometry).
+// ============================================================
+
+function ConnectingThread() {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  const geometry = useMemo(() => {
+    const from = SILO_CENTER.clone().add(new THREE.Vector3(1.5, 0.5, 1.1)); // SILO 표면 근처에서 시작
+    const to = USER_CENTER.clone().add(new THREE.Vector3(-0.75, 0.3, 0.6)); // 유저 행성 표면 근처에서 끝
+    // 직선이 아니라 완만하게 출렁이도록 중간 제어점 2개를 위/아래로 어긋나게 둔다.
+    const mid1 = from.clone().lerp(to, 0.33).add(new THREE.Vector3(0, 0.9, 0.8));
+    const mid2 = from.clone().lerp(to, 0.66).add(new THREE.Vector3(0, -0.6, -0.5));
+    const curve = new THREE.CatmullRomCurve3([from, mid1, mid2, to]);
+    return new THREE.TubeGeometry(curve, 64, 0.025, 8, false);
+  }, []);
+
+  // 살짝 떠다니는 느낌 — 전체를 아주 미세하게 위아래로 흔든다(비용이 큰
+  // 커브 재계산 대신 그룹 position만 sin으로 흔든다).
+  useFrame(({ clock }) => {
+    if (meshRef.current) {
+      meshRef.current.position.y = Math.sin(clock.getElapsedTime() * 0.6) * 0.04;
+    }
+  });
+
+  return (
+    <mesh ref={meshRef} geometry={geometry}>
+      <meshBasicMaterial color="#f2e2b8" transparent opacity={0.75} toneMapped={false} />
     </mesh>
   );
 }
@@ -228,88 +403,181 @@ function SurfaceImage({
 }
 
 // ============================================================
-// 유저 위성 — 은유적 마이페이지. 지금은 빈 Object3D("bone")만 준비해두고,
-// 향후 마이페이지 데이터(찜한 아이템 등)가 여기 식물/장식으로 피어난다.
+// 내핵 카테고리 노드 — SILO 행성 내부로 들어오면 페이드인. EPIC-114:
+// 추상 다면체 대신 각 카테고리를 상징하는 임시 형상 + 3D 텍스트 라벨.
 // ============================================================
 
-function UserSatellite() {
-  const gradientMap = useToonGradientMap();
-  const groupRef = useRef<THREE.Group>(null);
-  const orbitRadius = 3.9;
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime() * 0.12;
-    groupRef.current?.position.set(Math.cos(t) * orbitRadius, Math.sin(t * 0.55) * 0.7, Math.sin(t) * orbitRadius);
-  });
-
-  return (
-    <group ref={groupRef}>
-      <mesh>
-        <sphereGeometry args={[0.3, 24, 24]} />
-        <meshToonMaterial color="#bfe3c8" gradientMap={gradientMap} />
-      </mesh>
-      {/* EPIC-113: 향후 "찜한 아이템" 등 마이페이지 데이터가 이 자리에
-          식물/장식 Object3D로 자라난다 — 지금은 뼈대(빈 그룹)만. */}
-      <group name="user-satellite-decoration-bone" />
-    </group>
-  );
+function CoreCategoryShape({ shape, color }: { shape: (typeof CORE_CATEGORIES)[number]["shape"]; color: string }) {
+  switch (shape) {
+    // 사일로 상점 — 보물상자(몸체 + 살짝 열린 뚜껑).
+    case "chest":
+      return (
+        <group>
+          <mesh position={[0, -0.06, 0]}>
+            <boxGeometry args={[0.46, 0.28, 0.32]} />
+            <meshToonMaterial color={color} />
+          </mesh>
+          <mesh position={[0, 0.12, -0.1]} rotation={[-0.5, 0, 0]}>
+            <boxGeometry args={[0.46, 0.22, 0.3]} />
+            <meshToonMaterial color="#a97c3f" />
+          </mesh>
+          <mesh position={[0, 0.02, 0.17]}>
+            <torusGeometry args={[0.035, 0.012, 8, 16]} />
+            <meshToonMaterial color="#e9c877" />
+          </mesh>
+        </group>
+      );
+    // 온라인 도슨트 — 밀로의 비너스를 연상시키는 팔 없는 대리석 흉상.
+    case "statue":
+      return (
+        <group>
+          <mesh position={[0, -0.14, 0]}>
+            <cylinderGeometry args={[0.1, 0.16, 0.34, 16]} />
+            <meshToonMaterial color={color} />
+          </mesh>
+          <mesh position={[0, 0.1, 0]}>
+            <cylinderGeometry args={[0.08, 0.1, 0.16, 16]} />
+            <meshToonMaterial color={color} />
+          </mesh>
+          <mesh position={[0, 0.24, 0]}>
+            <sphereGeometry args={[0.075, 16, 16]} />
+            <meshToonMaterial color={color} />
+          </mesh>
+        </group>
+      );
+    // 살롱데상 — 빈티지 다이얼(로터리) 전화기.
+    case "phone":
+      return (
+        <group>
+          <mesh position={[0, -0.1, 0]}>
+            <boxGeometry args={[0.4, 0.14, 0.34]} />
+            <meshToonMaterial color={color} />
+          </mesh>
+          <mesh position={[0, -0.02, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.15, 0.15, 0.02, 24]} />
+            <meshToonMaterial color="#20261f" />
+          </mesh>
+          <mesh position={[0, -0.02, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.14, 0.008, 6, 24]} />
+            <meshToonMaterial color="#c9a24b" />
+          </mesh>
+          <mesh position={[0.05, 0.12, -0.1]} rotation={[0.4, 0.3, 0.3]}>
+            <capsuleGeometry args={[0.045, 0.22, 4, 8]} />
+            <meshToonMaterial color={color} />
+          </mesh>
+        </group>
+      );
+    // 스튜디오 — 빈티지 필름 카메라 + 흩어진 폴라로이드 사진들.
+    case "camera":
+      return (
+        <group>
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.4, 0.26, 0.22]} />
+            <meshToonMaterial color={color} />
+          </mesh>
+          <mesh position={[0, 0.05, 0.16]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.09, 0.11, 0.16, 20]} />
+            <meshToonMaterial color="#161311" />
+          </mesh>
+          <mesh position={[-0.12, 0.16, 0]}>
+            <boxGeometry args={[0.1, 0.06, 0.08]} />
+            <meshToonMaterial color="#8a6a4a" />
+          </mesh>
+          {[[-0.28, -0.24, 0.12, -0.2], [-0.14, -0.32, 0.2, 0.3], [0.05, -0.3, -0.05, 0.1]].map(
+            ([x, y, z, rot], i) => (
+              <mesh key={i} position={[x, y, z]} rotation={[0, 0, rot]}>
+                <boxGeometry args={[0.16, 0.18, 0.01]} />
+                <meshToonMaterial color="#f4efe4" />
+              </mesh>
+            ),
+          )}
+        </group>
+      );
+    default:
+      return null;
+  }
 }
-
-// ============================================================
-// 내핵 카테고리 노드 — 행성 내부로 들어오면 페이드인.
-// ============================================================
 
 function CoreCategoryNode({
   label,
   sub,
   color,
+  shape,
   position,
   onNavigate,
 }: {
   label: string;
   sub: string;
   color: string;
+  shape: (typeof CORE_CATEGORIES)[number]["shape"];
   position: [number, number, number];
   onNavigate: () => void;
 }) {
   const distanceRef = useContext(DistanceContext);
-  const materialRef = useRef<THREE.MeshToonMaterial>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const [opacity, setOpacity] = useState(0);
-  const gradientMap = useToonGradientMap();
 
   useFrame(() => {
     const target = coreOpacityFor(distanceRef.current);
-    if (materialRef.current) {
-      const next = THREE.MathUtils.lerp(materialRef.current.opacity, target, 0.08);
-      materialRef.current.opacity = next;
-      materialRef.current.visible = next > 0.02;
-      // Html 라벨은 three 머티리얼이 아니라 React state로만 투명도를 표현할
-      // 수 있어(DOM), 값이 눈에 띄게 바뀔 때만 리렌더하도록 반올림해 갱신한다.
+    if (groupRef.current) {
+      const current = groupRef.current.userData.opacity ?? 0;
+      const next = THREE.MathUtils.lerp(current, target, 0.08);
+      groupRef.current.userData.opacity = next;
+      groupRef.current.visible = next > 0.02;
+      // 그룹 안의 모든 머티리얼에 일괄 적용(형상마다 mesh 개수가 다르므로
+      // 개별 ref 대신 traverse로 한 번에 처리).
+      groupRef.current.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          const mat = obj.material as THREE.Material & { opacity?: number; transparent?: boolean };
+          mat.transparent = true;
+          mat.opacity = next;
+        }
+      });
       const rounded = Math.round(next * 20) / 20;
       setOpacity((prev) => (prev === rounded ? prev : rounded));
     }
   });
 
   return (
-    <group position={position}>
-      <mesh onClick={onNavigate} onPointerOver={() => (document.body.style.cursor = "pointer")} onPointerOut={() => (document.body.style.cursor = "auto")}>
-        <icosahedronGeometry args={[0.32, 0]} />
-        <meshToonMaterial ref={materialRef} color={color} gradientMap={gradientMap} transparent opacity={0} />
-      </mesh>
+    <group ref={groupRef} position={position} visible={false}>
+      <group
+        scale={0.85}
+        onClick={onNavigate}
+        onPointerOver={() => (document.body.style.cursor = "pointer")}
+        onPointerOut={() => (document.body.style.cursor = "auto")}
+      >
+        <CoreCategoryShape shape={shape} color={color} />
+      </group>
       {opacity > 0.05 && (
-        <Html center distanceFactor={4} style={{ pointerEvents: "none", opacity, transition: "opacity 120ms linear" }}>
-          <div className="whitespace-nowrap rounded-full bg-black/60 px-3 py-1 text-center text-white backdrop-blur-sm">
-            <div className="text-xs font-medium">{label}</div>
-            <div className="text-[10px] text-white/70">{sub}</div>
-          </div>
-        </Html>
+        <>
+          <Text
+            position={[0, -0.32, 0]}
+            fontSize={0.09}
+            color="#fff3da"
+            anchorX="center"
+            anchorY="middle"
+            fillOpacity={opacity}
+            outlineWidth={0.006}
+            outlineColor="#2a1c0f"
+          >
+            {label}
+          </Text>
+          <Html center distanceFactor={5} position={[0, -0.48, 0]} style={{ pointerEvents: "none" }}>
+            <div style={{ opacity }} className="whitespace-nowrap text-[10px] text-white/70">
+              {sub}
+            </div>
+          </Html>
+        </>
       )}
     </group>
   );
 }
 
 function CoreCategories({ router }: { router: ReturnType<typeof useRouter> }) {
-  const positions = fibonacciSphere(CORE_CATEGORIES.length, 0.85);
+  const positions = useMemo(() => {
+    const base = fibonacciSphere(CORE_CATEGORIES.length, 0.9);
+    return base.map(([x, y, z]) => [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number]);
+  }, []);
   return (
     <>
       {CORE_CATEGORIES.map((cat, i) => (
@@ -318,6 +586,7 @@ function CoreCategories({ router }: { router: ReturnType<typeof useRouter> }) {
           label={cat.label}
           sub={cat.sub}
           color={cat.color}
+          shape={cat.shape}
           position={positions[i]}
           onNavigate={() => router.push(cat.href)}
         />
@@ -344,17 +613,22 @@ function Scene({
   distanceRef: DistanceRef;
 }) {
   const router = useRouter();
-  const positions = useMemo(() => fibonacciSphere(posts.length, IMAGE_ORBIT_RADIUS), [posts.length]);
+  const positions = useMemo(() => {
+    const base = fibonacciSphere(posts.length, IMAGE_ORBIT_RADIUS);
+    return base.map(([x, y, z]) => [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number]);
+  }, [posts.length]);
 
   return (
     <DistanceContext.Provider value={distanceRef}>
-      {/* 따뜻한 색감의 조명 파이프라인 — 사실적 조명 대신 동화적 톤. */}
-      <ambientLight intensity={0.6} color="#ffdcb2" />
-      <directionalLight position={[4, 6, 5]} intensity={1.05} color="#ffe6c4" />
-      <directionalLight position={[-5, -2, -4]} intensity={0.25} color="#c9d8ff" />
+      {/* 따뜻한 색감의 조명 파이프라인 — 사실적 조명 대신 동화적 톤.
+          EPIC-114: 종이/수채화 느낌을 위해 강도를 한 단계 더 낮췄다. */}
+      <ambientLight intensity={0.7} color="#ffe0ba" />
+      <directionalLight position={[4, 6, 5]} intensity={0.8} color="#ffe6c4" />
+      <directionalLight position={[-5, -2, -4]} intensity={0.2} color="#c9d8ff" />
 
       <CentralPlanet />
-      <UserSatellite />
+      <UserPlanet />
+      <ConnectingThread />
       <CoreCategories router={router} />
 
       {posts.map((post, i) => (
@@ -366,10 +640,14 @@ function Scene({
       ))}
 
       <CameraDistanceTracker distanceRef={distanceRef} />
-      <CameraControls ref={cameraControlsRef} minDistance={0.6} maxDistance={9.5} dollySpeed={0.55} />
-      {/* 성능 방어: 정적 라이팅 결과를 한 번만 굽고(BakeShadows), 아래
-          Canvas의 dpr 상한/프레임 제한과 함께 과부하를 막는다. */}
-      <BakeShadows />
+      <CameraControls ref={cameraControlsRef} minDistance={0.6} maxDistance={MAX_ZOOM_DISTANCE} dollySpeed={0.55} />
+
+      {/* EPIC-114: 종이/유화 질감 — 약간의 Noise + Vignette로 "디지털
+          렌더링 느낌"을 중화한다. */}
+      <EffectComposer multisampling={0}>
+        <Noise opacity={0.06} />
+        <Vignette eskil={false} offset={0.25} darkness={0.75} />
+      </EffectComposer>
     </DistanceContext.Provider>
   );
 }
@@ -430,7 +708,7 @@ export function AboutSiloUniverse() {
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [selected, setSelected] = useState<FeedPost | null>(null);
   const cameraControlsRef = useRef<CameraControlsImpl>(null);
-  const distanceRef = useRef<number>(DEFAULT_CAMERA_DISTANCE);
+  const distanceRef = useRef<number>(HOME_CAMERA_POS.distanceTo(SILO_CENTER));
 
   useEffect(() => {
     let cancelled = false;
@@ -442,29 +720,70 @@ export function AboutSiloUniverse() {
     };
   }, []);
 
+  // EPIC-114: CameraControls는 마운트 시 Canvas의 초기 camera position을
+  // 자기 나름대로 재해석해(내부적으로 target을 원점으로 가정) 우리가 의도한
+  // "SILO 행성과 유저 행성이 동시에 보이는" 구도와 어긋나게 초기화될 수
+  // 있음을 실측으로 확인 — 마운트 직후 애니메이션 없이(false) 정확한 홈
+  // 구도로 한 번 스냅해 항상 같은 최초 화면을 보장한다.
+  useEffect(() => {
+    if (!posts) return;
+    // R3F는 자체 리컨실러로 Canvas 내부 트리를 커밋하기 때문에, 부모(DOM
+    // 트리)의 useEffect가 실행되는 시점에는 <CameraControls ref=.../>가
+    // 아직 붙지 않았을 수 있다(실측으로 확인 — 이 effect가 돌 때
+    // cameraControlsRef.current가 null이었다). 매 프레임 재시도해 ref가
+    // 실제로 준비된 다음에만 스냅한다.
+    let raf = 0;
+    function trySnap() {
+      const controls = cameraControlsRef.current;
+      if (!controls) {
+        raf = requestAnimationFrame(trySnap);
+        return;
+      }
+      controls.setLookAt(
+        HOME_CAMERA_POS.x, HOME_CAMERA_POS.y, HOME_CAMERA_POS.z,
+        HOME_TARGET.x, HOME_TARGET.y, HOME_TARGET.z,
+        false,
+      );
+    }
+    trySnap();
+    return () => cancelAnimationFrame(raf);
+  }, [posts]);
+
   function handleSelect(post: FeedPost, position: [number, number, number]) {
     setSelected(post);
     const controls = cameraControlsRef.current;
     if (!controls) return;
-    // 이미지 "코앞"으로 날아간다 — 표면 법선(원점→이미지 방향)을 따라
-    // 살짝 바깥쪽에 카메라를 두고, 이미지 자체를 바라보게 한다.
-    const normal = new THREE.Vector3(...position).normalize();
-    const camPos = normal.clone().multiplyScalar(IMAGE_ORBIT_RADIUS + 0.9);
-    controls.setLookAt(camPos.x, camPos.y, camPos.z, position[0], position[1], position[2], true);
+    // 이미지 "코앞"으로 날아간다 — SILO 중심→이미지 방향(표면 법선)을
+    // 따라 살짝 바깥쪽에 카메라를 두고, 이미지 자체를 바라보게 한다.
+    const target = new THREE.Vector3(...position);
+    const normal = target.clone().sub(SILO_CENTER).normalize();
+    const camPos = SILO_CENTER.clone().add(normal.multiplyScalar(IMAGE_ORBIT_RADIUS + 0.9));
+    controls.setLookAt(camPos.x, camPos.y, camPos.z, target.x, target.y, target.z, true);
   }
 
   function handleReset() {
     setSelected(null);
-    cameraControlsRef.current?.setLookAt(0, 1.2, DEFAULT_CAMERA_DISTANCE, 0, 0, 0, true);
+    cameraControlsRef.current?.setLookAt(
+      HOME_CAMERA_POS.x,
+      HOME_CAMERA_POS.y,
+      HOME_CAMERA_POS.z,
+      HOME_TARGET.x,
+      HOME_TARGET.y,
+      HOME_TARGET.z,
+      true,
+    );
   }
 
   return (
-    <div className="relative h-[85vh] min-h-[560px] w-full overflow-hidden bg-gradient-to-b from-[#1c1730] via-[#241d3a] to-[#120f22]">
+    <div className="relative h-[85vh] min-h-[560px] w-full overflow-hidden bg-transparent">
+      {/* EPIC-114: 3D 캔버스 뒤의 몰입형 유튜브 배경(fixed, 뷰포트 전체). */}
+      <YoutubeBackground />
+
       <Canvas
         // 성능 방어: 고해상도 디스플레이에서도 dpr을 최대 1.5로 제한.
         dpr={[1, 1.5]}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
-        camera={{ position: [0, 1.2, DEFAULT_CAMERA_DISTANCE], fov: 50 }}
+        gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
+        camera={{ position: HOME_CAMERA_POS.toArray(), fov: 55 }}
       >
         {posts && (
           <Scene
@@ -480,16 +799,16 @@ export function AboutSiloUniverse() {
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-6">
         <div className="pointer-events-auto flex items-start justify-between text-white">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-white/50">About Silo</p>
-            <h1 className="mt-1 text-2xl font-light">사일로의 우주</h1>
-            <p className="mt-1 max-w-sm text-xs text-white/60">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/60">About Silo</p>
+            <h1 className="mt-1 text-2xl font-light drop-shadow">사일로의 우주</h1>
+            <p className="mt-1 max-w-sm text-xs text-white/70">
               떠 있는 사진을 클릭해 가까이 다가가고, 휠을 굴려 행성 안쪽 세계로 들어가 보세요.
             </p>
           </div>
           <button
             type="button"
             onClick={handleReset}
-            className="rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs text-white hover:bg-white/20"
+            className="rounded-full border border-white/20 bg-black/30 px-4 py-1.5 text-xs text-white backdrop-blur-sm hover:bg-black/50"
           >
             처음으로
           </button>

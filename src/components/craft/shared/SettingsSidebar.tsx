@@ -6,6 +6,7 @@
 // 없는 블록을 선택하면 "더블클릭으로 편집" 안내만 보여준다(하위 호환 —
 // 기존 블록을 굳이 설정 패널을 갖도록 바꾸지 않아도 계속 동작).
 import { useEditor } from "@craftjs/core";
+import type { ComponentType } from "react";
 
 export function SettingsSidebar() {
   const { selected } = useEditor((state) => {
@@ -16,7 +17,13 @@ export function SettingsSidebar() {
       selected: {
         id: currentNodeId,
         name: node.data.displayName || node.data.name,
-        Settings: node.related?.settings ?? null,
+        // 이 레포에 등록된 모든 블록의 `related.settings` 컴포넌트 타입을
+        // 전부 합쳐 추론하면(각기 다른 시그니처가 계속 늘어나며) TS가 그
+        // 교집합을 `never`로 좁혀버려 `<selected.Settings />`가 타입
+        // 에러(next build만 실패, dev/tsc 캐시 상태에 따라 통과하기도 함)를
+        // 내는 걸 실제로 겪었다 — "props 없는 컴포넌트"로 명시적으로
+        // 캐스팅해 이 추론 붕괴를 피한다.
+        Settings: (node.related?.settings as ComponentType<Record<string, never>> | undefined) ?? null,
         isRoot: currentNodeId === "ROOT",
       },
     };

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-15 (HOTFIX-116 — `next build` 타입 에러로 EPIC-113부터 dev.silostore.net 배포가 전부 실패하던 문제 수정)
+- **배경**: 사용자가 "https://dev.silostore.net/about-silo 에서 (3D 우주가) 안 보인다"고 신고. 실제로 열어보니 `x-matched-path: /[...slug]`(구 catch-all 위젯 페이지)가 뜨고 있었다 — EPIC-113(신규 정적 라우트 `src/app/about-silo/page.tsx`)이 반영 안 된 상태.
+- **근본 원인**: `npm run build`(`next build`)가 `src/components/craft/shared/SettingsSidebar.tsx:35`에서 `Type '{}' is not assignable to type 'never'`로 실패하고 있었다 — `<selected.Settings />`의 `Settings` 타입이 이 저장소에 등록된 모든 Craft 블록의 `related.settings` 컴포넌트 타입을 전부 합쳐 추론되는데, 블록 종류가 계속 늘면서(EPIC-102~115) 그 교집합이 `never`로 붕괴한 것. **`npx tsc --noEmit`은 이 에러를 재현하지 않아**(별도 타입체크 경로/파일 분석 순서 차이로 추정) EPIC-113/114/115 세 번의 CHANGELOG 항목 모두 "무관한 기존 에러, 영향 없음"으로 기록된 채 실제 `next build` 성공 여부는 한 번도 재확인되지 않았다 — Vercel은 `next build`를 쓰므로, **EPIC-113이 머지된 시점부터 develop/main에 대한 모든 배포가 조용히 실패**하고 있었고(빌드 실패 시 Vercel은 마지막 성공 배포를 계속 서빙), dev.silostore.net은 그 이전 커밋에 멈춰 있었던 것으로 추정된다.
+- **수정**: `node.related?.settings`를 `ComponentType<Record<string, never>> | undefined`로 명시 캐스팅해 "props 없는 컴포넌트"로 타입을 고정 — 여러 블록의 서로 다른 `Settings` 시그니처를 전부 합치는 추론 자체를 피한다.
+- **검증**: `npm run build` 로컬에서 **처음으로 실제 성공**(수정 전 재현 확인 후 수정 → 재빌드 성공), 빌드 산출물에 `/about-silo`가 정적 라우트(`○ /about-silo`)로 정확히 잡히는 것 확인(수정 전엔 `/[...slug]`에 흡수됨). `npx tsc --noEmit` 0 errors.
+- **다음 확인 필요(레포 밖, agent가 직접 볼 수 없음)**: 이 커밋이 `main`/`develop`에 fast-forward된 뒤 Vercel이 실제로 새 배포를 성공시키는지, 성공 후 `https://dev.silostore.net/about-silo`가 3D 우주로 바뀌는지 — 사용자가 직접 확인 필요.
+- **변경 파일**: `src/components/craft/shared/SettingsSidebar.tsx`.
+
 ## 2026-08-14 (EPIC-115 — 어린 왕자 감성 렌더링 오버홀 + Leva 설정 패널)
 - **배경**: EPIC-114 결과물이 "기계적이고 찰흙 같다"는 재피드백 — 스케치/원화 레퍼런스를 다시 기준으로 (1) 행성 질감을 절차적 수채화 텍스처로, (2) 지저분한 사각형 썸네일을 기본 숨김 처리, (3) 줌아웃 한계를 5000까지 해제, (4) 궤도 위성/캐릭터 모션/내핵 오브젝트 디테일을 스케치대로 복원, (5) 관리자가 씬 전체를 실시간 제어하는 Leva 설정 패널을 추가.
 - **수채화 텍스처(`useWatercolorTexture`, 신규)**: 외부 텍스처 에셋이 없어 캔버스에 반투명 블롭(붓자국)을 90겹 + 픽셀 노이즈(종이 질감)를 절차적으로 그려 `CanvasTexture`로 굽고 `MeshToonMaterial.map`으로 적용 — Leva 컬러 피커로 베이스 컬러를 바꾸면 다시 굽는다. 툰 그라디언트 밴드도 한 번 더 완화(110/190/245 → 120/195/245).

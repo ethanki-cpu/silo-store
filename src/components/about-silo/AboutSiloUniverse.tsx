@@ -1,28 +1,27 @@
 "use client";
 
-// EPIC-113/114/115: /about-silo를 "어린 왕자" 감성의 3D 우주(행성+궤도+
+// EPIC-113/114/115/119: /about-silo를 "어린 왕자" 감성의 3D 우주(행성+궤도+
 // 위성)로 개편하는 프로토타입. React Three Fiber(three.js) 기반.
 //
-// 아키텍처 결정 메모(EPIC-115 추가분):
-// - "AnimationMixer로 여러 모션" 요구사항 — 실제 캐릭터 GLTF/애니메이션
-//   클립 파일이 이 저장소에 없어(지시문도 "임시 GLTF 또는 뼈대 모델"이라
-//   명시) `THREE.AnimationMixer`를 쓸 클립 자체가 없다. 그래서 원기둥+구
-//   조합 실루엣의 머리/다리 그룹을 개별 ref로 분리해 `useFrame`에서
-//   sin 곡선 기반 절차적 모션(고개 두리번거림/다리 까딱임, 개체마다 위상을
-//   무작위로 어긋나게 해 "여러 가지가 랜덤하게 재생"되는 느낌)으로
-//   대체했다 — AnimationMixer가 정확히 하는 일(시간에 따라 트랜스폼을
-//   보간)을 클립 없이 코드로 직접 구현한 것과 동일한 결과.
-// - "행성 질감을 수채화 텍스처로" — 외부 텍스처 에셋 파일이 없어, 캔버스에
-//   붓터치 모양 블롭을 여러 겹 겹쳐 그린 뒤 CanvasTexture로 구워 material
-//   map으로 쓴다(useWatercolorTexture). 색상 피커로 베이스 컬러를 바꾸면
-//   이 텍스처를 그 색으로 다시 굽는다.
-// - "프리셋 배경(은하수/별/행성 그림)" — 마찬가지로 이미지 에셋이 없어
-//   CSS 그라디언트+반복 radial-gradient(별)로 절차적 스타필드를 만든다
-//   (PresetBackground). 유튜브 배경과 동일한 fixed/z-index 레이어 규칙.
-// - Leva 설정 패널은 Canvas 바깥의 최상위 컴포넌트에서 `useControls`로
-//   선언 — Leva는 R3F 트리 밖 일반 React에서도 동작하고, 패널은 import
-//   시점에 자동으로 별도 포털에 렌더링된다(명시적으로 `<Leva/>`를 그릴
-//   필요 없음).
+// EPIC-119(사용자 지시 — "임의로 3D Mesh(찰흙 덩어리)를 억지로 코딩으로
+// 만들려 하지 마라, [3D World Builder] 아키텍처로 전면 개편하라"): 이
+// 파일의 절차적 실루엣/오브젝트는 실제 에셋이 없던 EPIC-115 시점의 임시
+// 대체물이었다 — 이제 관리자가 UniverseSettingsPanel.tsx에서 직접 .glb
+// 캐릭터/장식 오브젝트/행성 텍스처를 업로드하면 그 자리를 그대로
+// 교체한다(`CharacterRenderer`/`PlanetMaterial`/`UniverseObjectsLayer`
+// 참고). 업로드가 없을 때만 기존 절차적 결과물을 폴백으로 보여준다 —
+// "아무것도 없는 것"보다는 낫고, 관리자가 실제 에셋을 준비하는 대로
+// 자연스럽게 교체된다.
+//
+// 아키텍처 결정 메모(EPIC-115):
+// - "수채화 텍스처"/"프리셋 배경"은 여전히 절차적 대체(에셋 업로드 시
+//   PlanetMaterial/YoutubeBackground가 우선한다).
+// - Leva 설정 패널은 색상/토글/슬라이더 등 단순 값만 계속 담당하고,
+//   [값, set] 튜플 형태로 받아 DB에서 불러온 초깃값을 `set()`으로 밀어
+//   넣는다(Leva는 마운트 후 defaultValue를 다시 안 읽으므로, 비동기
+//   로드값을 반영하려면 이 방법이 필요). 파일 업로드/배열 편집/드롭다운은
+//   Leva로 표현하기 애매해 UniverseSettingsPanel(커스텀 HTML 패널)이
+//   맡는다.
 // - 카메라 거리 기반 페이드(LOD)는 매 프레임 React state를 갱신하는 대신
 //   ref(뮤터블 객체)에 거리값을 담아 각 메시가 자기 자신의 useFrame에서
 //   직접 읽어 opacity를 보간한다.
@@ -40,15 +39,33 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { CameraControls, Html, Text, useTexture, type CameraControls as CameraControlsImpl } from "@react-three/drei";
+import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
+import {
+  CameraControls,
+  Html,
+  Text,
+  useTexture,
+  useGLTF,
+  useAnimations,
+  Stars,
+  Sparkles,
+  type CameraControls as CameraControlsImpl,
+} from "@react-three/drei";
 import { EffectComposer, Noise, Vignette } from "@react-three/postprocessing";
 import { useControls } from "leva";
 import * as THREE from "three";
 import { fibonacciSphere } from "@/lib/fibonacciSphere";
 import { htmlToExcerpt } from "@/lib/htmlExcerpt";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  defaultUniverseConfig,
+  normalizeUniverseConfig,
+  type UniverseConfig,
+  type UniverseObject,
+} from "@/lib/aboutSiloUniverseConfig";
 import { YoutubeBackground } from "./YoutubeBackground";
 import { PresetBackground, type BackgroundPreset } from "./PresetBackground";
+import { UniverseSettingsPanel } from "./UniverseSettingsPanel";
 
 // ============================================================
 // 데이터
@@ -67,7 +84,42 @@ type FeedPost = {
 // 없을 수도 있어(사진 없는 초기 데이터 등) 있는 만큼만 보여준다.
 const MAX_UNIVERSE_IMAGES = 18;
 
-async function fetchUniverseImages(): Promise<FeedPost[]> {
+// EPIC-119(Item 2): boardSlug가 있으면 그 게시판 글만, 없으면(기존과
+// 동일) 추천/인기/최신을 통합한 전체 피드를 쓴다.
+async function fetchUniverseImages(boardSlug: string): Promise<FeedPost[]> {
+  if (boardSlug) {
+    const res = await fetch(`/api/boards/${encodeURIComponent(boardSlug)}/posts?pageSize=100`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      board?: { name?: string };
+      posts?: {
+        id: string;
+        slug?: string;
+        title: string | null;
+        photo_url: string | null;
+        featured_image_url?: string | null;
+        thumbnail_visible?: boolean | null;
+      }[];
+    };
+    const seen = new Set<string>();
+    const withPhoto: FeedPost[] = [];
+    for (const p of data.posts ?? []) {
+      const photo = p.thumbnail_visible === false ? null : (p.featured_image_url ?? p.photo_url);
+      if (!photo || seen.has(p.id)) continue;
+      seen.add(p.id);
+      withPhoto.push({
+        id: p.id,
+        slug: p.slug ?? p.id,
+        board_slug: boardSlug,
+        board_name: data.board?.name ?? "",
+        title: p.title,
+        photo_url: photo,
+      });
+      if (withPhoto.length >= MAX_UNIVERSE_IMAGES) break;
+    }
+    return withPhoto;
+  }
+
   const res = await fetch("/api/boards/feed");
   if (!res.ok) return [];
   const data = (await res.json()) as {
@@ -150,7 +202,7 @@ function coreOpacityFor(distance: number): number {
 }
 
 // ============================================================
-// 툰 셰이딩 그라디언트 맵(공용) + 수채화 텍스처(EPIC-115 신규).
+// 툰 셰이딩 그라디언트 맵(공용) + 수채화 텍스처(EPIC-115) + 커스텀 텍스처(EPIC-119).
 // ============================================================
 
 function useToonGradientMap(): THREE.DataTexture {
@@ -169,7 +221,8 @@ function useToonGradientMap(): THREE.DataTexture {
  * EPIC-115: 행성 표면에 붓터치/얼룩 노이즈를 겹쳐 그린 CanvasTexture —
  * 단색 MeshStandardMaterial 대신 "종이에 그린 수채화" 느낌을 내는 절차적
  * 대체(외부 텍스처 에셋 파일 없음). baseColor가 바뀌면(Leva 컬러 피커)
- * 다시 굽는다.
+ * 다시 굽는다. EPIC-119부터는 관리자가 실제 텍스처를 업로드하지 않았을
+ * 때의 폴백으로만 쓰인다(PlanetMaterial 참고).
  */
 function useWatercolorTexture(baseColorHex: string): THREE.CanvasTexture {
   return useMemo(() => {
@@ -219,10 +272,52 @@ function useWatercolorTexture(baseColorHex: string): THREE.CanvasTexture {
   }, [baseColorHex]);
 }
 
+// EPIC-119(공용): 이미지 텍스처든 .glb 모델이든, 에셋 로드가 실패하면
+// (CORS/잘못된 URL 등) 크래시 대신 폴백을 보여주는 공용 경계 — 이름을
+// Image 전용에서 Asset 전용으로 일반화(EPIC-115 때는 이미지만 다뤘음).
+class AssetLoadErrorBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.warn("[about-silo universe] 에셋 로드 실패, 폴백으로 대체:", error);
+  }
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
+}
+
+/** EPIC-119(Item 8): 업로드된 텍스처가 있으면 그걸, 없으면 절차적 수채화를 쓴다. */
+function CustomPlanetTextureMaterial({ url, gradientMap }: { url: string; gradientMap: THREE.DataTexture }) {
+  const texture = useTexture(url);
+  return <meshToonMaterial map={texture} gradientMap={gradientMap} />;
+}
+
+function PlanetMaterial({
+  baseColor,
+  customTextureUrl,
+  gradientMap,
+}: {
+  baseColor: string;
+  customTextureUrl: string;
+  gradientMap: THREE.DataTexture;
+}) {
+  const watercolor = useWatercolorTexture(baseColor);
+  const fallback = <meshToonMaterial map={watercolor} gradientMap={gradientMap} />;
+  if (!customTextureUrl) return fallback;
+  return (
+    <AssetLoadErrorBoundary fallback={fallback}>
+      <Suspense fallback={fallback}>
+        <CustomPlanetTextureMaterial url={customTextureUrl} gradientMap={gradientMap} />
+      </Suspense>
+    </AssetLoadErrorBoundary>
+  );
+}
+
 // ============================================================
-// 사람 실루엣 플레이스홀더 — 머리/다리를 개별 그룹으로 분리해 절차적
-// 아이들 모션(두리번거림/까딱임)을 건다. Leva "캐릭터 모델" 드롭다운으로
-// 3가지 변형(A/B/C, 실제 GLTF가 없어 비율/색상 변형으로 대체) 전환.
+// 캐릭터 — 업로드된 .glb가 있으면 그걸(EPIC-119), 없으면 절차적 실루엣
+// (EPIC-115, 폴백)을 렌더링한다.
 // ============================================================
 
 const FIGURE_VARIANTS: Record<"A" | "B" | "C", { color: string; scarfColor: string; scale: number }> = {
@@ -286,29 +381,191 @@ function SittingFigure({
   );
 }
 
+/**
+ * EPIC-119(Item 1/4): 업로드된 캐릭터 .glb를 로드해 마운트하고, 그 안에
+ * 애니메이션 클립이 있으면 관리자가 UniverseSettingsPanel에서 고른 클립을
+ * 재생한다(THREE.AnimationMixer는 drei의 useAnimations가 내부적으로
+ * 관리). onClipsLoaded로 로드된 클립 이름 목록을 부모(설정 패널)에
+ * 올려보내 UI 드롭다운/버튼을 채운다.
+ */
+function CustomCharacterModel({
+  url,
+  animationClip,
+  position,
+  rotationY = 0,
+  scale = 1,
+  onClipsLoaded,
+}: {
+  url: string;
+  animationClip: string;
+  position: [number, number, number];
+  rotationY?: number;
+  scale?: number;
+  onClipsLoaded?: (clips: string[]) => void;
+}) {
+  const group = useRef<THREE.Group>(null);
+  const { scene, animations } = useGLTF(url);
+  const { actions, names } = useAnimations(animations, group);
+
+  useEffect(() => {
+    onClipsLoaded?.(names);
+  }, [names, onClipsLoaded]);
+
+  useEffect(() => {
+    const clip = animationClip && names.includes(animationClip) ? animationClip : names[0];
+    if (!clip) return;
+    const action = actions[clip];
+    action?.reset().fadeIn(0.3).play();
+    return () => {
+      action?.fadeOut(0.3);
+    };
+  }, [animationClip, names, actions]);
+
+  return (
+    <group ref={group} position={position} rotation={[0, rotationY, 0]} scale={scale}>
+      <primitive object={scene} />
+    </group>
+  );
+}
+
+function CharacterRenderer({
+  modelUrl,
+  animationClip,
+  position,
+  rotationY = 0,
+  scale = 1,
+  variant = "A",
+  seed = 0,
+  onClipsLoaded,
+}: {
+  modelUrl: string;
+  animationClip: string;
+  position: [number, number, number];
+  rotationY?: number;
+  scale?: number;
+  variant?: "A" | "B" | "C";
+  seed?: number;
+  onClipsLoaded?: (clips: string[]) => void;
+}) {
+  const fallback = <SittingFigure position={position} rotationY={rotationY} scale={scale} variant={variant} seed={seed} />;
+  if (!modelUrl) return fallback;
+  return (
+    <AssetLoadErrorBoundary fallback={fallback}>
+      <Suspense fallback={null}>
+        <CustomCharacterModel
+          url={modelUrl}
+          animationClip={animationClip}
+          position={position}
+          rotationY={rotationY}
+          scale={scale}
+          onClipsLoaded={onClipsLoaded}
+        />
+      </Suspense>
+    </AssetLoadErrorBoundary>
+  );
+}
+
+// ============================================================
+// 장식 오브젝트(EPIC-119 Item 3/4) — SILO 행성 표면에 자동 배치.
+// ============================================================
+
+function UniverseObjectModel({ obj, position }: { obj: UniverseObject; position: [number, number, number] }) {
+  const { scene } = useGLTF(obj.url);
+  const cloned = useMemo(() => scene.clone(true), [scene]);
+  return <primitive object={cloned} position={position} scale={obj.scale} />;
+}
+
+function UniverseObjectsLayer({ objects }: { objects: UniverseObject[] }) {
+  const positions = useMemo(
+    () =>
+      fibonacciSphere(Math.max(objects.length, 1), PLANET_RADIUS * 0.97).map(
+        ([x, y, z]) => [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number],
+      ),
+    [objects.length],
+  );
+  if (objects.length === 0) return null;
+  return (
+    <>
+      {objects.map((obj, i) => (
+        <AssetLoadErrorBoundary key={obj.id} fallback={null}>
+          <Suspense fallback={null}>
+            <UniverseObjectModel obj={obj} position={positions[i]} />
+          </Suspense>
+        </AssetLoadErrorBoundary>
+      ))}
+    </>
+  );
+}
+
 // ============================================================
 // 중심 행성(SILO) & 유저 행성.
 // ============================================================
 
-function CentralPlanet({ baseColor, characterType, rotationSpeed }: { baseColor: string; characterType: "A" | "B" | "C"; rotationSpeed: number }) {
+function CentralPlanet({
+  baseColor,
+  planetTextureUrl,
+  characterType,
+  characterModelUrl,
+  characterAnimationClip,
+  rotationSpeed,
+  onFocus,
+  onClipsLoaded,
+}: {
+  baseColor: string;
+  planetTextureUrl: string;
+  characterType: "A" | "B" | "C";
+  characterModelUrl: string;
+  characterAnimationClip: string;
+  rotationSpeed: number;
+  onFocus: () => void;
+  onClipsLoaded: (clips: string[]) => void;
+}) {
   const gradientMap = useToonGradientMap();
-  const watercolor = useWatercolorTexture(baseColor);
   const meshRef = useRef<THREE.Mesh>(null);
   useFrame((_, delta) => {
     if (meshRef.current) meshRef.current.rotation.y += delta * rotationSpeed * 0.1;
   });
   return (
     <group position={SILO_CENTER}>
-      <mesh ref={meshRef}>
+      <mesh
+        ref={meshRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          onFocus();
+        }}
+        onPointerOver={() => (document.body.style.cursor = "pointer")}
+        onPointerOut={() => (document.body.style.cursor = "auto")}
+      >
         <sphereGeometry args={[PLANET_RADIUS, 48, 48]} />
-        <meshToonMaterial map={watercolor} gradientMap={gradientMap} />
+        <PlanetMaterial baseColor={baseColor} customTextureUrl={planetTextureUrl} gradientMap={gradientMap} />
       </mesh>
-      <SittingFigure position={[0.3, PLANET_RADIUS - 0.05, 0.55]} rotationY={-0.4} scale={1.3} variant={characterType} seed={1} />
+      <CharacterRenderer
+        modelUrl={characterModelUrl}
+        animationClip={characterAnimationClip}
+        position={[0.3, PLANET_RADIUS - 0.05, 0.55]}
+        rotationY={-0.4}
+        scale={1.3}
+        variant={characterType}
+        seed={1}
+        onClipsLoaded={onClipsLoaded}
+      />
     </group>
   );
 }
 
-function UserPlanet({ characterType, rotationSpeed }: { characterType: "A" | "B" | "C"; rotationSpeed: number }) {
+function UserPlanet({
+  characterType,
+  characterModelUrl,
+  characterAnimationClip,
+  rotationSpeed,
+  onFocus,
+}: {
+  characterType: "A" | "B" | "C";
+  characterModelUrl: string;
+  characterAnimationClip: string;
+  rotationSpeed: number;
+  onFocus: () => void;
+}) {
   const gradientMap = useToonGradientMap();
   const watercolor = useWatercolorTexture("#c3d8b8");
   const groupRef = useRef<THREE.Group>(null);
@@ -322,12 +579,27 @@ function UserPlanet({ characterType, rotationSpeed }: { characterType: "A" | "B"
 
   return (
     <group ref={groupRef}>
-      <mesh ref={spinRef}>
+      <mesh
+        ref={spinRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          onFocus();
+        }}
+        onPointerOver={() => (document.body.style.cursor = "pointer")}
+        onPointerOut={() => (document.body.style.cursor = "auto")}
+      >
         <sphereGeometry args={[USER_PLANET_RADIUS, 32, 32]} />
         <meshToonMaterial map={watercolor} gradientMap={gradientMap} />
       </mesh>
-      <SittingFigure position={[-0.15, USER_PLANET_RADIUS - 0.02, 0.4]} rotationY={0.5} scale={0.9} variant={characterType} seed={2} />
-      <group name="user-planet-decoration-bone" />
+      <CharacterRenderer
+        modelUrl={characterModelUrl}
+        animationClip={characterAnimationClip}
+        position={[-0.15, USER_PLANET_RADIUS - 0.02, 0.4]}
+        rotationY={0.5}
+        scale={0.9}
+        variant={characterType}
+        seed={2}
+      />
       <Html position={[0, -USER_PLANET_RADIUS - 0.35, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
         <div className="whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-center text-white backdrop-blur-sm">
           <div className="text-xs font-medium">My Page</div>
@@ -359,45 +631,171 @@ function AboutMeSatellites({ rotationSpeed }: { rotationSpeed: number }) {
 }
 
 // ============================================================
-// 연결선(실뜨개 끈).
+// 연결선(실뜨개 끈) — EPIC-119(Item 5): 드래그로 잡아당기면 탄력 있게
+// 늘어났다가 놓으면 스프링처럼 되돌아온다. 실제 물리 엔진 대신(단일
+// 곡선 하나를 위해 rapier까지 붙이는 건 과함) 목표점(targetPull)을 향해
+// lerp로 매 프레임 부드럽게 수렴시키는 감쇠 스프링 근사를 쓴다 — 드래그
+// 중엔 목표점이 마우스를 바로 따라오고(빠른 수렴), 놓으면 원래 위치(약한
+// 흔들림 애니메이션)로 천천히 돌아온다(느린 수렴) — 이 수렴 속도 차이가
+// "탄력 있게 늘어나거나 흔들리는" 체감을 만든다.
 // ============================================================
 
-function ConnectingThread() {
+function ConnectingThread({ color }: { color: string }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const geometry = useMemo(() => {
+  const pull = useRef(new THREE.Vector3());
+  const targetPull = useRef(new THREE.Vector3());
+  const dragging = useRef(false);
+
+  const basePoints = useMemo(() => {
     const from = SILO_CENTER.clone().add(new THREE.Vector3(1.5, 0.5, 1.1));
     const to = USER_CENTER.clone().add(new THREE.Vector3(-0.75, 0.3, 0.6));
     const mid1 = from.clone().lerp(to, 0.33).add(new THREE.Vector3(0, 0.9, 0.8));
     const mid2 = from.clone().lerp(to, 0.66).add(new THREE.Vector3(0, -0.6, -0.5));
-    const curve = new THREE.CatmullRomCurve3([from, mid1, mid2, to]);
-    return new THREE.TubeGeometry(curve, 64, 0.025, 8, false);
+    return { from, mid1, mid2, to };
   }, []);
+
+  function buildGeometry(pullVec: THREE.Vector3) {
+    const { from, mid1, mid2, to } = basePoints;
+    const curve = new THREE.CatmullRomCurve3([
+      from,
+      mid1.clone().add(pullVec),
+      mid2.clone().add(pullVec.clone().multiplyScalar(0.6)),
+      to,
+    ]);
+    return new THREE.TubeGeometry(curve, 64, 0.025, 8, false);
+  }
+
   useFrame(({ clock }) => {
-    if (meshRef.current) meshRef.current.position.y = Math.sin(clock.getElapsedTime() * 0.6) * 0.04;
+    if (!dragging.current) {
+      // 평상시엔 기존과 동일한 잔잔한 흔들림으로 되돌아간다.
+      targetPull.current.lerp(new THREE.Vector3(0, Math.sin(clock.getElapsedTime() * 0.6) * 0.04, 0), 0.05);
+    }
+    pull.current.lerp(targetPull.current, dragging.current ? 0.4 : 0.08);
+    if (meshRef.current) {
+      meshRef.current.geometry.dispose();
+      meshRef.current.geometry = buildGeometry(pull.current);
+    }
   });
+
+  function handlePointerDown(e: ThreeEvent<PointerEvent>) {
+    e.stopPropagation();
+    dragging.current = true;
+    try {
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+    } catch {
+      // no-op — 캡처 실패해도 아래 드래그 로직은 그대로 동작
+    }
+  }
+  function handlePointerMove(e: ThreeEvent<PointerEvent>) {
+    if (!dragging.current) return;
+    e.stopPropagation();
+    targetPull.current
+      .set(e.point.x - basePoints.mid1.x, e.point.y - basePoints.mid1.y, e.point.z - basePoints.mid1.z)
+      .multiplyScalar(0.9);
+  }
+  function handlePointerUp() {
+    dragging.current = false;
+  }
+
   return (
-    <mesh ref={meshRef} geometry={geometry}>
-      <meshBasicMaterial color="#f2e2b8" transparent opacity={0.75} toneMapped={false} />
+    <mesh
+      ref={meshRef}
+      geometry={buildGeometry(new THREE.Vector3())}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerOut={handlePointerUp}
+    >
+      <meshBasicMaterial color={color} transparent opacity={0.75} toneMapped={false} />
     </mesh>
+  );
+}
+
+// ============================================================
+// EPIC-119(Item 6): 파티클 기반 감성 우주 배경 — Stars/Sparkles(drei) +
+// 절차적 별똥별(외부 에셋 없이 작은 스트릭 메시 풀을 재활용).
+// ============================================================
+
+const SHOOTING_STAR_COUNT = 4;
+
+function ShootingStars() {
+  const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const stateRef = useRef(
+    Array.from({ length: SHOOTING_STAR_COUNT }, (_, i) => ({
+      t: 1 + i * 1.7,
+      active: false,
+      start: new THREE.Vector3(),
+      dir: new THREE.Vector3(),
+    })),
+  );
+
+  function spawn(s: (typeof stateRef.current)[number]) {
+    const radius = 26 + Math.random() * 10;
+    const theta = Math.random() * Math.PI * 2;
+    const height = Math.random() * 14 - 2;
+    s.start.set(Math.cos(theta) * radius, height, Math.sin(theta) * radius - 8);
+    s.dir.set(-1 - Math.random(), -0.35 - Math.random() * 0.4, 0.2 + Math.random() * 0.3).normalize();
+    s.t = 0;
+    s.active = true;
+  }
+
+  useFrame((_, delta) => {
+    stateRef.current.forEach((s, i) => {
+      const mesh = meshRefs.current[i];
+      if (!mesh) return;
+      if (!s.active) {
+        s.t -= delta;
+        mesh.visible = false;
+        if (s.t <= 0) spawn(s);
+        return;
+      }
+      s.t += delta;
+      const speed = 16;
+      mesh.position.copy(s.start).addScaledVector(s.dir, s.t * speed);
+      mesh.lookAt(mesh.position.clone().add(s.dir));
+      mesh.visible = true;
+      const mat = mesh.material as THREE.MeshBasicMaterial;
+      mat.opacity = THREE.MathUtils.clamp(1 - s.t / 1.1, 0, 1);
+      if (s.t > 1.1) {
+        s.active = false;
+        s.t = 3 + Math.random() * 8;
+      }
+    });
+  });
+
+  return (
+    <>
+      {/* react-hooks/refs: 렌더 중엔 상수(SHOOTING_STAR_COUNT)만 읽고,
+          실제 상태는 stateRef(ref)에 두되 렌더 출력에 영향을 주지 않는다. */}
+      {Array.from({ length: SHOOTING_STAR_COUNT }, (_, i) => i).map((i) => (
+        <mesh
+          key={i}
+          ref={(el) => {
+            meshRefs.current[i] = el;
+          }}
+          visible={false}
+        >
+          <boxGeometry args={[0.6, 0.015, 0.015]} />
+          <meshBasicMaterial color="#fff8e0" transparent opacity={1} toneMapped={false} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+function UniverseParticles() {
+  return (
+    <>
+      <Stars radius={80} depth={45} count={4500} factor={3} saturation={0} fade speed={0.4} />
+      <Sparkles count={140} scale={20} size={2.2} speed={0.25} color="#ffe9c2" />
+      <ShootingStars />
+    </>
   );
 }
 
 // ============================================================
 // 궤도를 도는 대표 이미지(전체 사진, 기본 숨김) / About Silo 마커(기본 표시).
 // ============================================================
-
-class ImageLoadErrorBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  componentDidCatch(error: unknown) {
-    console.warn("[about-silo universe] 이미지 텍스처 로드 실패, 자리표시자로 대체:", error);
-  }
-  render() {
-    return this.state.hasError ? this.props.fallback : this.props.children;
-  }
-}
 
 function SurfaceImageFallback({ position }: { position: [number, number, number] }) {
   const gradientMap = useToonGradientMap();
@@ -747,29 +1145,24 @@ function CoreCategories({
 // Scene — Canvas 내부 전체.
 // ============================================================
 
-type SceneSettings = {
-  planetColor: string;
-  showThumbnails: boolean;
-  orbitSpeed: number;
-  characterType: "A" | "B" | "C";
-  chestVariant: ChestVariant;
-  cameraVariant: CameraVariant;
-};
-
 function Scene({
   posts,
   selectedId,
   onSelect,
   cameraControlsRef,
   distanceRef,
-  settings,
+  config,
+  onClipsLoaded,
+  onFocusPlanet,
 }: {
   posts: FeedPost[];
   selectedId: string | null;
   onSelect: (post: FeedPost, position: [number, number, number]) => void;
   cameraControlsRef: RefObject<CameraControlsImpl | null>;
   distanceRef: DistanceRef;
-  settings: SceneSettings;
+  config: UniverseConfig;
+  onClipsLoaded: (clips: string[]) => void;
+  onFocusPlanet: (center: THREE.Vector3, radius: number) => void;
 }) {
   const router = useRouter();
   const orbitGroupRef = useRef<THREE.Group>(null);
@@ -784,7 +1177,7 @@ function Scene({
   useFrame((_, delta) => {
     if (orbitGroupRef.current) {
       orbitGroupRef.current.position.copy(SILO_CENTER);
-      orbitGroupRef.current.rotation.y += delta * settings.orbitSpeed * 0.15;
+      orbitGroupRef.current.rotation.y += delta * config.orbitSpeed * 0.15;
     }
   });
 
@@ -794,10 +1187,28 @@ function Scene({
       <directionalLight position={[4, 6, 5]} intensity={0.8} color="#ffe6c4" />
       <directionalLight position={[-5, -2, -4]} intensity={0.2} color="#c9d8ff" />
 
-      <CentralPlanet baseColor={settings.planetColor} characterType={settings.characterType} rotationSpeed={settings.orbitSpeed} />
-      <UserPlanet characterType={settings.characterType} rotationSpeed={settings.orbitSpeed} />
-      <ConnectingThread />
-      <CoreCategories router={router} chestVariant={settings.chestVariant} cameraVariant={settings.cameraVariant} />
+      <UniverseParticles />
+
+      <CentralPlanet
+        baseColor={config.planetColor}
+        planetTextureUrl={config.planetTextureUrl}
+        characterType={config.characterType}
+        characterModelUrl={config.characterModelUrl}
+        characterAnimationClip={config.characterAnimationClip}
+        rotationSpeed={config.orbitSpeed}
+        onFocus={() => onFocusPlanet(SILO_CENTER, PLANET_RADIUS)}
+        onClipsLoaded={onClipsLoaded}
+      />
+      <UserPlanet
+        characterType={config.characterType}
+        characterModelUrl={config.characterModelUrl}
+        characterAnimationClip={config.characterAnimationClip}
+        rotationSpeed={config.orbitSpeed}
+        onFocus={() => onFocusPlanet(USER_CENTER, USER_PLANET_RADIUS)}
+      />
+      <ConnectingThread color={config.lineColor} />
+      <CoreCategories router={router} chestVariant={config.chestVariant} cameraVariant={config.cameraVariant} />
+      <UniverseObjectsLayer objects={config.objects} />
 
       <group ref={orbitGroupRef}>
         {posts.map((post, i) => {
@@ -806,7 +1217,7 @@ function Scene({
             positions[i][1] - SILO_CENTER.y,
             positions[i][2] - SILO_CENTER.z,
           ];
-          if (!settings.showThumbnails) {
+          if (!config.showThumbnails) {
             return (
               <AboutSiloMarker
                 key={post.id}
@@ -818,11 +1229,11 @@ function Scene({
             );
           }
           return (
-            <ImageLoadErrorBoundary key={post.id} fallback={<SurfaceImageFallback position={localPos} />}>
+            <AssetLoadErrorBoundary key={post.id} fallback={<SurfaceImageFallback position={localPos} />}>
               <Suspense fallback={null}>
                 <SurfaceImage post={post} position={localPos} selected={selectedId === post.id} onSelect={onSelect} />
               </Suspense>
-            </ImageLoadErrorBoundary>
+            </AssetLoadErrorBoundary>
           );
         })}
       </group>
@@ -879,8 +1290,13 @@ function SelectedPostPanel({ post, onClose }: { post: FeedPost; onClose: () => v
 }
 
 // ============================================================
-// AboutSiloUniverse — 최상위 컴포넌트. Leva 설정 패널을 여기서 선언.
+// AboutSiloUniverse — 최상위 컴포넌트. Leva 설정 패널 + UniverseSettingsPanel
+// (파일 업로드/배열/드롭다운)을 여기서 조합하고, 저장/자동저장(EPIC-119
+// Item 7)을 관리한다.
 // ============================================================
+
+const UNIVERSE_SETTINGS_KEY = "about_silo_universe";
+const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000;
 
 export function AboutSiloUniverse() {
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
@@ -888,28 +1304,41 @@ export function AboutSiloUniverse() {
   const cameraControlsRef = useRef<CameraControlsImpl>(null);
   const distanceRef = useRef<number>(HOME_CAMERA_POS.distanceTo(SILO_CENTER));
 
-  // EPIC-115(요구사항 4): 3D 우주 설정 패널 — Leva가 화면에 자동으로
-  // 플로팅 패널을 그린다(별도 <Leva/> 마운트 불필요).
-  const { backgroundMode, preset } = useControls("배경", {
+  // EPIC-119: 파일 업로드/배열/드롭다운처럼 Leva로 표현하기 애매한 값들 —
+  // UniverseSettingsPanel이 이 state를 직접 patch한다.
+  const [panelConfig, setPanelConfig] = useState<UniverseConfig>(defaultUniverseConfig());
+  const [availableClips, setAvailableClips] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [toast, setToast] = useState(false);
+
+  function updatePanelConfig(patch: Partial<UniverseConfig>) {
+    setPanelConfig((prev) => ({ ...prev, ...patch }));
+  }
+
+  // EPIC-115(요구사항 4)/EPIC-119: 3D 우주 설정 패널 — Leva가 화면에 자동으로
+  // 플로팅 패널을 그린다(별도 <Leva/> 마운트 불필요). [값, set] 형태로
+  // 받아 DB 로드 시 set()으로 초깃값을 밀어 넣는다(아래 로드 useEffect 참고).
+  const [{ backgroundMode, preset }, setBgControls] = useControls("배경", () => ({
     backgroundMode: { label: "모드", options: { 유튜브: "youtube", 프리셋: "preset" } as Record<string, "youtube" | "preset"> },
     preset: {
       label: "프리셋",
       options: { "크림 백지": "cream", "딥 블루": "deepBlue", "수채화 블루": "watercolor" } as Record<string, BackgroundPreset>,
       render: (get) => get("배경.backgroundMode") === "preset",
     },
-  });
+  }));
 
-  const { planetColor, showThumbnails, orbitSpeed } = useControls("행성", {
+  const [{ planetColor, showThumbnails, orbitSpeed }, setPlanetControls] = useControls("행성", () => ({
     planetColor: "#e3a874",
     showThumbnails: false,
     orbitSpeed: { value: 0.15, min: 0, max: 1, step: 0.05 },
-  });
+  }));
 
-  const { characterType } = useControls("캐릭터", {
-    characterType: { label: "모델", options: { "Type A": "A", "Type B": "B", "Type C": "C" } as Record<string, "A" | "B" | "C"> },
-  });
+  const [{ characterType }, setCharacterControls] = useControls("캐릭터", () => ({
+    characterType: { label: "폴백 모델(업로드 없을 때)", options: { "Type A": "A", "Type B": "B", "Type C": "C" } as Record<string, "A" | "B" | "C"> },
+  }));
 
-  const { chestVariant, cameraVariant } = useControls("내핵 오브젝트", {
+  const [{ chestVariant, cameraVariant }, setCoreControls] = useControls("내핵 오브젝트", () => ({
     chestVariant: {
       label: "보물상자 종류",
       options: { "클래식 브라운": "classic", "골드 트림": "gold", "다크 오크": "dark" } as Record<string, ChestVariant>,
@@ -918,17 +1347,94 @@ export function AboutSiloUniverse() {
       label: "카메라 종류",
       options: { "빈티지 브라운": "vintage", "블랙 필름": "black", 폴라로이드형: "polaroid" } as Record<string, CameraVariant>,
     },
+  }));
+
+  // EPIC-119(Item 5): 실뜨개 연결선 색상.
+  const [{ lineColor }, setLineControls] = useControls("연결선", () => ({
+    lineColor: "#f2e2b8",
+  }));
+
+  const config: UniverseConfig = {
+    ...panelConfig,
+    backgroundMode,
+    preset,
+    planetColor,
+    showThumbnails,
+    orbitSpeed,
+    characterType,
+    chestVariant,
+    cameraVariant,
+    lineColor,
+  };
+  // react-hooks/refs: ref는 렌더 중이 아니라 effect에서 써야 한다 — 이
+  // ref는 handleSave/자동저장 인터벌이 "항상 최신 config"를 읽기 위한
+  // 것일 뿐 렌더 출력과는 무관해 매 렌더 후 effect로 동기화한다.
+  const configRef = useRef(config);
+  useEffect(() => {
+    configRef.current = config;
   });
+
+  // EPIC-119(Item 7): DB(site_settings.about_silo_universe)에서 저장된
+  // 설정을 불러와 Leva(set 함수들)와 panelConfig 양쪽에 반영.
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", UNIVERSE_SETTINGS_KEY)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const loaded = normalizeUniverseConfig(data?.setting_value);
+        setBgControls({ backgroundMode: loaded.backgroundMode, preset: loaded.preset });
+        setPlanetControls({ planetColor: loaded.planetColor, showThumbnails: loaded.showThumbnails, orbitSpeed: loaded.orbitSpeed });
+        setCharacterControls({ characterType: loaded.characterType });
+        setCoreControls({ chestVariant: loaded.chestVariant, cameraVariant: loaded.cameraVariant });
+        setLineControls({ lineColor: loaded.lineColor });
+        setPanelConfig(loaded);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert(
+        { setting_key: UNIVERSE_SETTINGS_KEY, setting_value: configRef.current, updated_at: new Date().toISOString() },
+        { onConflict: "setting_key" },
+      );
+    setSaving(false);
+    if (!error) {
+      setSavedAt(Date.now());
+      setToast(true);
+      setTimeout(() => setToast(false), 2200);
+    }
+  }
+
+  // EPIC-119(Item 7): 5분 자동 저장 — configRef가 매 렌더 최신값으로
+  // 갱신되므로, 인터벌 자체는 autoSaveEnabled가 바뀔 때만 재설정된다.
+  useEffect(() => {
+    if (!panelConfig.autoSaveEnabled) return;
+    const id = setInterval(() => {
+      handleSave();
+    }, AUTO_SAVE_INTERVAL_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelConfig.autoSaveEnabled]);
 
   useEffect(() => {
     let cancelled = false;
-    fetchUniverseImages().then((items) => {
+    fetchUniverseImages(panelConfig.boardSlug).then((items) => {
       if (!cancelled) setPosts(items);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [panelConfig.boardSlug]);
 
   // EPIC-114 발견/EPIC-115 유지: CameraControls는 마운트 시 Canvas의 초기
   // camera position을 자기 나름대로 재해석하고, R3F는 부모(DOM) 트리와
@@ -963,6 +1469,17 @@ export function AboutSiloUniverse() {
     controls.setLookAt(camPos.x, camPos.y, camPos.z, target.x, target.y, target.z, true);
   }
 
+  // EPIC-119(Item 5): 행성(SILO/유저) 자체를 클릭하면 카메라가 그 행성을
+  // 화면 중심으로 부드럽게 줌인(fit to object)한다 — 반지름의 2.2배
+  // 거리에서 살짝 위/옆으로 바라보는 구도로 접근.
+  function handleFocusPlanet(center: THREE.Vector3, radius: number) {
+    const controls = cameraControlsRef.current;
+    if (!controls) return;
+    const dir = new THREE.Vector3(0.4, 0.3, 1).normalize();
+    const camPos = center.clone().add(dir.multiplyScalar(radius * 2.2));
+    controls.setLookAt(camPos.x, camPos.y, camPos.z, center.x, center.y, center.z, true);
+  }
+
   function handleReset() {
     setSelected(null);
     cameraControlsRef.current?.setLookAt(
@@ -972,11 +1489,13 @@ export function AboutSiloUniverse() {
     );
   }
 
-  const settings: SceneSettings = { planetColor, showThumbnails, orbitSpeed, characterType, chestVariant, cameraVariant };
-
   return (
     <div className="relative h-[85vh] min-h-[560px] w-full overflow-hidden bg-transparent">
-      {backgroundMode === "youtube" ? <YoutubeBackground /> : <PresetBackground preset={preset} />}
+      {backgroundMode === "youtube" ? (
+        <YoutubeBackground urls={panelConfig.youtubeUrls} />
+      ) : (
+        <PresetBackground preset={preset} />
+      )}
 
       <Canvas
         dpr={[1, 1.5]}
@@ -990,7 +1509,9 @@ export function AboutSiloUniverse() {
             onSelect={handleSelect}
             cameraControlsRef={cameraControlsRef}
             distanceRef={distanceRef}
-            settings={settings}
+            config={config}
+            onClipsLoaded={setAvailableClips}
+            onFocusPlanet={handleFocusPlanet}
           />
         )}
       </Canvas>
@@ -1001,7 +1522,7 @@ export function AboutSiloUniverse() {
             <p className="text-xs uppercase tracking-[0.2em] text-white/60">About Silo</p>
             <h1 className="mt-1 text-2xl font-light drop-shadow">사일로의 우주</h1>
             <p className="mt-1 max-w-sm text-xs text-white/70">
-              떠 있는 마커를 클릭해 가까이 다가가고, 휠을 굴려 행성 안쪽 세계로 들어가 보세요.
+              떠 있는 마커를 클릭해 가까이 다가가고, 휠을 굴려 행성 안쪽 세계로 들어가 보세요. 행성 자체를 클릭하면 그 행성으로 바로 다가갑니다.
             </p>
           </div>
           <button
@@ -1020,6 +1541,22 @@ export function AboutSiloUniverse() {
         )}
 
         {selected && <SelectedPostPanel post={selected} onClose={handleReset} />}
+
+        <UniverseSettingsPanel
+          config={panelConfig}
+          onChange={updatePanelConfig}
+          availableClips={availableClips}
+          onSave={handleSave}
+          saving={saving}
+          savedAt={savedAt}
+        />
+
+        {/* EPIC-119(Item 7): 저장됨 토스트. */}
+        {toast && (
+          <div className="pointer-events-none fixed right-6 top-6 z-50 rounded-full border border-white/20 bg-black/70 px-4 py-2 text-xs text-white shadow-xl backdrop-blur-sm">
+            ✓ 저장됨
+          </div>
+        )}
       </div>
     </div>
   );

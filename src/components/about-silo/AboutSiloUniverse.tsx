@@ -57,7 +57,7 @@ import {
   Sparkles,
   type CameraControls as CameraControlsImpl,
 } from "@react-three/drei";
-import { EffectComposer, Noise, Vignette } from "@react-three/postprocessing";
+import { EffectComposer, Noise, Vignette, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { fibonacciSphere } from "@/lib/fibonacciSphere";
 import { htmlToExcerpt } from "@/lib/htmlExcerpt";
@@ -454,6 +454,30 @@ function CharacterRenderer({
 
 type SurfacePlacement = { position: [number, number, number]; quaternion: THREE.Quaternion };
 
+// HOTFIX(사용자 신고 — "행성을 드래그하고 놓으면 자꾸 이전 위치로
+// 돌아간다"): 실제로는 행성 자체가 움직이는 게 아니라, 행성 위에서
+// 드래그해 카메라를 궤도 회전시킨(CameraControls) 뒤 마우스를 그 행성
+// 위에서 떼면 R3F가 이동 거리와 무관하게 onClick을 그대로 발생시켜
+// onFocus()가 매번 같은 고정 각도로 카메라를 스냅시키던 것 — "드래그해
+// 옮긴 시점"이 아니라 "클릭한 시점"의 고정 프레이밍으로 계속 되돌아가는
+// 것처럼 보였다. 포인터다운→업 사이의 화면 이동 거리가 임계값 미만일
+// 때만 진짜 클릭으로 간주해 onFocus를 호출한다.
+function useDragAwareClick(onClick: () => void) {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  return {
+    onPointerDown: (e: ThreeEvent<PointerEvent>) => {
+      start.current = { x: e.clientX, y: e.clientY };
+    },
+    onPointerUp: (e: ThreeEvent<PointerEvent>) => {
+      e.stopPropagation();
+      const s = start.current;
+      start.current = null;
+      const moved = s ? Math.hypot(e.clientX - s.x, e.clientY - s.y) : 0;
+      if (moved < 5) onClick();
+    },
+  };
+}
+
 function surfacePlacementsFor(count: number, radius: number): SurfacePlacement[] {
   return fibonacciSphere(Math.max(count, 1), radius).map(([x, y, z]) => {
     const normal = new THREE.Vector3(x, y, z).normalize();
@@ -486,7 +510,7 @@ function UniverseObjectModel({
   // 원본 모델링 단위(cm/m/임의 unit)가 업로드마다 제각각이라, 실제
   // 바운딩 박스를 재서 목표 크기(0.5 유닛)로 정규화한 뒤 관리자 scale은
   // 그 위에 곱하는 배율로만 쓴다. 바닥을 y=0에 맞춰 표면 위에 서게 한다.
-  const { normalized, baseOffsetY } = useMemo(() => {
+  const { normalized, baseOffsetY, boundingRadius } = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
     const size = box.getSize(new THREE.Vector3());
@@ -494,8 +518,26 @@ function UniverseObjectModel({
     const targetSize = 0.5;
     clone.scale.setScalar(targetSize / maxDim);
     const rescaledBox = new THREE.Box3().setFromObject(clone);
-    return { normalized: clone, baseOffsetY: -rescaledBox.min.y };
+    const rescaledSize = rescaledBox.getSize(new THREE.Vector3());
+    return {
+      normalized: clone,
+      baseOffsetY: -rescaledBox.min.y,
+      boundingRadius: Math.max(rescaledSize.x, rescaledSize.y, rescaledSize.z, 0.2) * 0.65,
+    };
   }, [scene]);
+
+  // 사용자 지시("클릭하면 오브제가 빛나게 glow 효과"): 임의 업로드
+  // .glb의 내부 머티리얼을 직접 건드리는 대신(구조가 제각각이라 위험),
+  // 선택 시에만 나타나는 가산 블렌딩 오라 구체를 은은하게 맥동시켜
+  // 글로우처럼 보이게 한다 — Scene의 Bloom 포스트프로세싱과 합쳐지면
+  // 실제로 빛나 보인다.
+  const glowRef = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!glowRef.current) return;
+    const pulse = 0.75 + Math.sin(clock.getElapsedTime() * 2.6) * 0.25;
+    glowRef.current.scale.setScalar(pulse);
+    (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.35 + pulse * 0.25;
+  });
 
   return (
     <group
@@ -512,10 +554,24 @@ function UniverseObjectModel({
     >
       <primitive object={normalized} position={[0, baseOffsetY, 0]} />
       {selected && (
-        <mesh position={[0, baseOffsetY + 0.25, 0]}>
-          <ringGeometry args={[0.28, 0.32, 24]} />
-          <meshBasicMaterial color="#7dd3fc" transparent opacity={0.9} toneMapped={false} side={THREE.DoubleSide} />
-        </mesh>
+        <>
+          <mesh ref={glowRef} position={[0, baseOffsetY + boundingRadius * 0.5, 0]}>
+            <sphereGeometry args={[boundingRadius * 1.4, 16, 16]} />
+            <meshBasicMaterial
+              color="#7dd3fc"
+              transparent
+              opacity={0.5}
+              toneMapped={false}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+          <mesh position={[0, baseOffsetY + 0.25, 0]}>
+            <ringGeometry args={[0.28, 0.32, 24]} />
+            <meshBasicMaterial color="#7dd3fc" transparent opacity={0.9} toneMapped={false} side={THREE.DoubleSide} />
+          </mesh>
+        </>
       )}
     </group>
   );
@@ -539,8 +595,24 @@ function UniverseObjectsLayer({
   return (
     <>
       {objects.map((obj, i) => {
+        // HOTFIX(사용자 신고 — "SILO 행성 표면에 오브제가 제대로 표시가
+        // 안 되고 있어. 행성 안에 있거나, 표면에 절반만 나오거나"): 드래그로
+        // 옮긴 뒤에는 obj.position이 fibonacci 기본 배치와 무관한 임의
+        // 좌표가 되는데, 방향(quaternion)은 계속 원래 인덱스의 기본
+        // 배치 값을 재사용해 표면 법선과 어긋나 있었다 — "위" 방향이
+        // 실제 표면 바깥쪽을 가리키지 않아 오브젝트가 절반쯤 파묻힌
+        // 것처럼 보였다. "중력" — 오브젝트는 항상 SILO_CENTER 기준
+        // 구면(SURFACE_PLACEMENT_RADIUS) 위로 투영되고, 방향도 그 지점의
+        // 실제 법선으로 매 렌더 다시 계산한다.
         const placement: SurfacePlacement = obj.position
-          ? { position: obj.position, quaternion: defaults[i].quaternion }
+          ? (() => {
+              const normal = new THREE.Vector3(...obj.position!).sub(SILO_CENTER).normalize();
+              const snapped = SILO_CENTER.clone().add(normal.multiplyScalar(SURFACE_PLACEMENT_RADIUS));
+              return {
+                position: snapped.toArray() as [number, number, number],
+                quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
+              };
+            })()
           : defaults[i];
         return (
           <AssetLoadErrorBoundary key={obj.id} fallback={null} onError={() => onObjectError(obj.id)}>
@@ -591,14 +663,12 @@ function CentralPlanet({
   useFrame((_, delta) => {
     if (meshRef.current) meshRef.current.rotation.y += delta * rotationSpeed * 0.1;
   });
+  const dragAwareClick = useDragAwareClick(onFocus);
   return (
     <group position={SILO_CENTER}>
       <group
         ref={meshRef}
-        onClick={(e) => {
-          e.stopPropagation();
-          onFocus();
-        }}
+        {...dragAwareClick}
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
@@ -648,14 +718,12 @@ function UserPlanet({
     if (spinRef.current) spinRef.current.rotation.y += delta * rotationSpeed * 0.14;
   });
 
+  const dragAwareClick = useDragAwareClick(onFocus);
   return (
     <group ref={groupRef}>
       <mesh
         ref={spinRef}
-        onClick={(e) => {
-          e.stopPropagation();
-          onFocus();
-        }}
+        {...dragAwareClick}
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
@@ -882,11 +950,30 @@ function OrbitStarMarker({
 }) {
   const [hovered, setHovered] = useState(false);
   const starRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  // 마커마다 다른 위상으로 반짝이도록(전부 같은 박자로 깜빡이면 부자연
+  // 스러워) post.id를 해시해 개별 seed를 만든다.
+  const seed = useMemo(() => {
+    let h = 0;
+    for (let i = 0; i < post.id.length; i++) h = (h * 31 + post.id.charCodeAt(i)) % 1000;
+    return h;
+  }, [post.id]);
 
+  // 사용자 지시("썸네일을 상징하는 오브제가 반짝반짝 빛나게 해줘야지,
+  // 그래야 이게 무슨 의미가 있는지 알지"): 별 마커를 자전시키면서, 밝기/
+  // 크기를 사인파로 맥동시켜 반짝이는 느낌을 준다 — Bloom과 합쳐지면
+  // 실제로 빛나 보인다.
   useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
     if (starRef.current) {
-      starRef.current.rotation.y = clock.getElapsedTime() * 0.6;
-      starRef.current.rotation.x = clock.getElapsedTime() * 0.4;
+      starRef.current.rotation.y = t * 0.6;
+      starRef.current.rotation.x = t * 0.4;
+      const twinkle = 0.8 + Math.sin(t * 2.2 + seed) * 0.2;
+      starRef.current.scale.setScalar(twinkle);
+    }
+    if (materialRef.current) {
+      const brightness = 0.7 + Math.sin(t * 2.2 + seed) * 0.3;
+      materialRef.current.color.setRGB(brightness, brightness * 0.95, brightness * 0.82);
     }
   });
 
@@ -909,7 +996,7 @@ function OrbitStarMarker({
         }}
       >
         <octahedronGeometry args={[selected ? 0.09 : 0.07, 0]} />
-        <meshBasicMaterial color={selected ? "#fff3d6" : "#f4e6c8"} toneMapped={false} />
+        <meshBasicMaterial ref={materialRef} color={selected ? "#fff3d6" : "#f4e6c8"} toneMapped={false} />
       </mesh>
       {selected && (
         <mesh>
@@ -917,7 +1004,10 @@ function OrbitStarMarker({
           <meshBasicMaterial color="#fff3d6" transparent opacity={0.85} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       )}
-      {hovered && post.photo_url && (
+      {/* 사용자 지시("클릭하면, 썸네일이 hover할 때만 나오는 게 아니라
+          계속 자동으로 뜨게"): hover 중이거나, 클릭으로 선택된 상태면
+          계속 보이게 유지한다(선택 해제는 SelectedPostPanel의 닫기 버튼). */}
+      {(hovered || selected) && post.photo_url && (
         <Html center distanceFactor={6} position={[0, 0.24, 0]} style={{ pointerEvents: "none" }} zIndexRange={[10, 0]}>
           <div
             style={{
@@ -1240,6 +1330,15 @@ function Scene({
           onMouseDown={() => {
             if (cameraControlsRef.current) cameraControlsRef.current.enabled = false;
           }}
+          // "중력": 드래그하는 동안에도 매 프레임 SILO_CENTER 기준
+          // 구면 위로 위치를 투영하고 방향을 그 지점 법선에 맞춰, 표면을
+          // 따라 미끄러지듯 이동하는(마우스를 떼기 전에도 파묻히거나
+          // 뜨지 않는) 느낌을 준다.
+          onChange={() => {
+            const normal = selectedGroup.position.clone().sub(SILO_CENTER).normalize();
+            selectedGroup.position.copy(SILO_CENTER.clone().add(normal.multiplyScalar(SURFACE_PLACEMENT_RADIUS)));
+            selectedGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+          }}
           onMouseUp={() => {
             if (cameraControlsRef.current) cameraControlsRef.current.enabled = true;
             if (selectedObjectId) onObjectMoved(selectedObjectId, selectedGroup.position.toArray() as [number, number, number]);
@@ -1284,6 +1383,10 @@ function Scene({
 
       <EffectComposer multisampling={0}>
         <Noise opacity={0.05} />
+        {/* 선택된 오브젝트/썸네일 마커의 glow(가산 블렌딩 오라, 반짝이는
+            별)가 실제로 빛나 보이도록 하는 블룸 — 임계값을 높게 잡아
+            어두운 씬 전체가 뿌옇게 번지지 않고 밝은 요소만 번지게 한다. */}
+        <Bloom luminanceThreshold={0.55} luminanceSmoothing={0.25} intensity={0.6} mipmapBlur />
         <Vignette eskil={false} offset={0.25} darkness={0.7} />
       </EffectComposer>
     </>
@@ -1353,6 +1456,7 @@ export function AboutSiloUniverse() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [toast, setToast] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // EPIC-121: 3D 뷰에서 클릭해 선택한 오브젝트 — 우측 인스펙터 패널 +
   // TransformControls 드래그 대상. objectRefs는 UniverseObjectsLayer가
@@ -1402,6 +1506,7 @@ export function AboutSiloUniverse() {
 
   async function handleSave() {
     setSaving(true);
+    setSaveError(null);
     const { error } = await supabase
       .from("site_settings")
       .upsert(
@@ -1413,6 +1518,12 @@ export function AboutSiloUniverse() {
       setSavedAt(Date.now());
       setToast(true);
       setTimeout(() => setToast(false), 2200);
+    } else {
+      // HOTFIX(사용자 신고 — "오브제 설정을 수정하면 저장할 수가 없네"):
+      // 기존엔 error를 그냥 버려서 RLS 거부/네트워크 실패가 완전히
+      // 조용히 사라졌다 — 실패를 콘솔+토스트로 드러낸다.
+      console.error("[about-silo universe] 저장 실패:", error);
+      setSaveError(error.message || "저장에 실패했습니다.");
     }
   }
 
@@ -1566,12 +1677,19 @@ export function AboutSiloUniverse() {
             onChange={(patch) => updateObject(selectedObject.id, patch)}
             onDelete={removeSelectedObject}
             onClose={() => setSelectedObjectId(null)}
+            onSave={handleSave}
+            saving={saving}
           />
         )}
 
         {toast && (
           <div className="pointer-events-none fixed right-6 top-6 z-50 rounded-full border border-white/20 bg-black/70 px-4 py-2 text-xs text-white shadow-xl backdrop-blur-sm">
             ✓ 저장됨
+          </div>
+        )}
+        {saveError && (
+          <div className="pointer-events-auto fixed right-6 top-6 z-50 max-w-[260px] rounded-lg border border-red-400/40 bg-red-950/80 px-4 py-2 text-xs text-red-100 shadow-xl backdrop-blur-sm">
+            ✕ 저장 실패: {saveError}
           </div>
         )}
       </div>

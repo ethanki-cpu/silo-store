@@ -12,11 +12,21 @@ export function ObjectInspectorPanel({
   onChange,
   onDelete,
   onClose,
+  onSave,
+  saving,
 }: {
   object: UniverseObject;
   onChange: (patch: Partial<UniverseObject>) => void;
   onDelete: () => void;
   onClose: () => void;
+  // HOTFIX(사용자 신고 — "오브제 설정을 수정하면 저장할 수가 없네"):
+  // 이 패널의 onChange는 전역 panelConfig(client state)만 바꿀 뿐 DB에
+  // 쓰지 않는다 — 실제 저장은 좌측 UniverseSettingsPanel의 "지금 저장"
+  // 버튼(AboutSiloUniverse.tsx의 handleSave)뿐이었는데, 여기서 오브젝트만
+  // 편집하고 닫는 사용자는 그 버튼의 존재를 모를 수 있다. 같은 저장
+  // 함수를 여기서도 바로 누를 수 있게 노출한다.
+  onSave: () => void;
+  saving: boolean;
 }) {
   return (
     <div className="pointer-events-auto fixed right-6 top-24 z-40 w-[260px] rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md">
@@ -56,6 +66,14 @@ export function ObjectInspectorPanel({
             </p>
           )}
         </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="w-full rounded border border-sky-400/40 bg-sky-500/10 py-1.5 text-[11px] text-sky-200 hover:bg-sky-500/20 disabled:opacity-40"
+        >
+          {saving ? "저장 중..." : "이 변경사항 저장"}
+        </button>
         <button
           type="button"
           onClick={onDelete}

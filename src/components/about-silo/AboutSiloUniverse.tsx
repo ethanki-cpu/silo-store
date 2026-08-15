@@ -275,13 +275,17 @@ function useWatercolorTexture(baseColorHex: string): THREE.CanvasTexture {
 // EPIC-119(공용): 이미지 텍스처든 .glb 모델이든, 에셋 로드가 실패하면
 // (CORS/잘못된 URL 등) 크래시 대신 폴백을 보여주는 공용 경계 — 이름을
 // Image 전용에서 Asset 전용으로 일반화(EPIC-115 때는 이미지만 다뤘음).
-class AssetLoadErrorBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { hasError: boolean }> {
+class AssetLoadErrorBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode; onError?: () => void },
+  { hasError: boolean }
+> {
   state = { hasError: false };
   static getDerivedStateFromError() {
     return { hasError: true };
   }
   componentDidCatch(error: unknown) {
     console.warn("[about-silo universe] 에셋 로드 실패, 폴백으로 대체:", error);
+    this.props.onError?.();
   }
   render() {
     return this.state.hasError ? this.props.fallback : this.props.children;
@@ -469,27 +473,63 @@ function CharacterRenderer({
 // 장식 오브젝트(EPIC-119 Item 3/4) — SILO 행성 표면에 자동 배치.
 // ============================================================
 
-function UniverseObjectModel({ obj, position }: { obj: UniverseObject; position: [number, number, number] }) {
+type ObjectPlacement = { position: [number, number, number]; quaternion: THREE.Quaternion };
+
+// EPIC-119 버그 수정(사용자 신고 — "글b 오브제 추가했는데 반영이 안되네"):
+// 업로드된 .glb마다 원본 모델링 단위(cm/m/임의 unit)가 제각각이라, 기존
+// 고정 scale(관리자 지정값 그대로 곱하기)로는 어떤 모델은 눈에 안 보일
+// 만큼 작아지거나(예: 실물 미터 단위로 만들어진 모델에 0.3을 곱하면
+// 장면 스케일(행성 반지름 2.1)에 비해 사실상 점 하나) 화면을 뒤덮을
+// 만큼 커질 수 있었다 — 실제 바운딩 박스를 재서 목표 크기(0.5 유닛)로
+// 정규화한 뒤 관리자 scale은 그 위에 곱하는 "배율"로만 쓴다. 또한 바닥을
+// y=0에 맞춰(모델 원점이 발밑이 아니라 중심일 수 있어) 행성 표면에
+// "박힌" 것처럼 반쯤 파묻히지 않고 표면 위에 서도록 하고, 배치 지점의
+// 구면 법선 방향으로 회전시켜 행성 어디에 놓여도 "위"가 바깥을 향하게 한다.
+function UniverseObjectModel({ obj, placement }: { obj: UniverseObject; placement: ObjectPlacement }) {
   const { scene } = useGLTF(obj.url);
-  const cloned = useMemo(() => scene.clone(true), [scene]);
-  return <primitive object={cloned} position={position} scale={obj.scale} />;
+  const { normalized, baseOffsetY } = useMemo(() => {
+    const clone = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(clone);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
+    const targetSize = 0.5;
+    clone.scale.setScalar(targetSize / maxDim);
+    const rescaledBox = new THREE.Box3().setFromObject(clone);
+    return { normalized: clone, baseOffsetY: -rescaledBox.min.y };
+  }, [scene]);
+
+  return (
+    <group position={placement.position} quaternion={placement.quaternion} scale={obj.scale}>
+      <primitive object={normalized} position={[0, baseOffsetY, 0]} />
+    </group>
+  );
 }
 
-function UniverseObjectsLayer({ objects }: { objects: UniverseObject[] }) {
-  const positions = useMemo(
+function UniverseObjectsLayer({
+  objects,
+  onObjectError,
+}: {
+  objects: UniverseObject[];
+  onObjectError: (id: string) => void;
+}) {
+  const placements = useMemo<ObjectPlacement[]>(
     () =>
-      fibonacciSphere(Math.max(objects.length, 1), PLANET_RADIUS * 0.97).map(
-        ([x, y, z]) => [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number],
-      ),
+      fibonacciSphere(Math.max(objects.length, 1), PLANET_RADIUS * 0.97).map(([x, y, z]) => {
+        const normal = new THREE.Vector3(x, y, z).normalize();
+        return {
+          position: [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number],
+          quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
+        };
+      }),
     [objects.length],
   );
   if (objects.length === 0) return null;
   return (
     <>
       {objects.map((obj, i) => (
-        <AssetLoadErrorBoundary key={obj.id} fallback={null}>
+        <AssetLoadErrorBoundary key={obj.id} fallback={null} onError={() => onObjectError(obj.id)}>
           <Suspense fallback={null}>
-            <UniverseObjectModel obj={obj} position={positions[i]} />
+            <UniverseObjectModel obj={obj} placement={placements[i]} />
           </Suspense>
         </AssetLoadErrorBoundary>
       ))}
@@ -1154,6 +1194,7 @@ function Scene({
   config,
   onClipsLoaded,
   onFocusPlanet,
+  onObjectError,
 }: {
   posts: FeedPost[];
   selectedId: string | null;
@@ -1163,6 +1204,7 @@ function Scene({
   config: UniverseConfig;
   onClipsLoaded: (clips: string[]) => void;
   onFocusPlanet: (center: THREE.Vector3, radius: number) => void;
+  onObjectError: (id: string) => void;
 }) {
   const router = useRouter();
   const orbitGroupRef = useRef<THREE.Group>(null);
@@ -1208,7 +1250,7 @@ function Scene({
       />
       <ConnectingThread color={config.lineColor} />
       <CoreCategories router={router} chestVariant={config.chestVariant} cameraVariant={config.cameraVariant} />
-      <UniverseObjectsLayer objects={config.objects} />
+      <UniverseObjectsLayer objects={config.objects} onObjectError={onObjectError} />
 
       <group ref={orbitGroupRef}>
         {posts.map((post, i) => {
@@ -1308,6 +1350,14 @@ export function AboutSiloUniverse() {
   // UniverseSettingsPanel이 이 state를 직접 patch한다.
   const [panelConfig, setPanelConfig] = useState<UniverseConfig>(defaultUniverseConfig());
   const [availableClips, setAvailableClips] = useState<string[]>([]);
+  // EPIC-119 버그 수정: 오브젝트 .glb 로드가 실패해도 기존엔 조용히
+  // 아무것도 안 보여줘서("반영이 안 되네") 관리자가 원인을 알 수 없었다
+  // — 실패한 오브젝트 id를 모아 UniverseSettingsPanel에 "⚠ 로드 실패"로
+  // 표시한다.
+  const [failedObjectIds, setFailedObjectIds] = useState<Set<string>>(new Set());
+  function handleObjectError(id: string) {
+    setFailedObjectIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [toast, setToast] = useState(false);
@@ -1512,6 +1562,7 @@ export function AboutSiloUniverse() {
             config={config}
             onClipsLoaded={setAvailableClips}
             onFocusPlanet={handleFocusPlanet}
+            onObjectError={handleObjectError}
           />
         )}
       </Canvas>
@@ -1549,6 +1600,7 @@ export function AboutSiloUniverse() {
           onSave={handleSave}
           saving={saving}
           savedAt={savedAt}
+          failedObjectIds={failedObjectIds}
         />
 
         {/* EPIC-119(Item 7): 저장됨 토스트. */}

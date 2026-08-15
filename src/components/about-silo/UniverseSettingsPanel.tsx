@@ -22,6 +22,7 @@ export function UniverseSettingsPanel({
   onSave,
   saving,
   savedAt,
+  failedObjectIds,
 }: {
   config: UniverseConfig;
   onChange: (patch: Partial<UniverseConfig>) => void;
@@ -29,6 +30,10 @@ export function UniverseSettingsPanel({
   onSave: () => void;
   saving: boolean;
   savedAt: number | null;
+  // EPIC-119 버그 수정(사용자 신고): .glb 로드가 실패해도 조용히 아무것도
+  // 안 보여서 원인을 알 수 없었다 — 실패한 오브젝트 id 목록을 받아 해당
+  // 행에 "⚠ 로드 실패"를 표시한다.
+  failedObjectIds: Set<string>;
 }) {
   const [open, setOpen] = useState(false);
   const [boards, setBoards] = useState<BoardOption[]>([]);
@@ -230,24 +235,31 @@ export function UniverseSettingsPanel({
           </p>
           <div className="space-y-1">
             {config.objects.map((obj) => (
-              <div key={obj.id} className={ROW}>
-                <input
-                  className={INPUT}
-                  value={obj.label}
-                  onChange={(e) => updateObject(obj.id, { label: e.target.value })}
-                />
-                <input
-                  type="number"
-                  min={0.05}
-                  max={2}
-                  step={0.05}
-                  className={`${INPUT} w-14 flex-none`}
-                  value={obj.scale}
-                  onChange={(e) => updateObject(obj.id, { scale: Number(e.target.value) || 0.3 })}
-                />
-                <button type="button" className={BTN} onClick={() => removeObject(obj.id)}>
-                  삭제
-                </button>
+              <div key={obj.id}>
+                <div className={ROW}>
+                  <input
+                    className={INPUT}
+                    value={obj.label}
+                    onChange={(e) => updateObject(obj.id, { label: e.target.value })}
+                  />
+                  <input
+                    type="number"
+                    min={0.05}
+                    max={2}
+                    step={0.05}
+                    className={`${INPUT} w-14 flex-none`}
+                    value={obj.scale}
+                    onChange={(e) => updateObject(obj.id, { scale: Number(e.target.value) || 0.3 })}
+                  />
+                  <button type="button" className={BTN} onClick={() => removeObject(obj.id)}>
+                    삭제
+                  </button>
+                </div>
+                {failedObjectIds.has(obj.id) && (
+                  <p className="mt-0.5 text-[10px] text-red-300">
+                    ⚠ 로드 실패 — URL이 올바른 .glb 공개 링크인지 확인하세요.
+                  </p>
+                )}
               </div>
             ))}
           </div>

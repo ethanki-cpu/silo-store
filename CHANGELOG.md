@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-15 (HOTFIX-122 — 게시글 마커를 sphere에서 hover-썸네일 별 모양으로 + 클릭 시 깜빡임 버그 수정)
+- **배경**: 사용자가 EPIC-121에서 도입한 "sphere 썸네일"을 써보고 별로라며, 대신 SILO 행성을 도는 작은 별 모양 마커로 바꾸고 마우스를 올렸을 때만 동그란 사진 미리보기가 뜨게 해달라고 요청. 추가로 "썸네일을 클릭하면 깜빡이는(flicker) 현상"을 신고.
+- **깜빡임 근본 원인**: `surfaceOpacityFor()`(카메라~SILO 거리 기반 opacity 페이드)가 EPIC-121에서 "내핵 오브젝트"(카테고리)에서는 제거됐지만 게시글 마커(`SurfaceImage`/`AboutSiloMarker`)에는 그대로 남아있었다. 이 함수는 "가까울수록 낮은 opacity"로 계산되는데(기존엔 "카메라가 다가가 안쪽 내핵을 보여주기 위해 표면 마커를 지운다"는 의도였던 로직의 잔재), 마커를 클릭하면 카메라가 그 마커 쪽으로 다가가도록 날아가고, 그러면 거리가 줄면서 이 마커 자신의 opacity가 계속 낮아지려 하다가 lerp로 요동치며 깜빡이는 것처럼 보였다.
+- **수정**: 씬 전체에서 거리 기반 opacity 페이드 메커니즘(`DistanceContext`/`CameraDistanceTracker`/`surfaceOpacityFor`)을 완전히 제거했다 — 이제 "내핵을 숨겼다 드러내는" 연출 자체가 없으므로(EPIC-121부터 모든 카테고리/오브젝트가 항상 보임) 이 메커니즘은 더 이상 필요 없는 죽은 개념이었다.
+- **썸네일 → hover 미리보기가 있는 별(HOTFIX-122 신규 `OrbitStarMarker`)**: `SurfaceImage`(텍스처 입힌 sphere)와 `AboutSiloMarker`(단순 점)를 이 컴포넌트 하나로 통합 — 평소엔 작은 팔면체(별/다이아몬드 모양) 마커만 떠 있고, 마우스를 올리면(`onPointerOver`) 그 옆에 실제 사진을 원형으로 담은 일반 HTML `<img>`(drei `<Html>`)가 나타난다. Three.js 텍스처 로딩(`useTexture`+`Suspense`+에러 바운더리)이 필요 없어져 마커 쪽 코드가 크게 단순해졌다(브라우저가 이미지 로딩/에러를 알아서 처리).
+- **부가**: 이제 궤도 마커에 "sphere로 보여주기" on/off 토글 자체가 의미 없어져 설정 패널에서 제거(기존 `showThumbnails` 필드는 과거 저장값과의 호환을 위해 타입에만 `@deprecated`로 남김, 아무 코드도 안 읽음).
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors. 로컬 dev + Browser pane 실측: 별 모양 마커가 SILO 행성 주위에 떠 있는 것 확인, 마커에 마우스를 올리자 실제 사진이 담긴 원형 미리보기가 뜨는 것을 스크린샷으로 확인, 마커를 클릭하자 카메라가 다가가며 "자세히 보기" 요약 패널이 정상적으로 뜨는 것까지 확인(콘솔에 새 에러 없음).
+- **변경 파일**: `src/components/about-silo/AboutSiloUniverse.tsx`, `src/components/about-silo/UniverseSettingsPanel.tsx`, `src/lib/aboutSiloUniverseConfig.ts`.
+
 ## 2026-08-15 (EPIC-121 — 행성 줄무늬 제거/자유 회전/오브젝트 표면 배치+드래그/UI 통합 등 사용자 지시 다수 반영)
 - **배경**: 사용자가 실제 화면 스크린샷 2장과 함께 다수 항목을 한 번에 지시 — (1) 행성 표면 줄무늬 제거, (2) 카메라 자유 회전(행성 아래에서 위로 못 돌리는 문제), (3) 우측 Leva 패널(배경/행성/캐릭터/내핵 오브젝트/연결선)을 좌측 Universe Settings로 통합 + 우측엔 선택된 오브젝트 전용 설정창, (4) "내핵 오브제"를 행성 안에 숨기지 말고 표면 위에 항상 노출, (5) venus de milo가 여전히 안 보이는 문제, (6) 오브젝트 크기/위치를 드래그앤드롭으로 조정, (7) 게시글 썸네일을 sphere로, (8) 행성 이름/색상↔텍스처 블렌드(투명도), (9) 각 설정 저장, 캐릭터도 .glb 업로드 가능하게, (10) 행성마다 공전 + 행성간 거리 설정.
 - **줄무늬 제거 + 색↔텍스처 블렌드(항목 1, 8)**: 원인은 `meshToonMaterial`의 3단 `gradientMap`(셀 셰이딩 경계선)이 실사 텍스처 위에서 봉제선처럼 도드라져 보이던 것 — `PlanetMaterial`을 toon 셰이딩 없는 2겹 구조(베이스 색 구 + 텍스처 구를 살짝 큰 반지름으로 겹쳐 `opacity`로 블렌드)로 전면 교체. `planetTextureOpacity`(0~1) 슬라이더 신설. 유저 행성도 동일 이유로 toon 재질을 제거(`meshStandardMaterial`).

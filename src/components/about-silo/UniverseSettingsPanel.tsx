@@ -239,14 +239,10 @@ export function UniverseSettingsPanel({
                 </span>
               </label>
             )}
-            <label className="flex items-center gap-2 text-[10px] text-white/60">
-              <input
-                type="checkbox"
-                checked={config.showThumbnails}
-                onChange={(e) => onChange({ showThumbnails: e.target.checked })}
-              />
-              궤도 게시글을 사진 썸네일(구슬)로 표시
-            </label>
+            {/* HOTFIX-122(사용자 지시): 궤도 마커는 이제 항상 작은 별
+                모양이고(hover하면 사진 미리보기) 별도 on/off 토글이 필요
+                없어져 이 체크박스는 제거 — 기존 showThumbnails 필드는
+                하위 호환을 위해 타입에만 남겨둔다. */}
             <label className={FIELD_LABEL}>
               공전 속도
               <input

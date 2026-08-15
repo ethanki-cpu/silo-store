@@ -27,18 +27,17 @@
 // 아키텍처 결정 메모(EPIC-115/119 유지):
 // - "수채화 텍스처"/"프리셋 배경"은 여전히 절차적 대체(에셋 업로드 시
 //   PlanetMaterial/YoutubeBackground가 우선한다).
-// - 카메라 거리 기반 페이드(LOD)는 매 프레임 React state를 갱신하는 대신
-//   ref(뮤터블 객체)에 거리값을 담아 각 메시가 자기 자신의 useFrame에서
-//   직접 읽어 opacity를 보간한다(게시글 썸네일에는 계속 적용, 카테고리/
-//   오브젝트는 EPIC-121부터 항상 보이므로 더 이상 이 메커니즘을 안 씀).
+// - HOTFIX-122(사용자 지시): 카메라 거리 기반 opacity 페이드(옛 "내핵
+//   오브젝트" LOD 연출의 잔재)는 EPIC-121에서 카테고리부터 뗐고, 이번에
+//   게시글 마커에서도 완전히 제거했다 — 클릭해서 카메라가 다가갈수록
+//   마커가 반대로 옅어지며 깜빡이던 버그의 원인이었다. 이제 씬 안의
+//   모든 요소는 거리와 무관하게 항상 보인다.
 
 import {
   useEffect,
   useMemo,
   useRef,
   useState,
-  createContext,
-  useContext,
   Component,
   Suspense,
   type RefObject,
@@ -182,26 +181,10 @@ const SURFACE_PLACEMENT_RADIUS = PLANET_RADIUS * 0.97;
 
 const IMAGE_ORBIT_RADIUS = 2.55;
 const ABOUT_ME_ORBIT_RADIUS = 1.75;
-const SURFACE_VISIBLE_DISTANCE = 4.2;
 const HOME_TARGET = new THREE.Vector3(0.1, -0.1, 0);
 const HOME_CAMERA_POS = new THREE.Vector3(0.6, 2.2, 11.5);
 // 줌아웃 한계를 사실상 해제.
 const MAX_ZOOM_DISTANCE = 5000;
-
-type DistanceRef = { current: number };
-const DistanceContext = createContext<DistanceRef>({ current: HOME_CAMERA_POS.length() });
-
-function CameraDistanceTracker({ distanceRef }: { distanceRef: DistanceRef }) {
-  useFrame(({ camera }) => {
-    distanceRef.current = camera.position.distanceTo(SILO_CENTER);
-  });
-  return null;
-}
-
-function surfaceOpacityFor(distance: number): number {
-  if (distance >= SURFACE_VISIBLE_DISTANCE) return 1;
-  return Math.max(0, distance / SURFACE_VISIBLE_DISTANCE);
-}
 
 // ============================================================
 // 텍스처 유틸.
@@ -873,21 +856,20 @@ function UniverseParticles() {
 }
 
 // ============================================================
-// 궤도를 도는 게시글 마커. HOTFIX-121(사용자 지시 — "게시글 썸네일은
-// 'sphere'로 표현되게 해줘"): 기존엔 항상 카메라를 바라보는 평면
-// (billboard)이었는데, 사진을 텍스처로 입힌 작은 구슬로 바꿨다.
+// 궤도를 도는 게시글 마커. HOTFIX-122(사용자 지시 — "썸네일을 sphere로
+// 만드는 건 확인해보니 별로야, 차라리 SILO 행성을 orbit하는 조그만
+// 별 모양으로 하고 마우스를 hover하면 동그란 썸네일이 나오게 해줘"):
+// 사진 텍스처를 입힌 구 대신 작은 별(팔면체) 모양으로 바꾸고, 실제
+// 사진은 hover할 때만 일반 HTML <img>(원형)로 떠 있는 미리보기로
+// 보여준다 — Three.js 텍스처 로딩(Suspense/useTexture) 자체가 필요 없어
+// 코드가 단순해지고, "클릭하면 썸네일이 깜빡인다"는 신고의 원인이었던
+// 거리 기반 opacity 페이드(surfaceOpacityFor, 옛 "내핵 오브젝트" LOD
+// 연출의 잔재 — EPIC-121에서 카테고리는 이미 뗐지만 게시글 마커는
+// 그대로 남아 있었다: 카메라가 클릭 시 마커 쪽으로 가까이 다가가면
+// 이 로직이 거꾸로 opacity를 낮춰 사라지려 했다)도 완전히 제거했다.
 // ============================================================
 
-function SurfaceImageFallback({ position }: { position: [number, number, number] }) {
-  return (
-    <mesh position={position}>
-      <sphereGeometry args={[0.16, 16, 16]} />
-      <meshStandardMaterial color="#d9c2a3" transparent opacity={0.85} />
-    </mesh>
-  );
-}
-
-function SurfaceImage({
+function OrbitStarMarker({
   post,
   position,
   selected,
@@ -898,92 +880,65 @@ function SurfaceImage({
   selected: boolean;
   onSelect: (post: FeedPost, position: [number, number, number]) => void;
 }) {
-  const distanceRef = useContext(DistanceContext);
-  const texture = useTexture(post.photo_url as string);
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const [hovered, setHovered] = useState(false);
+  const starRef = useRef<THREE.Mesh>(null);
 
-  useFrame(() => {
-    const target = surfaceOpacityFor(distanceRef.current);
-    if (materialRef.current) {
-      materialRef.current.opacity = THREE.MathUtils.lerp(materialRef.current.opacity, target, 0.08);
-      materialRef.current.visible = materialRef.current.opacity > 0.01;
+  useFrame(({ clock }) => {
+    if (starRef.current) {
+      starRef.current.rotation.y = clock.getElapsedTime() * 0.6;
+      starRef.current.rotation.x = clock.getElapsedTime() * 0.4;
     }
   });
 
   return (
     <group position={position}>
       <mesh
+        ref={starRef}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(post, position);
         }}
         onPointerOver={(e) => {
           e.stopPropagation();
+          setHovered(true);
           document.body.style.cursor = "pointer";
         }}
         onPointerOut={() => {
+          setHovered(false);
           document.body.style.cursor = "auto";
         }}
       >
-        <sphereGeometry args={[0.26, 20, 20]} />
-        <meshBasicMaterial ref={materialRef} map={texture} transparent toneMapped={false} />
+        <octahedronGeometry args={[selected ? 0.09 : 0.07, 0]} />
+        <meshBasicMaterial color={selected ? "#fff3d6" : "#f4e6c8"} toneMapped={false} />
       </mesh>
       {selected && (
         <mesh>
-          <ringGeometry args={[0.3, 0.34, 32]} />
-          <meshBasicMaterial color="#fff3d6" transparent opacity={0.9} toneMapped={false} side={THREE.DoubleSide} />
+          <ringGeometry args={[0.13, 0.16, 24]} />
+          <meshBasicMaterial color="#fff3d6" transparent opacity={0.85} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       )}
+      {hovered && post.photo_url && (
+        <Html center distanceFactor={6} position={[0, 0.24, 0]} style={{ pointerEvents: "none" }} zIndexRange={[10, 0]}>
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: "9999px",
+              overflow: "hidden",
+              border: "2px solid rgba(255,255,255,0.85)",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.45)",
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={post.photo_url}
+              alt={post.title ?? ""}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          </div>
+        </Html>
+      )}
     </group>
-  );
-}
-
-/**
- * 지저분한 사각형 썸네일 대신 기본으로 보이는 작고 은은한 "About Silo"
- * 마커 — 같은 게시글 데이터를 가리키지만 텍스처를 로드하지 않아(Suspense/
- * CORS 리스크 자체가 없음) 가볍고 정돈돼 보인다. 클릭하면 기존과 동일하게
- * 요약 패널이 뜬다.
- */
-function AboutSiloMarker({
-  post,
-  position,
-  selected,
-  onSelect,
-}: {
-  post: FeedPost;
-  position: [number, number, number];
-  selected: boolean;
-  onSelect: (post: FeedPost, position: [number, number, number]) => void;
-}) {
-  const distanceRef = useContext(DistanceContext);
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-
-  useFrame(() => {
-    const target = surfaceOpacityFor(distanceRef.current);
-    if (materialRef.current) {
-      materialRef.current.opacity = THREE.MathUtils.lerp(materialRef.current.opacity, target, 0.08);
-      materialRef.current.visible = materialRef.current.opacity > 0.02;
-    }
-  });
-
-  return (
-    <mesh
-      position={position}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect(post, position);
-      }}
-      onPointerOver={(e) => {
-        e.stopPropagation();
-        document.body.style.cursor = "pointer";
-      }}
-      onPointerOut={() => {
-        document.body.style.cursor = "auto";
-      }}
-    >
-      <sphereGeometry args={[selected ? 0.075 : 0.055, 12, 12]} />
-      <meshBasicMaterial ref={materialRef} color={selected ? "#fff3d6" : "#f4e6c8"} transparent opacity={0.9} toneMapped={false} />
-    </mesh>
   );
 }
 
@@ -1197,7 +1152,6 @@ function Scene({
   selectedId,
   onSelect,
   cameraControlsRef,
-  distanceRef,
   config,
   onClipsLoaded,
   onFocusPlanet,
@@ -1211,7 +1165,6 @@ function Scene({
   selectedId: string | null;
   onSelect: (post: FeedPost, position: [number, number, number]) => void;
   cameraControlsRef: RefObject<CameraControlsImpl | null>;
-  distanceRef: DistanceRef;
   config: UniverseConfig;
   onClipsLoaded: (clips: string[]) => void;
   onFocusPlanet: (center: THREE.Vector3, radius: number) => void;
@@ -1242,7 +1195,7 @@ function Scene({
   const selectedGroup = selectedObjectId ? objectRefs.current.get(selectedObjectId) ?? null : null;
 
   return (
-    <DistanceContext.Provider value={distanceRef}>
+    <>
       <ambientLight intensity={0.8} color="#ffe0ba" />
       <directionalLight position={[4, 6, 5]} intensity={0.9} color="#ffe6c4" />
       <directionalLight position={[-5, -2, -4]} intensity={0.3} color="#c9d8ff" />
@@ -1301,28 +1254,18 @@ function Scene({
             positions[i][1] - SILO_CENTER.y,
             positions[i][2] - SILO_CENTER.z,
           ];
-          if (!config.showThumbnails) {
-            return (
-              <AboutSiloMarker
-                key={post.id}
-                post={post}
-                position={localPos}
-                selected={selectedId === post.id}
-                onSelect={onSelect}
-              />
-            );
-          }
           return (
-            <AssetLoadErrorBoundary key={post.id} fallback={<SurfaceImageFallback position={localPos} />}>
-              <Suspense fallback={null}>
-                <SurfaceImage post={post} position={localPos} selected={selectedId === post.id} onSelect={onSelect} />
-              </Suspense>
-            </AssetLoadErrorBoundary>
+            <OrbitStarMarker
+              key={post.id}
+              post={post}
+              position={localPos}
+              selected={selectedId === post.id}
+              onSelect={onSelect}
+            />
           );
         })}
       </group>
 
-      <CameraDistanceTracker distanceRef={distanceRef} />
       {/* HOTFIX-121(사용자 신고 — "행성 어디를 돌리든 자유롭게 움직이게
           해줘"): 극각(polar angle) 제한을 명시적으로 완전히 풀어(0~π)
           위/아래 어느 방향으로든 걸림 없이 회전할 수 있게 한다 — 기존엔
@@ -1343,7 +1286,7 @@ function Scene({
         <Noise opacity={0.05} />
         <Vignette eskil={false} offset={0.25} darkness={0.7} />
       </EffectComposer>
-    </DistanceContext.Provider>
+    </>
   );
 }
 
@@ -1400,7 +1343,6 @@ export function AboutSiloUniverse() {
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [selected, setSelected] = useState<FeedPost | null>(null);
   const cameraControlsRef = useRef<CameraControlsImpl>(null);
-  const distanceRef = useRef<number>(HOME_CAMERA_POS.distanceTo(SILO_CENTER));
 
   const [panelConfig, setPanelConfig] = useState<UniverseConfig>(defaultUniverseConfig());
   const [availableClips, setAvailableClips] = useState<string[]>([]);
@@ -1569,7 +1511,6 @@ export function AboutSiloUniverse() {
             selectedId={selected?.id ?? null}
             onSelect={handleSelect}
             cameraControlsRef={cameraControlsRef}
-            distanceRef={distanceRef}
             config={panelConfig}
             onClipsLoaded={setAvailableClips}
             onFocusPlanet={handleFocusPlanet}

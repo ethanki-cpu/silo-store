@@ -37,6 +37,9 @@ export type UniverseConfig = {
   // 가능하게"): 0이면 색만, 1이면 텍스처만 — 그 사이는 두 레이어를 겹쳐
   // 블렌드(AboutSiloUniverse.tsx의 PlanetMaterial 참고).
   planetTextureOpacity: number;
+  /** @deprecated HOTFIX-122: 궤도 마커가 항상 작은 별 모양(hover 시 사진
+   * 미리보기)으로 바뀌면서 이 on/off 토글이 필요 없어졌다 — 기존 저장된
+   * DB 값과의 하위 호환을 위해 타입만 남겨둔다(아무 코드도 안 읽음). */
   showThumbnails: boolean;
   orbitSpeed: number;
 

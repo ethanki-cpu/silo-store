@@ -1,19 +1,23 @@
 "use client";
 
-// EPIC-119: [3D World Builder] — 관리자가 3D 모델(.glb)/텍스처/유튜브
-// 프리셋/궤도 데이터 소스를 직접 올리고 고를 수 있는 커스텀 설정 패널.
-// Leva(우측 상단, AboutSiloUniverse.tsx)는 색상/토글/슬라이더처럼 단순한
-// 값만 계속 맡고, 파일 업로드·배열 편집·드롭다운처럼 Leva 기본 컨트롤로
-// 표현하기 애매한 것들은 전부 이 패널(좌측 하단, 접이식)이 담당한다.
+// EPIC-119/EPIC-121: [3D World Builder] — 관리자가 3D 모델(.glb)/텍스처/
+// 유튜브 프리셋/궤도 데이터 소스를 직접 올리고 고를 수 있는 커스텀 설정
+// 패널. EPIC-121(사용자 지시 — "Universe Setting에 merge해줘")부터는
+// 예전에 별도 Leva 패널(우측 상단)이 담당하던 배경 모드/행성 색/캐릭터
+// 폴백 모델/내핵 오브젝트 종류/연결선 색까지 전부 이 패널 하나로
+// 합쳤다 — Leva 의존성 자체를 걷어냈다(AboutSiloUniverse.tsx 참고).
 import { useEffect, useState } from "react";
 import { uploadFile } from "@/lib/storage";
-import type { UniverseConfig, UniverseObject } from "@/lib/aboutSiloUniverseConfig";
+import type { UniverseConfig } from "@/lib/aboutSiloUniverseConfig";
 
 type BoardOption = { slug: string; name: string };
 
 const ROW = "flex items-center gap-1.5";
 const INPUT = "min-w-0 flex-1 rounded border border-white/15 bg-black/30 px-1.5 py-1 text-[11px] text-white placeholder:text-white/30";
+const SELECT = `${INPUT}`;
 const BTN = "shrink-0 rounded border border-white/20 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20 disabled:opacity-40";
+const SECTION_TITLE = "mb-1 text-[10px] font-semibold uppercase tracking-wide text-white/50";
+const FIELD_LABEL = "block text-[10px] text-white/60";
 
 export function UniverseSettingsPanel({
   config,
@@ -23,6 +27,7 @@ export function UniverseSettingsPanel({
   saving,
   savedAt,
   failedObjectIds,
+  onSelectObjectId,
 }: {
   config: UniverseConfig;
   onChange: (patch: Partial<UniverseConfig>) => void;
@@ -34,6 +39,9 @@ export function UniverseSettingsPanel({
   // 안 보여서 원인을 알 수 없었다 — 실패한 오브젝트 id 목록을 받아 해당
   // 행에 "⚠ 로드 실패"를 표시한다.
   failedObjectIds: Set<string>;
+  // EPIC-121: 목록의 오브젝트를 클릭하면 3D 뷰에서도 선택되어(우측
+  // 인스펙터 패널이 뜸) 서로 연결된 느낌을 준다.
+  onSelectObjectId: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [boards, setBoards] = useState<BoardOption[]>([]);
@@ -72,16 +80,14 @@ export function UniverseSettingsPanel({
   }
 
   function addObject(url: string) {
-    const obj: UniverseObject = {
+    const obj = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       url,
       scale: 0.3,
       label: `오브젝트 ${config.objects.length + 1}`,
+      position: null,
     };
     onChange({ objects: [...config.objects, obj] });
-  }
-  function updateObject(id: string, patch: Partial<UniverseObject>) {
-    onChange({ objects: config.objects.map((o) => (o.id === id ? { ...o, ...patch } : o)) });
   }
   function removeObject(id: string) {
     onChange({ objects: config.objects.filter((o) => o.id !== id) });
@@ -100,7 +106,7 @@ export function UniverseSettingsPanel({
   }
 
   return (
-    <div className="pointer-events-auto fixed bottom-6 left-6 z-40 max-h-[80vh] w-[320px] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md">
+    <div className="pointer-events-auto fixed bottom-6 left-6 z-40 max-h-[85vh] w-[320px] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-semibold">🛠 Universe Settings</p>
         <button type="button" onClick={() => setOpen(false)} className="text-white/50 hover:text-white">
@@ -109,65 +115,158 @@ export function UniverseSettingsPanel({
       </div>
 
       <div className="space-y-3">
-        {/* 유튜브 프리셋 배열 편집(Item 8). */}
+        {/* EPIC-121: 예전 Leva "배경" 섹션 병합. */}
         <section>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-white/50">배경 — 유튜브 프리셋</p>
-          <div className="space-y-1">
-            {config.youtubeUrls.map((url, i) => (
-              <div key={i} className={ROW}>
-                <input
-                  className={INPUT}
-                  value={url}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  onChange={(e) => updateYoutubeUrl(i, e.target.value)}
-                />
-                <button type="button" className={BTN} onClick={() => removeYoutubeUrl(i)}>
-                  삭제
-                </button>
-              </div>
-            ))}
-          </div>
-          <button type="button" className={`${BTN} mt-1 w-full`} onClick={addYoutubeUrl}>
-            + URL 추가
-          </button>
-        </section>
-
-        {/* 행성 텍스처 업로드(Item 8). */}
-        <section>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-white/50">행성 — 지형 텍스처</p>
-          <div className={ROW}>
-            <input
-              className={INPUT}
-              value={config.planetTextureUrl}
-              placeholder="이미지 업로드 또는 URL"
-              onChange={(e) => onChange({ planetTextureUrl: e.target.value })}
-            />
-            {config.planetTextureUrl && (
-              <button type="button" className={BTN} onClick={() => onChange({ planetTextureUrl: "" })}>
-                초기화
-              </button>
+          <p className={SECTION_TITLE}>배경</p>
+          <div className="space-y-1.5">
+            <label className={FIELD_LABEL}>
+              모드
+              <select
+                className={`mt-1 ${SELECT}`}
+                value={config.backgroundMode}
+                onChange={(e) => onChange({ backgroundMode: e.target.value as UniverseConfig["backgroundMode"] })}
+              >
+                <option value="youtube">유튜브</option>
+                <option value="preset">프리셋</option>
+              </select>
+            </label>
+            {config.backgroundMode === "preset" && (
+              <label className={FIELD_LABEL}>
+                프리셋
+                <select
+                  className={`mt-1 ${SELECT}`}
+                  value={config.preset}
+                  onChange={(e) => onChange({ preset: e.target.value as UniverseConfig["preset"] })}
+                >
+                  <option value="cream">크림 백지</option>
+                  <option value="deepBlue">딥 블루</option>
+                  <option value="watercolor">수채화 블루</option>
+                </select>
+              </label>
             )}
           </div>
-          <label className={`${BTN} mt-1 block w-full cursor-pointer text-center`}>
-            {uploadingField === "planetTexture" ? "업로드 중..." : "파일 선택(화산/바다/대륙 등)"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              disabled={uploadingField === "planetTexture"}
-              onChange={(e) => handleUpload("planetTexture", e.target.files?.[0] ?? null, "gallery", (url) => onChange({ planetTextureUrl: url }))}
-            />
-          </label>
+          {config.backgroundMode === "youtube" && (
+            <div className="mt-2 space-y-1">
+              {config.youtubeUrls.map((url, i) => (
+                <div key={i} className={ROW}>
+                  <input
+                    className={INPUT}
+                    value={url}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    onChange={(e) => updateYoutubeUrl(i, e.target.value)}
+                  />
+                  <button type="button" className={BTN} onClick={() => removeYoutubeUrl(i)}>
+                    삭제
+                  </button>
+                </div>
+              ))}
+              <button type="button" className={`${BTN} w-full`} onClick={addYoutubeUrl}>
+                + URL 추가
+              </button>
+            </div>
+          )}
         </section>
 
-        {/* 궤도 데이터 소스(Item 2). */}
+        {/* EPIC-121: 예전 Leva "행성" 섹션 병합 + 이름/텍스처 투명도 신설. */}
         <section>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-white/50">궤도 — 썸네일 소스 게시판</p>
-          <select
-            className={INPUT}
-            value={config.boardSlug}
-            onChange={(e) => onChange({ boardSlug: e.target.value })}
-          >
+          <p className={SECTION_TITLE}>행성</p>
+          <div className="space-y-1.5">
+            <label className={FIELD_LABEL}>
+              이름
+              <input
+                className={`mt-1 ${INPUT}`}
+                value={config.planetName}
+                placeholder="SILO"
+                onChange={(e) => onChange({ planetName: e.target.value })}
+              />
+            </label>
+            <label className={FIELD_LABEL}>
+              색상
+              <div className="mt-1 flex items-center gap-1.5">
+                <input
+                  type="color"
+                  className="h-7 w-9 shrink-0 rounded border border-white/15 bg-transparent"
+                  value={config.planetColor}
+                  onChange={(e) => onChange({ planetColor: e.target.value })}
+                />
+                <input
+                  className={INPUT}
+                  value={config.planetColor}
+                  onChange={(e) => onChange({ planetColor: e.target.value })}
+                />
+              </div>
+            </label>
+            <label className={FIELD_LABEL}>
+              지형 텍스처
+              <div className={`mt-1 ${ROW}`}>
+                <input
+                  className={INPUT}
+                  value={config.planetTextureUrl}
+                  placeholder="이미지 업로드 또는 URL"
+                  onChange={(e) => onChange({ planetTextureUrl: e.target.value })}
+                />
+                {config.planetTextureUrl && (
+                  <button type="button" className={BTN} onClick={() => onChange({ planetTextureUrl: "" })}>
+                    초기화
+                  </button>
+                )}
+              </div>
+            </label>
+            <label className={`${BTN} mt-1 block w-full cursor-pointer text-center`}>
+              {uploadingField === "planetTexture" ? "업로드 중..." : "파일 선택(화산/바다/대륙 등)"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploadingField === "planetTexture"}
+                onChange={(e) => handleUpload("planetTexture", e.target.files?.[0] ?? null, "gallery", (url) => onChange({ planetTextureUrl: url }))}
+              />
+            </label>
+            {config.planetTextureUrl && (
+              <label className={FIELD_LABEL}>
+                색상 ↔ 텍스처 블렌드
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  className="mt-1 w-full"
+                  value={config.planetTextureOpacity}
+                  onChange={(e) => onChange({ planetTextureOpacity: Number(e.target.value) })}
+                />
+                <span className="text-white/40">
+                  {Math.round((1 - config.planetTextureOpacity) * 100)}% 색 / {Math.round(config.planetTextureOpacity * 100)}% 텍스처
+                </span>
+              </label>
+            )}
+            <label className="flex items-center gap-2 text-[10px] text-white/60">
+              <input
+                type="checkbox"
+                checked={config.showThumbnails}
+                onChange={(e) => onChange({ showThumbnails: e.target.checked })}
+              />
+              궤도 게시글을 사진 썸네일(구슬)로 표시
+            </label>
+            <label className={FIELD_LABEL}>
+              공전 속도
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                className="mt-1 w-full"
+                value={config.orbitSpeed}
+                onChange={(e) => onChange({ orbitSpeed: Number(e.target.value) })}
+              />
+              <span className="text-white/40">{config.orbitSpeed.toFixed(2)}</span>
+            </label>
+          </div>
+        </section>
+
+        {/* 궤도 데이터 소스. */}
+        <section>
+          <p className={SECTION_TITLE}>궤도 — 썸네일 소스 게시판</p>
+          <select className={SELECT} value={config.boardSlug} onChange={(e) => onChange({ boardSlug: e.target.value })}>
             <option value="">전체(추천/인기/최신 통합)</option>
             {boards.map((b) => (
               <option key={b.slug} value={b.slug}>
@@ -177,9 +276,9 @@ export function UniverseSettingsPanel({
           </select>
         </section>
 
-        {/* 캐릭터 GLB 업로드 + 애니메이션 액션(Item 1/4). */}
+        {/* 캐릭터 GLB 업로드 + 애니메이션 액션 + (예전 Leva) 폴백 모델. */}
         <section>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-white/50">캐릭터 — 3D 모델(.glb)</p>
+          <p className={SECTION_TITLE}>캐릭터 — 3D 모델(.glb)</p>
           <div className={ROW}>
             <input
               className={INPUT}
@@ -226,31 +325,37 @@ export function UniverseSettingsPanel({
               </div>
             </div>
           )}
+          <label className={`${FIELD_LABEL} mt-1.5`}>
+            업로드 없을 때 폴백 모델
+            <select
+              className={`mt-1 ${SELECT}`}
+              value={config.characterType}
+              onChange={(e) => onChange({ characterType: e.target.value as UniverseConfig["characterType"] })}
+            >
+              <option value="A">Type A</option>
+              <option value="B">Type B</option>
+              <option value="C">Type C</option>
+            </select>
+          </label>
         </section>
 
-        {/* 장식 오브젝트 업로더(Item 3/4) — 나무/꽃 등, SILO 행성 표면에 자동 배치. */}
+        {/* 장식 오브젝트 업로더 — 나무/꽃 등, SILO 행성 표면에 배치. */}
         <section>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-white/50">
-            오브젝트({config.objects.length}개) — 나무/꽃 등
+          <p className={SECTION_TITLE}>오브젝트({config.objects.length}개) — 나무/꽃 등</p>
+          <p className="mb-1 text-[10px] text-white/40">
+            3D 화면에서 오브젝트를 클릭하면 선택되고(우측 패널), 파란 화살표를 드래그해 위치를 옮길 수 있어요.
           </p>
           <div className="space-y-1">
             {config.objects.map((obj) => (
               <div key={obj.id}>
                 <div className={ROW}>
-                  <input
-                    className={INPUT}
-                    value={obj.label}
-                    onChange={(e) => updateObject(obj.id, { label: e.target.value })}
-                  />
-                  <input
-                    type="number"
-                    min={0.05}
-                    max={2}
-                    step={0.05}
-                    className={`${INPUT} w-14 flex-none`}
-                    value={obj.scale}
-                    onChange={(e) => updateObject(obj.id, { scale: Number(e.target.value) || 0.3 })}
-                  />
+                  <button
+                    type="button"
+                    className="flex-1 truncate rounded border border-white/15 bg-black/20 px-1.5 py-1 text-left text-[11px] text-white hover:bg-white/10"
+                    onClick={() => onSelectObjectId(obj.id)}
+                  >
+                    {obj.label}
+                  </button>
                   <button type="button" className={BTN} onClick={() => removeObject(obj.id)}>
                     삭제
                   </button>
@@ -275,7 +380,52 @@ export function UniverseSettingsPanel({
           </label>
         </section>
 
-        {/* 저장(Item 7). */}
+        {/* 예전 Leva "내핵 오브젝트" 섹션 병합. */}
+        <section>
+          <p className={SECTION_TITLE}>기본 카테고리 마커 모양</p>
+          <div className="space-y-1.5">
+            <label className={FIELD_LABEL}>
+              보물상자 종류(사일로 상점)
+              <select
+                className={`mt-1 ${SELECT}`}
+                value={config.chestVariant}
+                onChange={(e) => onChange({ chestVariant: e.target.value as UniverseConfig["chestVariant"] })}
+              >
+                <option value="classic">클래식 브라운</option>
+                <option value="gold">골드 트림</option>
+                <option value="dark">다크 오크</option>
+              </select>
+            </label>
+            <label className={FIELD_LABEL}>
+              카메라 종류(스튜디오)
+              <select
+                className={`mt-1 ${SELECT}`}
+                value={config.cameraVariant}
+                onChange={(e) => onChange({ cameraVariant: e.target.value as UniverseConfig["cameraVariant"] })}
+              >
+                <option value="vintage">빈티지 브라운</option>
+                <option value="black">블랙 필름</option>
+                <option value="polaroid">폴라로이드형</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        {/* 예전 Leva "연결선" 섹션 병합. */}
+        <section>
+          <p className={SECTION_TITLE}>연결선</p>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              className="h-7 w-9 shrink-0 rounded border border-white/15 bg-transparent"
+              value={config.lineColor}
+              onChange={(e) => onChange({ lineColor: e.target.value })}
+            />
+            <input className={INPUT} value={config.lineColor} onChange={(e) => onChange({ lineColor: e.target.value })} />
+          </div>
+        </section>
+
+        {/* 저장. */}
         <section className="border-t border-white/10 pt-2">
           <label className="mb-1.5 flex items-center gap-2 text-[10px] text-white/70">
             <input

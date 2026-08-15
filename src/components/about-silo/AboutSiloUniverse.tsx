@@ -1,30 +1,36 @@
 "use client";
 
-// EPIC-113/114/115/119: /about-silo를 "어린 왕자" 감성의 3D 우주(행성+궤도+
-// 위성)로 개편하는 프로토타입. React Three Fiber(three.js) 기반.
+// EPIC-113/114/115/119/121: /about-silo를 "어린 왕자" 감성의 3D 우주(행성+
+// 궤도+위성)로 개편하는 프로토타입. React Three Fiber(three.js) 기반.
 //
-// EPIC-119(사용자 지시 — "임의로 3D Mesh(찰흙 덩어리)를 억지로 코딩으로
-// 만들려 하지 마라, [3D World Builder] 아키텍처로 전면 개편하라"): 이
-// 파일의 절차적 실루엣/오브젝트는 실제 에셋이 없던 EPIC-115 시점의 임시
-// 대체물이었다 — 이제 관리자가 UniverseSettingsPanel.tsx에서 직접 .glb
-// 캐릭터/장식 오브젝트/행성 텍스처를 업로드하면 그 자리를 그대로
-// 교체한다(`CharacterRenderer`/`PlanetMaterial`/`UniverseObjectsLayer`
-// 참고). 업로드가 없을 때만 기존 절차적 결과물을 폴백으로 보여준다 —
-// "아무것도 없는 것"보다는 낫고, 관리자가 실제 에셋을 준비하는 대로
-// 자연스럽게 교체된다.
+// EPIC-121(사용자 지시 — 여러 항목): (1) 행성 표면의 얼룩덜룩한 줄무늬는
+// meshToonMaterial의 3단 gradientMap(셀 셰이딩 경계선)이 실사 텍스처
+// 위에서 이음매처럼 보이던 것 — PlanetMaterial을 toon 셰이딩 없는 2겹
+// 구(베이스 색 + 텍스처, opacity로 블렌드)로 교체. (2) CameraControls에
+// 극각 제한이 없는데도 "행성 아래에서 위로 못 돌린다"는 신고 — 명시적으로
+// minPolarAngle=0/maxPolarAngle=π를 박아 모호함을 없앰. (3) Leva(별도
+// 우측 패널)를 걷어내고 UniverseSettingsPanel 하나로 합침. (4) "내핵
+// 오브젝트"(카테고리 4종)를 행성 안에 숨겨뒀다 확대해야만 보이던 LOD
+// 연출을 없애고 장식 오브젝트와 동일하게 표면 위에 항상 보이도록 변경.
+// (5) 오브젝트 위치를 TransformControls로 드래그 이동 + 우측 인스펙터
+// 패널(ObjectInspectorPanel)에서 크기 조절. (6) 게시글 썸네일을 평면
+// 대신 구체로. (7) 행성 이름/색상↔텍스처 블렌드 투명도 추가.
 //
-// 아키텍처 결정 메모(EPIC-115):
+// 범위 밖으로 명시적으로 미룬 것(다음 EPIC): 행성 두 개가 서로의 둘레를
+// 실제로 공전하는 것(거리/속도를 물리적으로 애니메이션) — 지금은 모든
+// 자식(카테고리/오브젝트/궤도 마커)이 SILO_CENTER를 "고정 월드 좌표"로
+// 삼아 위치를 계산하는 구조라, 행성 자체를 움직이려면 이 모든 자식을
+// 하나의 움직이는 그룹 아래로 재배치해야 하는 큰 리팩터가 필요하다 —
+// 잘못 서두르면 카메라 추적/거리 기반 페이드/연결선이 전부 어긋날 위험이
+// 커서 이번 범위에서는 제외하고 사용자에게 별도로 알린다.
+//
+// 아키텍처 결정 메모(EPIC-115/119 유지):
 // - "수채화 텍스처"/"프리셋 배경"은 여전히 절차적 대체(에셋 업로드 시
 //   PlanetMaterial/YoutubeBackground가 우선한다).
-// - Leva 설정 패널은 색상/토글/슬라이더 등 단순 값만 계속 담당하고,
-//   [값, set] 튜플 형태로 받아 DB에서 불러온 초깃값을 `set()`으로 밀어
-//   넣는다(Leva는 마운트 후 defaultValue를 다시 안 읽으므로, 비동기
-//   로드값을 반영하려면 이 방법이 필요). 파일 업로드/배열 편집/드롭다운은
-//   Leva로 표현하기 애매해 UniverseSettingsPanel(커스텀 HTML 패널)이
-//   맡는다.
 // - 카메라 거리 기반 페이드(LOD)는 매 프레임 React state를 갱신하는 대신
 //   ref(뮤터블 객체)에 거리값을 담아 각 메시가 자기 자신의 useFrame에서
-//   직접 읽어 opacity를 보간한다.
+//   직접 읽어 opacity를 보간한다(게시글 썸네일에는 계속 적용, 카테고리/
+//   오브젝트는 EPIC-121부터 항상 보이므로 더 이상 이 메커니즘을 안 씀).
 
 import {
   useEffect,
@@ -44,6 +50,7 @@ import {
   CameraControls,
   Html,
   Text,
+  TransformControls,
   useTexture,
   useGLTF,
   useAnimations,
@@ -52,7 +59,6 @@ import {
   type CameraControls as CameraControlsImpl,
 } from "@react-three/drei";
 import { EffectComposer, Noise, Vignette } from "@react-three/postprocessing";
-import { useControls } from "leva";
 import * as THREE from "three";
 import { fibonacciSphere } from "@/lib/fibonacciSphere";
 import { htmlToExcerpt } from "@/lib/htmlExcerpt";
@@ -64,8 +70,9 @@ import {
   type UniverseObject,
 } from "@/lib/aboutSiloUniverseConfig";
 import { YoutubeBackground } from "./YoutubeBackground";
-import { PresetBackground, type BackgroundPreset } from "./PresetBackground";
+import { PresetBackground } from "./PresetBackground";
 import { UniverseSettingsPanel } from "./UniverseSettingsPanel";
+import { ObjectInspectorPanel } from "./ObjectInspectorPanel";
 
 // ============================================================
 // 데이터
@@ -84,8 +91,8 @@ type FeedPost = {
 // 없을 수도 있어(사진 없는 초기 데이터 등) 있는 만큼만 보여준다.
 const MAX_UNIVERSE_IMAGES = 18;
 
-// EPIC-119(Item 2): boardSlug가 있으면 그 게시판 글만, 없으면(기존과
-// 동일) 추천/인기/최신을 통합한 전체 피드를 쓴다.
+// boardSlug가 있으면 그 게시판 글만, 없으면(기존과 동일) 추천/인기/최신을
+// 통합한 전체 피드를 쓴다.
 async function fetchUniverseImages(boardSlug: string): Promise<FeedPost[]> {
   if (boardSlug) {
     const res = await fetch(`/api/boards/${encodeURIComponent(boardSlug)}/posts?pageSize=100`);
@@ -139,8 +146,8 @@ async function fetchUniverseImages(boardSlug: string): Promise<FeedPost[]> {
   return withPhoto;
 }
 
-// EPIC-115: 4대 카테고리 실제 라우트(지시문 3번 그대로) + 보물상자/카메라
-// 변형(Leva "내핵 오브젝트" 드롭다운과 연결).
+// 4대 카테고리 실제 라우트 + 보물상자/카메라 변형(설정 패널의 "기본
+// 카테고리 마커 모양"과 연결).
 type ChestVariant = "classic" | "gold" | "dark";
 type CameraVariant = "vintage" | "black" | "polaroid";
 
@@ -151,10 +158,9 @@ const CORE_CATEGORIES = [
   { key: "studio", label: "스튜디오", sub: "Studio", href: "/studio", color: "#4a3626", shape: "camera" as const },
 ] as const;
 
-// EPIC-115: "About Me" 궤도 위성 — 로그인 없이도(공개 페이지) 보여줄 수
-// 있는 마이페이지 성격의 상징적 카테고리 5종(장식용, /mypage 하위 탭
-// 라벨과 맞춤). 실제 개인 데이터 연결은 범위 밖(EPIC-113 "user-planet-
-// decoration-bone" 자리에 훗날 연결).
+// "About Me" 궤도 위성 — 로그인 없이도(공개 페이지) 보여줄 수 있는
+// 마이페이지 성격의 상징적 카테고리 5종(장식용, /mypage 하위 탭 라벨과
+// 맞춤). 실제 개인 데이터 연결은 범위 밖.
 const ABOUT_ME_SATELLITES = [
   { key: "wishlist", label: "찜한 아이템", color: "#e3b7c1" },
   { key: "collections", label: "나의 컬렉션", color: "#c9d8a8" },
@@ -171,14 +177,15 @@ const PLANET_RADIUS = 2.1;
 const SILO_CENTER = new THREE.Vector3(-3.1, 0, 0);
 const USER_PLANET_RADIUS = 1.05;
 const USER_CENTER = new THREE.Vector3(3.3, -0.4, -0.6);
+// 오브젝트/카테고리가 실제로 표면 위에 서도록(안이 아니라) 쓰는 반지름.
+const SURFACE_PLACEMENT_RADIUS = PLANET_RADIUS * 0.97;
 
 const IMAGE_ORBIT_RADIUS = 2.55;
 const ABOUT_ME_ORBIT_RADIUS = 1.75;
 const SURFACE_VISIBLE_DISTANCE = 4.2;
-const CORE_VISIBLE_DISTANCE = 1.55;
 const HOME_TARGET = new THREE.Vector3(0.1, -0.1, 0);
 const HOME_CAMERA_POS = new THREE.Vector3(0.6, 2.2, 11.5);
-// EPIC-115: 줌아웃 한계를 사실상 해제(지시문 "Infinity 혹은 2000 이상").
+// 줌아웃 한계를 사실상 해제.
 const MAX_ZOOM_DISTANCE = 5000;
 
 type DistanceRef = { current: number };
@@ -193,36 +200,17 @@ function CameraDistanceTracker({ distanceRef }: { distanceRef: DistanceRef }) {
 
 function surfaceOpacityFor(distance: number): number {
   if (distance >= SURFACE_VISIBLE_DISTANCE) return 1;
-  if (distance <= CORE_VISIBLE_DISTANCE) return 0;
-  return (distance - CORE_VISIBLE_DISTANCE) / (SURFACE_VISIBLE_DISTANCE - CORE_VISIBLE_DISTANCE);
-}
-
-function coreOpacityFor(distance: number): number {
-  return 1 - surfaceOpacityFor(distance);
+  return Math.max(0, distance / SURFACE_VISIBLE_DISTANCE);
 }
 
 // ============================================================
-// 툰 셰이딩 그라디언트 맵(공용) + 수채화 텍스처(EPIC-115) + 커스텀 텍스처(EPIC-119).
+// 텍스처 유틸.
 // ============================================================
-
-function useToonGradientMap(): THREE.DataTexture {
-  return useMemo(() => {
-    const bands = new Uint8Array([120, 195, 245]);
-    const texture = new THREE.DataTexture(bands, bands.length, 1, THREE.RedFormat);
-    texture.needsUpdate = true;
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
-    texture.generateMipmaps = false;
-    return texture;
-  }, []);
-}
 
 /**
- * EPIC-115: 행성 표면에 붓터치/얼룩 노이즈를 겹쳐 그린 CanvasTexture —
- * 단색 MeshStandardMaterial 대신 "종이에 그린 수채화" 느낌을 내는 절차적
- * 대체(외부 텍스처 에셋 파일 없음). baseColor가 바뀌면(Leva 컬러 피커)
- * 다시 굽는다. EPIC-119부터는 관리자가 실제 텍스처를 업로드하지 않았을
- * 때의 폴백으로만 쓰인다(PlanetMaterial 참고).
+ * 행성 표면에 붓터치/얼룩 노이즈를 겹쳐 그린 CanvasTexture — 관리자가
+ * 지형 텍스처를 업로드하지 않았을 때의 절차적 대체(외부 에셋 파일 없음).
+ * baseColor가 바뀌면 다시 굽는다.
  */
 function useWatercolorTexture(baseColorHex: string): THREE.CanvasTexture {
   return useMemo(() => {
@@ -236,7 +224,6 @@ function useWatercolorTexture(baseColorHex: string): THREE.CanvasTexture {
     ctx.fillStyle = `#${base.getHexString()}`;
     ctx.fillRect(0, 0, size, size);
 
-    // 결이 다른 반투명 블롭을 여러 겹 겹쳐 붓자국처럼 얼룩덜룩하게 만든다.
     // React Compiler(react-hooks/immutability)가 렌더 단계(useMemo 콜백)
     // 안에서 클로저 변수를 재대입하는 흔한 선형합동 PRNG 패턴을 금지해,
     // 대신 인덱스만의 순수 함수인 해시 기반 의사난수를 쓴다(상태 없음).
@@ -258,7 +245,6 @@ function useWatercolorTexture(baseColorHex: string): THREE.CanvasTexture {
       ctx.ellipse(x, y, r, r * (0.6 + hashRandom(i * 6 + 5) * 0.6), hashRandom(i * 6 + 6) * Math.PI, 0, Math.PI * 2);
       ctx.fill();
     }
-    // 미세한 종이 질감(픽셀 단위 노이즈)을 얕게 얹는다.
     ctx.globalAlpha = 0.04;
     for (let i = 0; i < 700; i++) {
       ctx.fillStyle = hashRandom(i * 3 + 1000) > 0.5 ? "#ffffff" : "#000000";
@@ -272,9 +258,8 @@ function useWatercolorTexture(baseColorHex: string): THREE.CanvasTexture {
   }, [baseColorHex]);
 }
 
-// EPIC-119(공용): 이미지 텍스처든 .glb 모델이든, 에셋 로드가 실패하면
-// (CORS/잘못된 URL 등) 크래시 대신 폴백을 보여주는 공용 경계 — 이름을
-// Image 전용에서 Asset 전용으로 일반화(EPIC-115 때는 이미지만 다뤘음).
+// 이미지 텍스처든 .glb 모델이든, 에셋 로드가 실패하면(CORS/잘못된 URL
+// 등) 크래시 대신 폴백을 보여주는 공용 경계.
 class AssetLoadErrorBoundary extends Component<
   { fallback: ReactNode; children: ReactNode; onError?: () => void },
   { hasError: boolean }
@@ -292,36 +277,57 @@ class AssetLoadErrorBoundary extends Component<
   }
 }
 
-/** EPIC-119(Item 8): 업로드된 텍스처가 있으면 그걸, 없으면 절차적 수채화를 쓴다. */
-function CustomPlanetTextureMaterial({ url, gradientMap }: { url: string; gradientMap: THREE.DataTexture }) {
+/**
+ * HOTFIX-121(사용자 신고 — "왜 행성에 줄무늬가 있는거야?"): meshToonMaterial의
+ * 3단 gradientMap(셀 셰이딩)이 매끈한 절차적 색상에는 "만화 같은" 느낌을
+ * 줬지만, 실사 텍스처 위에서는 조명 경계선이 봉제선/얼룩처럼 도드라져
+ * 보였다 — 여기서는 toon 셰이딩을 완전히 빼고, 베이스 색 구 위에 텍스처
+ * 구를 살짝 더 큰 반지름으로 겹쳐(opacity로 블렌드) 자연스러운 색+텍스처
+ * 혼합을 만든다(사용자 지시 — "행성 색과 텍스처가 섞일 수 있게, 투명도
+ * 설정 가능하게").
+ */
+function CustomPlanetTextureLayer({ url, radius, opacity }: { url: string; radius: number; opacity: number }) {
   const texture = useTexture(url);
-  return <meshToonMaterial map={texture} gradientMap={gradientMap} />;
+  return (
+    <mesh renderOrder={1}>
+      <sphereGeometry args={[radius, 48, 48]} />
+      <meshStandardMaterial map={texture} transparent opacity={opacity} depthWrite={false} />
+    </mesh>
+  );
 }
 
 function PlanetMaterial({
   baseColor,
   customTextureUrl,
-  gradientMap,
+  textureOpacity,
+  radius,
 }: {
   baseColor: string;
   customTextureUrl: string;
-  gradientMap: THREE.DataTexture;
+  textureOpacity: number;
+  radius: number;
 }) {
   const watercolor = useWatercolorTexture(baseColor);
-  const fallback = <meshToonMaterial map={watercolor} gradientMap={gradientMap} />;
-  if (!customTextureUrl) return fallback;
   return (
-    <AssetLoadErrorBoundary fallback={fallback}>
-      <Suspense fallback={fallback}>
-        <CustomPlanetTextureMaterial url={customTextureUrl} gradientMap={gradientMap} />
-      </Suspense>
-    </AssetLoadErrorBoundary>
+    <>
+      <mesh>
+        <sphereGeometry args={[radius, 48, 48]} />
+        <meshStandardMaterial map={watercolor} color={customTextureUrl ? baseColor : "#ffffff"} />
+      </mesh>
+      {customTextureUrl && (
+        <AssetLoadErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <CustomPlanetTextureLayer url={customTextureUrl} radius={radius * 1.003} opacity={textureOpacity} />
+          </Suspense>
+        </AssetLoadErrorBoundary>
+      )}
+    </>
   );
 }
 
 // ============================================================
-// 캐릭터 — 업로드된 .glb가 있으면 그걸(EPIC-119), 없으면 절차적 실루엣
-// (EPIC-115, 폴백)을 렌더링한다.
+// 캐릭터 — 업로드된 .glb가 있으면 그걸, 없으면 절차적 실루엣(폴백)을
+// 렌더링한다.
 // ============================================================
 
 const FIGURE_VARIANTS: Record<"A" | "B" | "C", { color: string; scarfColor: string; scale: number }> = {
@@ -346,17 +352,14 @@ function SittingFigure({
   const { color, scarfColor, scale: variantScale } = FIGURE_VARIANTS[variant];
   const headRef = useRef<THREE.Group>(null);
   const legRef = useRef<THREE.Mesh>(null);
-  // 개체마다 시간축을 어긋나게(seed) 해 "여러 가지 모션이 랜덤하게
-  // 재생되는" 느낌을 준다 — 실제로는 같은 sin 곡선이지만 위상이 달라
-  // 동시에 봐도 서로 다른 타이밍으로 움직인다.
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime() + seed * 7.3;
     if (headRef.current) {
-      headRef.current.rotation.y = Math.sin(t * 0.5) * 0.35; // 두리번거림
+      headRef.current.rotation.y = Math.sin(t * 0.5) * 0.35;
       headRef.current.rotation.x = Math.sin(t * 0.33 + 1) * 0.1;
     }
     if (legRef.current) {
-      legRef.current.rotation.x = 0.5 + Math.sin(t * 1.4) * 0.15; // 다리 까딱임
+      legRef.current.rotation.x = 0.5 + Math.sin(t * 1.4) * 0.15;
     }
   });
 
@@ -376,7 +379,6 @@ function SittingFigure({
         <planeGeometry args={[0.16, 0.22]} />
         <meshBasicMaterial color={scarfColor} toneMapped={false} side={THREE.DoubleSide} />
       </mesh>
-      {/* 까딱이는 다리(웅크린 자세 위에 얹힌 작은 실린더). */}
       <mesh ref={legRef} position={[0.06, 0.06, 0.1]} rotation={[0.5, 0, 0]}>
         <capsuleGeometry args={[0.035, 0.14, 4, 8]} />
         <meshBasicMaterial color={color} toneMapped={false} />
@@ -385,13 +387,6 @@ function SittingFigure({
   );
 }
 
-/**
- * EPIC-119(Item 1/4): 업로드된 캐릭터 .glb를 로드해 마운트하고, 그 안에
- * 애니메이션 클립이 있으면 관리자가 UniverseSettingsPanel에서 고른 클립을
- * 재생한다(THREE.AnimationMixer는 drei의 useAnimations가 내부적으로
- * 관리). onClipsLoaded로 로드된 클립 이름 목록을 부모(설정 패널)에
- * 올려보내 UI 드롭다운/버튼을 채운다.
- */
 function CustomCharacterModel({
   url,
   animationClip,
@@ -470,23 +465,44 @@ function CharacterRenderer({
 }
 
 // ============================================================
-// 장식 오브젝트(EPIC-119 Item 3/4) — SILO 행성 표면에 자동 배치.
+// 표면 배치 유틸 — 오브젝트/카테고리가 실제로 행성 "위"에 서도록 위치+
+// 방향(구면 법선)을 함께 계산한다.
 // ============================================================
 
-type ObjectPlacement = { position: [number, number, number]; quaternion: THREE.Quaternion };
+type SurfacePlacement = { position: [number, number, number]; quaternion: THREE.Quaternion };
 
-// EPIC-119 버그 수정(사용자 신고 — "글b 오브제 추가했는데 반영이 안되네"):
-// 업로드된 .glb마다 원본 모델링 단위(cm/m/임의 unit)가 제각각이라, 기존
-// 고정 scale(관리자 지정값 그대로 곱하기)로는 어떤 모델은 눈에 안 보일
-// 만큼 작아지거나(예: 실물 미터 단위로 만들어진 모델에 0.3을 곱하면
-// 장면 스케일(행성 반지름 2.1)에 비해 사실상 점 하나) 화면을 뒤덮을
-// 만큼 커질 수 있었다 — 실제 바운딩 박스를 재서 목표 크기(0.5 유닛)로
-// 정규화한 뒤 관리자 scale은 그 위에 곱하는 "배율"로만 쓴다. 또한 바닥을
-// y=0에 맞춰(모델 원점이 발밑이 아니라 중심일 수 있어) 행성 표면에
-// "박힌" 것처럼 반쯤 파묻히지 않고 표면 위에 서도록 하고, 배치 지점의
-// 구면 법선 방향으로 회전시켜 행성 어디에 놓여도 "위"가 바깥을 향하게 한다.
-function UniverseObjectModel({ obj, placement }: { obj: UniverseObject; placement: ObjectPlacement }) {
+function surfacePlacementsFor(count: number, radius: number): SurfacePlacement[] {
+  return fibonacciSphere(Math.max(count, 1), radius).map(([x, y, z]) => {
+    const normal = new THREE.Vector3(x, y, z).normalize();
+    return {
+      position: [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number],
+      quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
+    };
+  });
+}
+
+// ============================================================
+// 장식 오브젝트 — SILO 행성 표면에 배치, 클릭으로 선택 → 드래그(부모
+// AboutSiloUniverse의 TransformControls)로 위치 이동.
+// ============================================================
+
+function UniverseObjectModel({
+  obj,
+  placement,
+  selected,
+  onSelect,
+  registerRef,
+}: {
+  obj: UniverseObject;
+  placement: SurfacePlacement;
+  selected: boolean;
+  onSelect: () => void;
+  registerRef: (group: THREE.Group | null) => void;
+}) {
   const { scene } = useGLTF(obj.url);
+  // 원본 모델링 단위(cm/m/임의 unit)가 업로드마다 제각각이라, 실제
+  // 바운딩 박스를 재서 목표 크기(0.5 유닛)로 정규화한 뒤 관리자 scale은
+  // 그 위에 곱하는 배율로만 쓴다. 바닥을 y=0에 맞춰 표면 위에 서게 한다.
   const { normalized, baseOffsetY } = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
@@ -499,8 +515,25 @@ function UniverseObjectModel({ obj, placement }: { obj: UniverseObject; placemen
   }, [scene]);
 
   return (
-    <group position={placement.position} quaternion={placement.quaternion} scale={obj.scale}>
+    <group
+      ref={registerRef}
+      position={placement.position}
+      quaternion={placement.quaternion}
+      scale={obj.scale}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => (document.body.style.cursor = "pointer")}
+      onPointerOut={() => (document.body.style.cursor = "auto")}
+    >
       <primitive object={normalized} position={[0, baseOffsetY, 0]} />
+      {selected && (
+        <mesh position={[0, baseOffsetY + 0.25, 0]}>
+          <ringGeometry args={[0.28, 0.32, 24]} />
+          <meshBasicMaterial color="#7dd3fc" transparent opacity={0.9} toneMapped={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -508,31 +541,38 @@ function UniverseObjectModel({ obj, placement }: { obj: UniverseObject; placemen
 function UniverseObjectsLayer({
   objects,
   onObjectError,
+  selectedObjectId,
+  onSelectObject,
+  registerObjectRef,
 }: {
   objects: UniverseObject[];
   onObjectError: (id: string) => void;
+  selectedObjectId: string | null;
+  onSelectObject: (id: string) => void;
+  registerObjectRef: (id: string, group: THREE.Group | null) => void;
 }) {
-  const placements = useMemo<ObjectPlacement[]>(
-    () =>
-      fibonacciSphere(Math.max(objects.length, 1), PLANET_RADIUS * 0.97).map(([x, y, z]) => {
-        const normal = new THREE.Vector3(x, y, z).normalize();
-        return {
-          position: [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number],
-          quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
-        };
-      }),
-    [objects.length],
-  );
+  const defaults = useMemo(() => surfacePlacementsFor(objects.length, SURFACE_PLACEMENT_RADIUS), [objects.length]);
   if (objects.length === 0) return null;
   return (
     <>
-      {objects.map((obj, i) => (
-        <AssetLoadErrorBoundary key={obj.id} fallback={null} onError={() => onObjectError(obj.id)}>
-          <Suspense fallback={null}>
-            <UniverseObjectModel obj={obj} placement={placements[i]} />
-          </Suspense>
-        </AssetLoadErrorBoundary>
-      ))}
+      {objects.map((obj, i) => {
+        const placement: SurfacePlacement = obj.position
+          ? { position: obj.position, quaternion: defaults[i].quaternion }
+          : defaults[i];
+        return (
+          <AssetLoadErrorBoundary key={obj.id} fallback={null} onError={() => onObjectError(obj.id)}>
+            <Suspense fallback={null}>
+              <UniverseObjectModel
+                obj={obj}
+                placement={placement}
+                selected={selectedObjectId === obj.id}
+                onSelect={() => onSelectObject(obj.id)}
+                registerRef={(g) => registerObjectRef(obj.id, g)}
+              />
+            </Suspense>
+          </AssetLoadErrorBoundary>
+        );
+      })}
     </>
   );
 }
@@ -542,8 +582,10 @@ function UniverseObjectsLayer({
 // ============================================================
 
 function CentralPlanet({
+  name,
   baseColor,
   planetTextureUrl,
+  planetTextureOpacity,
   characterType,
   characterModelUrl,
   characterAnimationClip,
@@ -551,8 +593,10 @@ function CentralPlanet({
   onFocus,
   onClipsLoaded,
 }: {
+  name: string;
   baseColor: string;
   planetTextureUrl: string;
+  planetTextureOpacity: number;
   characterType: "A" | "B" | "C";
   characterModelUrl: string;
   characterAnimationClip: string;
@@ -560,14 +604,13 @@ function CentralPlanet({
   onFocus: () => void;
   onClipsLoaded: (clips: string[]) => void;
 }) {
-  const gradientMap = useToonGradientMap();
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
     if (meshRef.current) meshRef.current.rotation.y += delta * rotationSpeed * 0.1;
   });
   return (
     <group position={SILO_CENTER}>
-      <mesh
+      <group
         ref={meshRef}
         onClick={(e) => {
           e.stopPropagation();
@@ -576,9 +619,8 @@ function CentralPlanet({
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
-        <sphereGeometry args={[PLANET_RADIUS, 48, 48]} />
-        <PlanetMaterial baseColor={baseColor} customTextureUrl={planetTextureUrl} gradientMap={gradientMap} />
-      </mesh>
+        <PlanetMaterial baseColor={baseColor} customTextureUrl={planetTextureUrl} textureOpacity={planetTextureOpacity} radius={PLANET_RADIUS} />
+      </group>
       <CharacterRenderer
         modelUrl={characterModelUrl}
         animationClip={characterAnimationClip}
@@ -589,6 +631,13 @@ function CentralPlanet({
         seed={1}
         onClipsLoaded={onClipsLoaded}
       />
+      {name && (
+        <Html position={[0, PLANET_RADIUS + 0.5, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
+          <div className="whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-center text-white backdrop-blur-sm">
+            <div className="text-xs font-medium">{name}</div>
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
@@ -606,7 +655,6 @@ function UserPlanet({
   rotationSpeed: number;
   onFocus: () => void;
 }) {
-  const gradientMap = useToonGradientMap();
   const watercolor = useWatercolorTexture("#c3d8b8");
   const groupRef = useRef<THREE.Group>(null);
   const spinRef = useRef<THREE.Mesh>(null);
@@ -629,7 +677,7 @@ function UserPlanet({
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
         <sphereGeometry args={[USER_PLANET_RADIUS, 32, 32]} />
-        <meshToonMaterial map={watercolor} gradientMap={gradientMap} />
+        <meshStandardMaterial map={watercolor} />
       </mesh>
       <CharacterRenderer
         modelUrl={characterModelUrl}
@@ -645,8 +693,6 @@ function UserPlanet({
           <div className="text-xs font-medium">My Page</div>
         </div>
       </Html>
-      {/* EPIC-115: "About Me" 궤도 위성 5종 — 상징적 장식(로그인 없이도
-          보여줄 수 있는 카테고리 라벨), 클릭 라우팅은 아직 없음. */}
       <AboutMeSatellites rotationSpeed={rotationSpeed} />
     </group>
   );
@@ -671,13 +717,8 @@ function AboutMeSatellites({ rotationSpeed }: { rotationSpeed: number }) {
 }
 
 // ============================================================
-// 연결선(실뜨개 끈) — EPIC-119(Item 5): 드래그로 잡아당기면 탄력 있게
-// 늘어났다가 놓으면 스프링처럼 되돌아온다. 실제 물리 엔진 대신(단일
-// 곡선 하나를 위해 rapier까지 붙이는 건 과함) 목표점(targetPull)을 향해
-// lerp로 매 프레임 부드럽게 수렴시키는 감쇠 스프링 근사를 쓴다 — 드래그
-// 중엔 목표점이 마우스를 바로 따라오고(빠른 수렴), 놓으면 원래 위치(약한
-// 흔들림 애니메이션)로 천천히 돌아온다(느린 수렴) — 이 수렴 속도 차이가
-// "탄력 있게 늘어나거나 흔들리는" 체감을 만든다.
+// 연결선(실뜨개 끈) — 드래그로 잡아당기면 탄력 있게 늘어났다가 놓으면
+// 스프링처럼 되돌아온다(lerp 기반 감쇠 근사, 실제 물리 엔진 아님).
 // ============================================================
 
 function ConnectingThread({ color }: { color: string }) {
@@ -707,7 +748,6 @@ function ConnectingThread({ color }: { color: string }) {
 
   useFrame(({ clock }) => {
     if (!dragging.current) {
-      // 평상시엔 기존과 동일한 잔잔한 흔들림으로 되돌아간다.
       targetPull.current.lerp(new THREE.Vector3(0, Math.sin(clock.getElapsedTime() * 0.6) * 0.04, 0), 0.05);
     }
     pull.current.lerp(targetPull.current, dragging.current ? 0.4 : 0.08);
@@ -752,8 +792,7 @@ function ConnectingThread({ color }: { color: string }) {
 }
 
 // ============================================================
-// EPIC-119(Item 6): 파티클 기반 감성 우주 배경 — Stars/Sparkles(drei) +
-// 절차적 별똥별(외부 에셋 없이 작은 스트릭 메시 풀을 재활용).
+// 파티클 기반 감성 우주 배경 — Stars/Sparkles(drei) + 절차적 별똥별.
 // ============================================================
 
 const SHOOTING_STAR_COUNT = 4;
@@ -834,15 +873,16 @@ function UniverseParticles() {
 }
 
 // ============================================================
-// 궤도를 도는 대표 이미지(전체 사진, 기본 숨김) / About Silo 마커(기본 표시).
+// 궤도를 도는 게시글 마커. HOTFIX-121(사용자 지시 — "게시글 썸네일은
+// 'sphere'로 표현되게 해줘"): 기존엔 항상 카메라를 바라보는 평면
+// (billboard)이었는데, 사진을 텍스처로 입힌 작은 구슬로 바꿨다.
 // ============================================================
 
 function SurfaceImageFallback({ position }: { position: [number, number, number] }) {
-  const gradientMap = useToonGradientMap();
   return (
     <mesh position={position}>
       <sphereGeometry args={[0.16, 16, 16]} />
-      <meshToonMaterial color="#d9c2a3" gradientMap={gradientMap} transparent opacity={0.85} />
+      <meshStandardMaterial color="#d9c2a3" transparent opacity={0.85} />
     </mesh>
   );
 }
@@ -860,11 +900,9 @@ function SurfaceImage({
 }) {
   const distanceRef = useContext(DistanceContext);
   const texture = useTexture(post.photo_url as string);
-  const groupRef = useRef<THREE.Group>(null);
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
 
-  useFrame(({ camera }) => {
-    groupRef.current?.lookAt(camera.position);
+  useFrame(() => {
     const target = surfaceOpacityFor(distanceRef.current);
     if (materialRef.current) {
       materialRef.current.opacity = THREE.MathUtils.lerp(materialRef.current.opacity, target, 0.08);
@@ -873,7 +911,7 @@ function SurfaceImage({
   });
 
   return (
-    <group ref={groupRef} position={position}>
+    <group position={position}>
       <mesh
         onClick={(e) => {
           e.stopPropagation();
@@ -887,13 +925,13 @@ function SurfaceImage({
           document.body.style.cursor = "auto";
         }}
       >
-        <planeGeometry args={[0.5, 0.5]} />
+        <sphereGeometry args={[0.26, 20, 20]} />
         <meshBasicMaterial ref={materialRef} map={texture} transparent toneMapped={false} />
       </mesh>
       {selected && (
         <mesh>
-          <ringGeometry args={[0.29, 0.33, 32]} />
-          <meshBasicMaterial color="#fff3d6" transparent opacity={0.9} toneMapped={false} />
+          <ringGeometry args={[0.3, 0.34, 32]} />
+          <meshBasicMaterial color="#fff3d6" transparent opacity={0.9} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       )}
     </group>
@@ -901,10 +939,10 @@ function SurfaceImage({
 }
 
 /**
- * EPIC-115(요구사항 1 "오브젝트 클린업"): 지저분한 사각형 썸네일 대신
- * 기본으로 보이는 작고 은은한 "About Silo" 마커 — 같은 게시글 데이터를
- * 가리키지만 텍스처를 로드하지 않아(Suspense/CORS 리스크 자체가 없음)
- * 가볍고 정돈돼 보인다. 클릭하면 기존과 동일하게 요약 패널이 뜬다.
+ * 지저분한 사각형 썸네일 대신 기본으로 보이는 작고 은은한 "About Silo"
+ * 마커 — 같은 게시글 데이터를 가리키지만 텍스처를 로드하지 않아(Suspense/
+ * CORS 리스크 자체가 없음) 가볍고 정돈돼 보인다. 클릭하면 기존과 동일하게
+ * 요약 패널이 뜬다.
  */
 function AboutSiloMarker({
   post,
@@ -950,7 +988,12 @@ function AboutSiloMarker({
 }
 
 // ============================================================
-// 내핵 카테고리 노드.
+// 기본 카테고리 마커(사일로 상점/온라인 도슨트/살롱데상/스튜디오).
+// HOTFIX-121(사용자 지시 — "나는 행성 안에 '내핵 오브제'를 원하지 않아,
+// 오브제들이 행성 표면 위에 놓여 있는 걸 원해"): 예전엔 반지름 0.9(행성
+// 반지름 2.1보다 작은 안쪽)에 숨겨두고 카메라가 가까이 다가가야만
+// 서서히 드러나는 LOD 연출이었다 — 장식 오브젝트와 동일하게 표면
+// (SURFACE_PLACEMENT_RADIUS) 위에 항상 보이도록 바꿨다.
 // ============================================================
 
 function CoreCategoryShape({
@@ -976,15 +1019,15 @@ function CoreCategoryShape({
         <group>
           <mesh position={[0, -0.06, 0]}>
             <boxGeometry args={[0.46, 0.28, 0.32]} />
-            <meshToonMaterial color={p.body} />
+            <meshStandardMaterial color={p.body} />
           </mesh>
           <mesh position={[0, 0.12, -0.1]} rotation={[-0.5, 0, 0]}>
             <boxGeometry args={[0.46, 0.22, 0.3]} />
-            <meshToonMaterial color={p.lid} />
+            <meshStandardMaterial color={p.lid} />
           </mesh>
           <mesh position={[0, 0.02, 0.17]}>
             <torusGeometry args={[0.035, 0.012, 8, 16]} />
-            <meshToonMaterial color={p.hinge} />
+            <meshStandardMaterial color={p.hinge} />
           </mesh>
         </group>
       );
@@ -994,40 +1037,37 @@ function CoreCategoryShape({
         <group>
           <mesh position={[0, -0.14, 0]}>
             <cylinderGeometry args={[0.1, 0.16, 0.34, 16]} />
-            <meshToonMaterial color={color} />
+            <meshStandardMaterial color={color} />
           </mesh>
           <mesh position={[0, 0.1, 0]}>
             <cylinderGeometry args={[0.08, 0.1, 0.16, 16]} />
-            <meshToonMaterial color={color} />
+            <meshStandardMaterial color={color} />
           </mesh>
           <mesh position={[0, 0.24, 0]}>
             <sphereGeometry args={[0.075, 16, 16]} />
-            <meshToonMaterial color={color} />
+            <meshStandardMaterial color={color} />
           </mesh>
         </group>
       );
-    // 살롱데상 — 빈티지 다이얼 전화기 + 널부러진 폴라로이드 사진들(한 오브제로 통합).
     case "phone":
       return (
         <group>
           <mesh position={[0, -0.1, 0]}>
             <boxGeometry args={[0.4, 0.14, 0.34]} />
-            <meshToonMaterial color={color} />
+            <meshStandardMaterial color={color} />
           </mesh>
           <mesh position={[0, -0.02, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.15, 0.15, 0.02, 24]} />
-            <meshToonMaterial color="#20261f" />
+            <meshStandardMaterial color="#20261f" />
           </mesh>
           <mesh position={[0, -0.02, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.14, 0.008, 6, 24]} />
-            <meshToonMaterial color="#c9a24b" />
+            <meshStandardMaterial color="#c9a24b" />
           </mesh>
           <mesh position={[0.05, 0.12, -0.1]} rotation={[0.4, 0.3, 0.3]}>
             <capsuleGeometry args={[0.045, 0.22, 4, 8]} />
-            <meshToonMaterial color={color} />
+            <meshStandardMaterial color={color} />
           </mesh>
-          {/* 널부러진 폴라로이드 사진들 — EPIC-114에선 camera 쪽에 있었으나
-              지시문(EPIC-115 3-3)이 phone과 한 오브제로 묶으라고 명시. */}
           {([
             [-0.28, -0.24, 0.12, -0.2],
             [-0.14, -0.32, 0.2, 0.3],
@@ -1035,7 +1075,7 @@ function CoreCategoryShape({
           ] as const).map(([x, y, z, rot], i) => (
             <mesh key={i} position={[x, y, z]} rotation={[0, 0, rot]}>
               <boxGeometry args={[0.16, 0.18, 0.01]} />
-              <meshToonMaterial color="#f4efe4" />
+              <meshStandardMaterial color="#f4efe4" />
             </mesh>
           ))}
         </group>
@@ -1051,15 +1091,15 @@ function CoreCategoryShape({
         <group>
           <mesh>
             <boxGeometry args={[0.4, 0.26, 0.22]} />
-            <meshToonMaterial color={p.body} />
+            <meshStandardMaterial color={p.body} />
           </mesh>
           <mesh position={[0, 0.05, 0.16]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.09, 0.11, 0.16, 20]} />
-            <meshToonMaterial color={p.lens} />
+            <meshStandardMaterial color={p.lens} />
           </mesh>
           <mesh position={[-0.12, 0.16, 0]}>
             <boxGeometry args={[0.1, 0.06, 0.08]} />
-            <meshToonMaterial color={p.accent} />
+            <meshStandardMaterial color={p.accent} />
           </mesh>
         </group>
       );
@@ -1074,7 +1114,7 @@ function CoreCategoryNode({
   sub,
   color,
   shape,
-  position,
+  placement,
   chestVariant,
   cameraVariant,
   onNavigate,
@@ -1083,36 +1123,13 @@ function CoreCategoryNode({
   sub: string;
   color: string;
   shape: (typeof CORE_CATEGORIES)[number]["shape"];
-  position: [number, number, number];
+  placement: SurfacePlacement;
   chestVariant: ChestVariant;
   cameraVariant: CameraVariant;
   onNavigate: () => void;
 }) {
-  const distanceRef = useContext(DistanceContext);
-  const groupRef = useRef<THREE.Group>(null);
-  const [opacity, setOpacity] = useState(0);
-
-  useFrame(() => {
-    const target = coreOpacityFor(distanceRef.current);
-    if (groupRef.current) {
-      const current = groupRef.current.userData.opacity ?? 0;
-      const next = THREE.MathUtils.lerp(current, target, 0.08);
-      groupRef.current.userData.opacity = next;
-      groupRef.current.visible = next > 0.02;
-      groupRef.current.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
-          const mat = obj.material as THREE.Material & { opacity?: number; transparent?: boolean };
-          mat.transparent = true;
-          mat.opacity = next;
-        }
-      });
-      const rounded = Math.round(next * 20) / 20;
-      setOpacity((prev) => (prev === rounded ? prev : rounded));
-    }
-  });
-
   return (
-    <group ref={groupRef} position={position} visible={false}>
+    <group position={placement.position} quaternion={placement.quaternion}>
       <group
         scale={0.85}
         onClick={(e) => {
@@ -1124,27 +1141,20 @@ function CoreCategoryNode({
       >
         <CoreCategoryShape shape={shape} color={color} chestVariant={chestVariant} cameraVariant={cameraVariant} />
       </group>
-      {opacity > 0.05 && (
-        <>
-          <Text
-            position={[0, -0.32, 0]}
-            fontSize={0.09}
-            color="#fff3da"
-            anchorX="center"
-            anchorY="middle"
-            fillOpacity={opacity}
-            outlineWidth={0.006}
-            outlineColor="#2a1c0f"
-          >
-            {label}
-          </Text>
-          <Html center distanceFactor={5} position={[0, -0.48, 0]} style={{ pointerEvents: "none" }}>
-            <div style={{ opacity }} className="whitespace-nowrap text-[10px] text-white/70">
-              {sub}
-            </div>
-          </Html>
-        </>
-      )}
+      <Text
+        position={[0, 0.34, 0]}
+        fontSize={0.09}
+        color="#fff3da"
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={0.006}
+        outlineColor="#2a1c0f"
+      >
+        {label}
+      </Text>
+      <Html center distanceFactor={5} position={[0, 0.48, 0]} style={{ pointerEvents: "none" }}>
+        <div className="whitespace-nowrap text-[10px] text-white/70">{sub}</div>
+      </Html>
     </group>
   );
 }
@@ -1158,10 +1168,7 @@ function CoreCategories({
   chestVariant: ChestVariant;
   cameraVariant: CameraVariant;
 }) {
-  const positions = useMemo(() => {
-    const base = fibonacciSphere(CORE_CATEGORIES.length, 0.9);
-    return base.map(([x, y, z]) => [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number]);
-  }, []);
+  const placements = useMemo(() => surfacePlacementsFor(CORE_CATEGORIES.length, SURFACE_PLACEMENT_RADIUS), []);
   return (
     <>
       {CORE_CATEGORIES.map((cat, i) => (
@@ -1171,7 +1178,7 @@ function CoreCategories({
           sub={cat.sub}
           color={cat.color}
           shape={cat.shape}
-          position={positions[i]}
+          placement={placements[i]}
           chestVariant={chestVariant}
           cameraVariant={cameraVariant}
           onNavigate={() => router.push(cat.href)}
@@ -1195,6 +1202,10 @@ function Scene({
   onClipsLoaded,
   onFocusPlanet,
   onObjectError,
+  selectedObjectId,
+  onSelectObject,
+  objectRefs,
+  onObjectMoved,
 }: {
   posts: FeedPost[];
   selectedId: string | null;
@@ -1205,6 +1216,10 @@ function Scene({
   onClipsLoaded: (clips: string[]) => void;
   onFocusPlanet: (center: THREE.Vector3, radius: number) => void;
   onObjectError: (id: string) => void;
+  selectedObjectId: string | null;
+  onSelectObject: (id: string) => void;
+  objectRefs: RefObject<Map<string, THREE.Group>>;
+  onObjectMoved: (id: string, position: [number, number, number]) => void;
 }) {
   const router = useRouter();
   const orbitGroupRef = useRef<THREE.Group>(null);
@@ -1213,9 +1228,6 @@ function Scene({
     return base.map(([x, y, z]) => [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number]);
   }, [posts.length]);
 
-  // EPIC-115: 궤도 공전 속도 슬라이더 — 이미지/마커 전체를 SILO 중심
-  // 기준으로 회전시킨다(개별 위치가 아니라 부모 그룹을 돌리는 방식이라
-  // 피보나치 배치 간격이 항상 균등하게 유지된다).
   useFrame((_, delta) => {
     if (orbitGroupRef.current) {
       orbitGroupRef.current.position.copy(SILO_CENTER);
@@ -1223,17 +1235,25 @@ function Scene({
     }
   });
 
+  // EPIC-121: 선택된 오브젝트의 실제 THREE.Group을 TransformControls에
+  // 붙인다 — objectRefs는 UniverseObjectsLayer가 커밋 시점에 채우므로
+  // (렌더 중이 아니라 클릭 이벤트 핸들러에서 읽으므로) react-hooks/refs
+  // 위반 없이 안전하다(AboutSiloUniverse.tsx의 handleSelectObject 참고).
+  const selectedGroup = selectedObjectId ? objectRefs.current.get(selectedObjectId) ?? null : null;
+
   return (
     <DistanceContext.Provider value={distanceRef}>
-      <ambientLight intensity={0.7} color="#ffe0ba" />
-      <directionalLight position={[4, 6, 5]} intensity={0.8} color="#ffe6c4" />
-      <directionalLight position={[-5, -2, -4]} intensity={0.2} color="#c9d8ff" />
+      <ambientLight intensity={0.8} color="#ffe0ba" />
+      <directionalLight position={[4, 6, 5]} intensity={0.9} color="#ffe6c4" />
+      <directionalLight position={[-5, -2, -4]} intensity={0.3} color="#c9d8ff" />
 
       <UniverseParticles />
 
       <CentralPlanet
+        name={config.planetName}
         baseColor={config.planetColor}
         planetTextureUrl={config.planetTextureUrl}
+        planetTextureOpacity={config.planetTextureOpacity}
         characterType={config.characterType}
         characterModelUrl={config.characterModelUrl}
         characterAnimationClip={config.characterAnimationClip}
@@ -1250,7 +1270,29 @@ function Scene({
       />
       <ConnectingThread color={config.lineColor} />
       <CoreCategories router={router} chestVariant={config.chestVariant} cameraVariant={config.cameraVariant} />
-      <UniverseObjectsLayer objects={config.objects} onObjectError={onObjectError} />
+      <UniverseObjectsLayer
+        objects={config.objects}
+        onObjectError={onObjectError}
+        selectedObjectId={selectedObjectId}
+        onSelectObject={onSelectObject}
+        registerObjectRef={(id, g) => {
+          if (g) objectRefs.current.set(id, g);
+          else objectRefs.current.delete(id);
+        }}
+      />
+      {selectedGroup && (
+        <TransformControls
+          object={selectedGroup}
+          mode="translate"
+          onMouseDown={() => {
+            if (cameraControlsRef.current) cameraControlsRef.current.enabled = false;
+          }}
+          onMouseUp={() => {
+            if (cameraControlsRef.current) cameraControlsRef.current.enabled = true;
+            if (selectedObjectId) onObjectMoved(selectedObjectId, selectedGroup.position.toArray() as [number, number, number]);
+          }}
+        />
+      )}
 
       <group ref={orbitGroupRef}>
         {posts.map((post, i) => {
@@ -1281,7 +1323,21 @@ function Scene({
       </group>
 
       <CameraDistanceTracker distanceRef={distanceRef} />
-      <CameraControls ref={cameraControlsRef} minDistance={0.6} maxDistance={MAX_ZOOM_DISTANCE} dollySpeed={0.55} />
+      {/* HOTFIX-121(사용자 신고 — "행성 어디를 돌리든 자유롭게 움직이게
+          해줘"): 극각(polar angle) 제한을 명시적으로 완전히 풀어(0~π)
+          위/아래 어느 방향으로든 걸림 없이 회전할 수 있게 한다 — 기존엔
+          이 두 값을 아예 안 줘서 라이브러리 기본값에 암묵적으로 의존하고
+          있었다. */}
+      <CameraControls
+        ref={cameraControlsRef}
+        minDistance={0.6}
+        maxDistance={MAX_ZOOM_DISTANCE}
+        dollySpeed={0.55}
+        minPolarAngle={0}
+        maxPolarAngle={Math.PI}
+        minAzimuthAngle={-Infinity}
+        maxAzimuthAngle={Infinity}
+      />
 
       <EffectComposer multisampling={0}>
         <Noise opacity={0.05} />
@@ -1332,9 +1388,9 @@ function SelectedPostPanel({ post, onClose }: { post: FeedPost; onClose: () => v
 }
 
 // ============================================================
-// AboutSiloUniverse — 최상위 컴포넌트. Leva 설정 패널 + UniverseSettingsPanel
-// (파일 업로드/배열/드롭다운)을 여기서 조합하고, 저장/자동저장(EPIC-119
-// Item 7)을 관리한다.
+// AboutSiloUniverse — 최상위 컴포넌트. UniverseSettingsPanel(전역 설정) +
+// ObjectInspectorPanel(선택된 오브젝트 설정)을 조합하고, 저장/자동저장을
+// 관리한다.
 // ============================================================
 
 const UNIVERSE_SETTINGS_KEY = "about_silo_universe";
@@ -1346,14 +1402,8 @@ export function AboutSiloUniverse() {
   const cameraControlsRef = useRef<CameraControlsImpl>(null);
   const distanceRef = useRef<number>(HOME_CAMERA_POS.distanceTo(SILO_CENTER));
 
-  // EPIC-119: 파일 업로드/배열/드롭다운처럼 Leva로 표현하기 애매한 값들 —
-  // UniverseSettingsPanel이 이 state를 직접 patch한다.
   const [panelConfig, setPanelConfig] = useState<UniverseConfig>(defaultUniverseConfig());
   const [availableClips, setAvailableClips] = useState<string[]>([]);
-  // EPIC-119 버그 수정: 오브젝트 .glb 로드가 실패해도 기존엔 조용히
-  // 아무것도 안 보여줘서("반영이 안 되네") 관리자가 원인을 알 수 없었다
-  // — 실패한 오브젝트 id를 모아 UniverseSettingsPanel에 "⚠ 로드 실패"로
-  // 표시한다.
   const [failedObjectIds, setFailedObjectIds] = useState<Set<string>>(new Set());
   function handleObjectError(id: string) {
     setFailedObjectIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
@@ -1362,70 +1412,36 @@ export function AboutSiloUniverse() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [toast, setToast] = useState(false);
 
+  // EPIC-121: 3D 뷰에서 클릭해 선택한 오브젝트 — 우측 인스펙터 패널 +
+  // TransformControls 드래그 대상. objectRefs는 UniverseObjectsLayer가
+  // 커밋 시점(콜백 ref)에 채우는 실제 THREE.Group 참조 맵.
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const objectRefs = useRef<Map<string, THREE.Group>>(new Map());
+  function handleSelectObject(id: string) {
+    setSelectedObjectId(id);
+  }
+
   function updatePanelConfig(patch: Partial<UniverseConfig>) {
     setPanelConfig((prev) => ({ ...prev, ...patch }));
   }
+  function updateObject(id: string, patch: Partial<UniverseObject>) {
+    setPanelConfig((prev) => ({ ...prev, objects: prev.objects.map((o) => (o.id === id ? { ...o, ...patch } : o)) }));
+  }
+  function removeSelectedObject() {
+    if (!selectedObjectId) return;
+    setPanelConfig((prev) => ({ ...prev, objects: prev.objects.filter((o) => o.id !== selectedObjectId) }));
+    setSelectedObjectId(null);
+  }
+  function handleObjectMoved(id: string, position: [number, number, number]) {
+    updateObject(id, { position });
+  }
 
-  // EPIC-115(요구사항 4)/EPIC-119: 3D 우주 설정 패널 — Leva가 화면에 자동으로
-  // 플로팅 패널을 그린다(별도 <Leva/> 마운트 불필요). [값, set] 형태로
-  // 받아 DB 로드 시 set()으로 초깃값을 밀어 넣는다(아래 로드 useEffect 참고).
-  const [{ backgroundMode, preset }, setBgControls] = useControls("배경", () => ({
-    backgroundMode: { label: "모드", options: { 유튜브: "youtube", 프리셋: "preset" } as Record<string, "youtube" | "preset"> },
-    preset: {
-      label: "프리셋",
-      options: { "크림 백지": "cream", "딥 블루": "deepBlue", "수채화 블루": "watercolor" } as Record<string, BackgroundPreset>,
-      render: (get) => get("배경.backgroundMode") === "preset",
-    },
-  }));
-
-  const [{ planetColor, showThumbnails, orbitSpeed }, setPlanetControls] = useControls("행성", () => ({
-    planetColor: "#e3a874",
-    showThumbnails: false,
-    orbitSpeed: { value: 0.15, min: 0, max: 1, step: 0.05 },
-  }));
-
-  const [{ characterType }, setCharacterControls] = useControls("캐릭터", () => ({
-    characterType: { label: "폴백 모델(업로드 없을 때)", options: { "Type A": "A", "Type B": "B", "Type C": "C" } as Record<string, "A" | "B" | "C"> },
-  }));
-
-  const [{ chestVariant, cameraVariant }, setCoreControls] = useControls("내핵 오브젝트", () => ({
-    chestVariant: {
-      label: "보물상자 종류",
-      options: { "클래식 브라운": "classic", "골드 트림": "gold", "다크 오크": "dark" } as Record<string, ChestVariant>,
-    },
-    cameraVariant: {
-      label: "카메라 종류",
-      options: { "빈티지 브라운": "vintage", "블랙 필름": "black", 폴라로이드형: "polaroid" } as Record<string, CameraVariant>,
-    },
-  }));
-
-  // EPIC-119(Item 5): 실뜨개 연결선 색상.
-  const [{ lineColor }, setLineControls] = useControls("연결선", () => ({
-    lineColor: "#f2e2b8",
-  }));
-
-  const config: UniverseConfig = {
-    ...panelConfig,
-    backgroundMode,
-    preset,
-    planetColor,
-    showThumbnails,
-    orbitSpeed,
-    characterType,
-    chestVariant,
-    cameraVariant,
-    lineColor,
-  };
-  // react-hooks/refs: ref는 렌더 중이 아니라 effect에서 써야 한다 — 이
-  // ref는 handleSave/자동저장 인터벌이 "항상 최신 config"를 읽기 위한
-  // 것일 뿐 렌더 출력과는 무관해 매 렌더 후 effect로 동기화한다.
-  const configRef = useRef(config);
+  const configRef = useRef(panelConfig);
   useEffect(() => {
-    configRef.current = config;
+    configRef.current = panelConfig;
   });
 
-  // EPIC-119(Item 7): DB(site_settings.about_silo_universe)에서 저장된
-  // 설정을 불러와 Leva(set 함수들)와 panelConfig 양쪽에 반영.
+  // DB(site_settings.about_silo_universe)에서 저장된 설정을 불러온다.
   useEffect(() => {
     let cancelled = false;
     supabase
@@ -1435,18 +1451,11 @@ export function AboutSiloUniverse() {
       .maybeSingle()
       .then(({ data }) => {
         if (cancelled) return;
-        const loaded = normalizeUniverseConfig(data?.setting_value);
-        setBgControls({ backgroundMode: loaded.backgroundMode, preset: loaded.preset });
-        setPlanetControls({ planetColor: loaded.planetColor, showThumbnails: loaded.showThumbnails, orbitSpeed: loaded.orbitSpeed });
-        setCharacterControls({ characterType: loaded.characterType });
-        setCoreControls({ chestVariant: loaded.chestVariant, cameraVariant: loaded.cameraVariant });
-        setLineControls({ lineColor: loaded.lineColor });
-        setPanelConfig(loaded);
+        setPanelConfig(normalizeUniverseConfig(data?.setting_value));
       });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSave() {
@@ -1465,8 +1474,8 @@ export function AboutSiloUniverse() {
     }
   }
 
-  // EPIC-119(Item 7): 5분 자동 저장 — configRef가 매 렌더 최신값으로
-  // 갱신되므로, 인터벌 자체는 autoSaveEnabled가 바뀔 때만 재설정된다.
+  // 5분 자동 저장 — configRef가 매 렌더 최신값으로 갱신되므로, 인터벌
+  // 자체는 autoSaveEnabled가 바뀔 때만 재설정된다.
   useEffect(() => {
     if (!panelConfig.autoSaveEnabled) return;
     const id = setInterval(() => {
@@ -1486,10 +1495,10 @@ export function AboutSiloUniverse() {
     };
   }, [panelConfig.boardSlug]);
 
-  // EPIC-114 발견/EPIC-115 유지: CameraControls는 마운트 시 Canvas의 초기
-  // camera position을 자기 나름대로 재해석하고, R3F는 부모(DOM) 트리와
-  // 별도 리컨실러로 커밋하므로 이 effect가 처음 돌 때 ref가 아직 null일
-  // 수 있다 — 매 프레임 재시도해 실제로 준비된 다음에만 홈 구도로 스냅.
+  // CameraControls는 마운트 시 Canvas의 초기 camera position을 자기
+  // 나름대로 재해석하고, R3F는 부모(DOM) 트리와 별도 리컨실러로 커밋하므로
+  // 이 effect가 처음 돌 때 ref가 아직 null일 수 있다 — 매 프레임 재시도해
+  // 실제로 준비된 다음에만 홈 구도로 스냅.
   useEffect(() => {
     if (!posts) return;
     let raf = 0;
@@ -1519,9 +1528,8 @@ export function AboutSiloUniverse() {
     controls.setLookAt(camPos.x, camPos.y, camPos.z, target.x, target.y, target.z, true);
   }
 
-  // EPIC-119(Item 5): 행성(SILO/유저) 자체를 클릭하면 카메라가 그 행성을
-  // 화면 중심으로 부드럽게 줌인(fit to object)한다 — 반지름의 2.2배
-  // 거리에서 살짝 위/옆으로 바라보는 구도로 접근.
+  // 행성(SILO/유저) 자체를 클릭하면 카메라가 그 행성을 화면 중심으로
+  // 부드럽게 줌인(fit to object)한다.
   function handleFocusPlanet(center: THREE.Vector3, radius: number) {
     const controls = cameraControlsRef.current;
     if (!controls) return;
@@ -1532,6 +1540,7 @@ export function AboutSiloUniverse() {
 
   function handleReset() {
     setSelected(null);
+    setSelectedObjectId(null);
     cameraControlsRef.current?.setLookAt(
       HOME_CAMERA_POS.x, HOME_CAMERA_POS.y, HOME_CAMERA_POS.z,
       HOME_TARGET.x, HOME_TARGET.y, HOME_TARGET.z,
@@ -1539,12 +1548,14 @@ export function AboutSiloUniverse() {
     );
   }
 
+  const selectedObject = selectedObjectId ? panelConfig.objects.find((o) => o.id === selectedObjectId) ?? null : null;
+
   return (
     <div className="relative h-[85vh] min-h-[560px] w-full overflow-hidden bg-transparent">
-      {backgroundMode === "youtube" ? (
+      {panelConfig.backgroundMode === "youtube" ? (
         <YoutubeBackground urls={panelConfig.youtubeUrls} />
       ) : (
-        <PresetBackground preset={preset} />
+        <PresetBackground preset={panelConfig.preset} />
       )}
 
       <Canvas
@@ -1559,10 +1570,14 @@ export function AboutSiloUniverse() {
             onSelect={handleSelect}
             cameraControlsRef={cameraControlsRef}
             distanceRef={distanceRef}
-            config={config}
+            config={panelConfig}
             onClipsLoaded={setAvailableClips}
             onFocusPlanet={handleFocusPlanet}
             onObjectError={handleObjectError}
+            selectedObjectId={selectedObjectId}
+            onSelectObject={handleSelectObject}
+            objectRefs={objectRefs}
+            onObjectMoved={handleObjectMoved}
           />
         )}
       </Canvas>
@@ -1573,7 +1588,7 @@ export function AboutSiloUniverse() {
             <p className="text-xs uppercase tracking-[0.2em] text-white/60">About Silo</p>
             <h1 className="mt-1 text-2xl font-light drop-shadow">사일로의 우주</h1>
             <p className="mt-1 max-w-sm text-xs text-white/70">
-              떠 있는 마커를 클릭해 가까이 다가가고, 휠을 굴려 행성 안쪽 세계로 들어가 보세요. 행성 자체를 클릭하면 그 행성으로 바로 다가갑니다.
+              떠 있는 마커를 클릭해 가까이 다가가고, 휠을 굴려 자유롭게 둘러보세요. 행성 자체를 클릭하면 그 행성으로 바로 다가갑니다.
             </p>
           </div>
           <button
@@ -1601,9 +1616,18 @@ export function AboutSiloUniverse() {
           saving={saving}
           savedAt={savedAt}
           failedObjectIds={failedObjectIds}
+          onSelectObjectId={handleSelectObject}
         />
 
-        {/* EPIC-119(Item 7): 저장됨 토스트. */}
+        {selectedObject && (
+          <ObjectInspectorPanel
+            object={selectedObject}
+            onChange={(patch) => updateObject(selectedObject.id, patch)}
+            onDelete={removeSelectedObject}
+            onClose={() => setSelectedObjectId(null)}
+          />
+        )}
+
         {toast && (
           <div className="pointer-events-none fixed right-6 top-6 z-50 rounded-full border border-white/20 bg-black/70 px-4 py-2 text-xs text-white shadow-xl backdrop-blur-sm">
             ✓ 저장됨

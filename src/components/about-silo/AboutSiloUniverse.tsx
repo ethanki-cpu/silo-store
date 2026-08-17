@@ -1,37 +1,34 @@
 "use client";
 
-// EPIC-113/114/115/119/121: /about-silo를 "어린 왕자" 감성의 3D 우주(행성+
-// 궤도+위성)로 개편하는 프로토타입. React Three Fiber(three.js) 기반.
+// EPIC-113/114/115/119/121/HOTFIX-123: /about-silo를 "어린 왕자" 감성의 3D
+// 우주(행성+궤도+위성)로 개편한 [3D World Builder]. React Three
+// Fiber(three.js) 기반.
 //
-// EPIC-121(사용자 지시 — 여러 항목): (1) 행성 표면의 얼룩덜룩한 줄무늬는
-// meshToonMaterial의 3단 gradientMap(셀 셰이딩 경계선)이 실사 텍스처
-// 위에서 이음매처럼 보이던 것 — PlanetMaterial을 toon 셰이딩 없는 2겹
-// 구(베이스 색 + 텍스처, opacity로 블렌드)로 교체. (2) CameraControls에
-// 극각 제한이 없는데도 "행성 아래에서 위로 못 돌린다"는 신고 — 명시적으로
-// minPolarAngle=0/maxPolarAngle=π를 박아 모호함을 없앰. (3) Leva(별도
-// 우측 패널)를 걷어내고 UniverseSettingsPanel 하나로 합침. (4) "내핵
-// 오브젝트"(카테고리 4종)를 행성 안에 숨겨뒀다 확대해야만 보이던 LOD
-// 연출을 없애고 장식 오브젝트와 동일하게 표면 위에 항상 보이도록 변경.
-// (5) 오브젝트 위치를 TransformControls로 드래그 이동 + 우측 인스펙터
-// 패널(ObjectInspectorPanel)에서 크기 조절. (6) 게시글 썸네일을 평면
-// 대신 구체로. (7) 행성 이름/색상↔텍스처 블렌드 투명도 추가.
+// HOTFIX-123(사용자 지시 — 여러 항목): (1) 행성을 클릭+드래그 후 놓으면
+// 놓인 자리가 아니라 자꾸 이전 프레이밍으로 돌아가던 버그 수정(실제로는
+// 드래그로 카메라를 궤도 회전시킨 뒤 마우스를 행성 위에서 떼면 클릭이
+// 그대로 발동해 고정 각도로 스냅시키던 것). (2) 오브제 클릭 시 glow
+// 선택 효과. (3) 오브제 설정 저장 안 되던 버그 수정(에러 스왈로우 +
+// 인스펙터에 저장 버튼 부재). (4) 행성에 "중력" — 오브제가 항상 표면에
+// 붙고, 드래그로 표면 위를 미끄러지듯 이동. (5) 게시글 위성 반짝임 +
+// 클릭 시 미리보기 계속 표시. (6) 행성별로 독립된 설정(이름/색/텍스처/
+// 캐릭터/오브젝트/궤도 위성 소스+디자인) — SILO와 유저 행성이 동일한
+// 구조를 공유하되 서로 다른 창(PlanetSettingsPanel)에서 편집. (7) 오브제를
+// 클릭하면 뜨는 정보 카드(썸네일/요약/링크)를 관리자가 설정 가능. (8)
+// 오브제가 행성 자전 그룹 안에 로컬 좌표로 중첩돼 행성과 함께 돈다. (9)
+// 게시글 위성이 지정된 게시판 글 썸네일을 hover 없이도 주기적으로
+// 떴다 사라지게(CSS 애니메이션) + 위성 디자인(이미지) 업로드.
 //
-// 범위 밖으로 명시적으로 미룬 것(다음 EPIC): 행성 두 개가 서로의 둘레를
-// 실제로 공전하는 것(거리/속도를 물리적으로 애니메이션) — 지금은 모든
-// 자식(카테고리/오브젝트/궤도 마커)이 SILO_CENTER를 "고정 월드 좌표"로
-// 삼아 위치를 계산하는 구조라, 행성 자체를 움직이려면 이 모든 자식을
-// 하나의 움직이는 그룹 아래로 재배치해야 하는 큰 리팩터가 필요하다 —
-// 잘못 서두르면 카메라 추적/거리 기반 페이드/연결선이 전부 어긋날 위험이
-// 커서 이번 범위에서는 제외하고 사용자에게 별도로 알린다.
-//
-// 아키텍처 결정 메모(EPIC-115/119 유지):
+// 아키텍처 결정 메모(EPIC-115/119/121 유지):
 // - "수채화 텍스처"/"프리셋 배경"은 여전히 절차적 대체(에셋 업로드 시
 //   PlanetMaterial/YoutubeBackground가 우선한다).
-// - HOTFIX-122(사용자 지시): 카메라 거리 기반 opacity 페이드(옛 "내핵
-//   오브젝트" LOD 연출의 잔재)는 EPIC-121에서 카테고리부터 뗐고, 이번에
-//   게시글 마커에서도 완전히 제거했다 — 클릭해서 카메라가 다가갈수록
-//   마커가 반대로 옅어지며 깜빡이던 버그의 원인이었다. 이제 씬 안의
-//   모든 요소는 거리와 무관하게 항상 보인다.
+// - 범위 밖으로 명시적으로 미룬 것: 행성 두 개가 서로의 둘레를 실제로
+//   공전하는 것(거리/속도를 물리적으로 애니메이션) — SILO_CENTER/
+//   USER_CENTER는 여전히 고정 월드 좌표다. 이번 HOTFIX에서 그 중심을
+//   기준으로 한 "행성 자체의 자전 + 표면 오브젝트/위성 배치"까지는
+//   전부 지원하게 됐지만, 두 중심점 자체가 서로를 공전하며 움직이는
+//   것은 카메라 추적/연결선 끝점 계산을 전부 다시 짜야 하는 별도
+//   리팩터라 여전히 범위 밖이다.
 
 import {
   useEffect,
@@ -65,17 +62,21 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   defaultUniverseConfig,
   normalizeUniverseConfig,
+  type PlanetConfig,
   type UniverseConfig,
   type UniverseObject,
 } from "@/lib/aboutSiloUniverseConfig";
 import { YoutubeBackground } from "./YoutubeBackground";
 import { PresetBackground } from "./PresetBackground";
 import { UniverseSettingsPanel } from "./UniverseSettingsPanel";
+import { PlanetSettingsPanel } from "./PlanetSettingsPanel";
 import { ObjectInspectorPanel } from "./ObjectInspectorPanel";
 
 // ============================================================
 // 데이터
 // ============================================================
+
+type PlanetId = "silo" | "user";
 
 type FeedPost = {
   id: string;
@@ -176,10 +177,15 @@ const PLANET_RADIUS = 2.1;
 const SILO_CENTER = new THREE.Vector3(-3.1, 0, 0);
 const USER_PLANET_RADIUS = 1.05;
 const USER_CENTER = new THREE.Vector3(3.3, -0.4, -0.6);
-// 오브젝트/카테고리가 실제로 표면 위에 서도록(안이 아니라) 쓰는 반지름.
-const SURFACE_PLACEMENT_RADIUS = PLANET_RADIUS * 0.97;
+// 오브젝트/카테고리가 실제로 표면 위에 서도록(안이 아니라) 쓰는 반지름 —
+// 행성마다 별도.
+const SILO_SURFACE_RADIUS = PLANET_RADIUS * 0.97;
+const USER_SURFACE_RADIUS = USER_PLANET_RADIUS * 0.97;
 
 const IMAGE_ORBIT_RADIUS = 2.55;
+// HOTFIX-123: 유저 행성도 자체 게시글 위성을 갖는다 — About Me 장식
+// 위성(1.75)과 겹치지 않도록 조금 더 안쪽 궤도를 쓴다.
+const USER_ORBIT_RADIUS = 1.5;
 const ABOUT_ME_ORBIT_RADIUS = 1.75;
 const HOME_TARGET = new THREE.Vector3(0.1, -0.1, 0);
 const HOME_CAMERA_POS = new THREE.Vector3(0.6, 2.2, 11.5);
@@ -261,13 +267,10 @@ class AssetLoadErrorBoundary extends Component<
 }
 
 /**
- * HOTFIX-121(사용자 신고 — "왜 행성에 줄무늬가 있는거야?"): meshToonMaterial의
- * 3단 gradientMap(셀 셰이딩)이 매끈한 절차적 색상에는 "만화 같은" 느낌을
- * 줬지만, 실사 텍스처 위에서는 조명 경계선이 봉제선/얼룩처럼 도드라져
- * 보였다 — 여기서는 toon 셰이딩을 완전히 빼고, 베이스 색 구 위에 텍스처
- * 구를 살짝 더 큰 반지름으로 겹쳐(opacity로 블렌드) 자연스러운 색+텍스처
- * 혼합을 만든다(사용자 지시 — "행성 색과 텍스처가 섞일 수 있게, 투명도
- * 설정 가능하게").
+ * 행성 표면 색+텍스처 블렌드 — toon 셰이딩 없이 베이스 색 구 위에 텍스처
+ * 구를 살짝 더 큰 반지름으로 겹쳐(opacity로 블렌드) 자연스러운 혼합을
+ * 만든다. SILO/유저 행성 둘 다 이 컴포넌트 하나를 공유한다(HOTFIX-123 —
+ * "그냥 SILO 행성 설정과 똑같이 설정 가능하게").
  */
 function CustomPlanetTextureLayer({ url, radius, opacity }: { url: string; radius: number; opacity: number }) {
   const texture = useTexture(url);
@@ -454,14 +457,42 @@ function CharacterRenderer({
 
 type SurfacePlacement = { position: [number, number, number]; quaternion: THREE.Quaternion };
 
-// HOTFIX(사용자 신고 — "행성을 드래그하고 놓으면 자꾸 이전 위치로
+// HOTFIX-123: 장식 오브젝트를 이제 행성의 자전 그룹 안에 로컬 좌표로
+// 중첩시키므로(항목 3 — "오브제가 행성과 함께 돌아가도록"), 배치 좌표에
+// 더 이상 행성의 월드 중심을 더하지 않는다 — 부모 그룹의 위치/회전을
+// three.js가 알아서 적용해준다.
+function localSurfacePlacementsFor(count: number, radius: number): SurfacePlacement[] {
+  return fibonacciSphere(Math.max(count, 1), radius).map(([x, y, z]) => {
+    const normal = new THREE.Vector3(x, y, z).normalize();
+    return {
+      position: [x, y, z] as [number, number, number],
+      quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
+    };
+  });
+}
+
+// 기본 카테고리 마커(CoreCategories)는 여전히 행성 자전과 무관하게 Scene
+// 최상단에서 SILO_CENTER 기준 월드 좌표로 그린다(사용자 요청 범위 밖 —
+// 이 4종은 언제나 같은 자리에서 안정적으로 찾을 수 있어야 하는 내비게이션
+// 성격이라 자전에 휩쓸리지 않게 그대로 둔다).
+function surfacePlacementsFor(count: number, radius: number): SurfacePlacement[] {
+  return fibonacciSphere(Math.max(count, 1), radius).map(([x, y, z]) => {
+    const normal = new THREE.Vector3(x, y, z).normalize();
+    return {
+      position: [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number],
+      quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
+    };
+  });
+}
+
+// HOTFIX-123(사용자 신고 — "행성을 드래그하고 놓으면 자꾸 이전 위치로
 // 돌아간다"): 실제로는 행성 자체가 움직이는 게 아니라, 행성 위에서
 // 드래그해 카메라를 궤도 회전시킨(CameraControls) 뒤 마우스를 그 행성
 // 위에서 떼면 R3F가 이동 거리와 무관하게 onClick을 그대로 발생시켜
 // onFocus()가 매번 같은 고정 각도로 카메라를 스냅시키던 것 — "드래그해
 // 옮긴 시점"이 아니라 "클릭한 시점"의 고정 프레이밍으로 계속 되돌아가는
 // 것처럼 보였다. 포인터다운→업 사이의 화면 이동 거리가 임계값 미만일
-// 때만 진짜 클릭으로 간주해 onFocus를 호출한다.
+// 때만 진짜 클릭으로 간주해 onClick을 호출한다.
 function useDragAwareClick(onClick: () => void) {
   const start = useRef<{ x: number; y: number } | null>(null);
   return {
@@ -478,19 +509,11 @@ function useDragAwareClick(onClick: () => void) {
   };
 }
 
-function surfacePlacementsFor(count: number, radius: number): SurfacePlacement[] {
-  return fibonacciSphere(Math.max(count, 1), radius).map(([x, y, z]) => {
-    const normal = new THREE.Vector3(x, y, z).normalize();
-    return {
-      position: [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number],
-      quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
-    };
-  });
-}
-
 // ============================================================
-// 장식 오브젝트 — SILO 행성 표면에 배치, 클릭으로 선택 → 드래그(부모
-// AboutSiloUniverse의 TransformControls)로 위치 이동.
+// 장식 오브젝트 — 행성 표면에 배치, 클릭으로 선택 → 드래그(부모
+// AboutSiloUniverse의 TransformControls)로 위치 이동. HOTFIX-123부터
+// SILO/유저 행성 둘 다 이 레이어를 갖는다(행성의 자전 그룹 안에 로컬
+// 좌표로 중첩).
 // ============================================================
 
 function UniverseObjectModel({
@@ -579,35 +602,34 @@ function UniverseObjectModel({
 
 function UniverseObjectsLayer({
   objects,
+  radius,
   onObjectError,
   selectedObjectId,
   onSelectObject,
   registerObjectRef,
 }: {
   objects: UniverseObject[];
+  /** 이 오브젝트들이 붙는 행성의 표면 반지름 — 행성마다 다르다. */
+  radius: number;
   onObjectError: (id: string) => void;
   selectedObjectId: string | null;
   onSelectObject: (id: string) => void;
   registerObjectRef: (id: string, group: THREE.Group | null) => void;
 }) {
-  const defaults = useMemo(() => surfacePlacementsFor(objects.length, SURFACE_PLACEMENT_RADIUS), [objects.length]);
+  const defaults = useMemo(() => localSurfacePlacementsFor(objects.length, radius), [objects.length, radius]);
   if (objects.length === 0) return null;
   return (
     <>
       {objects.map((obj, i) => {
-        // HOTFIX(사용자 신고 — "SILO 행성 표면에 오브제가 제대로 표시가
-        // 안 되고 있어. 행성 안에 있거나, 표면에 절반만 나오거나"): 드래그로
-        // 옮긴 뒤에는 obj.position이 fibonacci 기본 배치와 무관한 임의
-        // 좌표가 되는데, 방향(quaternion)은 계속 원래 인덱스의 기본
-        // 배치 값을 재사용해 표면 법선과 어긋나 있었다 — "위" 방향이
-        // 실제 표면 바깥쪽을 가리키지 않아 오브젝트가 절반쯤 파묻힌
-        // 것처럼 보였다. "중력" — 오브젝트는 항상 SILO_CENTER 기준
-        // 구면(SURFACE_PLACEMENT_RADIUS) 위로 투영되고, 방향도 그 지점의
-        // 실제 법선으로 매 렌더 다시 계산한다.
+        // "중력": 드래그로 옮긴 뒤에도 매 렌더 이 행성의 로컬 원점(0,0,0)
+        // 기준 구면 위로 위치를 재투영하고, 방향(quaternion)도 그 지점의
+        // 실제 법선으로 다시 계산한다 — 위치만 저장하고 방향은 원래
+        // 인덱스의 기본값을 재사용하던 예전 버그(표면에 절반만 나오거나
+        // 파묻히던 원인)가 재발하지 않는다.
         const placement: SurfacePlacement = obj.position
           ? (() => {
-              const normal = new THREE.Vector3(...obj.position!).sub(SILO_CENTER).normalize();
-              const snapped = SILO_CENTER.clone().add(normal.multiplyScalar(SURFACE_PLACEMENT_RADIUS));
+              const normal = new THREE.Vector3(...obj.position!).normalize();
+              const snapped = normal.clone().multiplyScalar(radius);
               return {
                 position: snapped.toArray() as [number, number, number],
                 quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
@@ -633,37 +655,40 @@ function UniverseObjectsLayer({
 }
 
 // ============================================================
-// 중심 행성(SILO) & 유저 행성.
+// 중심 행성(SILO) & 유저 행성 — HOTFIX-123부터 둘 다 동일한
+// PlanetConfig를 받아 동일한 구조(표면 텍스처/캐릭터/장식 오브젝트)로
+// 렌더링한다.
 // ============================================================
 
 function CentralPlanet({
-  name,
-  baseColor,
-  planetTextureUrl,
-  planetTextureOpacity,
-  characterType,
-  characterModelUrl,
-  characterAnimationClip,
+  planetConfig,
   rotationSpeed,
   onFocus,
+  onOpenSettings,
   onClipsLoaded,
+  selectedObjectId,
+  onSelectObject,
+  onObjectError,
+  registerObjectRef,
 }: {
-  name: string;
-  baseColor: string;
-  planetTextureUrl: string;
-  planetTextureOpacity: number;
-  characterType: "A" | "B" | "C";
-  characterModelUrl: string;
-  characterAnimationClip: string;
+  planetConfig: PlanetConfig;
   rotationSpeed: number;
   onFocus: () => void;
+  onOpenSettings: () => void;
   onClipsLoaded: (clips: string[]) => void;
+  selectedObjectId: string | null;
+  onSelectObject: (id: string) => void;
+  onObjectError: (id: string) => void;
+  registerObjectRef: (id: string, group: THREE.Group | null) => void;
 }) {
   const meshRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
     if (meshRef.current) meshRef.current.rotation.y += delta * rotationSpeed * 0.1;
   });
-  const dragAwareClick = useDragAwareClick(onFocus);
+  const dragAwareClick = useDragAwareClick(() => {
+    onFocus();
+    onOpenSettings();
+  });
   return (
     <group position={SILO_CENTER}>
       <group
@@ -672,22 +697,33 @@ function CentralPlanet({
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
-        <PlanetMaterial baseColor={baseColor} customTextureUrl={planetTextureUrl} textureOpacity={planetTextureOpacity} radius={PLANET_RADIUS} />
+        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={PLANET_RADIUS} />
+        {/* HOTFIX-123(사용자 지시 — "오브제가 행성과 함께 돌아가도록"):
+            장식 오브젝트를 행성 자전 그룹 안에 로컬 좌표로 중첩시켜 행성이
+            자전하면 표면에 붙은 채 함께 돈다. */}
+        <UniverseObjectsLayer
+          objects={planetConfig.objects}
+          radius={SILO_SURFACE_RADIUS}
+          onObjectError={onObjectError}
+          selectedObjectId={selectedObjectId}
+          onSelectObject={onSelectObject}
+          registerObjectRef={registerObjectRef}
+        />
       </group>
       <CharacterRenderer
-        modelUrl={characterModelUrl}
-        animationClip={characterAnimationClip}
+        modelUrl={planetConfig.characterModelUrl}
+        animationClip={planetConfig.characterAnimationClip}
         position={[0.3, PLANET_RADIUS - 0.05, 0.55]}
         rotationY={-0.4}
         scale={1.3}
-        variant={characterType}
+        variant={planetConfig.characterType}
         seed={1}
         onClipsLoaded={onClipsLoaded}
       />
-      {name && (
+      {planetConfig.name && (
         <Html position={[0, PLANET_RADIUS + 0.5, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-center text-white backdrop-blur-sm">
-            <div className="text-xs font-medium">{name}</div>
+            <div className="text-xs font-medium">{planetConfig.name}</div>
           </div>
         </Html>
       )}
@@ -696,21 +732,28 @@ function CentralPlanet({
 }
 
 function UserPlanet({
-  characterType,
-  characterModelUrl,
-  characterAnimationClip,
+  planetConfig,
   rotationSpeed,
   onFocus,
+  onOpenSettings,
+  onClipsLoaded,
+  selectedObjectId,
+  onSelectObject,
+  onObjectError,
+  registerObjectRef,
 }: {
-  characterType: "A" | "B" | "C";
-  characterModelUrl: string;
-  characterAnimationClip: string;
+  planetConfig: PlanetConfig;
   rotationSpeed: number;
   onFocus: () => void;
+  onOpenSettings: () => void;
+  onClipsLoaded: (clips: string[]) => void;
+  selectedObjectId: string | null;
+  onSelectObject: (id: string) => void;
+  onObjectError: (id: string) => void;
+  registerObjectRef: (id: string, group: THREE.Group | null) => void;
 }) {
-  const watercolor = useWatercolorTexture("#c3d8b8");
   const groupRef = useRef<THREE.Group>(null);
-  const spinRef = useRef<THREE.Mesh>(null);
+  const spinRef = useRef<THREE.Group>(null);
 
   useFrame(({ clock }, delta) => {
     const t = clock.getElapsedTime();
@@ -718,30 +761,42 @@ function UserPlanet({
     if (spinRef.current) spinRef.current.rotation.y += delta * rotationSpeed * 0.14;
   });
 
-  const dragAwareClick = useDragAwareClick(onFocus);
+  const dragAwareClick = useDragAwareClick(() => {
+    onFocus();
+    onOpenSettings();
+  });
+
   return (
     <group ref={groupRef}>
-      <mesh
+      <group
         ref={spinRef}
         {...dragAwareClick}
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
-        <sphereGeometry args={[USER_PLANET_RADIUS, 32, 32]} />
-        <meshStandardMaterial map={watercolor} />
-      </mesh>
+        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={USER_PLANET_RADIUS} />
+        <UniverseObjectsLayer
+          objects={planetConfig.objects}
+          radius={USER_SURFACE_RADIUS}
+          onObjectError={onObjectError}
+          selectedObjectId={selectedObjectId}
+          onSelectObject={onSelectObject}
+          registerObjectRef={registerObjectRef}
+        />
+      </group>
       <CharacterRenderer
-        modelUrl={characterModelUrl}
-        animationClip={characterAnimationClip}
+        modelUrl={planetConfig.characterModelUrl}
+        animationClip={planetConfig.characterAnimationClip}
         position={[-0.15, USER_PLANET_RADIUS - 0.02, 0.4]}
         rotationY={0.5}
         scale={0.9}
-        variant={characterType}
+        variant={planetConfig.characterType}
         seed={2}
+        onClipsLoaded={onClipsLoaded}
       />
       <Html position={[0, -USER_PLANET_RADIUS - 0.35, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
         <div className="whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-center text-white backdrop-blur-sm">
-          <div className="text-xs font-medium">My Page</div>
+          <div className="text-xs font-medium">{planetConfig.name || "My Page"}</div>
         </div>
       </Html>
       <AboutMeSatellites rotationSpeed={rotationSpeed} />
@@ -924,29 +979,97 @@ function UniverseParticles() {
 }
 
 // ============================================================
-// 궤도를 도는 게시글 마커. HOTFIX-122(사용자 지시 — "썸네일을 sphere로
-// 만드는 건 확인해보니 별로야, 차라리 SILO 행성을 orbit하는 조그만
-// 별 모양으로 하고 마우스를 hover하면 동그란 썸네일이 나오게 해줘"):
-// 사진 텍스처를 입힌 구 대신 작은 별(팔면체) 모양으로 바꾸고, 실제
-// 사진은 hover할 때만 일반 HTML <img>(원형)로 떠 있는 미리보기로
-// 보여준다 — Three.js 텍스처 로딩(Suspense/useTexture) 자체가 필요 없어
-// 코드가 단순해지고, "클릭하면 썸네일이 깜빡인다"는 신고의 원인이었던
-// 거리 기반 opacity 페이드(surfaceOpacityFor, 옛 "내핵 오브젝트" LOD
-// 연출의 잔재 — EPIC-121에서 카테고리는 이미 뗐지만 게시글 마커는
-// 그대로 남아 있었다: 카메라가 클릭 시 마커 쪽으로 가까이 다가가면
-// 이 로직이 거꾸로 opacity를 낮춰 사라지려 했다)도 완전히 제거했다.
+// 궤도를 도는 게시글 위성. HOTFIX-123(사용자 지시 — "게시글 위성들이
+// 지정된 게시판의 글 썸네일 자체가 떳다가 사라졌다 하게 해줘. 그 위성의
+// 디자인을 업로드할 수 있게 해줘"): 사진 미리보기가 더 이상 hover
+// 전용이 아니라 CSS 애니메이션으로 주기적으로 스스로 페이드 인/아웃하고
+// (마커마다 다른 위상), 위성 마커 자체의 모양도 관리자가 이미지를
+// 업로드해 기본 별(팔면체) 대신 쓸 수 있다.
 // ============================================================
 
-function OrbitStarMarker({
+function DefaultStarShape({
+  selected,
+  starRef,
+  materialRef,
+  onSelect,
+  onHoverChange,
+}: {
+  selected: boolean;
+  starRef: RefObject<THREE.Mesh | null>;
+  materialRef: RefObject<THREE.MeshBasicMaterial | null>;
+  onSelect: () => void;
+  onHoverChange: (hovered: boolean) => void;
+}) {
+  return (
+    <mesh
+      ref={starRef}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHoverChange(true);
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={() => {
+        onHoverChange(false);
+        document.body.style.cursor = "auto";
+      }}
+    >
+      <octahedronGeometry args={[selected ? 0.09 : 0.07, 0]} />
+      <meshBasicMaterial ref={materialRef} color={selected ? "#fff3d6" : "#f4e6c8"} toneMapped={false} />
+    </mesh>
+  );
+}
+
+function SatelliteDesignSprite({
+  url,
+  selected,
+  onSelect,
+  onHoverChange,
+}: {
+  url: string;
+  selected: boolean;
+  onSelect: () => void;
+  onHoverChange: (hovered: boolean) => void;
+}) {
+  const texture = useTexture(url);
+  const scale = selected ? 0.24 : 0.18;
+  return (
+    <sprite
+      scale={[scale, scale, 1]}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHoverChange(true);
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={() => {
+        onHoverChange(false);
+        document.body.style.cursor = "auto";
+      }}
+    >
+      <spriteMaterial map={texture} transparent toneMapped={false} />
+    </sprite>
+  );
+}
+
+function OrbitSatelliteMarker({
   post,
   position,
   selected,
+  designUrl,
   onSelect,
 }: {
   post: FeedPost;
   position: [number, number, number];
   selected: boolean;
-  onSelect: (post: FeedPost, position: [number, number, number]) => void;
+  designUrl: string;
+  onSelect: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const starRef = useRef<THREE.Mesh>(null);
@@ -959,10 +1082,8 @@ function OrbitStarMarker({
     return h;
   }, [post.id]);
 
-  // 사용자 지시("썸네일을 상징하는 오브제가 반짝반짝 빛나게 해줘야지,
-  // 그래야 이게 무슨 의미가 있는지 알지"): 별 마커를 자전시키면서, 밝기/
-  // 크기를 사인파로 맥동시켜 반짝이는 느낌을 준다 — Bloom과 합쳐지면
-  // 실제로 빛나 보인다.
+  // 별 모양(기본값)일 때만 자전+트윙클 — 커스텀 디자인 스프라이트는
+  // 항상 카메라를 바라보므로 별도 회전이 필요 없다.
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     if (starRef.current) {
@@ -979,37 +1100,27 @@ function OrbitStarMarker({
 
   return (
     <group position={position}>
-      <mesh
-        ref={starRef}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(post, position);
-        }}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHovered(true);
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          setHovered(false);
-          document.body.style.cursor = "auto";
-        }}
-      >
-        <octahedronGeometry args={[selected ? 0.09 : 0.07, 0]} />
-        <meshBasicMaterial ref={materialRef} color={selected ? "#fff3d6" : "#f4e6c8"} toneMapped={false} />
-      </mesh>
+      {designUrl ? (
+        <AssetLoadErrorBoundary
+          fallback={<DefaultStarShape selected={selected} starRef={starRef} materialRef={materialRef} onSelect={onSelect} onHoverChange={setHovered} />}
+        >
+          <Suspense fallback={null}>
+            <SatelliteDesignSprite url={designUrl} selected={selected} onSelect={onSelect} onHoverChange={setHovered} />
+          </Suspense>
+        </AssetLoadErrorBoundary>
+      ) : (
+        <DefaultStarShape selected={selected} starRef={starRef} materialRef={materialRef} onSelect={onSelect} onHoverChange={setHovered} />
+      )}
       {selected && (
         <mesh>
           <ringGeometry args={[0.13, 0.16, 24]} />
           <meshBasicMaterial color="#fff3d6" transparent opacity={0.85} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       )}
-      {/* 사용자 지시("클릭하면, 썸네일이 hover할 때만 나오는 게 아니라
-          계속 자동으로 뜨게"): hover 중이거나, 클릭으로 선택된 상태면
-          계속 보이게 유지한다(선택 해제는 SelectedPostPanel의 닫기 버튼). */}
-      {(hovered || selected) && post.photo_url && (
+      {post.photo_url && (
         <Html center distanceFactor={6} position={[0, 0.24, 0]} style={{ pointerEvents: "none" }} zIndexRange={[10, 0]}>
           <div
+            className="silo-satellite-thumb"
             style={{
               width: 72,
               height: 72,
@@ -1017,6 +1128,8 @@ function OrbitStarMarker({
               overflow: "hidden",
               border: "2px solid rgba(255,255,255,0.85)",
               boxShadow: "0 4px 16px rgba(0,0,0,0.45)",
+              animationDelay: `${(seed % 700) / 100}s`,
+              ...(hovered || selected ? { opacity: 1, animationPlayState: "paused" as const } : {}),
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1032,13 +1145,60 @@ function OrbitStarMarker({
   );
 }
 
+// HOTFIX-123: 행성 하나를 도는 게시글 위성 무리 — SILO/유저 둘 다 같은
+// 컴포넌트를 재사용(각자의 center/radius/boardSlug 소스/디자인만 다름).
+function PlanetSatellites({
+  posts,
+  center,
+  radius,
+  orbitSpeed,
+  designUrl,
+  selectedId,
+  onSelect,
+}: {
+  posts: FeedPost[];
+  center: THREE.Vector3;
+  radius: number;
+  orbitSpeed: number;
+  designUrl: string;
+  selectedId: string | null;
+  onSelect: (post: FeedPost, position: [number, number, number], normal: [number, number, number]) => void;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const localPositions = useMemo(() => fibonacciSphere(posts.length, radius), [posts.length, radius]);
+
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      groupRef.current.position.copy(center);
+      groupRef.current.rotation.y += delta * orbitSpeed * 0.15;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      {posts.map((post, i) => {
+        const localPos = localPositions[i];
+        const normal = new THREE.Vector3(...localPos).normalize().toArray() as [number, number, number];
+        return (
+          <OrbitSatelliteMarker
+            key={post.id}
+            post={post}
+            position={localPos}
+            selected={selectedId === post.id}
+            designUrl={designUrl}
+            onSelect={() =>
+              onSelect(post, [center.x + localPos[0], center.y + localPos[1], center.z + localPos[2]], normal)
+            }
+          />
+        );
+      })}
+    </group>
+  );
+}
+
 // ============================================================
-// 기본 카테고리 마커(사일로 상점/온라인 도슨트/살롱데상/스튜디오).
-// HOTFIX-121(사용자 지시 — "나는 행성 안에 '내핵 오브제'를 원하지 않아,
-// 오브제들이 행성 표면 위에 놓여 있는 걸 원해"): 예전엔 반지름 0.9(행성
-// 반지름 2.1보다 작은 안쪽)에 숨겨두고 카메라가 가까이 다가가야만
-// 서서히 드러나는 LOD 연출이었다 — 장식 오브젝트와 동일하게 표면
-// (SURFACE_PLACEMENT_RADIUS) 위에 항상 보이도록 바꿨다.
+// 기본 카테고리 마커(사일로 상점/온라인 도슨트/살롱데상/스튜디오) — 항상
+// SILO 표면 위에 노출, 자전과 무관하게 고정(내비게이션 성격).
 // ============================================================
 
 function CoreCategoryShape({
@@ -1213,7 +1373,7 @@ function CoreCategories({
   chestVariant: ChestVariant;
   cameraVariant: CameraVariant;
 }) {
-  const placements = useMemo(() => surfacePlacementsFor(CORE_CATEGORIES.length, SURFACE_PLACEMENT_RADIUS), []);
+  const placements = useMemo(() => surfacePlacementsFor(CORE_CATEGORIES.length, SILO_SURFACE_RADIUS), []);
   return (
     <>
       {CORE_CATEGORIES.map((cat, i) => (
@@ -1238,51 +1398,49 @@ function CoreCategories({
 // ============================================================
 
 function Scene({
-  posts,
-  selectedId,
-  onSelect,
+  siloPosts,
+  userPosts,
+  selectedPostId,
+  onSelectPost,
   cameraControlsRef,
   config,
-  onClipsLoaded,
+  onSiloClipsLoaded,
+  onUserClipsLoaded,
   onFocusPlanet,
+  onOpenPlanetSettings,
   onObjectError,
+  selectedPlanetId,
   selectedObjectId,
   onSelectObject,
   objectRefs,
   onObjectMoved,
 }: {
-  posts: FeedPost[];
-  selectedId: string | null;
-  onSelect: (post: FeedPost, position: [number, number, number]) => void;
+  siloPosts: FeedPost[];
+  userPosts: FeedPost[];
+  selectedPostId: string | null;
+  onSelectPost: (post: FeedPost, position: [number, number, number], normal: [number, number, number]) => void;
   cameraControlsRef: RefObject<CameraControlsImpl | null>;
   config: UniverseConfig;
-  onClipsLoaded: (clips: string[]) => void;
+  onSiloClipsLoaded: (clips: string[]) => void;
+  onUserClipsLoaded: (clips: string[]) => void;
   onFocusPlanet: (center: THREE.Vector3, radius: number) => void;
-  onObjectError: (id: string) => void;
+  onOpenPlanetSettings: (planetId: PlanetId) => void;
+  onObjectError: (planetId: PlanetId, id: string) => void;
+  selectedPlanetId: PlanetId | null;
   selectedObjectId: string | null;
-  onSelectObject: (id: string) => void;
+  onSelectObject: (planetId: PlanetId, id: string) => void;
   objectRefs: RefObject<Map<string, THREE.Group>>;
-  onObjectMoved: (id: string, position: [number, number, number]) => void;
+  onObjectMoved: (planetId: PlanetId, id: string, position: [number, number, number]) => void;
 }) {
   const router = useRouter();
-  const orbitGroupRef = useRef<THREE.Group>(null);
-  const positions = useMemo(() => {
-    const base = fibonacciSphere(posts.length, IMAGE_ORBIT_RADIUS);
-    return base.map(([x, y, z]) => [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number]);
-  }, [posts.length]);
 
-  useFrame((_, delta) => {
-    if (orbitGroupRef.current) {
-      orbitGroupRef.current.position.copy(SILO_CENTER);
-      orbitGroupRef.current.rotation.y += delta * config.orbitSpeed * 0.15;
-    }
-  });
-
+  const selectedRadius = selectedPlanetId === "user" ? USER_SURFACE_RADIUS : SILO_SURFACE_RADIUS;
+  const selectedKey = selectedObjectId && selectedPlanetId ? `${selectedPlanetId}:${selectedObjectId}` : null;
   // EPIC-121: 선택된 오브젝트의 실제 THREE.Group을 TransformControls에
   // 붙인다 — objectRefs는 UniverseObjectsLayer가 커밋 시점에 채우므로
   // (렌더 중이 아니라 클릭 이벤트 핸들러에서 읽으므로) react-hooks/refs
-  // 위반 없이 안전하다(AboutSiloUniverse.tsx의 handleSelectObject 참고).
-  const selectedGroup = selectedObjectId ? objectRefs.current.get(selectedObjectId) ?? null : null;
+  // 위반 없이 안전하다.
+  const selectedGroup = selectedKey ? objectRefs.current.get(selectedKey) ?? null : null;
 
   return (
     <>
@@ -1293,36 +1451,38 @@ function Scene({
       <UniverseParticles />
 
       <CentralPlanet
-        name={config.planetName}
-        baseColor={config.planetColor}
-        planetTextureUrl={config.planetTextureUrl}
-        planetTextureOpacity={config.planetTextureOpacity}
-        characterType={config.characterType}
-        characterModelUrl={config.characterModelUrl}
-        characterAnimationClip={config.characterAnimationClip}
+        planetConfig={config.planets.silo}
         rotationSpeed={config.orbitSpeed}
         onFocus={() => onFocusPlanet(SILO_CENTER, PLANET_RADIUS)}
-        onClipsLoaded={onClipsLoaded}
+        onOpenSettings={() => onOpenPlanetSettings("silo")}
+        onClipsLoaded={onSiloClipsLoaded}
+        selectedObjectId={selectedPlanetId === "silo" ? selectedObjectId : null}
+        onSelectObject={(id) => onSelectObject("silo", id)}
+        onObjectError={(id) => onObjectError("silo", id)}
+        registerObjectRef={(id, g) => {
+          const key = `silo:${id}`;
+          if (g) objectRefs.current.set(key, g);
+          else objectRefs.current.delete(key);
+        }}
       />
       <UserPlanet
-        characterType={config.characterType}
-        characterModelUrl={config.characterModelUrl}
-        characterAnimationClip={config.characterAnimationClip}
+        planetConfig={config.planets.user}
         rotationSpeed={config.orbitSpeed}
         onFocus={() => onFocusPlanet(USER_CENTER, USER_PLANET_RADIUS)}
+        onOpenSettings={() => onOpenPlanetSettings("user")}
+        onClipsLoaded={onUserClipsLoaded}
+        selectedObjectId={selectedPlanetId === "user" ? selectedObjectId : null}
+        onSelectObject={(id) => onSelectObject("user", id)}
+        onObjectError={(id) => onObjectError("user", id)}
+        registerObjectRef={(id, g) => {
+          const key = `user:${id}`;
+          if (g) objectRefs.current.set(key, g);
+          else objectRefs.current.delete(key);
+        }}
       />
       <ConnectingThread color={config.lineColor} />
       <CoreCategories router={router} chestVariant={config.chestVariant} cameraVariant={config.cameraVariant} />
-      <UniverseObjectsLayer
-        objects={config.objects}
-        onObjectError={onObjectError}
-        selectedObjectId={selectedObjectId}
-        onSelectObject={onSelectObject}
-        registerObjectRef={(id, g) => {
-          if (g) objectRefs.current.set(id, g);
-          else objectRefs.current.delete(id);
-        }}
-      />
+
       {selectedGroup && (
         <TransformControls
           object={selectedGroup}
@@ -1330,46 +1490,46 @@ function Scene({
           onMouseDown={() => {
             if (cameraControlsRef.current) cameraControlsRef.current.enabled = false;
           }}
-          // "중력": 드래그하는 동안에도 매 프레임 SILO_CENTER 기준
+          // "중력": 드래그하는 동안에도 매 프레임 이 행성의 로컬 원점 기준
           // 구면 위로 위치를 투영하고 방향을 그 지점 법선에 맞춰, 표면을
-          // 따라 미끄러지듯 이동하는(마우스를 떼기 전에도 파묻히거나
-          // 뜨지 않는) 느낌을 준다.
+          // 따라 미끄러지듯 이동하는 느낌을 준다. 오브젝트가 이제 행성의
+          // 자전 그룹 안에 중첩돼 있어 .position은 이미 행성 로컬 좌표다.
           onChange={() => {
-            const normal = selectedGroup.position.clone().sub(SILO_CENTER).normalize();
-            selectedGroup.position.copy(SILO_CENTER.clone().add(normal.multiplyScalar(SURFACE_PLACEMENT_RADIUS)));
+            const normal = selectedGroup.position.clone().normalize();
+            selectedGroup.position.copy(normal.clone().multiplyScalar(selectedRadius));
             selectedGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
           }}
           onMouseUp={() => {
             if (cameraControlsRef.current) cameraControlsRef.current.enabled = true;
-            if (selectedObjectId) onObjectMoved(selectedObjectId, selectedGroup.position.toArray() as [number, number, number]);
+            if (selectedObjectId && selectedPlanetId) {
+              onObjectMoved(selectedPlanetId, selectedObjectId, selectedGroup.position.toArray() as [number, number, number]);
+            }
           }}
         />
       )}
 
-      <group ref={orbitGroupRef}>
-        {posts.map((post, i) => {
-          const localPos: [number, number, number] = [
-            positions[i][0] - SILO_CENTER.x,
-            positions[i][1] - SILO_CENTER.y,
-            positions[i][2] - SILO_CENTER.z,
-          ];
-          return (
-            <OrbitStarMarker
-              key={post.id}
-              post={post}
-              position={localPos}
-              selected={selectedId === post.id}
-              onSelect={onSelect}
-            />
-          );
-        })}
-      </group>
+      <PlanetSatellites
+        posts={siloPosts}
+        center={SILO_CENTER}
+        radius={IMAGE_ORBIT_RADIUS}
+        orbitSpeed={config.orbitSpeed}
+        designUrl={config.planets.silo.satelliteDesignUrl}
+        selectedId={selectedPostId}
+        onSelect={onSelectPost}
+      />
+      <PlanetSatellites
+        posts={userPosts}
+        center={USER_CENTER}
+        radius={USER_ORBIT_RADIUS}
+        orbitSpeed={config.orbitSpeed}
+        designUrl={config.planets.user.satelliteDesignUrl}
+        selectedId={selectedPostId}
+        onSelect={onSelectPost}
+      />
 
       {/* HOTFIX-121(사용자 신고 — "행성 어디를 돌리든 자유롭게 움직이게
           해줘"): 극각(polar angle) 제한을 명시적으로 완전히 풀어(0~π)
-          위/아래 어느 방향으로든 걸림 없이 회전할 수 있게 한다 — 기존엔
-          이 두 값을 아예 안 줘서 라이브러리 기본값에 암묵적으로 의존하고
-          있었다. */}
+          위/아래 어느 방향으로든 걸림 없이 회전할 수 있게 한다. */}
       <CameraControls
         ref={cameraControlsRef}
         minDistance={0.6}
@@ -1433,8 +1593,40 @@ function SelectedPostPanel({ post, onClose }: { post: FeedPost; onClose: () => v
   );
 }
 
+// HOTFIX-123(사용자 지시 — "오브제를 클릭했을 때 나오는 썸네일과 요약,
+// 그리고 링크를 설정할 수 있게 해줘"): 장식 오브젝트를 클릭하면 뜨는
+// 공개용 정보 카드 — ObjectInspectorPanel(편집용, 우측 상단)과 별개로
+// SelectedPostPanel과 같은 자리(하단 중앙)에 같은 스타일로 뜬다. 세 필드
+// 모두 비어있으면(관리자가 아직 설정 안 함) 아무것도 띄우지 않는다.
+function ObjectInfoCard({ obj, onClose }: { obj: UniverseObject; onClose: () => void }) {
+  if (!obj.thumbnailUrl && !obj.summary && !obj.link) return null;
+  return (
+    <div className="pointer-events-auto fixed bottom-6 left-1/2 z-50 w-[min(420px,88vw)] -translate-x-1/2 rounded-2xl border border-white/15 bg-black/55 p-5 text-white shadow-2xl backdrop-blur-md">
+      <button type="button" onClick={onClose} className="absolute right-3 top-3 text-sm text-white/60 hover:text-white" aria-label="닫기">
+        ✕
+      </button>
+      <div className="flex gap-3">
+        {obj.thumbnailUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={obj.thumbnailUrl} alt={obj.label} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+        )}
+        <div className="min-w-0">
+          <h3 className="text-lg font-medium">{obj.label || "오브젝트"}</h3>
+          {obj.summary && <p className="mt-1 text-sm text-white/75">{obj.summary}</p>}
+        </div>
+      </div>
+      {obj.link && (
+        <a href={obj.link} className="mt-3 inline-block text-sm text-amber-200 hover:underline">
+          자세히 보기 →
+        </a>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AboutSiloUniverse — 최상위 컴포넌트. UniverseSettingsPanel(전역 설정) +
+// PlanetSettingsPanel(행성별 설정, 클릭한 행성마다 별도 인스턴스) +
 // ObjectInspectorPanel(선택된 오브젝트 설정)을 조합하고, 저장/자동저장을
 // 관리한다.
 // ============================================================
@@ -1443,43 +1635,85 @@ const UNIVERSE_SETTINGS_KEY = "about_silo_universe";
 const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000;
 
 export function AboutSiloUniverse() {
-  const [posts, setPosts] = useState<FeedPost[] | null>(null);
-  const [selected, setSelected] = useState<FeedPost | null>(null);
+  const [siloPosts, setSiloPosts] = useState<FeedPost[] | null>(null);
+  const [userPosts, setUserPosts] = useState<FeedPost[] | null>(null);
+  const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
   const cameraControlsRef = useRef<CameraControlsImpl>(null);
 
   const [panelConfig, setPanelConfig] = useState<UniverseConfig>(defaultUniverseConfig());
-  const [availableClips, setAvailableClips] = useState<string[]>([]);
+  const [siloClips, setSiloClips] = useState<string[]>([]);
+  const [userClips, setUserClips] = useState<string[]>([]);
+  // "planetId:objectId" 복합 키 — 두 행성의 오브젝트 id가 우연히 겹치는
+  // 것까지 대비.
   const [failedObjectIds, setFailedObjectIds] = useState<Set<string>>(new Set());
-  function handleObjectError(id: string) {
-    setFailedObjectIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  function handleObjectError(planetId: PlanetId, id: string) {
+    const key = `${planetId}:${id}`;
+    setFailedObjectIds((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
   }
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [toast, setToast] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // EPIC-121: 3D 뷰에서 클릭해 선택한 오브젝트 — 우측 인스펙터 패널 +
-  // TransformControls 드래그 대상. objectRefs는 UniverseObjectsLayer가
-  // 커밋 시점(콜백 ref)에 채우는 실제 THREE.Group 참조 맵.
+  // 3D 뷰에서 클릭해 선택한 오브젝트 — 우측 인스펙터 패널 + 하단 정보
+  // 카드 + TransformControls 드래그 대상. 어느 행성 소속인지도 함께
+  // 추적해야 objectRefs 조회/표면 반지름 계산이 맞는다.
+  const [selectedPlanetId, setSelectedPlanetId] = useState<PlanetId | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const objectRefs = useRef<Map<string, THREE.Group>>(new Map());
-  function handleSelectObject(id: string) {
+  function handleSelectObject(planetId: PlanetId, id: string) {
+    setSelectedPlanetId(planetId);
     setSelectedObjectId(id);
+    setSelectedPost(null);
+  }
+
+  // HOTFIX-123(사용자 지시 — "행성을 클릭했을 때, 각 행성의 특정 설정을
+  // 할 수 있는 창이 뜨게 해주고... '사일로 행성'의 설정과는 다른 창이
+  // 뜨게 해줘"): 어느 행성의 설정 창이 열려 있는지 — silo/user 둘 다
+  // PlanetSettingsPanel 하나를 재사용하지만, 한 번에 하나만(클릭한
+  // 행성) 서로 다른 인스턴스처럼 뜬다.
+  const [openPlanetSettings, setOpenPlanetSettings] = useState<PlanetId | null>(null);
+  function handleOpenPlanetSettings(planetId: PlanetId) {
+    setOpenPlanetSettings(planetId);
   }
 
   function updatePanelConfig(patch: Partial<UniverseConfig>) {
     setPanelConfig((prev) => ({ ...prev, ...patch }));
   }
-  function updateObject(id: string, patch: Partial<UniverseObject>) {
-    setPanelConfig((prev) => ({ ...prev, objects: prev.objects.map((o) => (o.id === id ? { ...o, ...patch } : o)) }));
+  function updatePlanetConfig(planetId: PlanetId, patch: Partial<PlanetConfig>) {
+    setPanelConfig((prev) => ({
+      ...prev,
+      planets: { ...prev.planets, [planetId]: { ...prev.planets[planetId], ...patch } },
+    }));
+  }
+  function updateObject(planetId: PlanetId, id: string, patch: Partial<UniverseObject>) {
+    setPanelConfig((prev) => ({
+      ...prev,
+      planets: {
+        ...prev.planets,
+        [planetId]: {
+          ...prev.planets[planetId],
+          objects: prev.planets[planetId].objects.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+        },
+      },
+    }));
   }
   function removeSelectedObject() {
-    if (!selectedObjectId) return;
-    setPanelConfig((prev) => ({ ...prev, objects: prev.objects.filter((o) => o.id !== selectedObjectId) }));
+    if (!selectedObjectId || !selectedPlanetId) return;
+    const planetId = selectedPlanetId;
+    const id = selectedObjectId;
+    setPanelConfig((prev) => ({
+      ...prev,
+      planets: {
+        ...prev.planets,
+        [planetId]: { ...prev.planets[planetId], objects: prev.planets[planetId].objects.filter((o) => o.id !== id) },
+      },
+    }));
     setSelectedObjectId(null);
+    setSelectedPlanetId(null);
   }
-  function handleObjectMoved(id: string, position: [number, number, number]) {
-    updateObject(id, { position });
+  function handleObjectMoved(planetId: PlanetId, id: string, position: [number, number, number]) {
+    updateObject(planetId, id, { position });
   }
 
   const configRef = useRef(panelConfig);
@@ -1540,20 +1774,30 @@ export function AboutSiloUniverse() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchUniverseImages(panelConfig.boardSlug).then((items) => {
-      if (!cancelled) setPosts(items);
+    fetchUniverseImages(panelConfig.planets.silo.boardSlug).then((items) => {
+      if (!cancelled) setSiloPosts(items);
     });
     return () => {
       cancelled = true;
     };
-  }, [panelConfig.boardSlug]);
+  }, [panelConfig.planets.silo.boardSlug]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchUniverseImages(panelConfig.planets.user.boardSlug).then((items) => {
+      if (!cancelled) setUserPosts(items);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [panelConfig.planets.user.boardSlug]);
 
   // CameraControls는 마운트 시 Canvas의 초기 camera position을 자기
   // 나름대로 재해석하고, R3F는 부모(DOM) 트리와 별도 리컨실러로 커밋하므로
   // 이 effect가 처음 돌 때 ref가 아직 null일 수 있다 — 매 프레임 재시도해
   // 실제로 준비된 다음에만 홈 구도로 스냅.
   useEffect(() => {
-    if (!posts) return;
+    if (!siloPosts) return;
     let raf = 0;
     function trySnap() {
       const controls = cameraControlsRef.current;
@@ -1569,15 +1813,16 @@ export function AboutSiloUniverse() {
     }
     trySnap();
     return () => cancelAnimationFrame(raf);
-  }, [posts]);
+  }, [siloPosts]);
 
-  function handleSelect(post: FeedPost, position: [number, number, number]) {
-    setSelected(post);
+  function handleSelectPost(post: FeedPost, position: [number, number, number], normal: [number, number, number]) {
+    setSelectedPost(post);
+    setSelectedObjectId(null);
+    setSelectedPlanetId(null);
     const controls = cameraControlsRef.current;
     if (!controls) return;
     const target = new THREE.Vector3(...position);
-    const normal = target.clone().sub(SILO_CENTER).normalize();
-    const camPos = SILO_CENTER.clone().add(normal.multiplyScalar(IMAGE_ORBIT_RADIUS + 0.9));
+    const camPos = target.clone().add(new THREE.Vector3(...normal).multiplyScalar(0.9));
     controls.setLookAt(camPos.x, camPos.y, camPos.z, target.x, target.y, target.z, true);
   }
 
@@ -1592,8 +1837,9 @@ export function AboutSiloUniverse() {
   }
 
   function handleReset() {
-    setSelected(null);
+    setSelectedPost(null);
     setSelectedObjectId(null);
+    setSelectedPlanetId(null);
     cameraControlsRef.current?.setLookAt(
       HOME_CAMERA_POS.x, HOME_CAMERA_POS.y, HOME_CAMERA_POS.z,
       HOME_TARGET.x, HOME_TARGET.y, HOME_TARGET.z,
@@ -1601,10 +1847,33 @@ export function AboutSiloUniverse() {
     );
   }
 
-  const selectedObject = selectedObjectId ? panelConfig.objects.find((o) => o.id === selectedObjectId) ?? null : null;
+  const selectedObject =
+    selectedPlanetId && selectedObjectId
+      ? panelConfig.planets[selectedPlanetId].objects.find((o) => o.id === selectedObjectId) ?? null
+      : null;
+
+  const planetSettingsFailedIds = openPlanetSettings
+    ? new Set(
+        Array.from(failedObjectIds)
+          .filter((k) => k.startsWith(`${openPlanetSettings}:`))
+          .map((k) => k.slice(openPlanetSettings.length + 1)),
+      )
+    : new Set<string>();
 
   return (
     <div className="relative h-[85vh] min-h-[560px] w-full overflow-hidden bg-transparent">
+      {/* HOTFIX-123: 게시글 위성 썸네일이 hover 없이도 스스로 페이드
+          인/아웃하도록 하는 CSS 애니메이션 — R3F Canvas 밖의 일반 DOM
+          <style> 태그라 여기 한 번만 선언하면 된다. */}
+      <style>{`
+        @keyframes silo-satellite-fade {
+          0%, 100% { opacity: 0; }
+          18%, 42% { opacity: 1; }
+          60% { opacity: 0; }
+        }
+        .silo-satellite-thumb { animation: silo-satellite-fade 7s ease-in-out infinite; }
+      `}</style>
+
       {panelConfig.backgroundMode === "youtube" ? (
         <YoutubeBackground urls={panelConfig.youtubeUrls} />
       ) : (
@@ -1616,16 +1885,20 @@ export function AboutSiloUniverse() {
         gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
         camera={{ position: HOME_CAMERA_POS.toArray(), fov: 55 }}
       >
-        {posts && (
+        {siloPosts && (
           <Scene
-            posts={posts}
-            selectedId={selected?.id ?? null}
-            onSelect={handleSelect}
+            siloPosts={siloPosts}
+            userPosts={userPosts ?? []}
+            selectedPostId={selectedPost?.id ?? null}
+            onSelectPost={handleSelectPost}
             cameraControlsRef={cameraControlsRef}
             config={panelConfig}
-            onClipsLoaded={setAvailableClips}
+            onSiloClipsLoaded={setSiloClips}
+            onUserClipsLoaded={setUserClips}
             onFocusPlanet={handleFocusPlanet}
+            onOpenPlanetSettings={handleOpenPlanetSettings}
             onObjectError={handleObjectError}
+            selectedPlanetId={selectedPlanetId}
             selectedObjectId={selectedObjectId}
             onSelectObject={handleSelectObject}
             objectRefs={objectRefs}
@@ -1640,7 +1913,7 @@ export function AboutSiloUniverse() {
             <p className="text-xs uppercase tracking-[0.2em] text-white/60">About Silo</p>
             <h1 className="mt-1 text-2xl font-light drop-shadow">사일로의 우주</h1>
             <p className="mt-1 max-w-sm text-xs text-white/70">
-              떠 있는 마커를 클릭해 가까이 다가가고, 휠을 굴려 자유롭게 둘러보세요. 행성 자체를 클릭하면 그 행성으로 바로 다가갑니다.
+              떠 있는 마커를 클릭해 가까이 다가가고, 휠을 굴려 자유롭게 둘러보세요. 행성 자체를 클릭하면 그 행성으로 다가가며 전용 설정 창이 열립니다.
             </p>
           </div>
           <button
@@ -1652,31 +1925,50 @@ export function AboutSiloUniverse() {
           </button>
         </div>
 
-        {!posts && (
+        {!siloPosts && (
           <div className="pointer-events-auto self-center rounded-full bg-black/40 px-4 py-2 text-xs text-white/70">
             우주를 준비하는 중...
           </div>
         )}
 
-        {selected && <SelectedPostPanel post={selected} onClose={handleReset} />}
-
-        <UniverseSettingsPanel
-          config={panelConfig}
-          onChange={updatePanelConfig}
-          availableClips={availableClips}
-          onSave={handleSave}
-          saving={saving}
-          savedAt={savedAt}
-          failedObjectIds={failedObjectIds}
-          onSelectObjectId={handleSelectObject}
-        />
-
+        {selectedPost && <SelectedPostPanel post={selectedPost} onClose={handleReset} />}
         {selectedObject && (
+          <ObjectInfoCard
+            obj={selectedObject}
+            onClose={() => {
+              setSelectedObjectId(null);
+              setSelectedPlanetId(null);
+            }}
+          />
+        )}
+
+        <UniverseSettingsPanel config={panelConfig} onChange={updatePanelConfig} onSave={handleSave} saving={saving} savedAt={savedAt} />
+
+        {openPlanetSettings && (
+          <PlanetSettingsPanel
+            title={openPlanetSettings === "silo" ? "SILO 행성 설정" : `${panelConfig.planets.user.name || "유저"} 행성 설정`}
+            accentClass={openPlanetSettings === "silo" ? "text-amber-200" : "text-emerald-200"}
+            config={panelConfig.planets[openPlanetSettings]}
+            onChange={(patch) => updatePlanetConfig(openPlanetSettings, patch)}
+            availableClips={openPlanetSettings === "silo" ? siloClips : userClips}
+            onSave={handleSave}
+            saving={saving}
+            savedAt={savedAt}
+            failedObjectIds={planetSettingsFailedIds}
+            onSelectObjectId={(id) => handleSelectObject(openPlanetSettings, id)}
+            onClose={() => setOpenPlanetSettings(null)}
+          />
+        )}
+
+        {selectedObject && selectedPlanetId && selectedObjectId && (
           <ObjectInspectorPanel
             object={selectedObject}
-            onChange={(patch) => updateObject(selectedObject.id, patch)}
+            onChange={(patch) => updateObject(selectedPlanetId, selectedObjectId, patch)}
             onDelete={removeSelectedObject}
-            onClose={() => setSelectedObjectId(null)}
+            onClose={() => {
+              setSelectedObjectId(null);
+              setSelectedPlanetId(null);
+            }}
             onSave={handleSave}
             saving={saving}
           />

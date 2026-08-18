@@ -11,7 +11,24 @@ import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { useHideOnScroll } from "@/lib/useHideOnScroll";
-import { tabHoverMotionCss, DEFAULT_TAB_HOVER_MOTION, type TabHoverMotion } from "@/lib/tabHoverMotion";
+import { tabHoverMotionCss, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
+import { useIsMobileViewport } from "@/lib/useIsMobileViewport";
+import {
+  normalizeMainLogo,
+  DEFAULT_LOGO_HEIGHT_PX,
+  DEFAULT_LOGO_FONT_SIZE_PX,
+  DEFAULT_LOGO_TEXT_COLOR,
+  type MainLogoValue,
+  type MainLogoConfig,
+} from "@/lib/mainLogoSettings";
+import {
+  normalizeSidebarIcons,
+  DEFAULT_ICON_SIZE_PX,
+  DEFAULT_TRIGGER_MODE,
+  DEFAULT_TOP_OFFSET_PX,
+  type SidebarIconsValue,
+} from "@/lib/sidebarIconsSettings";
+import { normalizeTopTabStyle, type TopTabStyleEntry, type TopTabStyleValue } from "@/lib/topTabStyleSettings";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -19,104 +36,7 @@ const TAB_BUTTON_ACTIVE = "border-gray-800 text-gray-900 font-medium";
 const TAB_BUTTON_INACTIVE =
   "border-transparent text-gray-500 hover:text-white hover:bg-green-800 hover:border-green-800";
 
-type LogoAlign = "left" | "center" | "right";
-type TextPosition = "left" | "right";
-
-type CustomFontEntry = {
-  id: string;
-  url: string;
-  isActive: boolean;
-};
-
-type MainLogoValue = {
-  type: "text" | "image";
-  text: string;
-  imageUrl: string;
-  heightPx: number;
-  align: LogoAlign;
-  /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용. */
-  extraText: string;
-  fontFamily: string;
-  bold: boolean;
-  fontSizePx: number;
-  /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용. */
-  textPosition: TextPosition;
-  textColor: string;
-  leftText: string;
-  rightText: string;
-  /** @deprecated EPIC-043: customFonts(배열)로 대체. 구버전 데이터 호환용. */
-  fontFileUrl: string;
-  customFonts: CustomFontEntry[];
-  // EPIC-110: 로고 줄 자체의 높이(px) — null이면 기존처럼 내용물에 맞춰 자동.
-  rowHeightPx: number | null;
-};
-
-// EPIC-078: 기본(default)/호버(hover) 2종 미디어로 확장 — settings/page.tsx
-// 참고. 구버전 leftIconUrl/rightIconUrl(단일 URL)은 아래 fetch 시
-// leftIconDefaultUrl/rightIconDefaultUrl로 폴백한다.
-type SidebarIconsValue = {
-  leftIconDefaultUrl: string;
-  leftIconHoverUrl: string;
-  rightIconDefaultUrl: string;
-  rightIconHoverUrl: string;
-  iconSizePx: number;
-  backgroundColor: string;
-  triggerMode: "click" | "hover";
-  // EPIC-089(요구사항 2): 지금까지 top-1/2(화면 정중앙)로 고정돼 있던
-  // 좌/우 사이드바 여닫이 아이콘의 세로 위치 — 화면 위쪽에서부터의 px
-  // 거리로 관리자가 직접 조절할 수 있게 한다. 값이 없으면(마이그레이션 전
-  // 저장값) DEFAULT_TOP_OFFSET_PX로 폴백.
-  topOffsetPx: number;
-};
-
-// EPIC-079-PHASE-4: /admin/navigation/settings("홈페이지 설정 관리")의
-// "상단 탭 디자인" 섹션이 저장하는 값 — admin/navigation/settings/page.tsx의
-// 동명 타입과 구조가 동일하다(이 저장소의 다른 site_settings 값들처럼 두
-// 파일에 각자 선언, MainLogoValue/SidebarIconsValue와 같은 기존 관례).
-type TopTabStyleEntry = {
-  labelOverride: string;
-  fontFamily: string;
-  fontSizePx: number | null;
-  bold: boolean;
-  color: string;
-  customFonts: CustomFontEntry[];
-  // EPIC-117(사용자 지시): 이 탭을 "1단"(로고 줄과 겹치는 자리)에 배치할지
-  // "2단"(기존 탭 줄)에 배치할지 — 없거나 2면 기존과 완전히 동일하게 동작.
-  tier?: 1 | 2;
-  // HOTFIX(사용자 지시 — "각 탭 위에 커서가 hover 되었을 때의 모션들을
-  // 6가지로 설정할 수 있게"): 없으면 DEFAULT_TAB_HOVER_MOTION 적용.
-  hoverMotion?: TabHoverMotion;
-};
-type TopTabStyleValue = {
-  tabs: Record<string, TopTabStyleEntry>;
-  // EPIC-110: 상단 탭 줄(nav) 전체의 높이(px) — null이면 기존처럼 자동.
-  rowHeightPx: number | null;
-  // EPIC-117: 1단 탭 줄이 로고 줄 경계선을 기준으로 위로 추가 이동하는
-  // 픽셀 값(기본 0) — 1단 탭 줄 자체는 항상 자기 높이의 50%만큼 로고 줄
-  // 쪽으로 겹치도록(straddle) 고정해두고, 이 값으로 미세 조정만 한다.
-  tier1OffsetPx: number;
-  // EPIC-118(사용자 지시 — "1단, 2단 위치를 둘다 정할 수 있게 해줘야지"):
-  // 2단(기존 탭 줄) 자체도 위/아래로 미세 이동할 수 있게 — 양수면 위로.
-  tier2OffsetPx: number;
-};
-
 const DEFAULT_LOGO_TEXT = "사일로 스토어";
-const DEFAULT_LOGO_HEIGHT_PX = 64;
-const DEFAULT_LOGO_FONT_SIZE_PX = 16;
-// EPIC-036: 사이드바(green-800, #166534)와 맞춘 기본 추가 텍스트 색상.
-const DEFAULT_LOGO_TEXT_COLOR = "#166534";
-// EPIC-041: 사이드바 여닫이 아이콘 기본 크기 — 기존 하드코딩 w-8 h-8(32px)과 맞춤.
-const DEFAULT_ICON_SIZE_PX = 32;
-// EPIC-076: 사이드바 여닫이 버튼 배경색 기본값 — 기존 하드코딩 bg-green-800(#166534)과 맞춤.
-const DEFAULT_ICON_BG_COLOR = "#166534";
-// EPIC-077: 사이드바 여닫이 트리거 모드 기본값 — 호버 시 아르누보 애니메이션만
-// 재생되고 클릭해야 패널이 열리도록 "click"을 기본으로 한다.
-const DEFAULT_TRIGGER_MODE: "click" | "hover" = "click";
-// EPIC-089: 기존 기본값(top-1/2, 화면 정중앙 ≈ 뷰포트 높이의 50%)보다
-// 상단으로 더 올린 기본 위치 — 800px 기준 뷰포트 상단에서의 고정 px
-// 거리로 둔다(반응형 % 대신 px을 쓴 이유는 관리자가 숫자 하나로 직관적으로
-// 조절할 수 있게 하기 위함, iconSizePx와 동일한 패턴).
-const DEFAULT_TOP_OFFSET_PX = 160;
 // EPIC-043: main_logo.customFonts의 각 활성 항목에 주입할 @font-face의
 // font-family 이름 접두사 — 항목 id로 구분해 여러 개를 동시에 등록한다.
 const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
@@ -202,11 +122,19 @@ export function Navbar() {
     };
   }, []);
 
+  // HOTFIX(사용자 지시 — "'홈페이지 설정 관리'에서 'pc 설정'과 '모바일
+  // 설정'이 따로 구분이 되게 해야지"): 메인 로고/사이드바 아이콘/상단 탭
+  // 디자인 전부 { pc, mobile } 두 세트로 저장되고(mainLogoSettings.ts 등
+  // 공용 정규화 로직 참고), 실제 뷰포트 폭에 따라 그중 하나를 골라 쓴다
+  // — 아래 mainLogo/sidebarIcons/topTabStyle 변수는 "이미 뷰포트에 맞게
+  // 골라진 단일 설정"이라 이후 렌더 코드는 이전과 동일하게 mainLogo?.text
+  // 식으로 그대로 쓸 수 있다(필드 구조 자체는 안 바뀜).
+  const isMobileViewport = useIsMobileViewport();
+
   // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
-  // site_settings.main_logo를 조회해 로고를 대체한다. 테이블이 아직 라이브에
-  // 없거나(EPIC-026 후속) 값이 비어 있으면 기존 하드코딩 텍스트로 대체되어
-  // 로고가 아예 비는 일은 없다.
-  const [mainLogo, setMainLogo] = useState<MainLogoValue | null>(null);
+  // site_settings.main_logo를 조회해 로고를 대체한다. 값이 비어 있으면
+  // 기존 하드코딩 텍스트로 대체되어 로고가 아예 비는 일은 없다.
+  const [mainLogoValue, setMainLogoValue] = useState<MainLogoValue | null>(null);
   useEffect(() => {
     let cancelled = false;
     supabase
@@ -215,57 +143,18 @@ export function Navbar() {
       .eq("setting_key", "main_logo")
       .maybeSingle()
       .then(({ data }) => {
-        if (cancelled) return;
-        const value = data?.setting_value as Partial<MainLogoValue> | null;
-        if (value && (value.text || value.imageUrl)) {
-          let leftText = value.leftText ?? "";
-          let rightText = value.rightText ?? "";
-          // EPIC-039: 구버전 extraText+textPosition을 leftText/rightText로 1회 이전.
-          if (!leftText && !rightText && value.extraText) {
-            if (value.textPosition === "left") {
-              leftText = value.extraText;
-            } else {
-              rightText = value.extraText;
-            }
-          }
-          // EPIC-043: 구버전 단일 fontFileUrl을 customFonts 배열로 1회 이전.
-          const customFonts =
-            value.customFonts && value.customFonts.length > 0
-              ? value.customFonts
-              : value.fontFileUrl
-                ? [{ id: "legacy", url: value.fontFileUrl, isActive: true }]
-                : [];
-          setMainLogo({
-            type: value.type === "image" ? "image" : "text",
-            text: value.text ?? "",
-            imageUrl: value.imageUrl ?? "",
-            heightPx: value.heightPx || DEFAULT_LOGO_HEIGHT_PX,
-            align: value.align ?? "left",
-            extraText: value.extraText ?? "",
-            fontFamily: value.fontFamily ?? "",
-            bold: value.bold ?? false,
-            fontSizePx: value.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX,
-            textPosition: value.textPosition ?? "right",
-            textColor: value.textColor || DEFAULT_LOGO_TEXT_COLOR,
-            leftText,
-            rightText,
-            fontFileUrl: value.fontFileUrl ?? "",
-            customFonts,
-            rowHeightPx: value.rowHeightPx ?? null,
-          });
-        }
+        if (!cancelled) setMainLogoValue(normalizeMainLogo(data?.setting_value));
       });
     return () => {
       cancelled = true;
     };
   }, []);
+  const mainLogo: MainLogoConfig | null = mainLogoValue ? (isMobileViewport ? mainLogoValue.mobile : mainLogoValue.pc) : null;
 
   // EPIC-039: 좌/우 사이드바 여닫이 버튼에 쓰이는 커스텀 아이콘.
   // 값이 없으면(테이블 미적용 포함) LeftSidebar/RightSidebar가 기존
   // 🔑/🚪 이모지로 자동 대체하므로 아이콘이 아예 비는 일은 없다.
-  const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue | null>(
-    null,
-  );
+  const [sidebarIconsValue, setSidebarIconsValue] = useState<SidebarIconsValue | null>(null);
   useEffect(() => {
     let cancelled = false;
     supabase
@@ -274,35 +163,19 @@ export function Navbar() {
       .eq("setting_key", "sidebar_icons")
       .maybeSingle()
       .then(({ data }) => {
-        if (cancelled) return;
-        // EPIC-078: 구버전 leftIconUrl/rightIconUrl(단일 URL)을
-        // leftIconDefaultUrl/rightIconDefaultUrl로 폴백한다.
-        const value = data?.setting_value as
-          | (Partial<SidebarIconsValue> & { leftIconUrl?: string; rightIconUrl?: string })
-          | null;
-        if (value) {
-          setSidebarIcons({
-            leftIconDefaultUrl: value.leftIconDefaultUrl || value.leftIconUrl || "",
-            leftIconHoverUrl: value.leftIconHoverUrl ?? "",
-            rightIconDefaultUrl: value.rightIconDefaultUrl || value.rightIconUrl || "",
-            rightIconHoverUrl: value.rightIconHoverUrl ?? "",
-            iconSizePx: value.iconSizePx || DEFAULT_ICON_SIZE_PX,
-            backgroundColor: value.backgroundColor || DEFAULT_ICON_BG_COLOR,
-            triggerMode: value.triggerMode === "hover" ? "hover" : DEFAULT_TRIGGER_MODE,
-            topOffsetPx: value.topOffsetPx || DEFAULT_TOP_OFFSET_PX,
-          });
-        }
+        if (!cancelled) setSidebarIconsValue(normalizeSidebarIcons(data?.setting_value));
       });
     return () => {
       cancelled = true;
     };
   }, []);
+  const sidebarIcons = sidebarIconsValue ? (isMobileViewport ? sidebarIconsValue.mobile : sidebarIconsValue.pc) : null;
 
   // EPIC-079-PHASE-4: 상단 탭 개별 디자인(표시 텍스트/서체/크기/색상) —
   // /admin/navigation/settings의 "상단 탭 디자인" 섹션이 저장한다. 값이
   // 없거나 특정 탭에 대한 항목이 없으면 그 탭은 기존처럼 원래 제목/기본
   // 스타일 그대로 렌더링된다(완전히 optional한 오버레이).
-  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue | null>(null);
+  const [topTabStyleValue, setTopTabStyleValue] = useState<TopTabStyleValue | null>(null);
   useEffect(() => {
     let cancelled = false;
     supabase
@@ -311,29 +184,23 @@ export function Navbar() {
       .eq("setting_key", "top_tab_style")
       .maybeSingle()
       .then(({ data }) => {
-        if (cancelled) return;
-        const value = data?.setting_value as Partial<TopTabStyleValue> | null;
-        if (value?.tabs)
-          setTopTabStyle({
-            tabs: value.tabs,
-            rowHeightPx: value.rowHeightPx ?? null,
-            tier1OffsetPx: value.tier1OffsetPx ?? 0,
-            tier2OffsetPx: value.tier2OffsetPx ?? 0,
-          });
+        if (!cancelled) setTopTabStyleValue(normalizeTopTabStyle(data?.setting_value));
       });
     return () => {
       cancelled = true;
     };
   }, []);
+  const topTabStyle = topTabStyleValue ? (isMobileViewport ? topTabStyleValue.mobile : topTabStyleValue.pc) : null;
 
   // HOTFIX(사용자 신고 — "홈페이지 설정관리에 프리뷰가 안 나오는데? PC와
   // 모바일 버전 실시간으로 보이게 해줘"): /admin/navigation/settings의
   // 미리보기 iframe이 URL에 `?__adminPreview=1`을 붙여 열렸을 때만,
   // 부모 창(관리자 설정 페이지)이 postMessage로 보내는 "아직 저장하지
-  // 않은, 지금 타이핑 중인" 값으로 mainLogo/sidebarIcons/topTabStyle을
-  // 즉시 덮어쓴다 — DB 조회를 기다릴 필요 없이 실시간으로 반영된다. 이
-  // 쿼리 파라미터가 없으면(일반 방문자, 즉 사실상 항상) 이 effect는
-  // 완전히 no-op이라 실제 사이트 동작에는 아무 영향이 없다.
+  // 않은, 지금 타이핑 중인" { pc, mobile } 전체 값으로 mainLogo/
+  // sidebarIcons/topTabStyle을 즉시 덮어쓴다 — DB 조회를 기다릴 필요 없이
+  // 실시간으로 반영된다. 이 쿼리 파라미터가 없으면(일반 방문자, 즉
+  // 사실상 항상) 이 effect는 완전히 no-op이라 실제 사이트 동작에는 아무
+  // 영향이 없다.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (new URLSearchParams(window.location.search).get("__adminPreview") !== "1") return;
@@ -344,9 +211,9 @@ export function Navbar() {
         | { type?: string; mainLogo?: MainLogoValue; sidebarIcons?: SidebarIconsValue; topTabStyle?: TopTabStyleValue }
         | null;
       if (!data || data.type !== "silo-admin-preview-override") return;
-      if (data.mainLogo) setMainLogo(data.mainLogo);
-      if (data.sidebarIcons) setSidebarIcons(data.sidebarIcons);
-      if (data.topTabStyle) setTopTabStyle(data.topTabStyle);
+      if (data.mainLogo) setMainLogoValue(data.mainLogo);
+      if (data.sidebarIcons) setSidebarIconsValue(data.sidebarIcons);
+      if (data.topTabStyle) setTopTabStyleValue(data.topTabStyle);
     }
     window.addEventListener("message", handleMessage);
     window.parent.postMessage({ type: "silo-admin-preview-ready" }, window.location.origin);

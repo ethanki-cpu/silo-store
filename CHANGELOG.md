@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-18 (EPIC-129 — 홈페이지 설정 관리: 메인 로고/사이드바 아이콘/상단 탭 디자인 PC·모바일 독립 설정)
+- **배경**: 사용자가 "'홈페이지 설정 관리'에서 'pc 설정'과 '모바일 설정'이 따로 구분이 되게 해야지"라고 요구사항으로 명시.
+- **데이터 모델**: `hero_slideshow`가 이미 쓰고 있던 `{ pc, mobile }` 패턴(EPIC-092)을 메인 로고/사이드바 아이콘/상단 탭 디자인 3개 설정에도 동일하게 적용. 기존엔 이 3개 타입이 관리자 페이지와 `Navbar.tsx` 두 파일에 각자 중복 선언돼 있었는데(이 저장소의 기존 관례), pc/mobile 정규화 로직까지 중복시키면 두 파일이 어긋날 위험이 커서 이번엔 `heroSlideshow.ts`와 동일하게 신규 공용 파일 3개(`src/lib/mainLogoSettings.ts`/`sidebarIconsSettings.ts`/`topTabStyleSettings.ts`)로 뽑아 관리자 페이지와 Navbar.tsx가 타입+정규화(`normalizeMainLogo` 등)를 공유하게 했다. `site_settings`의 키(`main_logo`/`sidebar_icons`/`top_tab_style`) 자체는 그대로 — JSON 값의 모양만 `{pc, mobile}`로 바뀌었고, 옛 flat 데이터는 로드 시 pc/mobile 양쪽에 동일하게 채워 넣어 하위 호환한다.
+- **관리자 페이지**: 좌측 섹션 목록 위에 "🖥️ PC 설정 / 📱 모바일 설정" 토글 신설(메인 로고/사이드바 아이콘/상단 탭 디자인 3개 섹션이 공유 — 슬라이드쇼는 이미 자체 PC/모바일 탭이 있어 대상 아님, 하단 메뉴는 Craft 전체화면 에디터라 별개). 기존 JSX(수십 개 입력 필드)를 건드리지 않기 위해 "읽기/쓰기 shim" 패턴을 썼다 — `mainLogo`/`sidebarIcons`/`topTabStyle` 변수는 여전히 "지금 고른 기기의 단일 설정"을 가리키고, `setMainLogo(next)` 같은 기존 setter 호출도 그대로 동작하되 내부적으로만 `mainLogoValue[chromeDeviceTab]`에 쓰도록 리다이렉트했다 — 실제 JSX 필드 바인딩은 단 한 줄도 안 바꿔도 됐다. 저장 버튼과 실시간 프리뷰(`overrides`)는 활성 기기 값이 아니라 `{pc,mobile}` 전체(`mainLogoValue` 등)를 내보낸다.
+- **Navbar.tsx**: 신규 `useIsMobileViewport()` 훅(`matchMedia("(max-width: 767px)")`, 기존 hero_slideshow의 md 브레이크포인트 관례와 동일)으로 실제 뷰포트를 판정해 `mainLogoValue.pc`/`.mobile` 중 하나를 골라 기존 이름(`mainLogo` 등)으로 노출 — 이 파일도 마찬가지로 다운스트림 렌더 코드(`mainLogo?.text` 등 10여 곳)를 전혀 안 건드렸다(전부 optional-chaining + `||` 기본값 패턴이라 "값이 없는 null" 대신 "필드가 빈 문자열인 항상-존재하는 객체"로 바뀌어도 동일하게 동작함을 먼저 확인).
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors. 로컬 dev + Browser pane 실측: 홈페이지를 PC/모바일 뷰포트 둘 다에서 스크린샷으로 확인(Navbar 정상 렌더, 새 에러 없음 — 사이트 전체에 영향 주는 변경이라 특히 신경 써서 확인). 관리자 페이지에서 모바일 탭으로 전환해 로고 텍스트를 다르게 입력한 뒤 PC 탭으로 되돌아가면 원래 값이 그대로 유지되는 것을 DOM에서 직접 확인(PC="Silo Store", 모바일="MOBILE ONLY LOGO" 로 서로 독립).
+- **다음에 확인 필요**: 실제로 모바일 전용 값을 저장한 뒤 진짜 모바일 기기(또는 좁은 브라우저 창)로 사이트를 열어 반영되는지, 상단 탭 디자인의 tier1/tier2 오프셋처럼 레이아웃에 민감한 필드가 모바일에서 이상하게 겹치지 않는지.
+- **변경/신규 파일**: `src/app/admin/navigation/settings/page.tsx`, `src/components/Navbar.tsx`, `src/lib/mainLogoSettings.ts`(신규), `src/lib/sidebarIconsSettings.ts`(신규), `src/lib/topTabStyleSettings.ts`(신규), `src/lib/useIsMobileViewport.ts`(신규).
+
 ## 2026-08-18 (HOTFIX-128 — SILO 고정 카테고리 마커 삭제 + 오브제 상단 클러스터 배치 + 게시판 연동 정보 카드)
 - **배경**: 사용자가 "SILO 행성에 있는 고정된 오브제들(사일로상점/살롱데상/스튜디오/온라인도슨트)을 다 삭제시켜줘", "행성에 있는 오브제들을 가까운곳에(행성 맨위에) 모아달라니까?"(이전 요청이 반영 안 됐다는 재지적), "오브제를 클릭했을 때 팝업에 연결된 게시판의 썸네일과 설명이 올라오게 해줘 + 관리자 창에는 어떤 게시판 링크로 연결되는지/썸네일/설명을 수정할 수 있게" 세 가지를 요청.
 - **고정 카테고리 마커 완전 삭제**: `CORE_CATEGORIES`(보물상자/조각상/휴대폰/카메라 4종 하드코딩 모양) + `CoreCategoryShape`/`CoreCategoryNode`/`CoreCategories` 컴포넌트 전부와, 그 모양을 고르던 `UniverseSettingsPanel`의 "기본 카테고리 마커 모양" 섹션(chestVariant/cameraVariant, `UniverseConfig`에서도 필드 자체 제거) 전부 삭제. 카테고리 링크는 이제 순수하게 관리자가 자유 오브젝트를 올리고 "연결된 게시판"을 고르는 것으로 대체된다(아래 항목).

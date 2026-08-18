@@ -20,6 +20,33 @@ import {
   type HeroSlideshowConfig,
   type HeroSlideshowValue,
 } from "@/lib/heroSlideshow";
+import {
+  normalizeMainLogo,
+  defaultMainLogoValue,
+  DEFAULT_LOGO_HEIGHT_PX,
+  DEFAULT_LOGO_FONT_SIZE_PX,
+  DEFAULT_LOGO_TEXT_COLOR,
+  type CustomFontEntry,
+  type MainLogoConfig,
+  type MainLogoValue,
+} from "@/lib/mainLogoSettings";
+import {
+  normalizeSidebarIcons,
+  defaultSidebarIconsValue,
+  DEFAULT_ICON_SIZE_PX,
+  DEFAULT_ICON_BG_COLOR,
+  DEFAULT_TOP_OFFSET_PX,
+  type SidebarIconsConfig,
+  type SidebarIconsValue,
+} from "@/lib/sidebarIconsSettings";
+import {
+  normalizeTopTabStyle,
+  defaultTopTabStyleValue,
+  defaultTopTabStyleEntry,
+  type TopTabStyleEntry,
+  type TopTabStyleConfig,
+  type TopTabStyleValue,
+} from "@/lib/topTabStyleSettings";
 
 // EPIC-026: "홈페이지 설정 관리" 실 구현. site_settings(key-value, EPIC-026)의
 // 키(main_logo/hero_slideshow/sidebar_icons)를 조회/저장한다. 다른 CMS
@@ -92,119 +119,9 @@ import {
 // @font-face 주입 + font-family fallback 체인으로 연결한다(먼저 켜진
 // 폰트가 우선). 구버전 단일 fontFileUrl은 로드 시 1개짜리 배열로 이전.
 
-type LogoAlign = "left" | "center" | "right";
-type TextPosition = "left" | "right";
-
-type CustomFontEntry = {
-  id: string;
-  url: string;
-  isActive: boolean;
-};
-
-type MainLogoValue = {
-  type: "text" | "image";
-  text: string;
-  imageUrl: string;
-  heightPx: number;
-  align: LogoAlign;
-  /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용으로만 읽는다. */
-  extraText: string;
-  fontFamily: string;
-  bold: boolean;
-  fontSizePx: number;
-  /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용으로만 읽는다. */
-  textPosition: TextPosition;
-  textColor: string;
-  leftText: string;
-  rightText: string;
-  /** @deprecated EPIC-043: customFonts(배열)로 대체. 구버전 데이터 호환용으로만 읽는다. */
-  fontFileUrl: string;
-  customFonts: CustomFontEntry[];
-  // EPIC-110: 로고가 놓이는 상단 바 첫 줄(로고+좌우 텍스트) 자체의 높이(px)
-  // — null이면 기존처럼 내용물(로고 이미지 높이 등)에 맞춰 자동으로 정해진다.
-  rowHeightPx: number | null;
-};
-// EPIC-078: 기본(default)/호버(hover) 2종 미디어로 확장 — 이미지뿐 아니라
-// 투명 배경 비디오(.webm/.mp4)도 지원해 실제 사이트에서 호버 시 기본
-// 미디어가 호버 미디어로 크로스페이드된다. 구버전 leftIconUrl/rightIconUrl
-// (단일 URL)은 leftIconDefaultUrl/rightIconDefaultUrl로 로드 시 1회
-// 폴백한다(아래 load() 참고) — 데이터 자체를 변형하지 않고, 다음 저장 시
-// 새 필드로 자연스럽게 옮겨간다.
-type SidebarIconsValue = {
-  leftIconDefaultUrl: string;
-  leftIconHoverUrl: string;
-  rightIconDefaultUrl: string;
-  rightIconHoverUrl: string;
-  iconSizePx: number;
-  // EPIC-078: 실제 트리거 버튼에는 더 이상 적용하지 않는다(항상 완전
-  // 투명 유지 요구사항과 충돌) — 다만 이 설정 자체를 지우면 그동안 저장된
-  // 값이 사라지므로 필드/UI는 남겨두고 시각적 적용만 중단했다.
-  backgroundColor: string;
-  triggerMode: "click" | "hover";
-  // EPIC-089(요구사항 2): 좌/우 사이드바 여닫이 아이콘의 뷰포트 상단
-  // 기준 px 위치.
-  topOffsetPx: number;
-};
-
-// EPIC-079-PHASE-4: 상단 탭(site_navigations의 depth 0 행) 하나하나의
-// 표시 텍스트/서체/크기/색상을 개별적으로 커스터마이징한다 — 트리 구조
-// 자체(제목/href 등)는 "사이트 구성 관리"(/admin/site-structure)가
-// 담당하고, 여기서는 순수 디자인(어떻게 보일지)만 별도로 다룬다. tabId는
-// site_navigations 행의 key(있으면)|id — Navbar.tsx의 NavTab.key와 동일한
-// 값이라 프론트엔드에서 그대로 매칭할 수 있다.
-type TopTabStyleEntry = {
-  /** 비어있으면 site_navigations.title을 그대로 쓴다. */
-  labelOverride: string;
-  fontFamily: string;
-  fontSizePx: number | null;
-  bold: boolean;
-  color: string;
-  customFonts: CustomFontEntry[];
-  // EPIC-117(사용자 지시): 이 탭을 "1단"(로고 줄과 겹치는 자리)에 배치할지
-  // "2단"(기존 탭 줄)에 배치할지 — 없거나 2면 기존과 완전히 동일하게 동작.
-  tier?: 1 | 2;
-  // HOTFIX(사용자 지시 — "각 탭 위에 커서가 hover 되었을 때의 모션들을
-  // 6가지로 설정할 수 있게 해"): 없으면 tabHoverMotion.ts의
-  // DEFAULT_TAB_HOVER_MOTION("금빛 그라디언트 밑줄")이 적용된다.
-  hoverMotion?: TabHoverMotion;
-};
-type TopTabStyleValue = {
-  tabs: Record<string, TopTabStyleEntry>;
-  // EPIC-110: 상단 탭 줄(nav) 전체의 높이(px) — null이면 기존처럼 탭
-  // 버튼의 padding에 맞춰 자동으로 정해진다.
-  rowHeightPx: number | null;
-  // EPIC-117: 1단 탭 줄이 로고 줄 경계선을 기준으로 위로 추가 이동하는
-  // 픽셀 값(기본 0) — Navbar.tsx 참고.
-  tier1OffsetPx: number;
-  // EPIC-118(사용자 지시): 2단(기존 탭 줄)도 위/아래로 미세 이동 — 양수면 위로.
-  tier2OffsetPx: number;
-};
 type TopNavRow = { id: string; key: string | null; title: string; sort_order: number };
 
-function defaultTopTabStyleEntry(): TopTabStyleEntry {
-  return {
-    labelOverride: "",
-    fontFamily: "",
-    fontSizePx: null,
-    bold: false,
-    color: "",
-    customFonts: [],
-    tier: 2,
-    hoverMotion: DEFAULT_TAB_HOVER_MOTION,
-  };
-}
-
 const MAX_WALLPAPERS = 10;
-const DEFAULT_ICON_SIZE_PX = 32;
-// EPIC-076: 사이드바 여닫이 버튼 배경색 기본값 — 기존 하드코딩 bg-green-800(#166534)과 맞춤.
-const DEFAULT_ICON_BG_COLOR = "#166534";
-// EPIC-077: 사이드바 여닫이 트리거 모드 기본값 — 호버 시 아르누보 애니메이션만
-// 재생되고 클릭해야 패널이 열리도록 "click"을 기본으로 한다.
-const DEFAULT_TRIGGER_MODE: "click" | "hover" = "click";
-// EPIC-089: Navbar.tsx의 DEFAULT_TOP_OFFSET_PX와 동일한 값 — 두 파일이
-// site_settings 값을 각자 읽고 기본값도 각자 상수로 갖는 기존 관례(위
-// 다른 DEFAULT_* 상수들과 동일)를 그대로 따른다.
-const DEFAULT_TOP_OFFSET_PX = 160;
 
 function makeDefaultCustomFont(): CustomFontEntry {
   return {
@@ -213,35 +130,6 @@ function makeDefaultCustomFont(): CustomFontEntry {
     isActive: true,
   };
 }
-
-const DEFAULT_MAIN_LOGO: MainLogoValue = {
-  type: "text",
-  text: "",
-  imageUrl: "",
-  heightPx: 64,
-  align: "left",
-  extraText: "",
-  fontFamily: "",
-  bold: false,
-  fontSizePx: 16,
-  textPosition: "right",
-  textColor: "#166534",
-  leftText: "",
-  rightText: "",
-  fontFileUrl: "",
-  customFonts: [],
-  rowHeightPx: null,
-};
-const DEFAULT_SIDEBAR_ICONS: SidebarIconsValue = {
-  leftIconDefaultUrl: "",
-  leftIconHoverUrl: "",
-  rightIconDefaultUrl: "",
-  rightIconHoverUrl: "",
-  iconSizePx: DEFAULT_ICON_SIZE_PX,
-  backgroundColor: DEFAULT_ICON_BG_COLOR,
-  triggerMode: DEFAULT_TRIGGER_MODE,
-  topOffsetPx: DEFAULT_TOP_OFFSET_PX,
-};
 
 const STORAGE_BUCKET = "public-assets";
 
@@ -365,7 +253,26 @@ export default function AdminNavigationSettingsPage() {
     }
   }
 
-  const [mainLogo, setMainLogo] = useState<MainLogoValue>(DEFAULT_MAIN_LOGO);
+  // HOTFIX(사용자 지시 — "'홈페이지 설정 관리'에서 'pc 설정'과 '모바일
+  // 설정'이 따로 구분이 되게 해야지"): 메인 로고/사이드바 아이콘/상단 탭
+  // 디자인 셋 다 PC/모바일 버전을 독립적으로 편집한다 — heroSlideshow의
+  // heroTab과 같은 원리지만 세 섹션이 함께 쓰는 토글 하나
+  // (chromeDeviceTab)다. 아래 mainLogo/sidebarIcons/topTabStyle은 "지금
+  // 고른 기기의 값"이라 이후 코드는 이전과 동일하게 mainLogo.text처럼
+  // 읽고 setMainLogo(newConfig)로 쓸 수 있다 — 실제로는 바로 아래 shim
+  // 함수가 mainLogoValue[chromeDeviceTab]에 쓰고, 저장할 때만
+  // mainLogoValue 전체({pc,mobile})를 내보낸다.
+  const [chromeDeviceTab, setChromeDeviceTab] = useState<"pc" | "mobile">("pc");
+
+  const [mainLogoValue, setMainLogoValue] = useState<MainLogoValue>(defaultMainLogoValue());
+  const mainLogo = mainLogoValue[chromeDeviceTab];
+  function setMainLogo(next: MainLogoConfig | ((prev: MainLogoConfig) => MainLogoConfig)) {
+    setMainLogoValue((prev) => ({
+      ...prev,
+      [chromeDeviceTab]: typeof next === "function" ? (next as (p: MainLogoConfig) => MainLogoConfig)(prev[chromeDeviceTab]) : next,
+    }));
+  }
+
   const [heroSlideshow, setHeroSlideshow] = useState<HeroSlideshowValue>(
     defaultHeroSlideshowValue(),
   );
@@ -382,10 +289,25 @@ export default function AdminNavigationSettingsPage() {
   // 저장 성공 시(각 섹션 handleSave)마다 이 값을 올려 iframe을 새로
   // 불러온다(LivePreviewFrame.tsx의 key prop이 이 값을 그대로 씀).
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
-  const [sidebarIcons, setSidebarIcons] = useState<SidebarIconsValue>(
-    DEFAULT_SIDEBAR_ICONS,
-  );
-  const [topTabStyle, setTopTabStyle] = useState<TopTabStyleValue>({ tabs: {}, rowHeightPx: null, tier1OffsetPx: 0, tier2OffsetPx: 0 });
+
+  const [sidebarIconsValue, setSidebarIconsValue] = useState<SidebarIconsValue>(defaultSidebarIconsValue());
+  const sidebarIcons = sidebarIconsValue[chromeDeviceTab];
+  function setSidebarIcons(next: SidebarIconsConfig | ((prev: SidebarIconsConfig) => SidebarIconsConfig)) {
+    setSidebarIconsValue((prev) => ({
+      ...prev,
+      [chromeDeviceTab]: typeof next === "function" ? (next as (p: SidebarIconsConfig) => SidebarIconsConfig)(prev[chromeDeviceTab]) : next,
+    }));
+  }
+
+  const [topTabStyleValue, setTopTabStyleValue] = useState<TopTabStyleValue>(defaultTopTabStyleValue());
+  const topTabStyle = topTabStyleValue[chromeDeviceTab];
+  function setTopTabStyle(next: TopTabStyleConfig | ((prev: TopTabStyleConfig) => TopTabStyleConfig)) {
+    setTopTabStyleValue((prev) => ({
+      ...prev,
+      [chromeDeviceTab]: typeof next === "function" ? (next as (p: TopTabStyleConfig) => TopTabStyleConfig)(prev[chromeDeviceTab]) : next,
+    }));
+  }
+
   const [topNavRows, setTopNavRows] = useState<TopNavRow[]>([]);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -398,7 +320,7 @@ export default function AdminNavigationSettingsPage() {
   // EPIC-078: 좌/우 x 기본/호버 4개 업로드 슬롯 중 지금 업로드 중인 것.
   const [uploadingSidebarIconField, setUploadingSidebarIconField] = useState<
     keyof Pick<
-      SidebarIconsValue,
+      SidebarIconsConfig,
       "leftIconDefaultUrl" | "leftIconHoverUrl" | "rightIconDefaultUrl" | "rightIconHoverUrl"
     > | null
   >(null);
@@ -433,51 +355,17 @@ export default function AdminNavigationSettingsPage() {
       }
 
       for (const row of data ?? []) {
+        // HOTFIX(사용자 지시 — PC/모바일 분리): 옛 flat 모양이든 새
+        // { pc, mobile } 모양이든 각 normalize*() 함수가 한 번에
+        // 처리한다(라이브 데이터 back-compat) — heroSlideshow와 동일한 패턴.
         if (row.setting_key === "main_logo") {
-          const value = {
-            ...DEFAULT_MAIN_LOGO,
-            ...(row.setting_value as Partial<MainLogoValue>),
-          };
-          // EPIC-039: 구버전 extraText+textPosition을 leftText/rightText로 1회 이전.
-          if (!value.leftText && !value.rightText && value.extraText) {
-            if (value.textPosition === "left") {
-              value.leftText = value.extraText;
-            } else {
-              value.rightText = value.extraText;
-            }
-          }
-          // EPIC-043: 구버전 단일 fontFileUrl을 customFonts 배열로 1회 이전.
-          if (value.customFonts.length === 0 && value.fontFileUrl) {
-            value.customFonts = [
-              { id: "legacy", url: value.fontFileUrl, isActive: true },
-            ];
-          }
-          setMainLogo(value);
+          setMainLogoValue(normalizeMainLogo(row.setting_value));
         } else if (row.setting_key === "hero_slideshow") {
-          // EPIC-092(요구사항 7): 옛 flat 모양이든 새 {pc,mobile} 모양이든
-          // normalizeHeroSlideshow가 한 번에 처리한다(라이브 데이터 back-compat).
           setHeroSlideshow(normalizeHeroSlideshow(row.setting_value));
         } else if (row.setting_key === "sidebar_icons") {
-          // EPIC-078: 구버전 leftIconUrl/rightIconUrl(단일 URL)을
-          // leftIconDefaultUrl/rightIconDefaultUrl로 1회 폴백.
-          const raw = row.setting_value as Partial<SidebarIconsValue> & {
-            leftIconUrl?: string;
-            rightIconUrl?: string;
-          };
-          setSidebarIcons({
-            ...DEFAULT_SIDEBAR_ICONS,
-            ...raw,
-            leftIconDefaultUrl: raw.leftIconDefaultUrl || raw.leftIconUrl || "",
-            rightIconDefaultUrl: raw.rightIconDefaultUrl || raw.rightIconUrl || "",
-          });
+          setSidebarIconsValue(normalizeSidebarIcons(row.setting_value));
         } else if (row.setting_key === "top_tab_style") {
-          const value = row.setting_value as Partial<TopTabStyleValue> | null;
-          setTopTabStyle({
-            tabs: value?.tabs ?? {},
-            rowHeightPx: value?.rowHeightPx ?? null,
-            tier1OffsetPx: value?.tier1OffsetPx ?? 0,
-            tier2OffsetPx: value?.tier2OffsetPx ?? 0,
-          });
+          setTopTabStyleValue(normalizeTopTabStyle(row.setting_value));
         }
       }
       setFetching(false);
@@ -715,6 +603,33 @@ export default function AdminNavigationSettingsPage() {
         </nav>
 
         <div className="min-w-0 flex-1 space-y-8">
+        {/* HOTFIX(사용자 지시 — "'홈페이지 설정 관리'에서 'pc 설정'과
+            '모바일 설정'이 따로 구분이 되게 해야지"): 메인 로고/사이드바
+            아이콘/상단 탭 디자인 셋 다 이 토글 하나를 공유한다 —
+            슬라이드쇼는 이미 자기 자신만의 PC/모바일 탭이 있어(heroTab)
+            대상이 아니고, 하단 메뉴는 Craft 전체화면 에디터라 별개다. */}
+        {(activeSection === "logo" || activeSection === "sidebarIcons" || activeSection === "topTabs") && (
+          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
+            <span className="text-xs text-gray-500">지금 편집 중:</span>
+            <div className="flex items-center rounded-md border border-gray-300 bg-white p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setChromeDeviceTab("pc")}
+                className={`rounded px-3 py-1 ${chromeDeviceTab === "pc" ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+              >
+                🖥️ PC 설정
+              </button>
+              <button
+                type="button"
+                onClick={() => setChromeDeviceTab("mobile")}
+                className={`rounded px-3 py-1 ${chromeDeviceTab === "mobile" ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+              >
+                📱 모바일 설정
+              </button>
+            </div>
+            <span className="text-xs text-gray-400">PC와 모바일이 서로 다른 값을 가질 수 있어요.</span>
+          </div>
+        )}
         {/* 메인 로고 */}
         {activeSection === "logo" && (
         <section className="rounded-lg border border-gray-200 p-4">
@@ -766,7 +681,7 @@ export default function AdminNavigationSettingsPage() {
                   onChange={(e) =>
                     setMainLogo({
                       ...mainLogo,
-                      heightPx: Number(e.target.value) || DEFAULT_MAIN_LOGO.heightPx,
+                      heightPx: Number(e.target.value) || DEFAULT_LOGO_HEIGHT_PX,
                     })
                   }
                 />
@@ -821,7 +736,7 @@ export default function AdminNavigationSettingsPage() {
               <div className="flex items-center gap-2">
                 <input
                   type="color"
-                  value={mainLogo.textColor || DEFAULT_MAIN_LOGO.textColor}
+                  value={mainLogo.textColor || DEFAULT_LOGO_TEXT_COLOR}
                   onChange={(e) =>
                     setMainLogo({ ...mainLogo, textColor: e.target.value })
                   }
@@ -833,7 +748,7 @@ export default function AdminNavigationSettingsPage() {
                   onChange={(e) =>
                     setMainLogo({ ...mainLogo, textColor: e.target.value })
                   }
-                  placeholder={DEFAULT_MAIN_LOGO.textColor}
+                  placeholder={DEFAULT_LOGO_TEXT_COLOR}
                 />
               </div>
             </div>
@@ -919,7 +834,7 @@ export default function AdminNavigationSettingsPage() {
                     setMainLogo({
                       ...mainLogo,
                       fontSizePx:
-                        Number(e.target.value) || DEFAULT_MAIN_LOGO.fontSizePx,
+                        Number(e.target.value) || DEFAULT_LOGO_FONT_SIZE_PX,
                     })
                   }
                 />
@@ -941,7 +856,7 @@ export default function AdminNavigationSettingsPage() {
           <div className="flex items-center gap-3 mt-3">
             <button
               type="button"
-              onClick={() => handleSave("main_logo", mainLogo)}
+              onClick={() => handleSave("main_logo", mainLogoValue)}
               className={primaryButtonClass}
             >
               저장하기
@@ -1386,7 +1301,7 @@ export default function AdminNavigationSettingsPage() {
           <div className="flex items-center gap-3 mt-3">
             <button
               type="button"
-              onClick={() => handleSave("sidebar_icons", sidebarIcons)}
+              onClick={() => handleSave("sidebar_icons", sidebarIconsValue)}
               className={primaryButtonClass}
             >
               저장하기
@@ -1475,7 +1390,7 @@ export default function AdminNavigationSettingsPage() {
           <div className="flex items-center gap-3 mt-3">
             <button
               type="button"
-              onClick={() => handleSave("top_tab_style", topTabStyle)}
+              onClick={() => handleSave("top_tab_style", topTabStyleValue)}
               className={primaryButtonClass}
             >
               저장하기
@@ -1513,11 +1428,11 @@ export default function AdminNavigationSettingsPage() {
           <div className="flex items-start gap-4">
             <div>
               <p className="mb-1 text-xs font-medium text-gray-500">PC</p>
-              <LivePreviewFrame device="pc" refreshKey={previewRefreshKey} overrides={{ mainLogo, sidebarIcons, topTabStyle }} />
+              <LivePreviewFrame device="pc" refreshKey={previewRefreshKey} overrides={{ mainLogo: mainLogoValue, sidebarIcons: sidebarIconsValue, topTabStyle: topTabStyleValue }} />
             </div>
             <div>
               <p className="mb-1 text-xs font-medium text-gray-500">모바일</p>
-              <LivePreviewFrame device="mobile" refreshKey={previewRefreshKey} overrides={{ mainLogo, sidebarIcons, topTabStyle }} />
+              <LivePreviewFrame device="mobile" refreshKey={previewRefreshKey} overrides={{ mainLogo: mainLogoValue, sidebarIcons: sidebarIconsValue, topTabStyle: topTabStyleValue }} />
             </div>
           </div>
         </aside>

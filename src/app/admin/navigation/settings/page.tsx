@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { inputClass, primaryButtonClass, smallButtonClass } from "../shared";
 import { LivePreviewFrame } from "@/components/admin/LivePreviewFrame";
+import { DragValueSlider } from "@/components/admin/DragValueSlider";
+import {
+  TAB_HOVER_MOTIONS,
+  TAB_HOVER_MOTION_LABELS,
+  DEFAULT_TAB_HOVER_MOTION,
+  type TabHoverMotion,
+} from "@/lib/tabHoverMotion";
 import {
   normalizeHeroSlideshow,
   defaultHeroSlideshowValue,
@@ -155,6 +162,10 @@ type TopTabStyleEntry = {
   // EPIC-117(사용자 지시): 이 탭을 "1단"(로고 줄과 겹치는 자리)에 배치할지
   // "2단"(기존 탭 줄)에 배치할지 — 없거나 2면 기존과 완전히 동일하게 동작.
   tier?: 1 | 2;
+  // HOTFIX(사용자 지시 — "각 탭 위에 커서가 hover 되었을 때의 모션들을
+  // 6가지로 설정할 수 있게 해"): 없으면 tabHoverMotion.ts의
+  // DEFAULT_TAB_HOVER_MOTION("금빛 그라디언트 밑줄")이 적용된다.
+  hoverMotion?: TabHoverMotion;
 };
 type TopTabStyleValue = {
   tabs: Record<string, TopTabStyleEntry>;
@@ -170,7 +181,16 @@ type TopTabStyleValue = {
 type TopNavRow = { id: string; key: string | null; title: string; sort_order: number };
 
 function defaultTopTabStyleEntry(): TopTabStyleEntry {
-  return { labelOverride: "", fontFamily: "", fontSizePx: null, bold: false, color: "", customFonts: [], tier: 2 };
+  return {
+    labelOverride: "",
+    fontFamily: "",
+    fontSizePx: null,
+    bold: false,
+    color: "",
+    customFonts: [],
+    tier: 2,
+    hoverMotion: DEFAULT_TAB_HOVER_MOTION,
+  };
 }
 
 const MAX_WALLPAPERS = 10;
@@ -285,6 +305,12 @@ export default function AdminNavigationSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
 
+  // HOTFIX(사용자 지시 — "각 섹션 별... 설정들을, 섹션을 클릭하면 수정할
+  // 수 있는 사이드바가 왼쪽에 뜨게 하고, 오른쪽에 데스크탑과 모바일
+  // 프리뷰가 더 크게 뜨게 해"): 4개 섹션을 전부 세로로 쌓아 보여주던
+  // 것에서, 좌측 섹션 목록 → 클릭한 섹션 하나만 편집 폼으로 보여주는
+  // 구조로 전환 — 나머지 폭을 우측 프리뷰에 더 크게 내줄 수 있다.
+  const [activeSection, setActiveSection] = useState<"logo" | "slideshow" | "sidebarIcons" | "topTabs">("logo");
   const [mainLogo, setMainLogo] = useState<MainLogoValue>(DEFAULT_MAIN_LOGO);
   const [heroSlideshow, setHeroSlideshow] = useState<HeroSlideshowValue>(
     defaultHeroSlideshowValue(),
@@ -566,20 +592,46 @@ export default function AdminNavigationSettingsPage() {
     );
   }
 
+  const SECTION_NAV: { key: typeof activeSection; label: string; hint: string }[] = [
+    { key: "logo", label: "메인 로고", hint: "로고 이미지/텍스트, 좌우 문구" },
+    { key: "slideshow", label: "슬라이드쇼", hint: "홈페이지 히어로 슬라이드" },
+    { key: "sidebarIcons", label: "사이드바 아이콘", hint: "좌/우 여닫이 버튼 아이콘" },
+    { key: "topTabs", label: "상단 탭 디자인", hint: "탭 배치·서체·hover 모션" },
+  ];
+
   return (
-    <main className="flex-1 px-8 pb-8 max-w-6xl mx-auto w-full">
+    <main className="flex-1 px-8 pb-8 max-w-[1600px] mx-auto w-full">
       {error && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-700 mb-6">
           {error}
         </div>
       )}
 
-      {/* EPIC-094(요구사항 1.3): 2단 스플릿 — 좌측은 기존 폼 그대로, 우측은
-          스크롤과 무관하게 고정된(sticky) 아이폰 프레임 실시간 프리뷰.
+      {/* HOTFIX: 좌측 섹션 목록(WYSIWYG 빌더의 "레이어 패널" 느낌) → 클릭한
+          섹션의 편집 폼 → 우측 더 큰 실시간 PC/모바일 프리뷰, 3단 구성.
           xl 미만(좁은 화면)에서는 프리뷰를 숨겨 폼 입력 공간을 우선한다. */}
-      <div className="flex items-start gap-8">
+      <div className="flex items-start gap-6">
+        <nav className="sticky top-6 w-[190px] shrink-0 space-y-1">
+          {SECTION_NAV.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setActiveSection(s.key)}
+              className={`block w-full rounded-lg border px-3 py-2 text-left transition ${
+                activeSection === s.key
+                  ? "border-gray-800 bg-gray-900 text-white shadow"
+                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"
+              }`}
+            >
+              <span className="block text-sm font-medium">{s.label}</span>
+              <span className={`block text-xs ${activeSection === s.key ? "text-gray-300" : "text-gray-400"}`}>{s.hint}</span>
+            </button>
+          ))}
+        </nav>
+
         <div className="min-w-0 flex-1 space-y-8">
         {/* 메인 로고 */}
+        {activeSection === "logo" && (
         <section className="rounded-lg border border-gray-200 p-4">
           <h2 className="text-lg font-semibold mb-3">메인 로고</h2>
           <div className="space-y-2">
@@ -814,8 +866,10 @@ export default function AdminNavigationSettingsPage() {
             )}
           </div>
         </section>
+        )}
 
         {/* 슬라이드쇼 */}
+        {activeSection === "slideshow" && (
         <section className="rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">슬라이드쇼</h2>
@@ -1104,11 +1158,13 @@ export default function AdminNavigationSettingsPage() {
             )}
           </div>
         </section>
+        )}
 
         {/* EPIC-039: 좌/우 사이드바 여닫이 버튼에 쓰이는 커스텀 아이콘.
             비어 있으면 Navbar.tsx가 기존 🔑/🚪 이모지로 대체한다.
             EPIC-078: 기본(Default)/호버(Hover) 2개 미디어로 확장 — 이미지뿐
             아니라 투명 배경 비디오(.webm/.mp4)도 업로드할 수 있다. */}
+        {activeSection === "sidebarIcons" && (
         <section className="rounded-lg border border-gray-200 p-4">
           <h2 className="text-lg font-semibold mb-3">사이드바 아이콘</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -1255,12 +1311,14 @@ export default function AdminNavigationSettingsPage() {
             )}
           </div>
         </section>
+        )}
 
         {/* EPIC-079-PHASE-4: 상단 탭 하나하나의 표시 텍스트/서체/크기/색상을
             여기서 개별 편집한다 — 트리 구조(제목/href/순서/재부모화)는
             여전히 "사이트 구성 관리"(/admin/site-structure)가 SSoT이고,
             여기서는 그 위에 얹는 순수 디자인 오버레이만 다룬다(구조를
             건드리지 않음 — labelOverride가 비어있으면 원래 제목 그대로). */}
+        {activeSection === "topTabs" && (
         <section className="rounded-lg border border-gray-200 p-4">
           <h2 className="text-lg font-semibold mb-1">상단 탭 디자인</h2>
           <p className="text-sm text-gray-500 mb-3">
@@ -1269,66 +1327,44 @@ export default function AdminNavigationSettingsPage() {
             이름이 그대로 쓰여요. 탭 자체를 추가/삭제/순서 변경하려면
             &quot;사이트 구성 관리&quot; 화면을 이용하세요.
           </p>
-          <div className="mb-3 grid grid-cols-3 gap-3">
-            <div>
-              {/* EPIC-118(사용자 지시로 라벨 보강): min-height라 탭 버튼
-                  기본 높이(약 36px)보다 작은 값은 시각적으로 아무 효과가
-                  없다 — "설정해도 변화 없다" 혼동을 막기 위해 명시. */}
-              <label className="block text-sm mb-1">상단 탭 섹션 높이 (px, 비우면 자동 — 기본(~36px)보다 작으면 효과 없음)</label>
-              <input
-                type="number"
-                min={16}
-                max={400}
-                className={`${inputClass} w-28`}
-                value={topTabStyle.rowHeightPx ?? ""}
-                placeholder="자동"
-                onChange={(e) =>
-                  setTopTabStyle({
-                    ...topTabStyle,
-                    rowHeightPx: e.target.value === "" ? null : Math.max(16, Number(e.target.value) || 40),
-                  })
-                }
-              />
-            </div>
-            <div>
-              {/* EPIC-117/118(사용자 지시): 아래 각 탭의 "표시 위치"를 1단으로
-                  지정하면 로고 줄 하단 경계선에 걸치게(로고 줄 절반+2단 탭
-                  줄 절반) 자동 배치되는데, 이 값으로 위/아래 미세 조정을
-                  더한다(양수면 더 위로, 즉 로고 줄 쪽으로 더 겹친다). 가로
-                  위치는 더 이상 이 화면에서 조절할 필요가 없다 — 계정
-                  영역(로그인/로그아웃 등) 바로 앞자리에 자동으로 배치돼
-                  겹치지 않는다. */}
-              <label className="block text-sm mb-1">1단 겹침 정도 (px, 로고 줄 쪽으로 더 이동)</label>
-              <input
-                type="number"
-                min={-100}
-                max={200}
-                className={`${inputClass} w-28`}
-                value={topTabStyle.tier1OffsetPx}
-                onChange={(e) =>
-                  setTopTabStyle({
-                    ...topTabStyle,
-                    tier1OffsetPx: Number(e.target.value) || 0,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">2단 위치 조정 (px, 위로 이동)</label>
-              <input
-                type="number"
-                min={-100}
-                max={200}
-                className={`${inputClass} w-28`}
-                value={topTabStyle.tier2OffsetPx}
-                onChange={(e) =>
-                  setTopTabStyle({
-                    ...topTabStyle,
-                    tier2OffsetPx: Number(e.target.value) || 0,
-                  })
-                }
-              />
-            </div>
+          <div className="mb-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {/* HOTFIX(사용자 지시 — "일일이 숫자값을 넣어서 하는 게 너무
+                구시대적이야. 드래그앤드롭으로 하고 싶어"): 숫자 입력 대신
+                트랙을 드래그해 값을 정하는 슬라이더로 교체(DragValueSlider) —
+                우측에 정밀 조정용 ±버튼과 현재 값도 함께 보여준다. */}
+            <DragValueSlider
+              label="상단 탭 섹션 높이"
+              hint="기본(~36px)보다 작으면 효과 없어요."
+              value={topTabStyle.rowHeightPx ?? 40}
+              min={16}
+              max={400}
+              onChange={(v) => setTopTabStyle({ ...topTabStyle, rowHeightPx: v })}
+              allowAuto={topTabStyle.rowHeightPx !== null}
+              onClearAuto={() => setTopTabStyle({ ...topTabStyle, rowHeightPx: null })}
+            />
+            {/* EPIC-117/118(사용자 지시): 아래 각 탭의 "표시 위치"를 1단으로
+                지정하면 로고 줄 하단 경계선에 걸치게(로고 줄 절반+2단 탭
+                줄 절반) 자동 배치되는데, 이 값으로 위/아래 미세 조정을
+                더한다(양수면 더 위로, 즉 로고 줄 쪽으로 더 겹친다). 가로
+                위치는 더 이상 이 화면에서 조절할 필요가 없다 — 계정
+                영역(로그인/로그아웃 등) 바로 앞자리에 자동으로 배치돼
+                겹치지 않는다. */}
+            <DragValueSlider
+              label="1단 겹침 정도"
+              hint="로고 줄 쪽으로 더 이동"
+              value={topTabStyle.tier1OffsetPx}
+              min={-100}
+              max={200}
+              onChange={(v) => setTopTabStyle({ ...topTabStyle, tier1OffsetPx: v })}
+            />
+            <DragValueSlider
+              label="2단 위치 조정"
+              hint="위로 이동"
+              value={topTabStyle.tier2OffsetPx}
+              min={-100}
+              max={200}
+              onChange={(v) => setTopTabStyle({ ...topTabStyle, tier2OffsetPx: v })}
+            />
           </div>
           {topNavRows.length === 0 ? (
             <p className="text-sm text-gray-400">아직 등록된 상단 탭이 없어요.</p>
@@ -1364,9 +1400,14 @@ export default function AdminNavigationSettingsPage() {
             )}
           </div>
         </section>
+        )}
         </div>
 
-        <aside className="sticky top-6 hidden w-[380px] shrink-0 xl:block">
+        {/* HOTFIX(사용자 지시 — "오른쪽에 데스크탑과 모바일 프리뷰가 더
+            크게 뜨게 해"): 기존 380px 세로 스택(PC 위/모바일 아래, 각각
+            작은 상자)을 훨씬 넓은 가로 배치로 키웠다 — DEVICE_PRESETS의
+            boxWidth 자체도 LivePreviewFrame.tsx에서 함께 키움. */}
+        <aside className="sticky top-6 hidden w-[720px] shrink-0 2xl:block">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium text-gray-600">실시간 미리보기 (실제 홈페이지)</p>
             <button
@@ -1383,7 +1424,7 @@ export default function AdminNavigationSettingsPage() {
             &quot;저장하기&quot;를 누른 값을 보여주므로(브라우저가 아니라 DB를
             읽는 실제 페이지라서), 저장할 때마다 자동으로 새로고침돼요.
           </p>
-          <div className="space-y-4">
+          <div className="flex items-start gap-4">
             <div>
               <p className="mb-1 text-xs font-medium text-gray-500">PC</p>
               <LivePreviewFrame device="pc" refreshKey={previewRefreshKey} />
@@ -1535,6 +1576,25 @@ function TopTabStyleRow({
             placeholder="#166534"
           />
         </div>
+      </div>
+
+      {/* HOTFIX(사용자 지시 — "각 탭 위에 커서가 hover 되었을 때의 모션들을
+          6가지로 설정할 수 있게 해 고급스러운 느낌이 나도록"): 프리셋
+          6종 + 없음. 아무 것도 안 고르면 tabHoverMotion.ts의 기본값(금빛
+          그라디언트 밑줄)이 이미 적용돼 있다. */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">마우스를 올렸을 때(hover) 모션</label>
+        <select
+          className={inputClass}
+          value={entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION}
+          onChange={(e) => onChange({ hoverMotion: e.target.value as TabHoverMotion })}
+        >
+          {TAB_HOVER_MOTIONS.map((m) => (
+            <option key={m} value={m}>
+              {TAB_HOVER_MOTION_LABELS[m]}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

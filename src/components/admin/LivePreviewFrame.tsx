@@ -14,9 +14,13 @@
 // 반영되지 않는다 — 대신 저장 성공 시 refreshKey를 올려 iframe을 새로
 // 불러오는 방식으로(각 섹션의 handleSave 참고) "저장할 때마다 바로
 // 갱신"되는 정도의 실시간성은 유지한다.
+// HOTFIX(사용자 지시 — "오른쪽에 데스크탑과 모바일 프리뷰가 더 크게
+// 뜨게 해"): 기존 340/220px 상자는 새 3단 레이아웃(좌측 섹션 목록+가운데
+// 편집 폼+우측 프리뷰)에서 남는 공간에 비해 너무 작았다 — boxWidth를
+// 키워 실제로 내용을 알아볼 수 있는 크기로.
 const DEVICE_PRESETS = {
-  pc: { width: 1280, height: 900, boxWidth: 340 },
-  mobile: { width: 390, height: 844, boxWidth: 220 },
+  pc: { width: 1280, height: 900, boxWidth: 440 },
+  mobile: { width: 390, height: 844, boxWidth: 240 },
 } as const;
 
 export function LivePreviewFrame({

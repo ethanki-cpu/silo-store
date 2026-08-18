@@ -11,6 +11,7 @@ import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { useHideOnScroll } from "@/lib/useHideOnScroll";
+import { tabHoverMotionCss, DEFAULT_TAB_HOVER_MOTION, type TabHoverMotion } from "@/lib/tabHoverMotion";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -82,6 +83,9 @@ type TopTabStyleEntry = {
   // EPIC-117(사용자 지시): 이 탭을 "1단"(로고 줄과 겹치는 자리)에 배치할지
   // "2단"(기존 탭 줄)에 배치할지 — 없거나 2면 기존과 완전히 동일하게 동작.
   tier?: 1 | 2;
+  // HOTFIX(사용자 지시 — "각 탭 위에 커서가 hover 되었을 때의 모션들을
+  // 6가지로 설정할 수 있게"): 없으면 DEFAULT_TAB_HOVER_MOTION 적용.
+  hoverMotion?: TabHoverMotion;
 };
 type TopTabStyleValue = {
   tabs: Record<string, TopTabStyleEntry>;
@@ -404,19 +408,29 @@ export function Navbar() {
       .concat(entry.fontFamily ? [entry.fontFamily] : ["inherit"])
       .join(", ");
   }
-  const topTabStyleCss = Object.entries(topTabEntries)
-    .map(([tabId, entry]) => {
+  // HOTFIX(사용자 지시 — "각 탭 위에 커서가 hover 되었을 때의 모션들을
+  // 6가지로 설정할 수 있게 해, 고급스러운 느낌이 나도록"): 예전엔
+  // 커스텀 서체/크기/색상 등 다른 필드가 하나라도 설정된 탭에만 클래스+
+  // CSS가 붙었다 — hover 모션은 그런 커스텀 여부와 무관하게 "모든" 탭에
+  // 기본값(DEFAULT_TAB_HOVER_MOTION)이 적용돼야 하므로, navTabs 전체를
+  // 순회하며 항상 클래스를 만든다.
+  const topTabStyleCss = navTabs
+    .map((tab) => {
+      const entry = topTabEntries[tab.key];
+      const cls = `silo-top-tab-${topTabClassSuffix(tab.key)}`;
       const rules: string[] = [];
-      const ff = topTabFontFamilyValue(tabId, entry);
-      if (ff) rules.push(`font-family: ${ff} !important;`);
-      if (entry.fontSizePx) rules.push(`font-size: ${entry.fontSizePx}px !important;`);
-      if (entry.bold) rules.push(`font-weight: bold !important;`);
-      if (entry.color) rules.push(`color: ${entry.color} !important;`);
-      if (rules.length === 0) return "";
-      const cls = `silo-top-tab-${topTabClassSuffix(tabId)}`;
+      if (entry) {
+        const ff = topTabFontFamilyValue(tab.key, entry);
+        if (ff) rules.push(`font-family: ${ff} !important;`);
+        if (entry.fontSizePx) rules.push(`font-size: ${entry.fontSizePx}px !important;`);
+        if (entry.bold) rules.push(`font-weight: bold !important;`);
+        if (entry.color) rules.push(`color: ${entry.color} !important;`);
+      }
       // hover 시엔 기존 배경(green-800)과의 대비를 위해 커스텀 색상 대신
       // 항상 흰 글씨를 유지한다 — 서체/크기/굵기는 hover에서도 그대로.
-      return `.${cls} { ${rules.join(" ")} }\n.${cls}:hover { color: #fff !important; }`;
+      const colorRule = rules.length > 0 ? `.${cls} { ${rules.join(" ")} }\n.${cls}:hover { color: #fff !important; }` : "";
+      const motionCss = tabHoverMotionCss(cls, entry?.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION);
+      return [colorRule, motionCss].filter(Boolean).join("\n");
     })
     .filter(Boolean)
     .join("\n");
@@ -438,7 +452,9 @@ export function Navbar() {
     // 오버라이드/커스텀 클래스 — 값이 없으면 완전히 기존과 동일.
     const tabStyleEntry = topTabEntries[tab.key];
     const tabLabel = tabStyleEntry?.labelOverride || tab.label;
-    const tabStyleClassName = tabStyleEntry ? `silo-top-tab-${topTabClassSuffix(tab.key)}` : "";
+    // HOTFIX: hover 모션 CSS는 커스텀 엔트리 여부와 무관하게 모든 탭에
+    // 붙으므로(위 topTabStyleCss 참고) 클래스도 항상 적용한다.
+    const tabStyleClassName = `silo-top-tab-${topTabClassSuffix(tab.key)}`;
 
     // EPIC-084-REVISED: 전역 "글쓰기" 버튼 — "마이 페이지" 탭 바로
     // 오른쪽에 노출한다(요구사항 갱신: 기존 EPIC-084는 왼쪽에 뒀었는데

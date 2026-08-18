@@ -26,6 +26,13 @@ export type TopTabStyleEntry = {
   // HOTFIX(사용자 지시 — "각 탭 위에 커서가 hover 되었을 때의 모션들을
   // 6가지로 설정할 수 있게 해"): 없으면 DEFAULT_TAB_HOVER_MOTION 적용.
   hoverMotion?: TabHoverMotion;
+  // HOTFIX-134(사용자 지시 — "상단 탭의 1단과 2단을 내가 드래그앤
+  // 드랍으로 각 버튼 위치를 정하는거, 그걸 원해"): 같은 단(tier) 안에서
+  // 좌우 순서를 직접 드래그로 정할 수 있게 하는 정렬 키 — null이면(아직
+  // 한 번도 드래그로 옮긴 적 없음) site_navigations의 원래 순서를 그대로
+  // 쓴다. 값이 있으면 그 숫자로 정렬하고, 삽입은 앞뒤 탭 order의 중간값을
+  // 매겨 넣어(fractional index) 매번 전체를 다시 번호 매길 필요가 없다.
+  order?: number | null;
 };
 
 export type TopTabStyleConfig = {
@@ -52,6 +59,7 @@ export function defaultTopTabStyleEntry(): TopTabStyleEntry {
     customFonts: [],
     tier: 2,
     hoverMotion: DEFAULT_TAB_HOVER_MOTION,
+    order: null,
   };
 }
 

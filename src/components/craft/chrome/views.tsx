@@ -38,9 +38,26 @@ function safeCssId(prefix: string, id: string): string {
   return `${prefix}-${id.replace(/[^a-zA-Z0-9_-]/g, "")}`;
 }
 
+// HOTFIX(사용자 신고 — "메인 로고 프리뷰가 실제랑 다른데?"): 이 뷰가
+// Navbar.tsx의 커스텀 폰트 처리(customFonts 배열 + @font-face 동적
+// 주입)를 빠뜨리고 fontFamily 직접입력 필드만 보고 있었다 — 실제
+// 사이트는 업로드된 커스텀 폰트를 쓰는데 이 프리뷰는 기본 서체로
+// 폴백되어 눈에 띄게 달라 보였다. Navbar.tsx의 동일한 폴백 체인
+// (활성 커스텀 폰트들 → fontFamily 직접입력 → sans-serif)을 그대로
+// 재현한다.
+const LOGO_CUSTOM_FONT_PREFIX = "ChromePreviewLogoFont";
+
 export function ChromeLogoView({ config }: { config: MainLogoConfig }) {
+  const activeCustomFonts = config.customFonts.filter((f) => f.isActive && f.url);
+  const fontFamilyValue =
+    activeCustomFonts.length > 0
+      ? activeCustomFonts
+          .map((f) => `'${LOGO_CUSTOM_FONT_PREFIX}-${f.id}'`)
+          .concat(config.fontFamily ? [config.fontFamily] : ["sans-serif"])
+          .join(", ")
+      : config.fontFamily || undefined;
   const textStyle: CSSProperties = {
-    fontFamily: config.fontFamily || undefined,
+    fontFamily: fontFamilyValue,
     fontWeight: config.bold ? "bold" : "normal",
     fontSize: `${config.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX}px`,
     color: config.textColor || DEFAULT_LOGO_TEXT_COLOR,
@@ -50,6 +67,13 @@ export function ChromeLogoView({ config }: { config: MainLogoConfig }) {
       className="flex items-center gap-3 border-b border-gray-200 bg-white p-4"
       style={config.rowHeightPx ? { minHeight: config.rowHeightPx } : undefined}
     >
+      {activeCustomFonts.length > 0 && (
+        <style>
+          {activeCustomFonts
+            .map((f) => `@font-face { font-family: '${LOGO_CUSTOM_FONT_PREFIX}-${f.id}'; src: url('${f.url}'); font-display: swap; }`)
+            .join("\n")}
+        </style>
+      )}
       <div className="min-w-0 flex-1 truncate text-right" style={textStyle}>
         {config.leftText}
       </div>
@@ -96,18 +120,34 @@ export function ChromeSidebarIconView({ side, config }: { side: "left" | "right"
   );
 }
 
+// HOTFIX(로고와 동일한 원인 — 커스텀 폰트 폴백 체인 누락): 상단 탭도
+// 탭별로 커스텀 폰트를 업로드할 수 있는데 이 뷰가 entry.customFonts를
+// 무시하고 있었다.
+const TOPTAB_CUSTOM_FONT_PREFIX = "ChromePreviewTopTabFont";
+
 export function ChromeTopTabView({ label, entry }: { label: string; entry: TopTabStyleEntry }) {
   const cls = safeCssId("chrome-top-tab", useId());
+  const activeCustomFonts = entry.customFonts.filter((f) => f.isActive && f.url);
+  const fontFamilyValue =
+    activeCustomFonts.length > 0
+      ? activeCustomFonts
+          .map((f) => `'${TOPTAB_CUSTOM_FONT_PREFIX}-${cls}-${f.id}'`)
+          .concat(entry.fontFamily ? [entry.fontFamily] : ["inherit"])
+          .join(", ")
+      : entry.fontFamily || undefined;
   const rules: string[] = [];
-  if (entry.fontFamily) rules.push(`font-family: ${entry.fontFamily} !important;`);
+  if (fontFamilyValue) rules.push(`font-family: ${fontFamilyValue} !important;`);
   if (entry.fontSizePx) rules.push(`font-size: ${entry.fontSizePx}px !important;`);
   if (entry.bold) rules.push(`font-weight: bold !important;`);
   if (entry.color) rules.push(`color: ${entry.color} !important;`);
   const colorRule = rules.length > 0 ? `.${cls} { ${rules.join(" ")} }` : "";
   const motionCss = tabHoverMotionCss(cls, entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION);
+  const fontFaceCss = activeCustomFonts
+    .map((f) => `@font-face { font-family: '${TOPTAB_CUSTOM_FONT_PREFIX}-${cls}-${f.id}'; src: url('${f.url}'); font-display: swap; }`)
+    .join("\n");
   return (
     <span className={`inline-block px-3 py-2 text-sm text-gray-700 ${cls}`}>
-      {(colorRule || motionCss) && <style>{[colorRule, motionCss].filter(Boolean).join("\n")}</style>}
+      {(fontFaceCss || colorRule || motionCss) && <style>{[fontFaceCss, colorRule, motionCss].filter(Boolean).join("\n")}</style>}
       {label}
       {entry.tier === 1 && <span className="ml-1 text-[10px] text-amber-600">(1단)</span>}
     </span>

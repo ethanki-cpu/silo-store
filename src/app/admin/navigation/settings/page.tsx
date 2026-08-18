@@ -503,8 +503,38 @@ export default function AdminNavigationSettingsPage() {
   // — 타이핑 반영은 setProp으로 이미 실시간이라 이 리마운트가 그 흐름을
   // 방해하지 않는다(드롭 때만 발생, 텍스트 입력 때는 발생 안 함).
   const [topTabsTreeVersion, setTopTabsTreeVersion] = useState(0);
-  function handleTabTierDrop(tabKey: string, tier: 1 | 2) {
-    updateTabStyle(tabKey, { tier });
+
+  // HOTFIX-134(사용자 지시 — "1단과 2단을... 드래그앤드랍으로 각 버튼
+  // 위치를 정하는거, 그걸 원해"): tier뿐 아니라 같은 단 안에서의 좌우
+  // 순서도 드래그로 정할 수 있게 한다 — 명시적으로 옮긴 적 없는 탭은
+  // site_navigations 원래 순서(자연 인덱스*1000)를 쓰고, 드래그로 옮긴
+  // 탭은 그 자리의 앞뒤 탭 order의 중간값을 매긴다(fractional index —
+  // 매번 전체를 다시 번호 매길 필요 없이 무한히 끼워 넣을 수 있다).
+  function tabOrderValue(tabKey: string): number {
+    const explicit = topTabStyle.tabs[tabKey]?.order;
+    if (explicit !== null && explicit !== undefined) return explicit;
+    const naturalIndex = topNavRows.findIndex((r) => (r.key ?? r.id) === tabKey);
+    return (naturalIndex === -1 ? 0 : naturalIndex) * 1000;
+  }
+
+  function handleTabDrop(tabKey: string, tier: 1 | 2, beforeTabKey: string | null) {
+    const tabsInTier = topNavRows
+      .map((r) => r.key ?? r.id)
+      .filter((k) => k !== tabKey)
+      .filter((k) => (topTabStyle.tabs[k]?.tier ?? 2) === tier)
+      .sort((a, b) => tabOrderValue(a) - tabOrderValue(b));
+
+    let newOrder: number;
+    if (beforeTabKey && tabsInTier.includes(beforeTabKey)) {
+      const idx = tabsInTier.indexOf(beforeTabKey);
+      const beforeOrder = tabOrderValue(beforeTabKey);
+      const prevOrder = idx > 0 ? tabOrderValue(tabsInTier[idx - 1]) : beforeOrder - 1000;
+      newOrder = (prevOrder + beforeOrder) / 2;
+    } else {
+      const lastOrder = tabsInTier.length > 0 ? tabOrderValue(tabsInTier[tabsInTier.length - 1]) : 0;
+      newOrder = lastOrder + 1000;
+    }
+    updateTabStyle(tabKey, { tier, order: newOrder });
     setTopTabsTreeVersion((v) => v + 1);
   }
 
@@ -1363,7 +1393,7 @@ export default function AdminNavigationSettingsPage() {
           </p>
           <div className="mb-4">
             <p className="mb-2 text-xs text-gray-500">
-              🎨 아래에서 탭을 직접 클릭하면 바로 편집할 수 있고, 탭 칩을 <strong>드래그해서 1단/2단 영역 사이로 옮기면</strong> 배치가 즉시 바뀌어요(탭 추가/삭제는 안 돼요).
+              🎨 아래에서 탭을 직접 클릭하면 바로 편집할 수 있고, 탭 칩을 <strong>드래그해서 1단/2단 영역 사이로 옮기거나, 같은 단 안에서 다른 칩 앞에 끼워 넣어 좌우 순서를 바꿀</strong> 수 있어요(탭 추가/삭제는 안 돼요).
             </p>
             {topNavRows.length === 0 ? (
               <p className="rounded-lg border border-gray-200 p-4 text-xs text-gray-400">상단 탭 목록을 불러오는 중이에요...</p>
@@ -1382,11 +1412,12 @@ export default function AdminNavigationSettingsPage() {
                         Craft 입장에서는 평범한 DOM 래퍼로만 보여 안전하다. */}
                     {ChromeTierZone({
                       label: "1단",
-                      hint: "로고 줄과 겹치는 자리",
+                      hint: "로고 줄과 겹치는 자리 — 칩을 드래그해 좌우 순서도 바꿀 수 있어요",
                       tier: 1,
-                      onDropTab: handleTabTierDrop,
+                      onDropTab: handleTabDrop,
                       children: topNavRows
                         .filter((row) => (topTabStyle.tabs[row.key ?? row.id]?.tier ?? 2) === 1)
+                        .sort((a, b) => tabOrderValue(a.key ?? a.id) - tabOrderValue(b.key ?? b.id))
                         .map((row) => {
                           const tabKey = row.key ?? row.id;
                           return (
@@ -1402,11 +1433,12 @@ export default function AdminNavigationSettingsPage() {
                     })}
                     {ChromeTierZone({
                       label: "2단",
-                      hint: "기본 탭 줄",
+                      hint: "기본 탭 줄 — 칩을 드래그해 좌우 순서도 바꿀 수 있어요",
                       tier: 2,
-                      onDropTab: handleTabTierDrop,
+                      onDropTab: handleTabDrop,
                       children: topNavRows
                         .filter((row) => (topTabStyle.tabs[row.key ?? row.id]?.tier ?? 2) !== 1)
+                        .sort((a, b) => tabOrderValue(a.key ?? a.id) - tabOrderValue(b.key ?? b.id))
                         .map((row) => {
                           const tabKey = row.key ?? row.id;
                           return (

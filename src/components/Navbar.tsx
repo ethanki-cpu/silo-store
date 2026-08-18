@@ -382,8 +382,24 @@ export function Navbar() {
   function tabTier(tab: NavTab): 1 | 2 {
     return topTabEntries[tab.key]?.tier === 1 ? 1 : 2;
   }
-  const tier1Tabs = navTabs.filter((tab) => tabTier(tab) === 1);
-  const tier2Tabs = navTabs.filter((tab) => tabTier(tab) !== 1);
+  // HOTFIX-134(사용자 지시 — "1단과 2단을... 드래그앤드랍으로 각 버튼
+  // 위치를 정하는거"): 관리자가 "홈페이지 설정 관리"의 캔버스에서 탭
+  // 칩을 드래그해 같은 단 안의 좌우 순서를 바꾸면 topTabEntries[key].order
+  // 에 값이 채워진다 — 없으면(한 번도 드래그로 옮긴 적 없음) 원래
+  // site_navigations 순서(navTabs 배열 인덱스)를 그대로 쓴다.
+  function tabOrderValue(tab: NavTab, naturalIndex: number): number {
+    const explicit = topTabEntries[tab.key]?.order;
+    return explicit !== null && explicit !== undefined ? explicit : naturalIndex * 1000;
+  }
+  const orderedNavTabs = navTabs.map((tab, i) => ({ tab, order: tabOrderValue(tab, i) }));
+  const tier1Tabs = orderedNavTabs
+    .filter(({ tab }) => tabTier(tab) === 1)
+    .sort((a, b) => a.order - b.order)
+    .map(({ tab }) => tab);
+  const tier2Tabs = orderedNavTabs
+    .filter(({ tab }) => tabTier(tab) !== 1)
+    .sort((a, b) => a.order - b.order)
+    .map(({ tab }) => tab);
 
   // EPIC-079-PHASE-4/EPIC-117: 탭 하나(type이 "link"인 단순 링크, 또는
   // 드롭다운/메가메뉴가 있는 버튼)를 렌더링 — 원래 <nav> 안의 map 콜백

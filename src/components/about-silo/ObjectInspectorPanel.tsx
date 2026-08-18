@@ -8,11 +8,21 @@
 //
 // HOTFIX-123(사용자 지시 — "오브제를 클릭했을 때 나오는 썸네일과 요약,
 // 그리고 링크를 설정할 수 있게 해줘"): 썸네일 이미지 업로드 + 요약 텍스트
-// + 링크 URL 3개 필드 신설 — 값이 하나라도 있으면 3D 뷰에서 이 오브젝트를
-// 클릭했을 때 AboutSiloUniverse.tsx의 ObjectInfoCard가 그 내용을 보여준다.
+// + 링크 URL 3개 필드 신설.
+//
+// HOTFIX(사용자 지시 — "그 오브제들을 클릭했을 때... 관리자 창에는 어떤
+// 게시판 링크로 연결되는지, 게시판의 썸네일과 설명을 수정할 수 있게
+// 하고, 그 오브제의 크기도 설정할 수 있게 해줘"): "연결된 게시판" 선택을
+// 추가 — 고르면 ObjectInfoCard가 그 게시판의 실제 name/description/
+// thumbnail_url을 자동으로 보여준다. 아래 썸네일/요약/링크 필드는 이제
+// "게시판 값을 오버라이드하는" 용도로 재정의했다(비워두면 게시판 값을
+// 그대로 쓴다).
 import { uploadFile } from "@/lib/storage";
+import { supabase } from "@/lib/supabaseClient";
 import type { UniverseObject } from "@/lib/aboutSiloUniverseConfig";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type BoardOption = { slug: string; name: string };
 
 export function ObjectInspectorPanel({
   object,
@@ -35,6 +45,21 @@ export function ObjectInspectorPanel({
   saving: boolean;
 }) {
   const [uploadingThumb, setUploadingThumb] = useState(false);
+  const [boards, setBoards] = useState<BoardOption[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("boards")
+      .select("slug, name")
+      .order("sort_order", { ascending: true })
+      .then(({ data }) => {
+        if (!cancelled && data) setBoards(data as BoardOption[]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleThumbUpload(file: File | null) {
     if (!file) return;
@@ -45,7 +70,7 @@ export function ObjectInspectorPanel({
   }
 
   return (
-    <div className="pointer-events-auto fixed right-6 top-24 z-40 w-[260px] rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md">
+    <div className="pointer-events-auto fixed right-6 top-24 z-40 w-[260px] max-h-[80vh] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-semibold">오브젝트 설정</p>
         <button type="button" onClick={onClose} className="text-white/50 hover:text-white">
@@ -86,7 +111,22 @@ export function ObjectInspectorPanel({
         <div className="border-t border-white/10 pt-2">
           <p className="mb-1 text-[10px] font-semibold text-white/60">클릭 시 보여줄 정보 카드</p>
           <label className="block text-[10px] text-white/60">
-            썸네일 이미지
+            연결된 게시판(선택 — 고르면 그 게시판 이름/설명/썸네일을 자동으로 보여줘요)
+            <select
+              className="mt-1 w-full rounded border border-white/15 bg-black/30 px-1.5 py-1 text-[11px] text-white"
+              value={object.boardSlug}
+              onChange={(e) => onChange({ boardSlug: e.target.value })}
+            >
+              <option value="">연결 안 함</option>
+              {boards.map((b) => (
+                <option key={b.slug} value={b.slug}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="mt-1.5 block text-[10px] text-white/60">
+            썸네일 오버라이드(비우면 게시판 썸네일 사용)
             <div className="mt-1 flex items-center gap-1.5">
               <input
                 className="min-w-0 flex-1 rounded border border-white/15 bg-black/30 px-1.5 py-1 text-[11px] text-white"
@@ -107,7 +147,7 @@ export function ObjectInspectorPanel({
             />
           </label>
           <label className="mt-1.5 block text-[10px] text-white/60">
-            요약
+            설명 오버라이드(비우면 게시판 설명 사용)
             <textarea
               className="mt-1 w-full resize-none rounded border border-white/15 bg-black/30 px-1.5 py-1 text-[11px] text-white"
               rows={3}
@@ -117,11 +157,11 @@ export function ObjectInspectorPanel({
             />
           </label>
           <label className="mt-1.5 block text-[10px] text-white/60">
-            링크
+            링크 오버라이드(비우면 연결된 게시판 페이지로)
             <input
               className="mt-1 w-full rounded border border-white/15 bg-black/30 px-1.5 py-1 text-[11px] text-white"
               value={object.link}
-              placeholder="/silo-store 또는 https://..."
+              placeholder={object.boardSlug ? `/boards/${object.boardSlug}` : "/silo-store 또는 https://..."}
               onChange={(e) => onChange({ link: e.target.value })}
             />
           </label>

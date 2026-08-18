@@ -9,7 +9,9 @@
 // 색/텍스처/캐릭터/오브젝트/궤도 위성 소스+디자인)은 전부 새
 // PlanetSettingsPanel(행성 클릭 시 뜨는 전용 창)로 옮기고, 이 패널은
 // 행성에 속하지 않는 "전체 우주 공통" 설정만 남긴다 — 배경(유튜브/프리셋),
-// 연결선 색, 공전 속도, 기본 카테고리 마커 모양, 저장/자동저장.
+// 연결선 색, 공전 속도, 우주 공간 오브젝트, 저장/자동저장. (하드코딩된
+// "기본 카테고리 마커 모양" 섹션은 HOTFIX로 카테고리 마커 자체가 완전히
+// 삭제되며 함께 제거됨 — AboutSiloUniverse.tsx 참고.)
 import { useState } from "react";
 import { uploadFile } from "@/lib/storage";
 import type { UniverseConfig, SpaceObject } from "@/lib/aboutSiloUniverseConfig";
@@ -55,6 +57,7 @@ export function UniverseSettingsPanel({
       thumbnailUrl: "",
       summary: "",
       link: "",
+      boardSlug: "",
     };
     onChange({ spaceObjects: [...config.spaceObjects, obj] });
   }
@@ -170,36 +173,6 @@ export function UniverseSettingsPanel({
             onChange={(e) => onChange({ orbitSpeed: Number(e.target.value) })}
           />
           <span className="text-white/40">{config.orbitSpeed.toFixed(2)}</span>
-        </section>
-
-        <section>
-          <p className={SECTION_TITLE}>기본 카테고리 마커 모양</p>
-          <div className="space-y-1.5">
-            <label className={FIELD_LABEL}>
-              보물상자 종류(사일로 상점)
-              <select
-                className={`mt-1 ${SELECT}`}
-                value={config.chestVariant}
-                onChange={(e) => onChange({ chestVariant: e.target.value as UniverseConfig["chestVariant"] })}
-              >
-                <option value="classic">클래식 브라운</option>
-                <option value="gold">골드 트림</option>
-                <option value="dark">다크 오크</option>
-              </select>
-            </label>
-            <label className={FIELD_LABEL}>
-              카메라 종류(스튜디오)
-              <select
-                className={`mt-1 ${SELECT}`}
-                value={config.cameraVariant}
-                onChange={(e) => onChange({ cameraVariant: e.target.value as UniverseConfig["cameraVariant"] })}
-              >
-                <option value="vintage">빈티지 브라운</option>
-                <option value="black">블랙 필름</option>
-                <option value="polaroid">폴라로이드형</option>
-              </select>
-            </label>
-          </div>
         </section>
 
         <section>

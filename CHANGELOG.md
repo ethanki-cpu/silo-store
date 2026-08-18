@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-18 (HOTFIX-128 — SILO 고정 카테고리 마커 삭제 + 오브제 상단 클러스터 배치 + 게시판 연동 정보 카드)
+- **배경**: 사용자가 "SILO 행성에 있는 고정된 오브제들(사일로상점/살롱데상/스튜디오/온라인도슨트)을 다 삭제시켜줘", "행성에 있는 오브제들을 가까운곳에(행성 맨위에) 모아달라니까?"(이전 요청이 반영 안 됐다는 재지적), "오브제를 클릭했을 때 팝업에 연결된 게시판의 썸네일과 설명이 올라오게 해줘 + 관리자 창에는 어떤 게시판 링크로 연결되는지/썸네일/설명을 수정할 수 있게" 세 가지를 요청.
+- **고정 카테고리 마커 완전 삭제**: `CORE_CATEGORIES`(보물상자/조각상/휴대폰/카메라 4종 하드코딩 모양) + `CoreCategoryShape`/`CoreCategoryNode`/`CoreCategories` 컴포넌트 전부와, 그 모양을 고르던 `UniverseSettingsPanel`의 "기본 카테고리 마커 모양" 섹션(chestVariant/cameraVariant, `UniverseConfig`에서도 필드 자체 제거) 전부 삭제. 카테고리 링크는 이제 순수하게 관리자가 자유 오브젝트를 올리고 "연결된 게시판"을 고르는 것으로 대체된다(아래 항목).
+- **오브제 상단 클러스터 배치**: `localSurfacePlacementsFor`를 피보나치 구면 고른 분포에서, 행성 로컬 "위" 방향(북극)을 중심으로 골든 앵글 나선으로 촘촘히 모으는 방식으로 교체 — `obj.position`이 없는(한 번도 드래그 안 한) 오브젝트만 적용되고, 이미 옮긴 오브젝트는 그대로 유지. SILO/유저 행성 둘 다 동일하게 적용(공용 함수).
+- **게시판 연동 정보 카드**: `UniverseObject`에 `boardSlug` 필드 신설. `ObjectInspectorPanel`에 "연결된 게시판" select(공개 게시판 목록, `boards` 테이블 직접 조회) 추가 — 고르면 `ObjectInfoCard`가 그 게시판의 실제 `name`/`description`/`thumbnail_url`(`boards.slug`로 조회)을 자동으로 보여준다. 기존 썸네일/요약/링크 필드는 "오버라이드" 의미로 재정의(값을 직접 입력해두면 게시판 값보다 우선) — 게시판 원본 레코드를 건드리지 않고 오브제 단위로 다르게 보여줄 수 있다. 링크도 boardSlug가 있으면 `/boards/{slug}`로 자동 연결(수동 링크가 있으면 그게 우선).
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors(사용하지 않게 된 `Text`/`useRouter` import도 함께 정리). 로컬 dev + Browser pane 실측: About Silo 페이지에서 카테고리 마커(사일로 상점/살롱데상/스튜디오/온라인 도슨트 라벨)가 더 이상 보이지 않는 것 확인, SILO 행성 상단에 오브제가 모여 배치되는 것 스크린샷으로 확인, 콘솔에 새 에러 없음.
+- **변경 파일**: `src/components/about-silo/AboutSiloUniverse.tsx`, `src/components/about-silo/ObjectInspectorPanel.tsx`, `src/components/about-silo/PlanetSettingsPanel.tsx`, `src/components/about-silo/UniverseSettingsPanel.tsx`, `src/lib/aboutSiloUniverseConfig.ts`.
+
 ## 2026-08-18 (HOTFIX-127 — 우주 공간 오브젝트(별/은하수/소행성) 업로드 + 하단 메뉴 관리 병합 + 홈페이지 설정 관리 프리뷰 실시간화)
 - **배경**: 사용자가 세 가지를 요청 — (1) "universe setting에서 오브제를 업로드할 수 있는 게 없네, 예를 들어 별, 은하수, 별똥별, asteroid 등등 우주에 있는 것들 말이야. 추가해줘", (2) "'홈페이지 설정관리'에 '하단메뉴관리'를 병합해줘", (3) "'홈페이지 설정관리'에 프리뷰가 안 나오는데? PC와 모바일 버전 실시간으로 보이게 해줘".
 - **(1) 우주 공간 오브젝트**: 기존 오브젝트 업로드는 전부 "행성 표면에 중력으로 붙는" `UniverseObject`뿐이었다 — 별/은하수/별똥별/소행성처럼 어느 행성에도 속하지 않고 두 행성 사이 우주 공간에 자유롭게 떠 있는 오브젝트 개념이 아예 없었다. 신규 `SpaceObject`(`UniverseObject`를 확장해 `kind: "model"|"sprite"` 추가) + `UniverseConfig.spaceObjects[]`를 추가하고, `UniverseSettingsPanel`(전역 설정, 특정 행성에 속하지 않으므로)에 "🪨 소행성(.glb) 추가"(3D 모델, useGLTF)와 "✨ 별/은하수 이미지 추가"(카메라를 항상 향하는 스프라이트 빌보드, useTexture) 두 업로드 버튼을 신설. 기본 위치는 id를 해시한 시드로 두 행성 중간 지점 주변에 결정론적으로 흩뿌리고(새로고침해도 자리가 안 바뀜), 3D 뷰에서 클릭 선택 + 파란 화살표로 자유 드래그(행성 표면 오브젝트와 달리 "중력"/표면 스냅 없음) + 선택 시 glow + 스프라이트는 밝기가 사인파로 반짝이는 트윙클 적용. `ObjectInspectorPanel`/`ObjectInfoCard`는 구조가 같아 그대로 재사용(썸네일/요약/링크 편집·표시도 동일하게 동작).

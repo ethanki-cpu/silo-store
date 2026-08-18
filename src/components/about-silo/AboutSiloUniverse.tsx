@@ -40,12 +40,10 @@ import {
   type RefObject,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import {
   CameraControls,
   Html,
-  Text,
   TransformControls,
   useTexture,
   useGLTF,
@@ -147,17 +145,15 @@ async function fetchUniverseImages(boardSlug: string): Promise<FeedPost[]> {
   return withPhoto;
 }
 
-// 4대 카테고리 실제 라우트 + 보물상자/카메라 변형(설정 패널의 "기본
-// 카테고리 마커 모양"과 연결).
-type ChestVariant = "classic" | "gold" | "dark";
-type CameraVariant = "vintage" | "black" | "polaroid";
-
-const CORE_CATEGORIES = [
-  { key: "silostore", label: "사일로 상점", sub: "Silo Store", href: "/silo-store", color: "#c99a5b", shape: "chest" as const },
-  { key: "docent", label: "온라인 도슨트", sub: "Online Docent", href: "/online-docent", color: "#e7ddce", shape: "statue" as const },
-  { key: "salon", label: "살롱데상", sub: "Salon des Cent", href: "/salon-des-cent", color: "#3f4a3d", shape: "phone" as const },
-  { key: "studio", label: "스튜디오", sub: "Studio", href: "/studio", color: "#4a3626", shape: "camera" as const },
-] as const;
+// HOTFIX(사용자 지시 — "silo 행성에 있는 고정된 오브제들을 다
+// 삭제시켜줘(사일로상점, 살롱데상, 스튜디오, 온라인도슨트)"): 4대
+// 카테고리를 하드코딩된 고정 마커(보물상자/조각상/휴대폰/카메라 모양)
+// 로 강제하던 CORE_CATEGORIES/CoreCategoryShape/CoreCategoryNode/
+// CoreCategories 전체와, 그것들이 쓰던 chestVariant/cameraVariant
+// 설정(UniverseSettingsPanel의 "기본 카테고리 마커 모양")을 완전히
+// 제거했다 — 이제 카테고리 링크는 관리자가 자유 오브젝트(.glb/이미지)
+// 를 업로드하고 "연결된 게시판"을 골라 표현한다(ObjectInspectorPanel
+// 참고), 하드코딩된 모양에 갇히지 않는다.
 
 // "About Me" 궤도 위성 — 로그인 없이도(공개 페이지) 보여줄 수 있는
 // 마이페이지 성격의 상징적 카테고리 5종(장식용, /mypage 하위 탭 라벨과
@@ -486,25 +482,27 @@ type SurfacePlacement = { position: [number, number, number]; quaternion: THREE.
 // 중첩시키므로(항목 3 — "오브제가 행성과 함께 돌아가도록"), 배치 좌표에
 // 더 이상 행성의 월드 중심을 더하지 않는다 — 부모 그룹의 위치/회전을
 // three.js가 알아서 적용해준다.
+// HOTFIX(사용자 지시 — "행성에 있는 오브제들을 가까운곳에(행성 맨
+// 위에) 모아달라니까?"): 예전엔 피보나치 구면 분포로 행성 전체에 고르게
+// 흩어놓았다 — 대신 북극(이 그룹의 로컬 "위" 방향, 즉 화면상 행성 맨
+// 위)을 중심으로 한 작은 원뿔 안에 골든 앵글 나선으로 모아 배치한다.
+// obj.position이 없는(한 번도 드래그하지 않은) 오브젝트에만 적용되고,
+// 이미 드래그해 옮긴 오브젝트는 그 자리를 그대로 유지한다.
 function localSurfacePlacementsFor(count: number, radius: number): SurfacePlacement[] {
-  return fibonacciSphere(Math.max(count, 1), radius).map(([x, y, z]) => {
-    const normal = new THREE.Vector3(x, y, z).normalize();
+  const n = Math.max(count, 1);
+  const maxAngle = 0.5; // 라디안(약 28.6도) — 이 각도 안에서만 모여 배치
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  return Array.from({ length: n }, (_, i) => {
+    const t = n > 1 ? i / (n - 1) : 0;
+    const phi = Math.sqrt(t) * maxAngle;
+    const theta = i * goldenAngle;
+    const normal = new THREE.Vector3(
+      Math.sin(phi) * Math.cos(theta),
+      Math.cos(phi),
+      Math.sin(phi) * Math.sin(theta),
+    );
     return {
-      position: [x, y, z] as [number, number, number],
-      quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
-    };
-  });
-}
-
-// 기본 카테고리 마커(CoreCategories)는 여전히 행성 자전과 무관하게 Scene
-// 최상단에서 SILO_CENTER 기준 월드 좌표로 그린다(사용자 요청 범위 밖 —
-// 이 4종은 언제나 같은 자리에서 안정적으로 찾을 수 있어야 하는 내비게이션
-// 성격이라 자전에 휩쓸리지 않게 그대로 둔다).
-function surfacePlacementsFor(count: number, radius: number): SurfacePlacement[] {
-  return fibonacciSphere(Math.max(count, 1), radius).map(([x, y, z]) => {
-    const normal = new THREE.Vector3(x, y, z).normalize();
-    return {
-      position: [x + SILO_CENTER.x, y + SILO_CENTER.y, z + SILO_CENTER.z] as [number, number, number],
+      position: normal.clone().multiplyScalar(radius).toArray() as [number, number, number],
       quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal),
     };
   });
@@ -1448,203 +1446,6 @@ function PlanetSatellites({
 }
 
 // ============================================================
-// 기본 카테고리 마커(사일로 상점/온라인 도슨트/살롱데상/스튜디오) — 항상
-// SILO 표면 위에 노출, 자전과 무관하게 고정(내비게이션 성격).
-// ============================================================
-
-function CoreCategoryShape({
-  shape,
-  color,
-  chestVariant,
-  cameraVariant,
-}: {
-  shape: (typeof CORE_CATEGORIES)[number]["shape"];
-  color: string;
-  chestVariant: ChestVariant;
-  cameraVariant: CameraVariant;
-}) {
-  switch (shape) {
-    case "chest": {
-      const palette: Record<ChestVariant, { body: string; lid: string; hinge: string }> = {
-        classic: { body: color, lid: "#a97c3f", hinge: "#e9c877" },
-        gold: { body: "#c9a24b", lid: "#e9c877", hinge: "#fff3d6" },
-        dark: { body: "#4a3320", lid: "#2e2115", hinge: "#b8b8b8" },
-      };
-      const p = palette[chestVariant];
-      return (
-        <group>
-          <mesh position={[0, -0.06, 0]}>
-            <boxGeometry args={[0.46, 0.28, 0.32]} />
-            <meshStandardMaterial color={p.body} />
-          </mesh>
-          <mesh position={[0, 0.12, -0.1]} rotation={[-0.5, 0, 0]}>
-            <boxGeometry args={[0.46, 0.22, 0.3]} />
-            <meshStandardMaterial color={p.lid} />
-          </mesh>
-          <mesh position={[0, 0.02, 0.17]}>
-            <torusGeometry args={[0.035, 0.012, 8, 16]} />
-            <meshStandardMaterial color={p.hinge} />
-          </mesh>
-        </group>
-      );
-    }
-    case "statue":
-      return (
-        <group>
-          <mesh position={[0, -0.14, 0]}>
-            <cylinderGeometry args={[0.1, 0.16, 0.34, 16]} />
-            <meshStandardMaterial color={color} />
-          </mesh>
-          <mesh position={[0, 0.1, 0]}>
-            <cylinderGeometry args={[0.08, 0.1, 0.16, 16]} />
-            <meshStandardMaterial color={color} />
-          </mesh>
-          <mesh position={[0, 0.24, 0]}>
-            <sphereGeometry args={[0.075, 16, 16]} />
-            <meshStandardMaterial color={color} />
-          </mesh>
-        </group>
-      );
-    case "phone":
-      return (
-        <group>
-          <mesh position={[0, -0.1, 0]}>
-            <boxGeometry args={[0.4, 0.14, 0.34]} />
-            <meshStandardMaterial color={color} />
-          </mesh>
-          <mesh position={[0, -0.02, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.15, 0.15, 0.02, 24]} />
-            <meshStandardMaterial color="#20261f" />
-          </mesh>
-          <mesh position={[0, -0.02, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.14, 0.008, 6, 24]} />
-            <meshStandardMaterial color="#c9a24b" />
-          </mesh>
-          <mesh position={[0.05, 0.12, -0.1]} rotation={[0.4, 0.3, 0.3]}>
-            <capsuleGeometry args={[0.045, 0.22, 4, 8]} />
-            <meshStandardMaterial color={color} />
-          </mesh>
-          {([
-            [-0.28, -0.24, 0.12, -0.2],
-            [-0.14, -0.32, 0.2, 0.3],
-            [0.05, -0.3, -0.05, 0.1],
-          ] as const).map(([x, y, z, rot], i) => (
-            <mesh key={i} position={[x, y, z]} rotation={[0, 0, rot]}>
-              <boxGeometry args={[0.16, 0.18, 0.01]} />
-              <meshStandardMaterial color="#f4efe4" />
-            </mesh>
-          ))}
-        </group>
-      );
-    case "camera": {
-      const palette: Record<CameraVariant, { body: string; lens: string; accent: string }> = {
-        vintage: { body: color, lens: "#161311", accent: "#8a6a4a" },
-        black: { body: "#161311", lens: "#000000", accent: "#3a3a3a" },
-        polaroid: { body: "#f4efe4", lens: "#2a2a2a", accent: "#d9534f" },
-      };
-      const p = palette[cameraVariant];
-      return (
-        <group>
-          <mesh>
-            <boxGeometry args={[0.4, 0.26, 0.22]} />
-            <meshStandardMaterial color={p.body} />
-          </mesh>
-          <mesh position={[0, 0.05, 0.16]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.09, 0.11, 0.16, 20]} />
-            <meshStandardMaterial color={p.lens} />
-          </mesh>
-          <mesh position={[-0.12, 0.16, 0]}>
-            <boxGeometry args={[0.1, 0.06, 0.08]} />
-            <meshStandardMaterial color={p.accent} />
-          </mesh>
-        </group>
-      );
-    }
-    default:
-      return null;
-  }
-}
-
-function CoreCategoryNode({
-  label,
-  sub,
-  color,
-  shape,
-  placement,
-  chestVariant,
-  cameraVariant,
-  onNavigate,
-}: {
-  label: string;
-  sub: string;
-  color: string;
-  shape: (typeof CORE_CATEGORIES)[number]["shape"];
-  placement: SurfacePlacement;
-  chestVariant: ChestVariant;
-  cameraVariant: CameraVariant;
-  onNavigate: () => void;
-}) {
-  return (
-    <group position={placement.position} quaternion={placement.quaternion}>
-      <group
-        scale={0.85}
-        onClick={(e) => {
-          e.stopPropagation();
-          onNavigate();
-        }}
-        onPointerOver={() => (document.body.style.cursor = "pointer")}
-        onPointerOut={() => (document.body.style.cursor = "auto")}
-      >
-        <CoreCategoryShape shape={shape} color={color} chestVariant={chestVariant} cameraVariant={cameraVariant} />
-      </group>
-      <Text
-        position={[0, 0.34, 0]}
-        fontSize={0.09}
-        color="#fff3da"
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.006}
-        outlineColor="#2a1c0f"
-      >
-        {label}
-      </Text>
-      <Html center distanceFactor={5} position={[0, 0.48, 0]} style={{ pointerEvents: "none" }}>
-        <div className="whitespace-nowrap text-[10px] text-white/70">{sub}</div>
-      </Html>
-    </group>
-  );
-}
-
-function CoreCategories({
-  router,
-  chestVariant,
-  cameraVariant,
-}: {
-  router: ReturnType<typeof useRouter>;
-  chestVariant: ChestVariant;
-  cameraVariant: CameraVariant;
-}) {
-  const placements = useMemo(() => surfacePlacementsFor(CORE_CATEGORIES.length, SILO_SURFACE_RADIUS), []);
-  return (
-    <>
-      {CORE_CATEGORIES.map((cat, i) => (
-        <CoreCategoryNode
-          key={cat.key}
-          label={cat.label}
-          sub={cat.sub}
-          color={cat.color}
-          shape={cat.shape}
-          placement={placements[i]}
-          chestVariant={chestVariant}
-          cameraVariant={cameraVariant}
-          onNavigate={() => router.push(cat.href)}
-        />
-      ))}
-    </>
-  );
-}
-
-// ============================================================
 // Scene — Canvas 내부 전체.
 // ============================================================
 
@@ -1693,8 +1494,6 @@ function Scene({
   onSpaceObjectError: (id: string) => void;
   onSpaceObjectMoved: (id: string, position: [number, number, number]) => void;
 }) {
-  const router = useRouter();
-
   const selectedRadius = selectedPlanetId === "user" ? USER_SURFACE_RADIUS : SILO_SURFACE_RADIUS;
   const selectedKey = selectedObjectId && selectedPlanetId
     ? `${selectedPlanetId}:${selectedObjectId}`
@@ -1749,7 +1548,6 @@ function Scene({
         }}
       />
       <ConnectingThread color={config.lineColor} />
-      <CoreCategories router={router} chestVariant={config.chestVariant} cameraVariant={config.cameraVariant} />
 
       {selectedGroup && (
         <TransformControls
@@ -1898,25 +1696,55 @@ function SelectedPostPanel({ post, onClose }: { post: FeedPost; onClose: () => v
 // 공개용 정보 카드 — ObjectInspectorPanel(편집용, 우측 상단)과 별개로
 // SelectedPostPanel과 같은 자리(하단 중앙)에 같은 스타일로 뜬다. 세 필드
 // 모두 비어있으면(관리자가 아직 설정 안 함) 아무것도 띄우지 않는다.
+// HOTFIX(사용자 지시 — "그 오브제들을 클릭했을 때, 팝업되는 창에 연결된
+// 게시판의 썸네일과 게시판에대한 설명이 올라오게 해주고"): boardSlug가
+// 설정돼 있으면 그 게시판의 실제 name/description/thumbnail_url을
+// 가져와 보여준다. thumbnailUrl/summary를 오브젝트에 직접 입력해뒀으면
+// (ObjectInspectorPanel의 "표시 오버라이드") 그 값이 우선한다 — 게시판
+// 원본 레코드를 건드리지 않고도 이 팝업에 한해 다르게 보여줄 수 있다.
 function ObjectInfoCard({ obj, onClose }: { obj: UniverseObject; onClose: () => void }) {
-  if (!obj.thumbnailUrl && !obj.summary && !obj.link) return null;
+  const [boardInfo, setBoardInfo] = useState<{ name: string; description: string | null; thumbnail_url: string | null } | null>(null);
+
+  useEffect(() => {
+    setBoardInfo(null);
+    if (!obj.boardSlug) return;
+    let cancelled = false;
+    supabase
+      .from("boards")
+      .select("name, description, thumbnail_url")
+      .eq("slug", obj.boardSlug)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setBoardInfo(data);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [obj.boardSlug]);
+
+  const displayThumbnail = obj.thumbnailUrl || boardInfo?.thumbnail_url || "";
+  const displaySummary = obj.summary || boardInfo?.description || "";
+  const displayLink = obj.link || (obj.boardSlug ? `/boards/${obj.boardSlug}` : "");
+  const displayTitle = obj.label || boardInfo?.name || "오브젝트";
+
+  if (!displayThumbnail && !displaySummary && !displayLink) return null;
   return (
     <div className="pointer-events-auto fixed bottom-6 left-1/2 z-50 w-[min(420px,88vw)] -translate-x-1/2 rounded-2xl border border-white/15 bg-black/55 p-5 text-white shadow-2xl backdrop-blur-md">
       <button type="button" onClick={onClose} className="absolute right-3 top-3 text-sm text-white/60 hover:text-white" aria-label="닫기">
         ✕
       </button>
       <div className="flex gap-3">
-        {obj.thumbnailUrl && (
+        {displayThumbnail && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={obj.thumbnailUrl} alt={obj.label} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+          <img src={displayThumbnail} alt={displayTitle} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
         )}
         <div className="min-w-0">
-          <h3 className="text-lg font-medium">{obj.label || "오브젝트"}</h3>
-          {obj.summary && <p className="mt-1 text-sm text-white/75">{obj.summary}</p>}
+          <h3 className="text-lg font-medium">{displayTitle}</h3>
+          {displaySummary && <p className="mt-1 text-sm text-white/75">{displaySummary}</p>}
         </div>
       </div>
-      {obj.link && (
-        <a href={obj.link} className="mt-3 inline-block text-sm text-amber-200 hover:underline">
+      {displayLink && (
+        <a href={displayLink} className="mt-3 inline-block text-sm text-amber-200 hover:underline">
           자세히 보기 →
         </a>
       )}

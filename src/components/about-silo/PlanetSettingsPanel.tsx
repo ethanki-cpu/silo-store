@@ -84,6 +84,7 @@ export function PlanetSettingsPanel({
       thumbnailUrl: "",
       summary: "",
       link: "",
+      boardSlug: "",
     };
     onChange({ objects: [...config.objects, obj] });
   }

@@ -31,6 +31,16 @@ export type UniverseObject = {
   thumbnailUrl: string;
   summary: string;
   link: string;
+  // HOTFIX(사용자 지시 — "그 오브제들을 클릭했을 때... 연결된 게시판의
+  // 썸네일과 게시판에 대한 설명이 올라오게 해주고... 관리자 창에는
+  // 어떤 게시판 링크로 연결되는지"): boards.slug — 설정하면 정보 카드가
+  // 이 게시판의 실제 name/description/thumbnail_url을 자동으로
+  // 가져와 보여준다(단, thumbnailUrl/summary를 직접 입력해뒀으면 그
+  // 수동 입력값이 우선한다 — "게시판 썸네일/설명을 수정할 수 있게"라는
+  // 요청을 게시판 원본 레코드를 건드리지 않고 오브제 단위 오버라이드로
+  // 구현). 비어있으면(게시판 미연결) 기존처럼 thumbnailUrl/summary/link
+  // 수동 입력만으로 카드를 구성한다.
+  boardSlug: string;
 };
 
 // HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할 수 있는
@@ -76,9 +86,6 @@ export type UniverseConfig = {
    * 위해 타입만 남겨둔다(아무 코드도 안 읽음). */
   showThumbnails: boolean;
   orbitSpeed: number;
-
-  chestVariant: "classic" | "gold" | "dark";
-  cameraVariant: "vintage" | "black" | "polaroid";
 
   // 실뜨개 연결선 색상.
   lineColor: string;
@@ -129,8 +136,6 @@ export function defaultUniverseConfig(): UniverseConfig {
     ],
     showThumbnails: false,
     orbitSpeed: 0.15,
-    chestVariant: "classic",
-    cameraVariant: "vintage",
     lineColor: "#f2e2b8",
     planets: {
       silo: defaultPlanetConfig("SILO", "#e3a874"),
@@ -152,6 +157,7 @@ function normalizeObject(raw: unknown): UniverseObject {
     thumbnailUrl: o.thumbnailUrl ?? "",
     summary: o.summary ?? "",
     link: o.link ?? "",
+    boardSlug: o.boardSlug ?? "",
   };
 }
 

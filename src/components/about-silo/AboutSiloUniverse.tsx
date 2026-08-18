@@ -197,54 +197,43 @@ const MAX_ZOOM_DISTANCE = 5000;
 // ============================================================
 
 /**
- * 행성 표면에 붓터치/얼룩 노이즈를 겹쳐 그린 CanvasTexture — 관리자가
- * 지형 텍스처를 업로드하지 않았을 때의 절차적 대체(외부 에셋 파일 없음).
- * baseColor가 바뀌면 다시 굽는다.
+ * 행성 표면에 붓터치/얼룩 노이즈를 겹쳐 그리는 절차적 대체(외부 에셋
+ * 파일 없음) — 관리자가 지형 텍스처를 업로드하지 않았을 때, 그리고
+ * 업로드했을 때도 그 아래 깔리는 베이스 레이어로 쓰인다.
  */
-function useWatercolorTexture(baseColorHex: string): THREE.CanvasTexture {
-  return useMemo(() => {
-    const size = 512;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d")!;
-    const base = new THREE.Color(baseColorHex);
+function paintWatercolor(ctx: CanvasRenderingContext2D, size: number, baseColorHex: string) {
+  const base = new THREE.Color(baseColorHex);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = `#${base.getHexString()}`;
+  ctx.fillRect(0, 0, size, size);
 
-    ctx.fillStyle = `#${base.getHexString()}`;
-    ctx.fillRect(0, 0, size, size);
-
-    // React Compiler(react-hooks/immutability)가 렌더 단계(useMemo 콜백)
-    // 안에서 클로저 변수를 재대입하는 흔한 선형합동 PRNG 패턴을 금지해,
-    // 대신 인덱스만의 순수 함수인 해시 기반 의사난수를 쓴다(상태 없음).
-    function hashRandom(i: number): number {
-      const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
-      return x - Math.floor(x);
-    }
-    const lighter = base.clone().lerp(new THREE.Color("#ffffff"), 0.35);
-    const darker = base.clone().lerp(new THREE.Color("#000000"), 0.18);
-    for (let i = 0; i < 90; i++) {
-      const r0 = hashRandom(i * 6);
-      const tone = r0 > 0.5 ? lighter : darker;
-      const x = hashRandom(i * 6 + 1) * size;
-      const y = hashRandom(i * 6 + 2) * size;
-      const r = 12 + hashRandom(i * 6 + 3) * 60;
-      ctx.globalAlpha = 0.05 + hashRandom(i * 6 + 4) * 0.1;
-      ctx.fillStyle = `#${tone.getHexString()}`;
-      ctx.beginPath();
-      ctx.ellipse(x, y, r, r * (0.6 + hashRandom(i * 6 + 5) * 0.6), hashRandom(i * 6 + 6) * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 0.04;
-    for (let i = 0; i < 700; i++) {
-      ctx.fillStyle = hashRandom(i * 3 + 1000) > 0.5 ? "#ffffff" : "#000000";
-      ctx.fillRect(hashRandom(i * 3 + 1001) * size, hashRandom(i * 3 + 1002) * size, 1.5, 1.5);
-    }
-    ctx.globalAlpha = 1;
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    return texture;
-  }, [baseColorHex]);
+  // React Compiler(react-hooks/immutability)가 렌더 단계 안에서 클로저
+  // 변수를 재대입하는 흔한 선형합동 PRNG 패턴을 금지해, 대신 인덱스만의
+  // 순수 함수인 해시 기반 의사난수를 쓴다(상태 없음).
+  function hashRandom(i: number): number {
+    const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  const lighter = base.clone().lerp(new THREE.Color("#ffffff"), 0.35);
+  const darker = base.clone().lerp(new THREE.Color("#000000"), 0.18);
+  for (let i = 0; i < 90; i++) {
+    const r0 = hashRandom(i * 6);
+    const tone = r0 > 0.5 ? lighter : darker;
+    const x = hashRandom(i * 6 + 1) * size;
+    const y = hashRandom(i * 6 + 2) * size;
+    const r = 12 + hashRandom(i * 6 + 3) * 60;
+    ctx.globalAlpha = 0.05 + hashRandom(i * 6 + 4) * 0.1;
+    ctx.fillStyle = `#${tone.getHexString()}`;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * (0.6 + hashRandom(i * 6 + 5) * 0.6), hashRandom(i * 6 + 6) * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 0.04;
+  for (let i = 0; i < 700; i++) {
+    ctx.fillStyle = hashRandom(i * 3 + 1000) > 0.5 ? "#ffffff" : "#000000";
+    ctx.fillRect(hashRandom(i * 3 + 1001) * size, hashRandom(i * 3 + 1002) * size, 1.5, 1.5);
+  }
+  ctx.globalAlpha = 1;
 }
 
 // 이미지 텍스처든 .glb 모델이든, 에셋 로드가 실패하면(CORS/잘못된 URL
@@ -267,19 +256,63 @@ class AssetLoadErrorBoundary extends Component<
 }
 
 /**
- * 행성 표면 색+텍스처 블렌드 — toon 셰이딩 없이 베이스 색 구 위에 텍스처
- * 구를 살짝 더 큰 반지름으로 겹쳐(opacity로 블렌드) 자연스러운 혼합을
- * 만든다. SILO/유저 행성 둘 다 이 컴포넌트 하나를 공유한다(HOTFIX-123 —
- * "그냥 SILO 행성 설정과 똑같이 설정 가능하게").
+ * HOTFIX(사용자 신고 — "행성 설정에서 색상과 텍스처의 블렌드가 전혀
+ * 이뤄지고 있지 않아"): 예전엔 베이스 색 구 위에 텍스처를 입힌 "반투명
+ * 구"를 살짝 더 큰 반지름으로 겹쳐(WebGL 알파 블렌딩에 의존) 만들었는데,
+ * 이 방식은 조명 각도/뷰 방향에 따라 블렌딩 결과가 달라지고 두 구 사이
+ * z-fighting 위험도 있어 슬라이더를 중간값으로 놓아도 텍스처 쪽이
+ * 시각적으로 거의 다 덮어버리는 것처럼 보였다 — 3D 렌더링의 블렌딩에
+ * 맡기는 대신 2D Canvas에서 픽셀 단위로 직접 합성(수채화 베이스를 그린
+ * 뒤 업로드 텍스처를 globalAlpha=textureOpacity로 그 위에 덧그림)해
+ * "이미 섞인 텍스처 이미지 하나"를 만들고, 그 결과 하나만 불투명하게
+ * 구 표면에 입힌다 — 조명/각도/렌더 순서와 무관하게 항상 슬라이더
+ * 비율 그대로 섞인다.
  */
-function CustomPlanetTextureLayer({ url, radius, opacity }: { url: string; radius: number; opacity: number }) {
-  const texture = useTexture(url);
-  return (
-    <mesh renderOrder={1}>
-      <sphereGeometry args={[radius, 48, 48]} />
-      <meshStandardMaterial map={texture} transparent opacity={opacity} depthWrite={false} />
-    </mesh>
-  );
+function usePlanetBlendedTexture(baseColorHex: string, customTextureUrl: string, textureOpacity: number): THREE.CanvasTexture {
+  // React Compiler(react-hooks/refs)가 렌더 중 ref.current 접근 자체를
+  // 금지해(초기화 체크용 읽기도 포함) useRef 기반 싱글턴 캐시 패턴이
+  // 막혀서, 원래 useWatercolorTexture와 동일하게 "필요한 입력이 바뀔
+  // 때마다 useMemo 안에서 캔버스를 통째로 새로 그려 새 텍스처를 반환"
+  // 하는 순수한 형태로 통일한다 — 이전에 반환한 텍스처를 나중에 다시
+  // mutate하지 않는다. 업로드 이미지 자체는 URL이 바뀔 때만 새로 로드해
+  // state로 캐시한다(매 슬라이더 조작마다 다시 받아오지 않도록).
+  const [loadedImage, setLoadedImage] = useState<{ url: string; img: HTMLImageElement } | null>(null);
+
+  useEffect(() => {
+    if (!customTextureUrl) {
+      setLoadedImage(null);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      if (!cancelled) setLoadedImage({ url: customTextureUrl, img });
+    };
+    img.onerror = () => {
+      if (!cancelled) setLoadedImage(null);
+    };
+    img.src = customTextureUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [customTextureUrl]);
+
+  return useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext("2d")!;
+    paintWatercolor(ctx, canvas.width, baseColorHex);
+    if (loadedImage && loadedImage.url === customTextureUrl && textureOpacity > 0) {
+      ctx.globalAlpha = textureOpacity;
+      ctx.drawImage(loadedImage.img, 0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  }, [baseColorHex, customTextureUrl, textureOpacity, loadedImage]);
 }
 
 function PlanetMaterial({
@@ -293,21 +326,12 @@ function PlanetMaterial({
   textureOpacity: number;
   radius: number;
 }) {
-  const watercolor = useWatercolorTexture(baseColor);
+  const blended = usePlanetBlendedTexture(baseColor, customTextureUrl, textureOpacity);
   return (
-    <>
-      <mesh>
-        <sphereGeometry args={[radius, 48, 48]} />
-        <meshStandardMaterial map={watercolor} color={customTextureUrl ? baseColor : "#ffffff"} />
-      </mesh>
-      {customTextureUrl && (
-        <AssetLoadErrorBoundary fallback={null}>
-          <Suspense fallback={null}>
-            <CustomPlanetTextureLayer url={customTextureUrl} radius={radius * 1.003} opacity={textureOpacity} />
-          </Suspense>
-        </AssetLoadErrorBoundary>
-      )}
-    </>
+    <mesh>
+      <sphereGeometry args={[radius, 48, 48]} />
+      <meshStandardMaterial map={blended} />
+    </mesh>
   );
 }
 
@@ -1118,16 +1142,37 @@ function OrbitSatelliteMarker({
         </mesh>
       )}
       {post.photo_url && (
-        <Html center distanceFactor={6} position={[0, 0.24, 0]} style={{ pointerEvents: "none" }} zIndexRange={[10, 0]}>
+        // HOTFIX(사용자 신고 — "행성을 hover하는 특정 게시판의 게시물들이
+        // 커서를 올렸을 때 아무런 반응이 없고, 클릭도 할 수 없는 상태야"):
+        // 근본 원인은 이 썸네일이 실제 클릭 가능한 3D 마커(작은 팔면체
+        // 별, position [0,0,0])보다 y로 0.24만큼 떨어진 위치에 렌더링되는
+        // Html DOM 오버레이인데, pointerEvents:"none"이라 클릭이 그대로
+        // 캔버스를 통과해버려 그 지점엔 아무 3D 지오메트리도 없어(별은
+        // 저 아래 다른 화면 좌표에 있음) 아무 반응이 없었던 것 — 화면상
+        // 가장 크고 눈에 띄는 게 이 사진이라 사용자는 자연히 사진을 직접
+        // hover/클릭하는데 정작 반응은 안 하는 별에만 걸려 있던 것.
+        // 사진 자체를 진짜 클릭/hover 대상으로 만들어 확실하게 반응하게
+        // 하고, hover 시 CSS로 즉시 빛나는 테두리(glow)를 준다.
+        <Html center distanceFactor={6} position={[0, 0.24, 0]} zIndexRange={[10, 0]}>
           <div
             className="silo-satellite-thumb"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
             style={{
               width: 72,
               height: 72,
               borderRadius: "9999px",
               overflow: "hidden",
               border: "2px solid rgba(255,255,255,0.85)",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.45)",
+              boxShadow: hovered || selected ? "0 0 22px 6px rgba(255,243,214,0.85), 0 4px 16px rgba(0,0,0,0.45)" : "0 4px 16px rgba(0,0,0,0.45)",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              transition: "box-shadow 0.2s ease, transform 0.2s ease",
+              transform: hovered || selected ? "scale(1.12)" : "scale(1)",
               animationDelay: `${(seed % 700) / 100}s`,
               ...(hovered || selected ? { opacity: 1, animationPlayState: "paused" as const } : {}),
             }}
@@ -1136,7 +1181,8 @@ function OrbitSatelliteMarker({
             <img
               src={post.photo_url}
               alt={post.title ?? ""}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              draggable={false}
+              style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
             />
           </div>
         </Html>
@@ -1581,8 +1627,19 @@ function SelectedPostPanel({ post, onClose }: { post: FeedPost; onClose: () => v
       <button type="button" onClick={onClose} className="absolute right-3 top-3 text-sm text-white/60 hover:text-white" aria-label="닫기">
         ✕
       </button>
-      <p className="text-[11px] uppercase tracking-wide text-white/50">{post.board_name}</p>
-      <h3 className="mt-1 text-lg font-medium">{post.title || "제목 없음"}</h3>
+      <div className="flex gap-3">
+        {/* HOTFIX(사용자 지시 — "클릭되면, 그 게시물의 썸네일과 제목을
+            보이게 해줘"): 기존엔 제목/본문 요약 텍스트만 있고 정작
+            썸네일 이미지가 빠져 있었다. */}
+        {post.photo_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={post.photo_url} alt={post.title ?? ""} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+        )}
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-wide text-white/50">{post.board_name}</p>
+          <h3 className="mt-1 text-lg font-medium">{post.title || "제목 없음"}</h3>
+        </div>
+      </div>
       <p className="mt-2 min-h-[2.5em] text-sm text-white/75">{excerpt ?? "불러오는 중..."}</p>
       {post.board_slug && (
         <a href={`/boards/${post.board_slug}/${post.slug}`} className="mt-3 inline-block text-sm text-amber-200 hover:underline">

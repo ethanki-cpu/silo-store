@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { inputClass, primaryButtonClass, smallButtonClass } from "../shared";
 import { LivePreviewFrame } from "@/components/admin/LivePreviewFrame";
 import { DragValueSlider } from "@/components/admin/DragValueSlider";
+import { CraftFooterEditor } from "@/components/admin/craft/CraftFooterEditor";
 import {
   TAB_HOVER_MOTIONS,
   TAB_HOVER_MOTION_LABELS,
@@ -310,7 +311,60 @@ export default function AdminNavigationSettingsPage() {
   // 프리뷰가 더 크게 뜨게 해"): 4개 섹션을 전부 세로로 쌓아 보여주던
   // 것에서, 좌측 섹션 목록 → 클릭한 섹션 하나만 편집 폼으로 보여주는
   // 구조로 전환 — 나머지 폭을 우측 프리뷰에 더 크게 내줄 수 있다.
-  const [activeSection, setActiveSection] = useState<"logo" | "slideshow" | "sidebarIcons" | "topTabs">("logo");
+  const [activeSection, setActiveSection] = useState<"logo" | "slideshow" | "sidebarIcons" | "topTabs" | "footer">("logo");
+
+  // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 '하단메뉴관리'를 병합해줘"):
+  // /admin/footer/page.tsx와 동일한 로드/생성 로직 — footer는 URL을 가진
+  // 실제 페이지가 아니라 page_builder(slug="footer") 행 하나만 쓰는
+  // 전역 레이아웃 조각이라 그대로 재사용한다. 처음 "하단 메뉴" 섹션을
+  // 클릭했을 때만(lazy) 불러온다.
+  const [footerPageId, setFooterPageId] = useState<string | null>(null);
+  const [footerCraftState, setFooterCraftState] = useState<string | null>(null);
+  const [footerLoading, setFooterLoading] = useState(false);
+  const [footerError, setFooterError] = useState<string | null>(null);
+
+  async function loadFooter() {
+    setFooterLoading(true);
+    setFooterError(null);
+    const { data: existing, error: fetchError } = await supabase
+      .from("page_builder")
+      .select("id, craft_state")
+      .eq("slug", "footer")
+      .maybeSingle();
+
+    if (fetchError) {
+      setFooterError(fetchError.message);
+      setFooterLoading(false);
+      return;
+    }
+    if (existing) {
+      setFooterPageId(existing.id);
+      setFooterCraftState(existing.craft_state ?? null);
+      setFooterLoading(false);
+      return;
+    }
+    const { data: created, error: createError } = await supabase
+      .from("page_builder")
+      .insert({ slug: "footer", title: "하단 Footer", status: "published", builder_type: "craft" })
+      .select("id, craft_state")
+      .single();
+    if (createError) {
+      setFooterError(createError.message);
+      setFooterLoading(false);
+      return;
+    }
+    setFooterPageId(created.id);
+    setFooterCraftState(created.craft_state ?? null);
+    setFooterLoading(false);
+  }
+
+  function handleSelectSection(key: typeof activeSection) {
+    setActiveSection(key);
+    if (key === "footer" && footerPageId === null && !footerLoading) {
+      loadFooter();
+    }
+  }
+
   const [mainLogo, setMainLogo] = useState<MainLogoValue>(DEFAULT_MAIN_LOGO);
   const [heroSlideshow, setHeroSlideshow] = useState<HeroSlideshowValue>(
     defaultHeroSlideshowValue(),
@@ -597,7 +651,38 @@ export default function AdminNavigationSettingsPage() {
     { key: "slideshow", label: "슬라이드쇼", hint: "홈페이지 히어로 슬라이드" },
     { key: "sidebarIcons", label: "사이드바 아이콘", hint: "좌/우 여닫이 버튼 아이콘" },
     { key: "topTabs", label: "상단 탭 디자인", hint: "탭 배치·서체·hover 모션" },
+    { key: "footer", label: "하단 메뉴 관리", hint: "Craft 에디터로 전체화면 편집" },
   ];
+
+  // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 '하단메뉴관리'를 병합해줘"):
+  // Footer는 이미 자체 Craft 에디터가 fixed 전체화면 오버레이라(원래
+  // /admin/footer 페이지가 그것만 렌더링했음) 나머지 3단 레이아웃 대신
+  // 그 에디터 하나로 화면 전체를 교체한다 — 닫으면 이 페이지의 "메인
+  // 로고" 섹션으로 돌아간다(원래는 /admin/site-structure로 이동했었음).
+  if (activeSection === "footer") {
+    if (footerLoading || (!footerPageId && !footerError)) {
+      return (
+        <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
+          <p className="text-gray-500">하단 메뉴를 불러오는 중...</p>
+        </main>
+      );
+    }
+    if (footerError || !footerPageId) {
+      return (
+        <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
+          <p className="text-red-600">{footerError ?? "하단 Footer 페이지를 불러오지 못했어요."}</p>
+        </main>
+      );
+    }
+    return (
+      <CraftFooterEditor
+        pageId={footerPageId}
+        initialState={footerCraftState}
+        onClose={() => setActiveSection("logo")}
+        onSaved={() => loadFooter()}
+      />
+    );
+  }
 
   return (
     <main className="flex-1 px-8 pb-8 max-w-[1600px] mx-auto w-full">
@@ -616,7 +701,7 @@ export default function AdminNavigationSettingsPage() {
             <button
               key={s.key}
               type="button"
-              onClick={() => setActiveSection(s.key)}
+              onClick={() => handleSelectSection(s.key)}
               className={`block w-full rounded-lg border px-3 py-2 text-left transition ${
                 activeSection === s.key
                   ? "border-gray-800 bg-gray-900 text-white shadow"
@@ -1407,7 +1492,7 @@ export default function AdminNavigationSettingsPage() {
             크게 뜨게 해"): 기존 380px 세로 스택(PC 위/모바일 아래, 각각
             작은 상자)을 훨씬 넓은 가로 배치로 키웠다 — DEVICE_PRESETS의
             boxWidth 자체도 LivePreviewFrame.tsx에서 함께 키움. */}
-        <aside className="sticky top-6 hidden w-[720px] shrink-0 2xl:block">
+        <aside className="sticky top-6 hidden w-[640px] shrink-0 xl:block">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium text-gray-600">실시간 미리보기 (실제 홈페이지)</p>
             <button
@@ -1415,23 +1500,24 @@ export default function AdminNavigationSettingsPage() {
               onClick={() => setPreviewRefreshKey((k) => k + 1)}
               className="text-xs text-gray-500 hover:underline"
             >
-              ↻ 새로고침
+              ↻ 처음부터 다시 불러오기
             </button>
           </div>
           <p className="mb-3 text-xs text-gray-400">
-            아래는 실제 배포되는 홈페이지를 그대로 축소해 보여줘요 — 100% 실제
-            화면이라 어떤 설정이든 정확히 반영돼요. 단, 타이핑 중인 값이 아니라
-            &quot;저장하기&quot;를 누른 값을 보여주므로(브라우저가 아니라 DB를
-            읽는 실제 페이지라서), 저장할 때마다 자동으로 새로고침돼요.
+            실제 Navbar를 그대로 iframe으로 띄운 화면이에요 — 메인 로고/사이드바
+            아이콘/상단 탭 디자인은 타이핑하는 즉시 반영돼요(저장 전이라도).
+            슬라이드쇼는 홈페이지가 Craft 편집기로 별도 관리돼서 이 미리보기에는
+            반영되지 않을 수 있어요 — 그럴 땐 &quot;페이지 수정&quot;(홈페이지
+            우측 상단)에서 직접 편집해 주세요.
           </p>
           <div className="flex items-start gap-4">
             <div>
               <p className="mb-1 text-xs font-medium text-gray-500">PC</p>
-              <LivePreviewFrame device="pc" refreshKey={previewRefreshKey} />
+              <LivePreviewFrame device="pc" refreshKey={previewRefreshKey} overrides={{ mainLogo, sidebarIcons, topTabStyle }} />
             </div>
             <div>
               <p className="mb-1 text-xs font-medium text-gray-500">모바일</p>
-              <LivePreviewFrame device="mobile" refreshKey={previewRefreshKey} />
+              <LivePreviewFrame device="mobile" refreshKey={previewRefreshKey} overrides={{ mainLogo, sidebarIcons, topTabStyle }} />
             </div>
           </div>
         </aside>

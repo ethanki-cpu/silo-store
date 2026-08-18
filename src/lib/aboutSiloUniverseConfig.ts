@@ -33,6 +33,16 @@ export type UniverseObject = {
   link: string;
 };
 
+// HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할 수 있는
+// 게 없네, 예를 들어 별, 은하수, 별똥별, asteroid 등등 우주에 있는
+// 것들 말이야. 추가해줘"): 행성 표면에 "중력"으로 붙는 UniverseObject와
+//달리, 이 오브젝트들은 두 행성 사이 우주 공간에 자유롭게 떠 있다 —
+// kind가 "model"이면 .glb 3D 모델(asteroid 등, useGLTF로 로드), "sprite"
+// 면 항상 카메라를 향하는 이미지 빌보드(별/은하수/별똥별 등, 사진 한 장
+// 이면 충분한 것들). 나머지 필드는 UniverseObject와 동일한 구조를
+// 공유해 ObjectInspectorPanel/ObjectInfoCard를 그대로 재사용한다.
+export type SpaceObject = UniverseObject & { kind: "model" | "sprite" };
+
 // HOTFIX-123: 행성 하나가 갖는 설정 묶음 — SILO/유저 행성이 동일한 구조를
 // 공유한다(사용자 지시 — "그냥 SILO 행성 설정과 똑같이").
 export type PlanetConfig = {
@@ -79,6 +89,11 @@ export type UniverseConfig = {
     user: PlanetConfig;
   };
 
+  // HOTFIX(사용자 지시 — "별, 은하수, 별똥별, asteroid 등등 우주에
+  // 있는 것들"): 어느 행성에도 속하지 않는, 우주 공간에 자유롭게
+  // 떠 있는 오브젝트.
+  spaceObjects: SpaceObject[];
+
   // 자동 저장.
   autoSaveEnabled: boolean;
 };
@@ -121,6 +136,7 @@ export function defaultUniverseConfig(): UniverseConfig {
       silo: defaultPlanetConfig("SILO", "#e3a874"),
       user: defaultPlanetConfig("My Page", "#c3d8b8"),
     },
+    spaceObjects: [],
     autoSaveEnabled: true,
   };
 }
@@ -182,5 +198,11 @@ export function normalizeUniverseConfig(raw: unknown): UniverseConfig {
       silo: normalizePlanetConfig(legacySilo ?? planetsRaw.silo, defaults.planets.silo),
       user: normalizePlanetConfig(planetsRaw.user, defaults.planets.user),
     },
+    spaceObjects: Array.isArray(value.spaceObjects)
+      ? value.spaceObjects.map((o: unknown) => ({
+          ...normalizeObject(o),
+          kind: (o as Partial<SpaceObject>)?.kind === "sprite" ? "sprite" : "model",
+        }))
+      : defaults.spaceObjects,
   };
 }

@@ -11,7 +11,8 @@
 // 행성에 속하지 않는 "전체 우주 공통" 설정만 남긴다 — 배경(유튜브/프리셋),
 // 연결선 색, 공전 속도, 기본 카테고리 마커 모양, 저장/자동저장.
 import { useState } from "react";
-import type { UniverseConfig } from "@/lib/aboutSiloUniverseConfig";
+import { uploadFile } from "@/lib/storage";
+import type { UniverseConfig, SpaceObject } from "@/lib/aboutSiloUniverseConfig";
 
 const ROW = "flex items-center gap-1.5";
 const INPUT = "min-w-0 flex-1 rounded border border-white/15 bg-black/30 px-1.5 py-1 text-[11px] text-white placeholder:text-white/30";
@@ -26,14 +27,48 @@ export function UniverseSettingsPanel({
   onSave,
   saving,
   savedAt,
+  failedSpaceObjectIds,
+  onSelectSpaceObjectId,
 }: {
   config: UniverseConfig;
   onChange: (patch: Partial<UniverseConfig>) => void;
   onSave: () => void;
   saving: boolean;
   savedAt: number | null;
+  // HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할 수
+  // 있는 게 없네... 별, 은하수, 별똥별, asteroid 등등"): 어느 행성에도
+  // 속하지 않는 우주 공간 오브젝트 — 로드 실패 표시 + 3D 뷰 선택 연동.
+  failedSpaceObjectIds: Set<string>;
+  onSelectSpaceObjectId: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [uploadingSpaceField, setUploadingSpaceField] = useState<"model" | "sprite" | null>(null);
+
+  function addSpaceObject(kind: SpaceObject["kind"], url: string) {
+    const obj: SpaceObject = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      url,
+      kind,
+      scale: 0.3,
+      label: `우주 오브젝트 ${config.spaceObjects.length + 1}`,
+      position: null,
+      thumbnailUrl: "",
+      summary: "",
+      link: "",
+    };
+    onChange({ spaceObjects: [...config.spaceObjects, obj] });
+  }
+  function removeSpaceObject(id: string) {
+    onChange({ spaceObjects: config.spaceObjects.filter((o) => o.id !== id) });
+  }
+  async function handleSpaceUpload(kind: SpaceObject["kind"], file: File | null) {
+    if (!file) return;
+    setUploadingSpaceField(kind);
+    const bucket = kind === "sprite" ? "gallery" : "attachments";
+    const { url, error } = await uploadFile(file, bucket, "about-silo-universe-space");
+    setUploadingSpaceField(null);
+    if (!error && url) addSpaceObject(kind, url);
+  }
 
   function updateYoutubeUrl(index: number, value: string) {
     const next = [...config.youtubeUrls];
@@ -177,6 +212,63 @@ export function UniverseSettingsPanel({
               onChange={(e) => onChange({ lineColor: e.target.value })}
             />
             <input className={INPUT} value={config.lineColor} onChange={(e) => onChange({ lineColor: e.target.value })} />
+          </div>
+        </section>
+
+        {/* HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할
+            수 있는 게 없네, 예를 들어 별, 은하수, 별똥별, asteroid
+            등등 우주에 있는 것들 말이야"): 어느 행성에도 속하지 않고
+            두 행성 사이 우주 공간에 자유롭게 떠 있는 오브젝트 — 3D 모델
+            (소행성 등)이나 이미지(별/은하수/별똥별 등 카메라를 향하는
+            빌보드) 중 골라 업로드한다. */}
+        <section>
+          <p className={SECTION_TITLE}>우주 공간 오브젝트({config.spaceObjects.length}개)</p>
+          <p className="mb-1 text-[10px] text-white/40">
+            별/은하수/별똥별/소행성 등 — 어느 행성에도 속하지 않고 두 행성 사이 우주에 자유롭게 떠 있어요. 3D 화면에서
+            클릭하면 선택되고, 파란 화살표로 드래그해 어디로든 옮길 수 있어요(표면 고정 없음).
+          </p>
+          <div className="space-y-1">
+            {config.spaceObjects.map((obj) => (
+              <div key={obj.id}>
+                <div className={ROW}>
+                  <button
+                    type="button"
+                    className="flex-1 truncate rounded border border-white/15 bg-black/20 px-1.5 py-1 text-left text-[11px] text-white hover:bg-white/10"
+                    onClick={() => onSelectSpaceObjectId(obj.id)}
+                  >
+                    {obj.kind === "sprite" ? "✨" : "🪨"} {obj.label}
+                  </button>
+                  <button type="button" className={BTN} onClick={() => removeSpaceObject(obj.id)}>
+                    삭제
+                  </button>
+                </div>
+                {failedSpaceObjectIds.has(obj.id) && (
+                  <p className="mt-0.5 text-[10px] text-red-300">⚠ 로드 실패 — URL이 올바른 공개 링크인지 확인하세요.</p>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-1 grid grid-cols-2 gap-1.5">
+            <label className={`${BTN} block cursor-pointer text-center`}>
+              {uploadingSpaceField === "model" ? "업로드 중..." : "🪨 소행성(.glb) 추가"}
+              <input
+                type="file"
+                accept=".glb,.gltf"
+                className="hidden"
+                disabled={uploadingSpaceField !== null}
+                onChange={(e) => handleSpaceUpload("model", e.target.files?.[0] ?? null)}
+              />
+            </label>
+            <label className={`${BTN} block cursor-pointer text-center`}>
+              {uploadingSpaceField === "sprite" ? "업로드 중..." : "✨ 별/은하수 이미지 추가"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploadingSpaceField !== null}
+                onChange={(e) => handleSpaceUpload("sprite", e.target.files?.[0] ?? null)}
+              />
+            </label>
           </div>
         </section>
 

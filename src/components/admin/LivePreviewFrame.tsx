@@ -9,32 +9,68 @@
 // 미리보기를 따라 그려주는 대신, 실제 배포되는 홈페이지("/")를 그대로
 // iframe으로 띄우고 CSS transform: scale()로 축소해 PC/모바일 두 크기를
 // 보여준다 — 100% 실제 렌더링이라 "미리보기에는 안 보이는데 실제로는
-// 반영된 설정"이 구조적으로 생길 수 없다. 트레이드오프: DB에 저장된
-// 값을 읽는 실제 페이지이므로 "저장하기"를 누르기 전 타이핑 중인 값은
-// 반영되지 않는다 — 대신 저장 성공 시 refreshKey를 올려 iframe을 새로
-// 불러오는 방식으로(각 섹션의 handleSave 참고) "저장할 때마다 바로
-// 갱신"되는 정도의 실시간성은 유지한다.
-// HOTFIX(사용자 지시 — "오른쪽에 데스크탑과 모바일 프리뷰가 더 크게
-// 뜨게 해"): 기존 340/220px 상자는 새 3단 레이아웃(좌측 섹션 목록+가운데
-// 편집 폼+우측 프리뷰)에서 남는 공간에 비해 너무 작았다 — boxWidth를
-// 키워 실제로 내용을 알아볼 수 있는 크기로.
+// 반영된 설정"이 구조적으로 생길 수 없다.
+//
+// HOTFIX(사용자 신고 — "홈페이지 설정관리에 프리뷰가 안 나오는데? PC와
+// 모바일 버전 실시간으로 보이게 해줘"): EPIC-118 당시엔 "저장하기"를
+// 눌러야만(DB에 실제로 반영된 뒤) iframe이 새로고침되는 방식이었다 —
+// 이번엔 타이핑하는 즉시 반영되는 진짜 실시간 미리보기로 업그레이드.
+// `overrides`를 넘기면 iframe URL에 `__adminPreview=1`을 붙이고,
+// Navbar.tsx가 그 파라미터를 보고 postMessage로 오는 값을 DB 조회
+// 대신 즉시 적용한다(그 파라미터가 없는 일반 방문자에게는 완전히
+// no-op). iframe이 처음 로드되거나 새로고침(refreshKey 변경)될 때마다
+// "ready" 메시지를 보내오면 그 시점의 최신 overrides를 보내주고, 그
+// 후로도 overrides가 바뀔 때마다(=타이핑할 때마다) 다시 보낸다 — "저장
+// 하기"를 누르지 않아도 실시간으로 보인다. 기존 저장 시 refreshKey로
+// iframe을 통째로 새로고침하는 동작은 그대로 유지(실제 DB 반영 여부를
+// 눈으로 재확인하는 "새로고침" 버튼 용도로 남겨둠).
+import { useEffect, useRef } from "react";
+
 const DEVICE_PRESETS = {
-  pc: { width: 1280, height: 900, boxWidth: 440 },
-  mobile: { width: 390, height: 844, boxWidth: 240 },
+  pc: { width: 1280, height: 900, boxWidth: 420 },
+  mobile: { width: 390, height: 844, boxWidth: 200 },
 } as const;
+
+const PREVIEW_MESSAGE_TYPE = "silo-admin-preview-override";
+const PREVIEW_READY_TYPE = "silo-admin-preview-ready";
 
 export function LivePreviewFrame({
   device,
   refreshKey,
   path = "/",
+  overrides,
 }: {
   device: keyof typeof DEVICE_PRESETS;
   refreshKey: number;
   path?: string;
+  /** 저장 전, 지금 타이핑 중인 값 — 넘기면 실시간 미리보기 모드로 동작한다. */
+  overrides?: Record<string, unknown>;
 }) {
   const preset = DEVICE_PRESETS[device];
   const scale = preset.boxWidth / preset.width;
   const boxHeight = Math.round(preset.height * scale);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const previewSrc = overrides ? `${path}${path.includes("?") ? "&" : "?"}__adminPreview=1` : path;
+
+  useEffect(() => {
+    if (!overrides) return;
+    function post() {
+      const win = iframeRef.current?.contentWindow;
+      if (!win) return;
+      win.postMessage({ type: PREVIEW_MESSAGE_TYPE, ...overrides }, window.location.origin);
+    }
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if ((event.data as { type?: string } | null)?.type === PREVIEW_READY_TYPE) post();
+    }
+    window.addEventListener("message", handleMessage);
+    // 이미 로드가 끝난 뒤(ready 신호를 놓친 뒤) overrides만 바뀐 경우
+    // (타이핑 중)에도 즉시 반영되도록 매번 한 번 더 보낸다.
+    post();
+    return () => window.removeEventListener("message", handleMessage);
+  }, [overrides]);
 
   return (
     <div
@@ -42,8 +78,9 @@ export function LivePreviewFrame({
       style={{ width: preset.boxWidth, height: boxHeight }}
     >
       <iframe
+        ref={iframeRef}
         key={refreshKey}
-        src={path}
+        src={previewSrc}
         title={`${device} 미리보기`}
         style={{
           width: preset.width,

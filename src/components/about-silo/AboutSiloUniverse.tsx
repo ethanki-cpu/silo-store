@@ -65,6 +65,7 @@ import {
   type PlanetConfig,
   type UniverseConfig,
   type UniverseObject,
+  type SpaceObject,
 } from "@/lib/aboutSiloUniverseConfig";
 import { YoutubeBackground } from "./YoutubeBackground";
 import { PresetBackground } from "./PresetBackground";
@@ -670,6 +671,210 @@ function UniverseObjectsLayer({
                 onSelect={() => onSelectObject(obj.id)}
                 registerRef={(g) => registerObjectRef(obj.id, g)}
               />
+            </Suspense>
+          </AssetLoadErrorBoundary>
+        );
+      })}
+    </>
+  );
+}
+
+// ============================================================
+// 우주 공간 오브젝트 — HOTFIX(사용자 지시 — "universe setting에서
+// 오브제를 업로드할 수 있는 게 없네, 예를 들어 별, 은하수, 별똥별,
+// asteroid 등등 우주에 있는 것들 말이야"): 행성 표면 오브젝트와 달리
+// 어느 행성에도 속하지 않고 "중력" 없이 두 행성 사이 우주 공간에
+// 자유롭게 떠 있다. kind가 "model"이면 .glb(소행성 등), "sprite"면
+// 항상 카메라를 바라보는 이미지 빌보드(별/은하수/별똥별 등 사진 한 장
+// 이면 충분한 것들).
+// ============================================================
+
+function hashRandom01(i: number): number {
+  const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// 두 행성 중간 지점을 중심으로 넓게 흩뿌린다 — id 문자열을 해시해 시드로
+// 쓰므로, position이 없는 한(드래그해 옮기기 전) 같은 오브젝트는 항상
+// 같은 자리에 뜬다(새로고침해도 흩어진 자리가 바뀌지 않도록).
+function spaceObjectDefaultPosition(id: string): [number, number, number] {
+  let seed = 0;
+  for (let i = 0; i < id.length; i++) seed = (seed * 31 + id.charCodeAt(i)) % 100000;
+  const theta = hashRandom01(seed) * Math.PI * 2;
+  const phi = Math.acos(2 * hashRandom01(seed + 1) - 1);
+  const radius = 7 + hashRandom01(seed + 2) * 9;
+  const center = SILO_CENTER.clone().add(USER_CENTER).multiplyScalar(0.5);
+  return [
+    center.x + radius * Math.sin(phi) * Math.cos(theta),
+    center.y + radius * Math.cos(phi) * 0.4,
+    center.z + radius * Math.sin(phi) * Math.sin(theta),
+  ];
+}
+
+function SpaceObjectGlow({ boundingRadius }: { boundingRadius: number }) {
+  const glowRef = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!glowRef.current) return;
+    const pulse = 0.75 + Math.sin(clock.getElapsedTime() * 2.6) * 0.25;
+    glowRef.current.scale.setScalar(pulse);
+    (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.35 + pulse * 0.25;
+  });
+  return (
+    <mesh ref={glowRef}>
+      <sphereGeometry args={[boundingRadius * 1.6, 16, 16]} />
+      <meshBasicMaterial
+        color="#a8d8ff"
+        transparent
+        opacity={0.5}
+        toneMapped={false}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+  );
+}
+
+function SpaceObjectModel({
+  obj,
+  position,
+  selected,
+  onSelect,
+  registerRef,
+}: {
+  obj: SpaceObject;
+  position: [number, number, number];
+  selected: boolean;
+  onSelect: () => void;
+  registerRef: (group: THREE.Group | null) => void;
+}) {
+  const { scene } = useGLTF(obj.url);
+  const { normalized, centerOffset, boundingRadius } = useMemo(() => {
+    const clone = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(clone);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
+    const targetSize = 0.45;
+    clone.scale.setScalar(targetSize / maxDim);
+    const rescaledBox = new THREE.Box3().setFromObject(clone);
+    const rescaledSize = rescaledBox.getSize(new THREE.Vector3());
+    const center = rescaledBox.getCenter(new THREE.Vector3());
+    return {
+      normalized: clone,
+      centerOffset: [-center.x, -center.y, -center.z] as [number, number, number],
+      boundingRadius: Math.max(rescaledSize.x, rescaledSize.y, rescaledSize.z, 0.2) * 0.65,
+    };
+  }, [scene]);
+
+  // 소행성처럼 천천히 스스로 굴러가는(자전) 느낌 — 행성 자전과 무관하게
+  // 각 오브젝트가 독립적으로 아주 느리게 돈다.
+  const spinRef = useRef<THREE.Group>(null);
+  const spinSeed = useMemo(() => hashRandom01(obj.id.length + obj.id.charCodeAt(0)), [obj.id]);
+  useFrame((_, delta) => {
+    if (spinRef.current) {
+      spinRef.current.rotation.y += delta * (0.03 + spinSeed * 0.04);
+      spinRef.current.rotation.x += delta * (0.015 + spinSeed * 0.02);
+    }
+  });
+
+  return (
+    <group
+      ref={registerRef}
+      position={position}
+      scale={obj.scale}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => (document.body.style.cursor = "pointer")}
+      onPointerOut={() => (document.body.style.cursor = "auto")}
+    >
+      <group ref={spinRef}>
+        <primitive object={normalized} position={centerOffset} />
+      </group>
+      {selected && <SpaceObjectGlow boundingRadius={boundingRadius} />}
+    </group>
+  );
+}
+
+function SpaceObjectSprite({
+  obj,
+  position,
+  selected,
+  onSelect,
+  registerRef,
+}: {
+  obj: SpaceObject;
+  position: [number, number, number];
+  selected: boolean;
+  onSelect: () => void;
+  registerRef: (group: THREE.Group | null) => void;
+}) {
+  const texture = useTexture(obj.url);
+  const materialRef = useRef<THREE.SpriteMaterial>(null);
+  const seed = useMemo(() => {
+    let h = 0;
+    for (let i = 0; i < obj.id.length; i++) h = (h * 31 + obj.id.charCodeAt(i)) % 1000;
+    return h;
+  }, [obj.id]);
+  // 별/은하수/별똥별 등은 반짝이는 편이 그 의미가 잘 살아서(사용자 지시
+  // — 다른 반짝이는 오브젝트들과 동일한 트윙클 언어) 밝기를 사인파로
+  // 맥동시킨다.
+  useFrame(({ clock }) => {
+    if (!materialRef.current) return;
+    const t = clock.getElapsedTime();
+    materialRef.current.opacity = 0.7 + Math.sin(t * 1.4 + seed) * 0.3;
+  });
+
+  const baseScale = obj.scale * 3;
+  return (
+    <group
+      ref={registerRef}
+      position={position}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => (document.body.style.cursor = "pointer")}
+      onPointerOut={() => (document.body.style.cursor = "auto")}
+    >
+      <sprite scale={[baseScale, baseScale, 1]}>
+        <spriteMaterial ref={materialRef} map={texture} transparent toneMapped={false} depthWrite={false} />
+      </sprite>
+      {selected && <SpaceObjectGlow boundingRadius={baseScale * 0.5} />}
+    </group>
+  );
+}
+
+function SpaceObjectsLayer({
+  objects,
+  selectedId,
+  onSelect,
+  onError,
+  registerRef,
+}: {
+  objects: SpaceObject[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onError: (id: string) => void;
+  registerRef: (id: string, group: THREE.Group | null) => void;
+}) {
+  if (objects.length === 0) return null;
+  return (
+    <>
+      {objects.map((obj) => {
+        const position = obj.position ?? spaceObjectDefaultPosition(obj.id);
+        const shared = {
+          obj,
+          position,
+          selected: selectedId === obj.id,
+          onSelect: () => onSelect(obj.id),
+          registerRef: (g: THREE.Group | null) => registerRef(obj.id, g),
+        };
+        return (
+          <AssetLoadErrorBoundary key={obj.id} fallback={null} onError={() => onError(obj.id)}>
+            <Suspense fallback={null}>
+              {obj.kind === "sprite" ? <SpaceObjectSprite {...shared} /> : <SpaceObjectModel {...shared} />}
             </Suspense>
           </AssetLoadErrorBoundary>
         );
@@ -1460,6 +1665,11 @@ function Scene({
   onSelectObject,
   objectRefs,
   onObjectMoved,
+  spaceObjects,
+  selectedSpaceObjectId,
+  onSelectSpaceObject,
+  onSpaceObjectError,
+  onSpaceObjectMoved,
 }: {
   siloPosts: FeedPost[];
   userPosts: FeedPost[];
@@ -1477,16 +1687,28 @@ function Scene({
   onSelectObject: (planetId: PlanetId, id: string) => void;
   objectRefs: RefObject<Map<string, THREE.Group>>;
   onObjectMoved: (planetId: PlanetId, id: string, position: [number, number, number]) => void;
+  spaceObjects: SpaceObject[];
+  selectedSpaceObjectId: string | null;
+  onSelectSpaceObject: (id: string) => void;
+  onSpaceObjectError: (id: string) => void;
+  onSpaceObjectMoved: (id: string, position: [number, number, number]) => void;
 }) {
   const router = useRouter();
 
   const selectedRadius = selectedPlanetId === "user" ? USER_SURFACE_RADIUS : SILO_SURFACE_RADIUS;
-  const selectedKey = selectedObjectId && selectedPlanetId ? `${selectedPlanetId}:${selectedObjectId}` : null;
+  const selectedKey = selectedObjectId && selectedPlanetId
+    ? `${selectedPlanetId}:${selectedObjectId}`
+    : selectedSpaceObjectId
+      ? `space:${selectedSpaceObjectId}`
+      : null;
   // EPIC-121: 선택된 오브젝트의 실제 THREE.Group을 TransformControls에
   // 붙인다 — objectRefs는 UniverseObjectsLayer가 커밋 시점에 채우므로
   // (렌더 중이 아니라 클릭 이벤트 핸들러에서 읽으므로) react-hooks/refs
   // 위반 없이 안전하다.
   const selectedGroup = selectedKey ? objectRefs.current.get(selectedKey) ?? null : null;
+  // HOTFIX: 우주 공간 오브젝트는 "중력"(표면 스냅)이 없다 — 자유롭게
+  // 아무 곳으로나 드래그할 수 있다.
+  const isSpaceSelection = selectedSpaceObjectId !== null;
 
   return (
     <>
@@ -1540,19 +1762,40 @@ function Scene({
           // 구면 위로 위치를 투영하고 방향을 그 지점 법선에 맞춰, 표면을
           // 따라 미끄러지듯 이동하는 느낌을 준다. 오브젝트가 이제 행성의
           // 자전 그룹 안에 중첩돼 있어 .position은 이미 행성 로컬 좌표다.
-          onChange={() => {
-            const normal = selectedGroup.position.clone().normalize();
-            selectedGroup.position.copy(normal.clone().multiplyScalar(selectedRadius));
-            selectedGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-          }}
+          // 우주 공간 오브젝트는 중력이 없어 자유롭게 어디로든 옮길 수
+          // 있으므로 이 보정을 건너뛴다.
+          onChange={
+            isSpaceSelection
+              ? undefined
+              : () => {
+                  const normal = selectedGroup.position.clone().normalize();
+                  selectedGroup.position.copy(normal.clone().multiplyScalar(selectedRadius));
+                  selectedGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+                }
+          }
           onMouseUp={() => {
             if (cameraControlsRef.current) cameraControlsRef.current.enabled = true;
-            if (selectedObjectId && selectedPlanetId) {
-              onObjectMoved(selectedPlanetId, selectedObjectId, selectedGroup.position.toArray() as [number, number, number]);
+            const finalPosition = selectedGroup.position.toArray() as [number, number, number];
+            if (isSpaceSelection && selectedSpaceObjectId) {
+              onSpaceObjectMoved(selectedSpaceObjectId, finalPosition);
+            } else if (selectedObjectId && selectedPlanetId) {
+              onObjectMoved(selectedPlanetId, selectedObjectId, finalPosition);
             }
           }}
         />
       )}
+
+      <SpaceObjectsLayer
+        objects={spaceObjects}
+        selectedId={selectedSpaceObjectId}
+        onSelect={onSelectSpaceObject}
+        onError={onSpaceObjectError}
+        registerRef={(id, g) => {
+          const key = `space:${id}`;
+          if (g) objectRefs.current.set(key, g);
+          else objectRefs.current.delete(key);
+        }}
+      />
 
       <PlanetSatellites
         posts={siloPosts}
@@ -1773,6 +2016,37 @@ export function AboutSiloUniverse() {
     updateObject(planetId, id, { position });
   }
 
+  // HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할 수
+  // 있는 게 없네... 별, 은하수, 별똥별, asteroid 등등"): 어느 행성에도
+  // 속하지 않는 우주 공간 오브젝트 — 선택 상태는 행성 오브젝트/게시글
+  // 선택과 서로 배타적이다.
+  const [selectedSpaceObjectId, setSelectedSpaceObjectId] = useState<string | null>(null);
+  function handleSelectSpaceObject(id: string) {
+    setSelectedSpaceObjectId(id);
+    setSelectedObjectId(null);
+    setSelectedPlanetId(null);
+    setSelectedPost(null);
+  }
+  function handleSpaceObjectError(id: string) {
+    const key = `space:${id}`;
+    setFailedObjectIds((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  }
+  function updateSpaceObject(id: string, patch: Partial<SpaceObject>) {
+    setPanelConfig((prev) => ({
+      ...prev,
+      spaceObjects: prev.spaceObjects.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    }));
+  }
+  function removeSelectedSpaceObject() {
+    if (!selectedSpaceObjectId) return;
+    const id = selectedSpaceObjectId;
+    setPanelConfig((prev) => ({ ...prev, spaceObjects: prev.spaceObjects.filter((o) => o.id !== id) }));
+    setSelectedSpaceObjectId(null);
+  }
+  function handleSpaceObjectMoved(id: string, position: [number, number, number]) {
+    updateSpaceObject(id, { position });
+  }
+
   const configRef = useRef(panelConfig);
   useEffect(() => {
     configRef.current = panelConfig;
@@ -1897,6 +2171,7 @@ export function AboutSiloUniverse() {
     setSelectedPost(null);
     setSelectedObjectId(null);
     setSelectedPlanetId(null);
+    setSelectedSpaceObjectId(null);
     cameraControlsRef.current?.setLookAt(
       HOME_CAMERA_POS.x, HOME_CAMERA_POS.y, HOME_CAMERA_POS.z,
       HOME_TARGET.x, HOME_TARGET.y, HOME_TARGET.z,
@@ -1904,10 +2179,31 @@ export function AboutSiloUniverse() {
     );
   }
 
-  const selectedObject =
+  function handleCloseObjectPanels() {
+    setSelectedObjectId(null);
+    setSelectedPlanetId(null);
+    setSelectedSpaceObjectId(null);
+  }
+
+  const selectedPlanetObject =
     selectedPlanetId && selectedObjectId
       ? panelConfig.planets[selectedPlanetId].objects.find((o) => o.id === selectedObjectId) ?? null
       : null;
+  const selectedSpaceObject = selectedSpaceObjectId
+    ? panelConfig.spaceObjects.find((o) => o.id === selectedSpaceObjectId) ?? null
+    : null;
+  // ObjectInfoCard/ObjectInspectorPanel은 행성 오브젝트든 우주 오브젝트든
+  // 구조가 같은 UniverseObject 모양이라 그대로 재사용한다 — onChange/
+  // onDelete만 어느 쪽이 선택됐는지에 따라 갈라 보낸다.
+  const selectedObject = selectedPlanetObject ?? selectedSpaceObject;
+  function handleSelectedObjectChange(patch: Partial<UniverseObject>) {
+    if (selectedPlanetObject && selectedPlanetId && selectedObjectId) updateObject(selectedPlanetId, selectedObjectId, patch);
+    else if (selectedSpaceObject && selectedSpaceObjectId) updateSpaceObject(selectedSpaceObjectId, patch);
+  }
+  function handleSelectedObjectDelete() {
+    if (selectedPlanetObject) removeSelectedObject();
+    else if (selectedSpaceObject) removeSelectedSpaceObject();
+  }
 
   const planetSettingsFailedIds = openPlanetSettings
     ? new Set(
@@ -1960,6 +2256,11 @@ export function AboutSiloUniverse() {
             onSelectObject={handleSelectObject}
             objectRefs={objectRefs}
             onObjectMoved={handleObjectMoved}
+            spaceObjects={panelConfig.spaceObjects}
+            selectedSpaceObjectId={selectedSpaceObjectId}
+            onSelectSpaceObject={handleSelectSpaceObject}
+            onSpaceObjectError={handleSpaceObjectError}
+            onSpaceObjectMoved={handleSpaceObjectMoved}
           />
         )}
       </Canvas>
@@ -1989,17 +2290,23 @@ export function AboutSiloUniverse() {
         )}
 
         {selectedPost && <SelectedPostPanel post={selectedPost} onClose={handleReset} />}
-        {selectedObject && (
-          <ObjectInfoCard
-            obj={selectedObject}
-            onClose={() => {
-              setSelectedObjectId(null);
-              setSelectedPlanetId(null);
-            }}
-          />
-        )}
+        {selectedObject && <ObjectInfoCard obj={selectedObject} onClose={handleCloseObjectPanels} />}
 
-        <UniverseSettingsPanel config={panelConfig} onChange={updatePanelConfig} onSave={handleSave} saving={saving} savedAt={savedAt} />
+        <UniverseSettingsPanel
+          config={panelConfig}
+          onChange={updatePanelConfig}
+          onSave={handleSave}
+          saving={saving}
+          savedAt={savedAt}
+          failedSpaceObjectIds={
+            new Set(
+              Array.from(failedObjectIds)
+                .filter((k) => k.startsWith("space:"))
+                .map((k) => k.slice("space:".length)),
+            )
+          }
+          onSelectSpaceObjectId={handleSelectSpaceObject}
+        />
 
         {openPlanetSettings && (
           <PlanetSettingsPanel
@@ -2017,15 +2324,12 @@ export function AboutSiloUniverse() {
           />
         )}
 
-        {selectedObject && selectedPlanetId && selectedObjectId && (
+        {selectedObject && (
           <ObjectInspectorPanel
             object={selectedObject}
-            onChange={(patch) => updateObject(selectedPlanetId, selectedObjectId, patch)}
-            onDelete={removeSelectedObject}
-            onClose={() => {
-              setSelectedObjectId(null);
-              setSelectedPlanetId(null);
-            }}
+            onChange={handleSelectedObjectChange}
+            onDelete={handleSelectedObjectDelete}
+            onClose={handleCloseObjectPanels}
             onSave={handleSave}
             saving={saving}
           />

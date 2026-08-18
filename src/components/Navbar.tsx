@@ -326,6 +326,33 @@ export function Navbar() {
     };
   }, []);
 
+  // HOTFIX(사용자 신고 — "홈페이지 설정관리에 프리뷰가 안 나오는데? PC와
+  // 모바일 버전 실시간으로 보이게 해줘"): /admin/navigation/settings의
+  // 미리보기 iframe이 URL에 `?__adminPreview=1`을 붙여 열렸을 때만,
+  // 부모 창(관리자 설정 페이지)이 postMessage로 보내는 "아직 저장하지
+  // 않은, 지금 타이핑 중인" 값으로 mainLogo/sidebarIcons/topTabStyle을
+  // 즉시 덮어쓴다 — DB 조회를 기다릴 필요 없이 실시간으로 반영된다. 이
+  // 쿼리 파라미터가 없으면(일반 방문자, 즉 사실상 항상) 이 effect는
+  // 완전히 no-op이라 실제 사이트 동작에는 아무 영향이 없다.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("__adminPreview") !== "1") return;
+
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as
+        | { type?: string; mainLogo?: MainLogoValue; sidebarIcons?: SidebarIconsValue; topTabStyle?: TopTabStyleValue }
+        | null;
+      if (!data || data.type !== "silo-admin-preview-override") return;
+      if (data.mainLogo) setMainLogo(data.mainLogo);
+      if (data.sidebarIcons) setSidebarIcons(data.sidebarIcons);
+      if (data.topTabStyle) setTopTabStyle(data.topTabStyle);
+    }
+    window.addEventListener("message", handleMessage);
+    window.parent.postMessage({ type: "silo-admin-preview-ready" }, window.location.origin);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
   // EPIC-054D(성능 감사 §12): Navbar는 mounted/navTabs/mainLogo/sidebarIcons
   // 등 여러 독립 state를 갖고 있어 어느 하나만 바뀌어도 전체가 리렌더된다 —
   // navTabs가 최대 ~96개 항목을 갖는 배열이라(§15) find/filter/map을 매

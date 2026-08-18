@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-18 (EPIC-130 — 사용자 메뉴(계정 영역) 디자인+hover 모션 설정 탭 + 모션 프리뷰 샘플)
+- **배경**: 사용자가 "'홈페이지 설정관리'에 맨 위의 '관리자, (회원 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의 디자인을 설정하는 또다른 탭을 만들어줘, 그리고 그 디자인의 모션에 대해서도 옵션을 줘. 상단 메뉴탭과 또 맨 위의 '사용자 메뉴'의 모션에 대한 옵션을 프리뷰 할 수 있는 샘플을 보여줘"라고 요청.
+- **사용자 메뉴 디자인**: Navbar 우측 상단 계정 영역(관리자 링크/멤버십 등급 버튼/마이페이지 링크/회원 이름 버튼/로그아웃·로그인 버튼 — 로그인 여부에 따라 갈리는 5개 항목 전부)에 공통으로 적용되는 서체/크기/굵기/색상 + hover 모션(기존 6종 프리셋 재사용) 설정을 신설. 신규 공용 lib `src/lib/accountMenuStyleSettings.ts`(다른 3개 설정과 동일하게 `{pc, mobile}` 독립 설정 지원, 관리자 페이지+Navbar.tsx 공유) + Navbar.tsx에 `silo-account-menu-item` 공유 클래스와 CSS 주입 로직(`topTabStyleCss`와 동일한 패턴) 추가. "홈페이지 설정 관리"에 6번째 좌측 섹션("사용자 메뉴 디자인")으로 노출, 기존 PC/모바일 토글 대상에 포함.
+- **모션 프리뷰 샘플**: 축소된 iframe 미리보기 안에서 정확히 마우스를 올려 hover 모션을 비교하기 번거롭다는 지적 — 신규 `src/components/admin/MotionPreviewSamples.tsx`: 6가지 프리셋을 나란히 놓고 바로 마우스를 올려볼 수 있는 스와치, `tabHoverMotion.ts`의 실제 CSS 생성 함수를 그대로 재사용해 실제 사이트와 100% 동일한 모션을 보여준다. "상단 탭 디자인"(탭별 hover 모션 선택 옆) + "사용자 메뉴 디자인" 두 곳 모두에 배치.
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors. 이번엔 세션 후반부에 Browser pane이 "not displayed"(`document.visibilityState`가 계속 "hidden") 상태가 되어 실제 화면 스크린샷 확인은 하지 못했다 — 대신 DOM 직접 조회로 `.silo-account-menu-item` 대상 CSS(`tabHoverMotionCss`가 생성한 골든 그라디언트 밑줄 규칙 등)가 `<header>`의 `<style>` 태그에 정확히 주입되는 것과, 계정 영역 컨테이너(`<div class="flex items-center gap-3 shrink-0 relative">`)가 예상된 위치에 존재하는 것까지는 확인했다 — 로그인 세션/데이터 로딩까지 포함한 완전한 실사용 확인은 다음 세션에서 필요.
+- **다음에 확인 필요**: 실제 로그인 상태에서 계정 영역 5개 항목에 hover했을 때 모션이 자연스럽게 보이는지, 모션 프리뷰 샘플의 실제 시각적 품질, PC/모바일 값이 계정 메뉴에서도 독립적으로 동작하는지.
+- **변경/신규 파일**: `src/app/admin/navigation/settings/page.tsx`, `src/components/Navbar.tsx`, `src/lib/accountMenuStyleSettings.ts`(신규), `src/components/admin/MotionPreviewSamples.tsx`(신규).
+
 ## 2026-08-18 (EPIC-129 — 홈페이지 설정 관리: 메인 로고/사이드바 아이콘/상단 탭 디자인 PC·모바일 독립 설정)
 - **배경**: 사용자가 "'홈페이지 설정 관리'에서 'pc 설정'과 '모바일 설정'이 따로 구분이 되게 해야지"라고 요구사항으로 명시.
 - **데이터 모델**: `hero_slideshow`가 이미 쓰고 있던 `{ pc, mobile }` 패턴(EPIC-092)을 메인 로고/사이드바 아이콘/상단 탭 디자인 3개 설정에도 동일하게 적용. 기존엔 이 3개 타입이 관리자 페이지와 `Navbar.tsx` 두 파일에 각자 중복 선언돼 있었는데(이 저장소의 기존 관례), pc/mobile 정규화 로직까지 중복시키면 두 파일이 어긋날 위험이 커서 이번엔 `heroSlideshow.ts`와 동일하게 신규 공용 파일 3개(`src/lib/mainLogoSettings.ts`/`sidebarIconsSettings.ts`/`topTabStyleSettings.ts`)로 뽑아 관리자 페이지와 Navbar.tsx가 타입+정규화(`normalizeMainLogo` 등)를 공유하게 했다. `site_settings`의 키(`main_logo`/`sidebar_icons`/`top_tab_style`) 자체는 그대로 — JSON 값의 모양만 `{pc, mobile}`로 바뀌었고, 옛 flat 데이터는 로드 시 pc/mobile 양쪽에 동일하게 채워 넣어 하위 호환한다.

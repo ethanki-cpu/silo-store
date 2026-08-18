@@ -29,6 +29,7 @@ import {
   type SidebarIconsValue,
 } from "@/lib/sidebarIconsSettings";
 import { normalizeTopTabStyle, type TopTabStyleEntry, type TopTabStyleValue } from "@/lib/topTabStyleSettings";
+import { normalizeAccountMenuStyle, type AccountMenuStyleValue } from "@/lib/accountMenuStyleSettings";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -192,6 +193,28 @@ export function Navbar() {
   }, []);
   const topTabStyle = topTabStyleValue ? (isMobileViewport ? topTabStyleValue.mobile : topTabStyleValue.pc) : null;
 
+  // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 맨 위의 '관리자, (회원
+  // 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의 디자인을
+  // 설정하는 또다른 탭을 만들어줘"): 계정 영역(우측 상단 5개 항목) 전체에
+  // 적용되는 서체/크기/색상/hover 모션 — 값이 없으면 완전히 기존과
+  // 동일하게 렌더링된다(optional한 오버레이, topTabStyle과 동일한 패턴).
+  const [accountMenuStyleValue, setAccountMenuStyleValue] = useState<AccountMenuStyleValue | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "account_menu_style")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setAccountMenuStyleValue(normalizeAccountMenuStyle(data?.setting_value));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const accountMenuStyle = accountMenuStyleValue ? (isMobileViewport ? accountMenuStyleValue.mobile : accountMenuStyleValue.pc) : null;
+
   // HOTFIX(사용자 신고 — "홈페이지 설정관리에 프리뷰가 안 나오는데? PC와
   // 모바일 버전 실시간으로 보이게 해줘"): /admin/navigation/settings의
   // 미리보기 iframe이 URL에 `?__adminPreview=1`을 붙여 열렸을 때만,
@@ -208,12 +231,19 @@ export function Navbar() {
     function handleMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
       const data = event.data as
-        | { type?: string; mainLogo?: MainLogoValue; sidebarIcons?: SidebarIconsValue; topTabStyle?: TopTabStyleValue }
+        | {
+            type?: string;
+            mainLogo?: MainLogoValue;
+            sidebarIcons?: SidebarIconsValue;
+            topTabStyle?: TopTabStyleValue;
+            accountMenuStyle?: AccountMenuStyleValue;
+          }
         | null;
       if (!data || data.type !== "silo-admin-preview-override") return;
       if (data.mainLogo) setMainLogoValue(data.mainLogo);
       if (data.sidebarIcons) setSidebarIconsValue(data.sidebarIcons);
       if (data.topTabStyle) setTopTabStyleValue(data.topTabStyle);
+      if (data.accountMenuStyle) setAccountMenuStyleValue(data.accountMenuStyle);
     }
     window.addEventListener("message", handleMessage);
     window.parent.postMessage({ type: "silo-admin-preview-ready" }, window.location.origin);
@@ -328,6 +358,23 @@ export function Navbar() {
     })
     .filter(Boolean)
     .join("\n");
+
+  // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 맨 위의 '관리자, (회원
+  // 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의 디자인을
+  // 설정하는 또다른 탭을 만들어줘"): 계정 영역 5개 항목이 전부 공유하는
+  // 클래스 하나(silo-account-menu-item) — topTabStyleCss와 동일한
+  // 패턴으로 서체/크기/굵기/색상 + hover 모션 규칙을 <style>로 주입한다.
+  const ACCOUNT_MENU_ITEM_CLASS = "silo-account-menu-item";
+  const accountMenuStyleCss = (() => {
+    const rules: string[] = [];
+    if (accountMenuStyle?.fontFamily) rules.push(`font-family: ${accountMenuStyle.fontFamily} !important;`);
+    if (accountMenuStyle?.fontSizePx) rules.push(`font-size: ${accountMenuStyle.fontSizePx}px !important;`);
+    if (accountMenuStyle?.bold) rules.push(`font-weight: bold !important;`);
+    if (accountMenuStyle?.color) rules.push(`color: ${accountMenuStyle.color} !important;`);
+    const colorRule = rules.length > 0 ? `.${ACCOUNT_MENU_ITEM_CLASS} { ${rules.join(" ")} }` : "";
+    const motionCss = tabHoverMotionCss(ACCOUNT_MENU_ITEM_CLASS, accountMenuStyle?.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION);
+    return [colorRule, motionCss].filter(Boolean).join("\n");
+  })();
 
   // EPIC-117(사용자 지시): 탭을 "1단"(로고 줄과 겹치는 자리)/"2단"(기존
   // 탭 줄) 중 어디에 배치할지 — /admin/navigation/settings "상단 탭
@@ -621,6 +668,7 @@ export function Navbar() {
         `}</style>
       )}
       {topTabStyleCss && <style>{topTabStyleCss}</style>}
+      {accountMenuStyleCss && <style>{accountMenuStyleCss}</style>}
       <div
         className="relative flex items-center p-4 gap-4"
         style={mainLogo?.rowHeightPx ? { minHeight: mainLogo.rowHeightPx } : undefined}
@@ -667,11 +715,17 @@ export function Navbar() {
           </div>
         )}
 
+        {/* HOTFIX(사용자 지시 — "맨 위의 '관리자, (회원 등급), 마이페이지,
+            (사용자이름), 로그아웃' 이런 메뉴의 디자인을 설정하는 또다른
+            탭을 만들어줘"): 아래 5개 항목(로그인 전 대체 항목 포함) 전부
+            ACCOUNT_MENU_ITEM_CLASS를 공유 — /admin/navigation/settings의
+            "사용자 메뉴 디자인" 섹션이 저장한 서체/크기/색상/hover 모션이
+            함께 적용된다. */}
         <div className="flex items-center gap-3 shrink-0 relative">
           {mounted && !loading && session && member?.is_admin && (
             <Link
               href="/admin/payments"
-              className="text-sm text-gray-600 hover:underline"
+              className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
             >
               관리자
             </Link>
@@ -689,19 +743,19 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={() => setPopoverOpen((o) => !o)}
-                className="text-sm text-gray-600 hover:underline"
+                className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
               >
                 {member.tier_name}
               </button>
             ) : (
-              <Link href="/membership" className="text-sm text-gray-600 hover:underline">
+              <Link href="/membership" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
                 멤버십 신청
               </Link>
             )
           )}
 
           {mounted && !loading && session && (
-            <Link href="/mypage" className="text-sm text-gray-600 hover:underline">
+            <Link href="/mypage" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
               마이페이지
             </Link>
           )}
@@ -710,7 +764,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => setPopoverOpen((o) => !o)}
-              className="text-sm text-gray-600 hover:underline"
+              className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
             >
               {member.name}
             </button>
@@ -721,14 +775,14 @@ export function Navbar() {
             (session ? (
               <button
                 onClick={handleLogout}
-                className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm"
+                className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
               >
                 로그아웃
               </button>
             ) : (
               <Link
                 href="/login"
-                className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm"
+                className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
               >
                 로그인
               </Link>

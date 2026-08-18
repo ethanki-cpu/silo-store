@@ -47,6 +47,13 @@ import {
   type TopTabStyleConfig,
   type TopTabStyleValue,
 } from "@/lib/topTabStyleSettings";
+import {
+  normalizeAccountMenuStyle,
+  defaultAccountMenuStyleValue,
+  type AccountMenuStyleConfig,
+  type AccountMenuStyleValue,
+} from "@/lib/accountMenuStyleSettings";
+import { MotionPreviewSamples } from "@/components/admin/MotionPreviewSamples";
 
 // EPIC-026: "홈페이지 설정 관리" 실 구현. site_settings(key-value, EPIC-026)의
 // 키(main_logo/hero_slideshow/sidebar_icons)를 조회/저장한다. 다른 CMS
@@ -199,7 +206,9 @@ export default function AdminNavigationSettingsPage() {
   // 프리뷰가 더 크게 뜨게 해"): 4개 섹션을 전부 세로로 쌓아 보여주던
   // 것에서, 좌측 섹션 목록 → 클릭한 섹션 하나만 편집 폼으로 보여주는
   // 구조로 전환 — 나머지 폭을 우측 프리뷰에 더 크게 내줄 수 있다.
-  const [activeSection, setActiveSection] = useState<"logo" | "slideshow" | "sidebarIcons" | "topTabs" | "footer">("logo");
+  const [activeSection, setActiveSection] = useState<
+    "logo" | "slideshow" | "sidebarIcons" | "topTabs" | "accountMenu" | "footer"
+  >("logo");
 
   // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 '하단메뉴관리'를 병합해줘"):
   // /admin/footer/page.tsx와 동일한 로드/생성 로직 — footer는 URL을 가진
@@ -308,6 +317,18 @@ export default function AdminNavigationSettingsPage() {
     }));
   }
 
+  // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 맨 위의 '관리자, (회원
+  // 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의 디자인을
+  // 설정하는 또다른 탭을 만들어줘"): topTabStyle과 동일한 shim 패턴.
+  const [accountMenuStyleValue, setAccountMenuStyleValue] = useState<AccountMenuStyleValue>(defaultAccountMenuStyleValue());
+  const accountMenuStyle = accountMenuStyleValue[chromeDeviceTab];
+  function setAccountMenuStyle(next: AccountMenuStyleConfig | ((prev: AccountMenuStyleConfig) => AccountMenuStyleConfig)) {
+    setAccountMenuStyleValue((prev) => ({
+      ...prev,
+      [chromeDeviceTab]: typeof next === "function" ? (next as (p: AccountMenuStyleConfig) => AccountMenuStyleConfig)(prev[chromeDeviceTab]) : next,
+    }));
+  }
+
   const [topNavRows, setTopNavRows] = useState<TopNavRow[]>([]);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -336,6 +357,7 @@ export default function AdminNavigationSettingsPage() {
             "hero_slideshow",
             "sidebar_icons",
             "top_tab_style",
+            "account_menu_style",
           ]),
         // EPIC-079-PHASE-4: 상단 탭 디자인 섹션이 편집 대상 목록으로 보여줄
         // 실제 최상위(depth 0) site_navigations 행 — "사이트 구성 관리"가
@@ -366,6 +388,8 @@ export default function AdminNavigationSettingsPage() {
           setSidebarIconsValue(normalizeSidebarIcons(row.setting_value));
         } else if (row.setting_key === "top_tab_style") {
           setTopTabStyleValue(normalizeTopTabStyle(row.setting_value));
+        } else if (row.setting_key === "account_menu_style") {
+          setAccountMenuStyleValue(normalizeAccountMenuStyle(row.setting_value));
         }
       }
       setFetching(false);
@@ -539,6 +563,7 @@ export default function AdminNavigationSettingsPage() {
     { key: "slideshow", label: "슬라이드쇼", hint: "홈페이지 히어로 슬라이드" },
     { key: "sidebarIcons", label: "사이드바 아이콘", hint: "좌/우 여닫이 버튼 아이콘" },
     { key: "topTabs", label: "상단 탭 디자인", hint: "탭 배치·서체·hover 모션" },
+    { key: "accountMenu", label: "사용자 메뉴 디자인", hint: "관리자·등급·마이페이지·이름·로그아웃" },
     { key: "footer", label: "하단 메뉴 관리", hint: "Craft 에디터로 전체화면 편집" },
   ];
 
@@ -608,7 +633,7 @@ export default function AdminNavigationSettingsPage() {
             아이콘/상단 탭 디자인 셋 다 이 토글 하나를 공유한다 —
             슬라이드쇼는 이미 자기 자신만의 PC/모바일 탭이 있어(heroTab)
             대상이 아니고, 하단 메뉴는 Craft 전체화면 에디터라 별개다. */}
-        {(activeSection === "logo" || activeSection === "sidebarIcons" || activeSection === "topTabs") && (
+        {(activeSection === "logo" || activeSection === "sidebarIcons" || activeSection === "topTabs" || activeSection === "accountMenu") && (
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
             <span className="text-xs text-gray-500">지금 편집 중:</span>
             <div className="flex items-center rounded-md border border-gray-300 bg-white p-0.5 text-xs">
@@ -1401,6 +1426,100 @@ export default function AdminNavigationSettingsPage() {
           </div>
         </section>
         )}
+
+        {/* HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 맨 위의 '관리자,
+            (회원 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의
+            디자인을 설정하는 또다른 탭을 만들어줘, 그리고 그 디자인의
+            모션에 대해서도 옵션을 줘"): 계정 영역(우측 상단) 전체에
+            적용되는 서체/크기/색상 + hover 모션. */}
+        {activeSection === "accountMenu" && (
+        <section className="rounded-lg border border-gray-200 p-4">
+          <h2 className="text-lg font-semibold mb-1">사용자 메뉴 디자인</h2>
+          <p className="text-sm text-gray-500 mb-3">
+            우측 상단 &quot;관리자 / 등급 / 마이페이지 / 이름 / 로그아웃&quot; 5개 항목에 함께 적용돼요.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">텍스트 서체 (직접 입력, 폴백용)</label>
+              <input
+                className={inputClass}
+                value={accountMenuStyle.fontFamily}
+                onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, fontFamily: e.target.value })}
+                placeholder="예: 'Pretendard', sans-serif"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">텍스트 크기 (px, 비우면 기본값)</label>
+              <input
+                type="number"
+                min={8}
+                max={64}
+                className={inputClass}
+                value={accountMenuStyle.fontSizePx ?? ""}
+                onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, fontSizePx: e.target.value ? Number(e.target.value) : null })}
+              />
+            </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={accountMenuStyle.bold}
+                  onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, bold: e.target.checked })}
+                />
+                굵게 (Bold)
+              </label>
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="block text-xs text-gray-500 mb-1">텍스트 색상 (비우면 기본 색상)</label>
+            <div className="flex items-center gap-2">
+              {/^#[0-9a-fA-F]{6}$/.test(accountMenuStyle.color) && (
+                <input
+                  type="color"
+                  value={accountMenuStyle.color}
+                  onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, color: e.target.value })}
+                  className="h-9 w-12 rounded border border-gray-300 p-1"
+                />
+              )}
+              <input
+                className={`${inputClass} w-32`}
+                value={accountMenuStyle.color}
+                onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, color: e.target.value })}
+                placeholder="#4b5563"
+              />
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="block text-xs text-gray-500 mb-1">마우스를 올렸을 때(hover) 모션</label>
+            <select
+              className={inputClass}
+              value={accountMenuStyle.hoverMotion}
+              onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, hoverMotion: e.target.value as TabHoverMotion })}
+            >
+              {TAB_HOVER_MOTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {TAB_HOVER_MOTION_LABELS[m]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="mt-3">
+            <MotionPreviewSamples selected={accountMenuStyle.hoverMotion} />
+          </div>
+          <div className="flex items-center gap-3 mt-3">
+            <button
+              type="button"
+              onClick={() => handleSave("account_menu_style", accountMenuStyleValue)}
+              className={primaryButtonClass}
+            >
+              저장하기
+            </button>
+            {savedKey === "account_menu_style" && (
+              <span className="text-sm text-green-600">저장됐어요.</span>
+            )}
+          </div>
+        </section>
+        )}
         </div>
 
         {/* HOTFIX(사용자 지시 — "오른쪽에 데스크탑과 모바일 프리뷰가 더
@@ -1428,11 +1547,11 @@ export default function AdminNavigationSettingsPage() {
           <div className="flex items-start gap-4">
             <div>
               <p className="mb-1 text-xs font-medium text-gray-500">PC</p>
-              <LivePreviewFrame device="pc" refreshKey={previewRefreshKey} overrides={{ mainLogo: mainLogoValue, sidebarIcons: sidebarIconsValue, topTabStyle: topTabStyleValue }} />
+              <LivePreviewFrame device="pc" refreshKey={previewRefreshKey} overrides={{ mainLogo: mainLogoValue, sidebarIcons: sidebarIconsValue, topTabStyle: topTabStyleValue, accountMenuStyle: accountMenuStyleValue }} />
             </div>
             <div>
               <p className="mb-1 text-xs font-medium text-gray-500">모바일</p>
-              <LivePreviewFrame device="mobile" refreshKey={previewRefreshKey} overrides={{ mainLogo: mainLogoValue, sidebarIcons: sidebarIconsValue, topTabStyle: topTabStyleValue }} />
+              <LivePreviewFrame device="mobile" refreshKey={previewRefreshKey} overrides={{ mainLogo: mainLogoValue, sidebarIcons: sidebarIconsValue, topTabStyle: topTabStyleValue, accountMenuStyle: accountMenuStyleValue }} />
             </div>
           </div>
         </aside>
@@ -1597,6 +1716,10 @@ function TopTabStyleRow({
           ))}
         </select>
       </div>
+      {/* HOTFIX(사용자 지시 — "상단 메뉴탭... 모션에 대한 옵션을 프리뷰
+          할 수 있는 샘플을 보여줘"): 축소된 iframe 미리보기 대신 여기서
+          바로 6가지를 비교해볼 수 있는 샘플. */}
+      <MotionPreviewSamples selected={entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION} />
     </div>
   );
 }

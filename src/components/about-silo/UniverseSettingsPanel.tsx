@@ -15,6 +15,7 @@
 import { useState } from "react";
 import { uploadFile } from "@/lib/storage";
 import type { UniverseConfig, SpaceObject } from "@/lib/aboutSiloUniverseConfig";
+import { useDraggablePanel } from "./useDraggablePanel";
 
 const ROW = "flex items-center gap-1.5";
 const INPUT = "min-w-0 flex-1 rounded border border-white/15 bg-black/30 px-1.5 py-1 text-[11px] text-white placeholder:text-white/30";
@@ -45,6 +46,7 @@ export function UniverseSettingsPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [uploadingSpaceField, setUploadingSpaceField] = useState<"model" | "sprite" | null>(null);
+  const { offset, dragHandleProps } = useDraggablePanel();
 
   function addSpaceObject(kind: SpaceObject["kind"], url: string) {
     const obj: SpaceObject = {
@@ -98,8 +100,11 @@ export function UniverseSettingsPanel({
   }
 
   return (
-    <div className="pointer-events-auto fixed bottom-6 left-6 z-40 max-h-[85vh] w-[320px] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md">
-      <div className="mb-2 flex items-center justify-between">
+    <div
+      className="pointer-events-auto fixed bottom-6 left-6 z-40 max-h-[85vh] w-[320px] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md"
+      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+    >
+      <div className="mb-2 flex items-center justify-between" {...dragHandleProps}>
         <p className="text-xs font-semibold">🌌 Universe Settings(전체 공통)</p>
         <button type="button" onClick={() => setOpen(false)} className="text-white/50 hover:text-white">
           ✕

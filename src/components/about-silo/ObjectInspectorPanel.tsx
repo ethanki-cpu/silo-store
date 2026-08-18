@@ -21,6 +21,7 @@ import { uploadFile } from "@/lib/storage";
 import { supabase } from "@/lib/supabaseClient";
 import type { UniverseObject } from "@/lib/aboutSiloUniverseConfig";
 import { useEffect, useState } from "react";
+import { useDraggablePanel } from "./useDraggablePanel";
 
 type BoardOption = { slug: string; name: string };
 
@@ -46,6 +47,7 @@ export function ObjectInspectorPanel({
 }) {
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const [boards, setBoards] = useState<BoardOption[]>([]);
+  const { offset, dragHandleProps } = useDraggablePanel();
 
   useEffect(() => {
     let cancelled = false;
@@ -70,8 +72,11 @@ export function ObjectInspectorPanel({
   }
 
   return (
-    <div className="pointer-events-auto fixed right-6 top-24 z-40 w-[260px] max-h-[80vh] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md">
-      <div className="mb-2 flex items-center justify-between">
+    <div
+      className="pointer-events-auto fixed right-6 top-24 z-40 w-[260px] max-h-[80vh] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md"
+      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+    >
+      <div className="mb-2 flex items-center justify-between" {...dragHandleProps}>
         <p className="text-xs font-semibold">오브젝트 설정</p>
         <button type="button" onClick={onClose} className="text-white/50 hover:text-white">
           ✕

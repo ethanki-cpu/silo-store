@@ -52,6 +52,7 @@ import {
   Sparkles,
   type CameraControls as CameraControlsImpl,
 } from "@react-three/drei";
+import CameraControlsClass from "camera-controls";
 import { EffectComposer, Noise, Vignette, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { fibonacciSphere } from "@/lib/fibonacciSphere";
@@ -394,6 +395,12 @@ function SittingFigure({
   );
 }
 
+// 캐릭터 .glb도 장식 오브젝트(UniverseObjectModel)와 같은 이유로 원본
+// 모델링 단위가 업로드마다 제각각이다 — 여기서는 사람 실루엣이므로
+// 최대 치수가 아니라 "키(y축 높이)"를 기준으로 정규화해야 옆으로 퍼진
+// 채 찌그러져 보이는 문제 없이 항상 같은 키로 서게 된다. 정규화 후
+// 발이 y=0(행성 표면)에 오도록 오프셋을 맞추고, 기존 scale prop은 그
+// 위에 곱하는 배율로 그대로 유지한다.
 function CustomCharacterModel({
   url,
   animationClip,
@@ -413,6 +420,17 @@ function CustomCharacterModel({
   const { scene, animations } = useGLTF(url);
   const { actions, names } = useAnimations(animations, group);
 
+  const { normalized, baseOffsetY } = useMemo(() => {
+    const clone = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(clone);
+    const size = box.getSize(new THREE.Vector3());
+    const height = Math.max(size.y, 1e-6);
+    const targetHeight = 0.35;
+    clone.scale.setScalar(targetHeight / height);
+    const rescaledBox = new THREE.Box3().setFromObject(clone);
+    return { normalized: clone, baseOffsetY: -rescaledBox.min.y };
+  }, [scene]);
+
   useEffect(() => {
     onClipsLoaded?.(names);
   }, [names, onClipsLoaded]);
@@ -429,7 +447,7 @@ function CustomCharacterModel({
 
   return (
     <group ref={group} position={position} rotation={[0, rotationY, 0]} scale={scale}>
-      <primitive object={scene} />
+      <primitive object={normalized} position={[0, baseOffsetY, 0]} />
     </group>
   );
 }
@@ -516,6 +534,27 @@ function localSurfacePlacementsFor(count: number, radius: number): SurfacePlacem
 // 옮긴 시점"이 아니라 "클릭한 시점"의 고정 프레이밍으로 계속 되돌아가는
 // 것처럼 보였다. 포인터다운→업 사이의 화면 이동 거리가 임계값 미만일
 // 때만 진짜 클릭으로 간주해 onClick을 호출한다.
+// 오브젝트 선택 시 이동 기즈모 옆에 뜨는 안내 라벨 — target은 여러
+// 그룹 안에 중첩돼(행성의 자전 그룹 등) 있을 수 있어 로컬 position이
+// 아니라 매 프레임 실제 월드 좌표를 읽어 따라가야 한다.
+function SelectionHint({ target }: { target: THREE.Object3D }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    target.getWorldPosition(ref.current.position);
+    ref.current.position.y += 0.35;
+  });
+  return (
+    <group ref={ref}>
+      <Html center distanceFactor={8} occlude={false} style={{ pointerEvents: "none" }}>
+        <div className="whitespace-nowrap rounded-full bg-black/75 px-3 py-1 text-[11px] text-white shadow-lg">
+          여기를 클릭해서 이동
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 function useDragAwareClick(onClick: () => void) {
   const start = useRef<{ x: number; y: number } | null>(null);
   return {
@@ -542,26 +581,34 @@ function useDragAwareClick(onClick: () => void) {
 function UniverseObjectModel({
   obj,
   placement,
+  radius,
   selected,
   onSelect,
   registerRef,
 }: {
   obj: UniverseObject;
   placement: SurfacePlacement;
+  /** 이 오브젝트가 붙어있는 행성의 표면 반지름 — 목표 크기를 행성 크기에 비례시키는 데 쓴다. */
+  radius: number;
   selected: boolean;
   onSelect: () => void;
   registerRef: (group: THREE.Group | null) => void;
 }) {
   const { scene } = useGLTF(obj.url);
   // 원본 모델링 단위(cm/m/임의 unit)가 업로드마다 제각각이라, 실제
-  // 바운딩 박스를 재서 목표 크기(0.5 유닛)로 정규화한 뒤 관리자 scale은
-  // 그 위에 곱하는 배율로만 쓴다. 바닥을 y=0에 맞춰 표면 위에 서게 한다.
+  // 바운딩 박스를 재서 목표 크기로 정규화한 뒤 관리자 scale은 그 위에
+  // 곱하는 배율로만 쓴다. 바닥을 y=0에 맞춰 표면 위에 서게 한다.
+  // HOTFIX(사용자 신고 — "silo 행성에 오브제를 추가했더니 너무 작아서
+  // 안 보여"): 예전엔 targetSize가 반지름과 무관한 고정값(0.5)이라
+  // SILO(반지름 ~2.0)처럼 큰 행성 위에서는 상대적으로 지나치게 작았다
+  // — My Page 행성(반지름 ~1.0)에서 자연스럽던 크기를 기준으로 반지름에
+  // 비례하는 비율로 바꿔, 어느 행성에 놓든 상대적으로 같은 크기로 보이게 한다.
   const { normalized, baseOffsetY, boundingRadius } = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
-    const targetSize = 0.5;
+    const targetSize = radius * 0.45;
     clone.scale.setScalar(targetSize / maxDim);
     const rescaledBox = new THREE.Box3().setFromObject(clone);
     const rescaledSize = rescaledBox.getSize(new THREE.Vector3());
@@ -570,7 +617,7 @@ function UniverseObjectModel({
       baseOffsetY: -rescaledBox.min.y,
       boundingRadius: Math.max(rescaledSize.x, rescaledSize.y, rescaledSize.z, 0.2) * 0.65,
     };
-  }, [scene]);
+  }, [scene, radius]);
 
   // 사용자 지시("클릭하면 오브제가 빛나게 glow 효과"): 임의 업로드
   // .glb의 내부 머티리얼을 직접 건드리는 대신(구조가 제각각이라 위험),
@@ -665,6 +712,7 @@ function UniverseObjectsLayer({
               <UniverseObjectModel
                 obj={obj}
                 placement={placement}
+                radius={radius}
                 selected={selectedObjectId === obj.id}
                 onSelect={() => onSelectObject(obj.id)}
                 registerRef={(g) => registerObjectRef(obj.id, g)}
@@ -1582,6 +1630,7 @@ function Scene({
           }}
         />
       )}
+      {selectedGroup && <SelectionHint target={selectedGroup} />}
 
       <SpaceObjectsLayer
         objects={spaceObjects}
@@ -1974,6 +2023,70 @@ export function AboutSiloUniverse() {
     return () => cancelAnimationFrame(raf);
   }, [siloPosts]);
 
+  // A5(사용자 지시 — "화면을 좌,우,상,하 키보드로 움직일 수 있게 해줘"):
+  // 화살표 키로 카메라를 패닝(truck)한다. 설정 패널 등 입력 필드에
+  // 포커스가 가 있을 때는 텍스트 커서 이동과 충돌하지 않도록 건너뛰고,
+  // 오브젝트 이동 기즈모를 드래그 중일 때(controls.enabled === false)도
+  // 건너뛴다.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const controls = cameraControlsRef.current;
+      if (!controls || !controls.enabled) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      const step = 0.4;
+      switch (e.key) {
+        case "ArrowUp":
+          controls.truck(0, step, true);
+          break;
+        case "ArrowDown":
+          controls.truck(0, -step, true);
+          break;
+        case "ArrowLeft":
+          controls.truck(-step, 0, true);
+          break;
+        case "ArrowRight":
+          controls.truck(step, 0, true);
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // A6(사용자 지시 — "모바일에서는 손가락 두개로 동시에 화면을 누르면
+  // 화면을 움직일수 있게"): drei CameraControls의 두 손가락 기본
+  // 동작(TOUCH_DOLLY_TRUCK, 핀치줌+팬이 한 번에 묶여있음)을 순수 팬
+  // (TOUCH_TRUCK)으로 바꾼다 — 줌은 아래 더블탭 핸들러가 전담하므로
+  // 두 손가락은 화면 이동 전용으로 두는 편이 의도(따로따로 동작)에 맞다.
+  useEffect(() => {
+    const controls = cameraControlsRef.current;
+    if (!controls) return;
+    controls.touches.two = CameraControlsClass.ACTION.TOUCH_TRUCK;
+    controls.touches.three = CameraControlsClass.ACTION.TOUCH_TRUCK;
+  }, []);
+
+  // A6(사용자 지시 — "빈 우주를 더블클릭하면 그 곳을 줌인하거나 이미
+  // 줌아웃 되있으면... 행성을 한눈에 볼 수 있게 줌아웃"): Canvas의
+  // onPointerMissed는 R3F가 클릭이 어떤 3D 오브젝트에도 안 맞았을 때만
+  // 호출해주므로(행성/오브젝트 클릭과 자동으로 겹치지 않는다), 이미
+  // 충분히 다가가 있으면 홈 구도로 물러나고, 아니면 현재 거리의 절반
+  // 만큼 더 다가간다 — 하나의 더블클릭이 줌 레벨을 보고 in/out을 토글.
+  const homeDistance = HOME_CAMERA_POS.distanceTo(HOME_TARGET);
+  function handleBackgroundDoubleClick(event: MouseEvent) {
+    if (event.type !== "dblclick") return;
+    const controls = cameraControlsRef.current;
+    if (!controls) return;
+    if (controls.distance < homeDistance * 0.6) {
+      handleReset();
+    } else {
+      controls.dolly(controls.distance * 0.5, true);
+    }
+  }
+
   function handleSelectPost(post: FeedPost, position: [number, number, number], normal: [number, number, number]) {
     setSelectedPost(post);
     setSelectedObjectId(null);
@@ -2065,6 +2178,7 @@ export function AboutSiloUniverse() {
         dpr={[1, 1.5]}
         gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
         camera={{ position: HOME_CAMERA_POS.toArray(), fov: 55 }}
+        onPointerMissed={handleBackgroundDoubleClick}
       >
         {siloPosts && (
           <Scene

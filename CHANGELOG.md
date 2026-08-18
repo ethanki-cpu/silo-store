@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-08-18 (HOTFIX-131 — My Page 행성 캐릭터 크기 버그 + 설정 패널 드래그 이동 + 오브제 기즈모 안내 + SILO 오브제 크기 + 키보드/터치 카메라 조작)
+- **배경**: 사용자가 "my page 행성에 캐릭터를 추가했더니 이미지처럼 나왔어 고쳐"(캐릭터 GLB가 거대하고 찌그러져 보임), "행성이나 위성을 클릭하면 나오는 창을 드래그 드랍해서 이동할수 있게", "오브제가 선택된 상황에서 xyz plane이 나오는데 '여기를 클릭해서 이동'이라는 안내 메시지", "silo 행성에 오브제를 추가해봤더니 너무 작아서 안 보여, 디폴트 크기를 충분히 크게", "화면을 좌,우,상,하 키보드로 움직일 수 있게", "모바일에서는 손가락 두개로 화면을 움직이거나, 빈 우주를 더블클릭하면 줌인/줌아웃" 6가지를 한 번에 요청.
+- **캐릭터 GLB 크기/변형 버그**: `CustomCharacterModel`(`AboutSiloUniverse.tsx`)이 업로드된 `.glb`를 원본 모델링 단위 그대로(정규화 없이) 렌더링하던 게 원인 — 장식 오브젝트용 `UniverseObjectModel`은 이미 하던 `Box3` 기반 바운딩박스 정규화를 캐릭터에도 동일 패턴으로 추가(단, 사람 실루엣이라 최대 치수가 아니라 키(y축)를 기준으로 정규화 — 옆으로 퍼진 채 찌그러져 보이던 원인도 함께 해소).
+- **설정 패널 드래그 이동**: 신규 공용 훅 `src/components/about-silo/useDraggablePanel.ts` — 헤더 바를 `onPointerDown`으로 눌러 드래그한 만큼 오프셋을 누적, `PlanetSettingsPanel`/`UniverseSettingsPanel`/`ObjectInspectorPanel` 3개 패널 전부(예전엔 순수 CSS `fixed`라 이동 불가) 적용.
+- **오브제 이동 기즈모 안내**: 오브젝트 선택 시 `TransformControls` 기즈모 옆에 drei `Html`로 "여기를 클릭해서 이동" 라벨을 띄우는 `SelectionHint` 컴포넌트 신설 — 대상이 행성의 자전 그룹 등에 중첩돼 있어도 매 프레임 실제 월드 좌표를 따라간다.
+- **SILO 오브제 기본 크기**: `UniverseObjectModel`의 정규화 목표 크기(`targetSize`)가 행성 반지름과 무관한 고정값(0.5)이라 SILO(반지름 ~2.0)처럼 큰 행성 위에서 상대적으로 지나치게 작았던 것 — 반지름에 비례(`radius * 0.45`)하도록 변경해 어느 행성에 놓든 상대적으로 같은 크기로 보이게 함. 기본 관리자 scale도 0.3 → 0.6으로 상향(`aboutSiloUniverseConfig.ts`/`PlanetSettingsPanel.tsx`)해 추가 즉시 눈에 보이도록.
+- **키보드 화살표 카메라 패닝**: 화살표 키로 drei `CameraControls.truck()` 호출 — 입력 필드 포커스 중이거나 기즈모 드래그로 카메라 컨트롤이 비활성화된 동안은 건너뛴다.
+- **모바일 두 손가락 팬 + 더블탭 줌**: `camera-controls`의 두 손가락 기본 동작(`TOUCH_DOLLY_TRUCK`, 핀치줌+팬이 한 묶음)을 순수 팬(`TOUCH_TRUCK`)으로 재설정 — 줌은 별도로 전담. `Canvas`의 `onPointerMissed`(3D 오브젝트에 안 맞은 클릭에만 호출돼 행성/오브젝트 클릭과 자동으로 안 겹침)에 더블클릭 핸들러를 달아, 이미 홈 구도 거리의 60% 이내로 다가가 있으면 홈 구도로 되돌리고(줌아웃, 행성 한눈에 보기) 아니면 현재 거리의 절반만큼 더 다가간다(줌인).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 전부 0 errors(대상 파일 한정 lint 확인, 새로 만든 `useDraggablePanel.ts`에서 React Compiler 계열 lint 에러 2건 — 렌더 중 ref 변경, 자기참조 클로저 — 발견해 즉시 재작성으로 해결). 다른 세션이 이미 같은 저장소 폴더에서 dev 서버를 띄워둔 상태라 이번 세션은 그 서버에 붙어 `/about-silo` 페이지가 콘솔 에러 없이 렌더링되는 것까지는 확인했지만, Browser pane이 "표시되지 않음" 상태라 스크린샷은 찍지 못했다.
+- **다음에 확인 필요**: 사람이 직접 브라우저에서 (1) 실제 캐릭터 `.glb` 업로드 후 비율이 정상인지, (2) 설정 패널 드래그가 자연스러운지, (3) SILO 행성에 오브제 추가 시 즉시 잘 보이는지, (4) 화살표 키/모바일 두 손가락 팬/더블탭 줌 손맛 — 이번 세션은 코드 레벨 검증(타입체크/린트/무에러 페이지 로드)까지만 완료.
+- **변경/신규 파일**: `src/components/about-silo/AboutSiloUniverse.tsx`, `src/components/about-silo/PlanetSettingsPanel.tsx`, `src/components/about-silo/UniverseSettingsPanel.tsx`, `src/components/about-silo/ObjectInspectorPanel.tsx`, `src/components/about-silo/useDraggablePanel.ts`(신규), `src/lib/aboutSiloUniverseConfig.ts`.
+
 ## 2026-08-18 (EPIC-130 — 사용자 메뉴(계정 영역) 디자인+hover 모션 설정 탭 + 모션 프리뷰 샘플)
 - **배경**: 사용자가 "'홈페이지 설정관리'에 맨 위의 '관리자, (회원 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의 디자인을 설정하는 또다른 탭을 만들어줘, 그리고 그 디자인의 모션에 대해서도 옵션을 줘. 상단 메뉴탭과 또 맨 위의 '사용자 메뉴'의 모션에 대한 옵션을 프리뷰 할 수 있는 샘플을 보여줘"라고 요청.
 - **사용자 메뉴 디자인**: Navbar 우측 상단 계정 영역(관리자 링크/멤버십 등급 버튼/마이페이지 링크/회원 이름 버튼/로그아웃·로그인 버튼 — 로그인 여부에 따라 갈리는 5개 항목 전부)에 공통으로 적용되는 서체/크기/굵기/색상 + hover 모션(기존 6종 프리셋 재사용) 설정을 신설. 신규 공용 lib `src/lib/accountMenuStyleSettings.ts`(다른 3개 설정과 동일하게 `{pc, mobile}` 독립 설정 지원, 관리자 페이지+Navbar.tsx 공유) + Navbar.tsx에 `silo-account-menu-item` 공유 클래스와 CSS 주입 로직(`topTabStyleCss`와 동일한 패턴) 추가. "홈페이지 설정 관리"에 6번째 좌측 섹션("사용자 메뉴 디자인")으로 노출, 기존 PC/모바일 토글 대상에 포함.

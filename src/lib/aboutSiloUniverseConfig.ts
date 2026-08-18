@@ -151,7 +151,7 @@ function normalizeObject(raw: unknown): UniverseObject {
   return {
     id: o.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     url: o.url ?? "",
-    scale: typeof o.scale === "number" ? o.scale : 0.3,
+    scale: typeof o.scale === "number" ? o.scale : 0.6,
     label: o.label ?? "",
     position: Array.isArray(o.position) ? o.position : null,
     thumbnailUrl: o.thumbnailUrl ?? "",

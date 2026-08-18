@@ -6,6 +6,14 @@ import { inputClass, primaryButtonClass, smallButtonClass } from "../shared";
 import { LivePreviewFrame } from "@/components/admin/LivePreviewFrame";
 import { DragValueSlider } from "@/components/admin/DragValueSlider";
 import { CraftFooterEditor } from "@/components/admin/craft/CraftFooterEditor";
+import { ChromeCraftEditor } from "@/components/admin/craft/ChromeCraftEditor";
+import { Element } from "@craftjs/core";
+import { RootContainer } from "@/components/craft/home/RootContainer";
+import { ChromeLogoBlock } from "@/components/craft/chrome/blocks/ChromeLogoBlock";
+import { ChromeSidebarIconBlock } from "@/components/craft/chrome/blocks/ChromeSidebarIconBlock";
+import { ChromeTopTabBlock } from "@/components/craft/chrome/blocks/ChromeTopTabBlock";
+import { ChromeAccountMenuBlock } from "@/components/craft/chrome/blocks/ChromeAccountMenuBlock";
+import { uploadImage, compressImage } from "@/lib/adminImageUpload";
 import {
   TAB_HOVER_MOTIONS,
   TAB_HOVER_MOTION_LABELS,
@@ -138,8 +146,6 @@ function makeDefaultCustomFont(): CustomFontEntry {
   };
 }
 
-const STORAGE_BUCKET = "public-assets";
-
 async function upsertSetting(key: string, value: unknown) {
   return supabase
     .from("site_settings")
@@ -147,53 +153,6 @@ async function upsertSetting(key: string, value: unknown) {
       { setting_key: key, setting_value: value, updated_at: new Date().toISOString() },
       { onConflict: "setting_key" },
     );
-}
-
-async function uploadImage(
-  file: File,
-  folder: string,
-): Promise<{ url: string | null; error: string | null }> {
-  const path = `${folder}/${Date.now()}-${file.name}`;
-  const { error: uploadError } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .upload(path, file);
-
-  if (uploadError) {
-    return { url: null, error: uploadError.message };
-  }
-
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-  return { url: data.publicUrl, error: null };
-}
-
-// EPIC-078 후속: 여백 배경 이미지를 원본 대비 quality%(1~100)로 재인코딩한다
-// — 캔버스에 원본 해상도 그대로 그린 뒤 압축(리사이즈는 하지 않음, 오직
-// 압축률만 조절). 100이면 원본을 그대로 둔다(불필요한 손실 재인코딩 방지).
-// 외부 서비스 없이 브라우저 canvas만으로 동작한다.
-//
-// EPIC-079-PHASE-2 버그 픽스: 이전엔 항상 image/jpeg로 인코딩했는데, JPEG는
-// 알파 채널이 없어 투명 PNG를 업로드하면 캔버스의 투명 영역이 검정으로
-// 합성(flatten)되어 저장됐다 — "여백 배경 이미지가 검정색으로 나온다"는
-// 증상의 원인. 알파를 보존하는 image/webp로 인코딩해 투명 영역이 실제로
-// 투명하게 저장되도록 한다.
-async function compressImage(file: File, quality: number): Promise<File> {
-  if (quality >= 100) return file;
-
-  const bitmap = await createImageBitmap(file);
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return file;
-  ctx.drawImage(bitmap, 0, 0);
-
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/webp", Math.max(1, Math.min(100, quality)) / 100),
-  );
-  if (!blob) return file;
-
-  const newName = file.name.replace(/\.[^.]+$/, "") + ".webp";
-  return new File([blob], newName, { type: "image/webp" });
 }
 
 export default function AdminNavigationSettingsPage() {
@@ -659,6 +618,20 @@ export default function AdminNavigationSettingsPage() {
         {activeSection === "logo" && (
         <section className="rounded-lg border border-gray-200 p-4">
           <h2 className="text-lg font-semibold mb-3">메인 로고</h2>
+          <div className="mb-4">
+            <p className="mb-2 text-xs text-gray-500">🎨 아래 미리보기에서 로고를 직접 클릭하면 바로 편집할 수 있어요.</p>
+            <ChromeCraftEditor
+              key={chromeDeviceTab}
+              tree={
+                <Element is={RootContainer} canvas id="ROOT">
+                  <ChromeLogoBlock
+                    config={mainLogo}
+                    onConfigChange={(patch) => setMainLogo((prev) => ({ ...prev, ...patch }))}
+                  />
+                </Element>
+              }
+            />
+          </div>
           <div className="space-y-2">
             <div>
               <label className="block text-sm mb-1">텍스트 로고</label>
@@ -1192,6 +1165,26 @@ export default function AdminNavigationSettingsPage() {
         {activeSection === "sidebarIcons" && (
         <section className="rounded-lg border border-gray-200 p-4">
           <h2 className="text-lg font-semibold mb-3">사이드바 아이콘</h2>
+          <div className="mb-4">
+            <p className="mb-2 text-xs text-gray-500">🎨 아래 미리보기에서 좌/우 아이콘을 직접 클릭하면 바로 편집할 수 있어요.</p>
+            <ChromeCraftEditor
+              key={chromeDeviceTab}
+              tree={
+                <Element is={RootContainer} canvas id="ROOT">
+                  <ChromeSidebarIconBlock
+                    side="left"
+                    config={sidebarIcons}
+                    onConfigChange={(patch) => setSidebarIcons((prev) => ({ ...prev, ...patch }))}
+                  />
+                  <ChromeSidebarIconBlock
+                    side="right"
+                    config={sidebarIcons}
+                    onConfigChange={(patch) => setSidebarIcons((prev) => ({ ...prev, ...patch }))}
+                  />
+                </Element>
+              }
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <SidebarIconUploadField
               label="좌측 사이드바 — 1. 기본 아이콘 (사일로상점)"
@@ -1352,6 +1345,40 @@ export default function AdminNavigationSettingsPage() {
             이름이 그대로 쓰여요. 탭 자체를 추가/삭제/순서 변경하려면
             &quot;사이트 구성 관리&quot; 화면을 이용하세요.
           </p>
+          <div className="mb-4">
+            <p className="mb-2 text-xs text-gray-500">🎨 아래 미리보기에서 탭을 직접 클릭하면 바로 편집할 수 있어요(탭 추가/삭제는 안 돼요).</p>
+            {topNavRows.length === 0 ? (
+              <p className="rounded-lg border border-gray-200 p-4 text-xs text-gray-400">상단 탭 목록을 불러오는 중이에요...</p>
+            ) : (
+              <ChromeCraftEditor
+                key={chromeDeviceTab}
+                tree={
+                  <Element is={RootContainer} canvas id="ROOT">
+                    {topNavRows.map((row) => {
+                      const tabKey = row.key ?? row.id;
+                      return (
+                        <ChromeTopTabBlock
+                          key={tabKey}
+                          tabKey={tabKey}
+                          defaultLabel={row.title}
+                          entry={topTabStyle.tabs[tabKey] ?? defaultTopTabStyleEntry()}
+                          onEntryChange={(patch) =>
+                            setTopTabStyle((prev) => ({
+                              ...prev,
+                              tabs: {
+                                ...prev.tabs,
+                                [tabKey]: { ...(prev.tabs[tabKey] ?? defaultTopTabStyleEntry()), ...patch },
+                              },
+                            }))
+                          }
+                        />
+                      );
+                    })}
+                  </Element>
+                }
+              />
+            )}
+          </div>
           <div className="mb-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
             {/* HOTFIX(사용자 지시 — "일일이 숫자값을 넣어서 하는 게 너무
                 구시대적이야. 드래그앤드롭으로 하고 싶어"): 숫자 입력 대신
@@ -1438,6 +1465,20 @@ export default function AdminNavigationSettingsPage() {
           <p className="text-sm text-gray-500 mb-3">
             우측 상단 &quot;관리자 / 등급 / 마이페이지 / 이름 / 로그아웃&quot; 5개 항목에 함께 적용돼요.
           </p>
+          <div className="mb-4">
+            <p className="mb-2 text-xs text-gray-500">🎨 아래 미리보기를 직접 클릭하면 바로 편집할 수 있어요.</p>
+            <ChromeCraftEditor
+              key={chromeDeviceTab}
+              tree={
+                <Element is={RootContainer} canvas id="ROOT">
+                  <ChromeAccountMenuBlock
+                    config={accountMenuStyle}
+                    onConfigChange={(patch) => setAccountMenuStyle((prev) => ({ ...prev, ...patch }))}
+                  />
+                </Element>
+              }
+            />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">텍스트 서체 (직접 입력, 폴백용)</label>
@@ -1522,10 +1563,16 @@ export default function AdminNavigationSettingsPage() {
         )}
         </div>
 
-        {/* HOTFIX(사용자 지시 — "오른쪽에 데스크탑과 모바일 프리뷰가 더
-            크게 뜨게 해"): 기존 380px 세로 스택(PC 위/모바일 아래, 각각
-            작은 상자)을 훨씬 넓은 가로 배치로 키웠다 — DEVICE_PRESETS의
-            boxWidth 자체도 LivePreviewFrame.tsx에서 함께 키움. */}
+        {/* B6(홈페이지 설정 관리 Craft.js 전환): 메인 로고/사이드바 아이콘/
+            상단 탭/계정 메뉴 4개 섹션은 이제 위쪽 캔버스가 이미 실시간
+            미리보기+편집을 겸하므로(클릭하면 바로 옆에 설정까지 뜬다),
+            그 4개 섹션에서는 이 오른쪽 iframe 미리보기를 숨겨 중앙
+            캔버스에 폭을 온전히 내준다 — 실제로 켜둔 채 테스트해보니
+            중앙 칸이 640px 미리보기에 밀려 300px 안팎으로 좁아져 캔버스
+            안 요소를 클릭할 폭 자체가 없었다(SILO 텍스트가 폭 0으로
+            찌그러짐). 슬라이드쇼는 아직 옛 폼+iframe 방식 그대로라 계속
+            보여준다. */}
+        {activeSection === "slideshow" && (
         <aside className="sticky top-6 hidden w-[640px] shrink-0 xl:block">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium text-gray-600">실시간 미리보기 (실제 홈페이지)</p>
@@ -1555,6 +1602,7 @@ export default function AdminNavigationSettingsPage() {
             </div>
           </div>
         </aside>
+        )}
       </div>
     </main>
   );

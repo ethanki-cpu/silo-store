@@ -12,6 +12,7 @@ import { RootContainer } from "@/components/craft/home/RootContainer";
 import { ChromeLogoBlock } from "@/components/craft/chrome/blocks/ChromeLogoBlock";
 import { ChromeSidebarIconBlock } from "@/components/craft/chrome/blocks/ChromeSidebarIconBlock";
 import { ChromeTopTabBlock } from "@/components/craft/chrome/blocks/ChromeTopTabBlock";
+import { ChromeTierZone } from "@/components/craft/chrome/ChromeTierZone";
 import { ChromeAccountMenuBlock } from "@/components/craft/chrome/blocks/ChromeAccountMenuBlock";
 import { uploadImage, compressImage } from "@/lib/adminImageUpload";
 import {
@@ -490,6 +491,21 @@ export default function AdminNavigationSettingsPage() {
         [tabId]: { ...defaultTopTabStyleEntry(), ...prev.tabs[tabId], ...patch },
       },
     }));
+  }
+  // D1(사용자 지시 — "상단 탭의 1단과 2단을... 드래그앤드랍으로 각 버튼
+  // 위치를 정하는거"): ChromeTierZone 드롭존에 탭 칩을 놓으면 그 탭의
+  // tier만 바뀐다(updateTabStyle 재사용).
+  // Craft.js의 <Frame>은 최초 마운트 시의 children만 읽고 이후 리렌더에서
+  // 다시 읽지 않는다(ChromeCraftEditor.tsx 주석 참고) — 그냥 topTabStyle이
+  // 바뀌기만 해서는 탭이 실제로 다른 드롭존 DOM으로 옮겨가지 않는다(값은
+  // 바뀌지만 화면엔 그대로 남아있는 채로 보임). tier가 바뀔 때만 이 버전을
+  // 올려 ChromeCraftEditor를 강제로 리마운트시켜 새 배치를 다시 읽게 한다
+  // — 타이핑 반영은 setProp으로 이미 실시간이라 이 리마운트가 그 흐름을
+  // 방해하지 않는다(드롭 때만 발생, 텍스트 입력 때는 발생 안 함).
+  const [topTabsTreeVersion, setTopTabsTreeVersion] = useState(0);
+  function handleTabTierDrop(tabKey: string, tier: 1 | 2) {
+    updateTabStyle(tabKey, { tier });
+    setTopTabsTreeVersion((v) => v + 1);
   }
 
   function addTabCustomFont(tabId: string) {
@@ -1346,33 +1362,63 @@ export default function AdminNavigationSettingsPage() {
             &quot;사이트 구성 관리&quot; 화면을 이용하세요.
           </p>
           <div className="mb-4">
-            <p className="mb-2 text-xs text-gray-500">🎨 아래 미리보기에서 탭을 직접 클릭하면 바로 편집할 수 있어요(탭 추가/삭제는 안 돼요).</p>
+            <p className="mb-2 text-xs text-gray-500">
+              🎨 아래에서 탭을 직접 클릭하면 바로 편집할 수 있고, 탭 칩을 <strong>드래그해서 1단/2단 영역 사이로 옮기면</strong> 배치가 즉시 바뀌어요(탭 추가/삭제는 안 돼요).
+            </p>
             {topNavRows.length === 0 ? (
               <p className="rounded-lg border border-gray-200 p-4 text-xs text-gray-400">상단 탭 목록을 불러오는 중이에요...</p>
             ) : (
               <ChromeCraftEditor
-                key={chromeDeviceTab}
+                key={`${chromeDeviceTab}-${topTabsTreeVersion}`}
                 tree={
                   <Element is={RootContainer} canvas id="ROOT">
-                    {topNavRows.map((row) => {
-                      const tabKey = row.key ?? row.id;
-                      return (
-                        <ChromeTopTabBlock
-                          key={tabKey}
-                          tabKey={tabKey}
-                          defaultLabel={row.title}
-                          entry={topTabStyle.tabs[tabKey] ?? defaultTopTabStyleEntry()}
-                          onEntryChange={(patch) =>
-                            setTopTabStyle((prev) => ({
-                              ...prev,
-                              tabs: {
-                                ...prev.tabs,
-                                [tabKey]: { ...(prev.tabs[tabKey] ?? defaultTopTabStyleEntry()), ...patch },
-                              },
-                            }))
-                          }
-                        />
-                      );
+                    {/* D1(중요): ChromeTierZone은 Craft에 등록된 노드
+                        타입이 아니라 순수 드롭존 레이아웃용 div 래퍼다 —
+                        <ChromeTierZone> JSX 태그로 트리 안에 그대로
+                        끼워 넣으면 Craft의 정적 트리 파서가 이 컴포넌트
+                        참조 자체를 노드로 해석하려다 "Invariant failed"로
+                        죽는다(리졸버에 없는 컴포넌트라서). 일반 함수처럼
+                        직접 호출해 이미 펼쳐진 <div> 결과만 트리에 넣으면
+                        Craft 입장에서는 평범한 DOM 래퍼로만 보여 안전하다. */}
+                    {ChromeTierZone({
+                      label: "1단",
+                      hint: "로고 줄과 겹치는 자리",
+                      tier: 1,
+                      onDropTab: handleTabTierDrop,
+                      children: topNavRows
+                        .filter((row) => (topTabStyle.tabs[row.key ?? row.id]?.tier ?? 2) === 1)
+                        .map((row) => {
+                          const tabKey = row.key ?? row.id;
+                          return (
+                            <ChromeTopTabBlock
+                              key={tabKey}
+                              tabKey={tabKey}
+                              defaultLabel={row.title}
+                              entry={topTabStyle.tabs[tabKey] ?? defaultTopTabStyleEntry()}
+                              onEntryChange={(patch) => updateTabStyle(tabKey, patch)}
+                            />
+                          );
+                        }),
+                    })}
+                    {ChromeTierZone({
+                      label: "2단",
+                      hint: "기본 탭 줄",
+                      tier: 2,
+                      onDropTab: handleTabTierDrop,
+                      children: topNavRows
+                        .filter((row) => (topTabStyle.tabs[row.key ?? row.id]?.tier ?? 2) !== 1)
+                        .map((row) => {
+                          const tabKey = row.key ?? row.id;
+                          return (
+                            <ChromeTopTabBlock
+                              key={tabKey}
+                              tabKey={tabKey}
+                              defaultLabel={row.title}
+                              entry={topTabStyle.tabs[tabKey] ?? defaultTopTabStyleEntry()}
+                              onEntryChange={(patch) => updateTabStyle(tabKey, patch)}
+                            />
+                          );
+                        }),
                     })}
                   </Element>
                 }

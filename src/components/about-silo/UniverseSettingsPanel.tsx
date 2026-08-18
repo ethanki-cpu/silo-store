@@ -60,11 +60,23 @@ export function UniverseSettingsPanel({
       summary: "",
       link: "",
       boardSlug: "",
+      count: kind === "sprite" ? 8 : 1,
+      scatterSeed: 0,
     };
     onChange({ spaceObjects: [...config.spaceObjects, obj] });
   }
   function removeSpaceObject(id: string) {
     onChange({ spaceObjects: config.spaceObjects.filter((o) => o.id !== id) });
+  }
+  function updateSpaceObjectCount(id: string, count: number) {
+    onChange({
+      spaceObjects: config.spaceObjects.map((o) => (o.id === id ? { ...o, count: Math.max(1, Math.min(200, count)) } : o)),
+    });
+  }
+  function reshuffleSpaceObject(id: string) {
+    onChange({
+      spaceObjects: config.spaceObjects.map((o) => (o.id === id ? { ...o, scatterSeed: o.scatterSeed + 1 } : o)),
+    });
   }
   async function handleSpaceUpload(kind: SpaceObject["kind"], file: File | null) {
     if (!file) return;
@@ -218,6 +230,26 @@ export function UniverseSettingsPanel({
                   </button>
                   <button type="button" className={BTN} onClick={() => removeSpaceObject(obj.id)}>
                     삭제
+                  </button>
+                </div>
+                {/* C4(사용자 지시 — "무작위로 우주 공간에 몇개 랜덤 공간에
+                    떠다니는지 설정할수 있게"): 개수를 늘리면 같은
+                    이미지가 그만큼 서로 다른 무작위 위치에 흩뿌려진다
+                    (2개 이상이면 드래그로 옮긴 위치는 더 이상 안 쓰임). */}
+                <div className={`${ROW} mt-1`}>
+                  <label className="flex flex-1 items-center gap-1 text-[10px] text-white/50">
+                    개수(무작위 배치)
+                    <input
+                      type="number"
+                      min={1}
+                      max={200}
+                      value={obj.count}
+                      onChange={(e) => updateSpaceObjectCount(obj.id, Number(e.target.value) || 1)}
+                      className="w-14 rounded border border-white/15 bg-black/30 px-1 py-0.5 text-[11px] text-white"
+                    />
+                  </label>
+                  <button type="button" className={BTN} onClick={() => reshuffleSpaceObject(obj.id)} title="같은 개수로 위치를 다시 무작위로 뽑는다">
+                    🎲 다시 배치
                   </button>
                 </div>
                 {failedSpaceObjectIds.has(obj.id) && (

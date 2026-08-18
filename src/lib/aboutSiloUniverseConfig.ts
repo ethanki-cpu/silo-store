@@ -51,7 +51,16 @@ export type UniverseObject = {
 // 면 항상 카메라를 향하는 이미지 빌보드(별/은하수/별똥별 등, 사진 한 장
 // 이면 충분한 것들). 나머지 필드는 UniverseObject와 동일한 구조를
 // 공유해 ObjectInspectorPanel/ObjectInfoCard를 그대로 재사용한다.
-export type SpaceObject = UniverseObject & { kind: "model" | "sprite" };
+// C4(사용자 지시 — "'별/은하수 이미지 추가'로 추가한 이미지들이 무작위로
+// 우주 공간에 몇개 랜덤 공간에 떠다니는지 설정할수 있게 해줘"): 하나의
+// 업로드(하나의 url)가 몇 개의 무작위 배치 사본으로 흩뿌려질지(count,
+// 기본 1) + "다시 무작위 배치" 버튼을 누를 때마다 바뀌는 값
+// (scatterSeed, 기본 0) — 위치 해시에 섞여 들어가 같은 count라도 매번
+// 다른 배치를 뽑을 수 있게 한다. count가 2 이상이면 obj.position(단일
+// 드래그 위치)은 무시되고 전부 무작위 배치로만 렌더링된다(여러 사본을
+// 각각 따로 드래그해 옮기는 개념 자체가 없음 — 순수 배경 장식이라는
+// 전제).
+export type SpaceObject = UniverseObject & { kind: "model" | "sprite"; count: number; scatterSeed: number };
 
 // HOTFIX-123: 행성 하나가 갖는 설정 묶음 — SILO/유저 행성이 동일한 구조를
 // 공유한다(사용자 지시 — "그냥 SILO 행성 설정과 똑같이").
@@ -208,6 +217,8 @@ export function normalizeUniverseConfig(raw: unknown): UniverseConfig {
       ? value.spaceObjects.map((o: unknown) => ({
           ...normalizeObject(o),
           kind: (o as Partial<SpaceObject>)?.kind === "sprite" ? "sprite" : "model",
+          count: typeof (o as Partial<SpaceObject>)?.count === "number" && (o as Partial<SpaceObject>).count! >= 1 ? (o as Partial<SpaceObject>).count! : 1,
+          scatterSeed: typeof (o as Partial<SpaceObject>)?.scatterSeed === "number" ? (o as Partial<SpaceObject>).scatterSeed! : 0,
         }))
       : defaults.spaceObjects,
   };

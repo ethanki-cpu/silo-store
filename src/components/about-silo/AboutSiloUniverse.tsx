@@ -743,9 +743,16 @@ function hashRandom01(i: number): number {
 // 두 행성 중간 지점을 중심으로 넓게 흩뿌린다 — id 문자열을 해시해 시드로
 // 쓰므로, position이 없는 한(드래그해 옮기기 전) 같은 오브젝트는 항상
 // 같은 자리에 뜬다(새로고침해도 흩어진 자리가 바뀌지 않도록).
-function spaceObjectDefaultPosition(id: string): [number, number, number] {
+// C4(사용자 지시 — "'별/은하수 이미지 추가'로 추가한 이미지들이 무작위로
+// 우주 공간에 몇개 랜덤 공간에 떠다니는지 설정할수 있게 해줘"): index/
+// scatterSeed를 시드에 함께 섞어, 같은 오브젝트라도 사본마다(index) 다른
+// 위치를 뽑고 "다시 배치" 버튼(scatterSeed 증가)을 누르면 전부 새로운
+// 무작위 패턴으로 바뀐다 — 그 외엔 기존 배치 범위(두 행성 중간 지점
+// 주변 구면 분포)를 그대로 유지.
+function spaceObjectDefaultPosition(id: string, index = 0, scatterSeed = 0): [number, number, number] {
   let seed = 0;
-  for (let i = 0; i < id.length; i++) seed = (seed * 31 + id.charCodeAt(i)) % 100000;
+  const key = `${id}#${index}#${scatterSeed}`;
+  for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) % 100000;
   const theta = hashRandom01(seed) * Math.PI * 2;
   const phi = Math.acos(2 * hashRandom01(seed + 1) - 1);
   const radius = 7 + hashRandom01(seed + 2) * 9;
@@ -909,21 +916,31 @@ function SpaceObjectsLayer({
   return (
     <>
       {objects.map((obj) => {
-        const position = obj.position ?? spaceObjectDefaultPosition(obj.id);
-        const shared = {
-          obj,
-          position,
-          selected: selectedId === obj.id,
-          onSelect: () => onSelect(obj.id),
-          registerRef: (g: THREE.Group | null) => registerRef(obj.id, g),
-        };
-        return (
-          <AssetLoadErrorBoundary key={obj.id} fallback={null} onError={() => onError(obj.id)}>
-            <Suspense fallback={null}>
-              {obj.kind === "sprite" ? <SpaceObjectSprite {...shared} /> : <SpaceObjectModel {...shared} />}
-            </Suspense>
-          </AssetLoadErrorBoundary>
-        );
+        // C4: count가 1이면 기존과 완전히 동일(드래그한 position 우선,
+        // 없으면 index 0 기본 배치). count가 2 이상이면 사본마다 다른
+        // index로 새 무작위 위치를 뽑고(obj.position은 무시), 드래그
+        // 이동/선택은 첫 번째 사본에만 연결해 나머지는 순수 배경 장식으로
+        // 둔다.
+        const count = Math.max(1, obj.count ?? 1);
+        return Array.from({ length: count }, (_, i) => {
+          const position = count === 1 && obj.position ? obj.position : spaceObjectDefaultPosition(obj.id, i, obj.scatterSeed ?? 0);
+          const shared = {
+            obj,
+            position,
+            selected: selectedId === obj.id,
+            onSelect: () => onSelect(obj.id),
+            registerRef: (g: THREE.Group | null) => {
+              if (i === 0) registerRef(obj.id, g);
+            },
+          };
+          return (
+            <AssetLoadErrorBoundary key={`${obj.id}#${i}`} fallback={null} onError={() => onError(obj.id)}>
+              <Suspense fallback={null}>
+                {obj.kind === "sprite" ? <SpaceObjectSprite {...shared} /> : <SpaceObjectModel {...shared} />}
+              </Suspense>
+            </AssetLoadErrorBoundary>
+          );
+        });
       })}
     </>
   );
@@ -1243,11 +1260,23 @@ function ShootingStars() {
   );
 }
 
+// HOTFIX(사용자 신고 — "빈우주 더블클릭 줌인/아웃 작동안돼"): 실제
+// 원인은 더블클릭 핸들러 자체가 아니라, 배경을 가득 채운 Stars(4500개)/
+// Sparkles(140개) 점들이 기본적으로 raycast 대상이라 "빈 공간처럼
+// 보이는" 곳을 클릭해도 커서 근처의 별 점 하나가 자주 걸려(hits.length
+// > 0) onPointerMissed 자체가 아예 호출되지 않던 것 — 순수 장식용이라
+// 클릭 판정에서 완전히 빼야 한다. drei Stars/Sparkles는 ref로 실제
+// THREE.Points 인스턴스를 그대로 넘겨주므로, 그 raycast 메서드를
+// no-op으로 덮어써 클릭/더블클릭 히트 테스트에서 완전히 투명하게 만든다.
+function disableRaycast(points: THREE.Points | null) {
+  if (points) points.raycast = () => {};
+}
+
 function UniverseParticles() {
   return (
     <>
-      <Stars radius={80} depth={45} count={4500} factor={3} saturation={0} fade speed={0.4} />
-      <Sparkles count={140} scale={20} size={2.2} speed={0.25} color="#ffe9c2" />
+      <Stars ref={disableRaycast} radius={80} depth={45} count={4500} factor={3} saturation={0} fade speed={0.4} />
+      <Sparkles ref={disableRaycast} count={140} scale={20} size={2.2} speed={0.25} color="#ffe9c2" />
       <ShootingStars />
     </>
   );
@@ -1838,10 +1867,26 @@ export function AboutSiloUniverse() {
   const [selectedPlanetId, setSelectedPlanetId] = useState<PlanetId | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const objectRefs = useRef<Map<string, THREE.Group>>(new Map());
+
+  // C3(사용자 지시 — "오브제를 클릭하면 오브제를 중심으로 화면이
+  // 되어야지"): 오브젝트를 선택할 때 그 오브젝트의 실제 월드 좌표(행성
+  // 자전 그룹 등에 중첩돼 있어도 getWorldPosition으로 정확히 구함)를
+  // 향해 카메라를 부드럽게 이동시킨다 — handleFocusPlanet/handleSelectPost와
+  // 동일한 setLookAt 패턴.
+  function focusCameraOnObject(key: string) {
+    const controls = cameraControlsRef.current;
+    const group = objectRefs.current.get(key);
+    if (!controls || !group) return;
+    const worldPos = group.getWorldPosition(new THREE.Vector3());
+    const camPos = worldPos.clone().add(new THREE.Vector3(0.35, 0.3, 1.0));
+    controls.setLookAt(camPos.x, camPos.y, camPos.z, worldPos.x, worldPos.y, worldPos.z, true);
+  }
+
   function handleSelectObject(planetId: PlanetId, id: string) {
     setSelectedPlanetId(planetId);
     setSelectedObjectId(id);
     setSelectedPost(null);
+    focusCameraOnObject(`${planetId}:${id}`);
   }
 
   // HOTFIX-123(사용자 지시 — "행성을 클릭했을 때, 각 행성의 특정 설정을
@@ -1903,6 +1948,7 @@ export function AboutSiloUniverse() {
     setSelectedObjectId(null);
     setSelectedPlanetId(null);
     setSelectedPost(null);
+    focusCameraOnObject(`space:${id}`);
   }
   function handleSpaceObjectError(id: string) {
     const key = `space:${id}`;
@@ -2036,11 +2082,16 @@ export function AboutSiloUniverse() {
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
       const step = 0.4;
       switch (e.key) {
+        // HOTFIX(사용자 신고 — "화살표 위로 하면 화면이 아래로 가네?"):
+        // truck()의 y 부호는 카메라(와 타겟)를 로컬 -Y로 옮기는 값이라,
+        // 화면에 "보이는 내용"이 위/아래로 움직이는 체감 방향과는
+        // 반대였다 — 위 화살표를 누르면 화면(콘텐츠)이 위로 올라와야
+        // 하므로 부호를 뒤집는다.
         case "ArrowUp":
-          controls.truck(0, step, true);
+          controls.truck(0, -step, true);
           break;
         case "ArrowDown":
-          controls.truck(0, -step, true);
+          controls.truck(0, step, true);
           break;
         case "ArrowLeft":
           controls.truck(-step, 0, true);

@@ -41,6 +41,13 @@ export type UniverseObject = {
   // 구현). 비어있으면(게시판 미연결) 기존처럼 thumbnailUrl/summary/link
   // 수동 입력만으로 카드를 구성한다.
   boardSlug: string;
+  // HOTFIX-132.1(사용자 지시 — "오브젝트 설정 UI에 '클릭 시 줌인 거리'
+  // 슬라이더를 추가해, 관리자가 오브젝트마다 카메라가 멈추는 거리를
+  // 직접 미세 조정할 수 있게 하라"): null이면 오브젝트의 실제 바운딩
+  // 박스 크기에서 자동 계산(AboutSiloUniverse.tsx의 focusCameraOnObject
+  // 참고) — 값을 넣으면 그 배율(바운딩 반지름의 몇 배 거리에서 멈출지)
+  // 로 강제 오버라이드한다.
+  focusDistanceMultiplier: number | null;
 };
 
 // HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할 수 있는
@@ -167,6 +174,7 @@ function normalizeObject(raw: unknown): UniverseObject {
     summary: o.summary ?? "",
     link: o.link ?? "",
     boardSlug: o.boardSlug ?? "",
+    focusDistanceMultiplier: typeof o.focusDistanceMultiplier === "number" ? o.focusDistanceMultiplier : null,
   };
 }
 

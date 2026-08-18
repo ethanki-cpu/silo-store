@@ -1873,12 +1873,31 @@ export function AboutSiloUniverse() {
   // 자전 그룹 등에 중첩돼 있어도 getWorldPosition으로 정확히 구함)를
   // 향해 카메라를 부드럽게 이동시킨다 — handleFocusPlanet/handleSelectPost와
   // 동일한 setLookAt 패턴.
-  function focusCameraOnObject(key: string) {
+  // HOTFIX-132.1(사용자 신고 — "오브제를 클릭하면 카메라가 오브젝트에
+  // 너무 가깝게 밀착되어 형체를 알아볼 수 없다"): 예전엔 거리가
+  // `(0.35, 0.3, 1.0)` 고정 벡터(≈1.09 유닛)라 오브젝트 실제 크기와
+  // 무관했다 — 큰 오브젝트일수록 카메라가 표면 안쪽에 파묻히듯 보였다.
+  // 이제 `group`의 실제 렌더링된 월드 바운딩 박스를 매번 다시 재서
+  // (`Box3.setFromObject`, 애니메이션/스케일 반영된 최신 크기) 그 크기에
+  // 비례하는 거리로 물러난다 — 기본 배율(DEFAULT_FOCUS_DISTANCE_MULTIPLIER)
+  // 은 오브젝트 전체가 화면에 여유 있게 들어오도록 넉넉히 잡았고,
+  // 관리자가 오브젝트별로 `focusDistanceMultiplier`를 지정해두면(널이면
+  // 자동) 그 배율을 대신 쓴다. `cameraControlsRef`의 `minDistance`(0.6)
+  // 보다 항상 크게 클램프해 렌즈가 오브젝트 표면을 파고드는(clipping)
+  // 것도 방지한다.
+  const DEFAULT_FOCUS_DISTANCE_MULTIPLIER = 2.4;
+  function focusCameraOnObject(key: string, focusDistanceMultiplier?: number | null) {
     const controls = cameraControlsRef.current;
     const group = objectRefs.current.get(key);
     if (!controls || !group) return;
     const worldPos = group.getWorldPosition(new THREE.Vector3());
-    const camPos = worldPos.clone().add(new THREE.Vector3(0.35, 0.3, 1.0));
+    const box = new THREE.Box3().setFromObject(group);
+    const size = box.getSize(new THREE.Vector3());
+    const boundingRadius = Math.max(size.x, size.y, size.z, 0.05) * 0.5;
+    const multiplier = focusDistanceMultiplier ?? DEFAULT_FOCUS_DISTANCE_MULTIPLIER;
+    const distance = Math.max(boundingRadius * multiplier, controls.minDistance, 0.6);
+    const dir = new THREE.Vector3(0.35, 0.3, 1.0).normalize();
+    const camPos = worldPos.clone().add(dir.multiplyScalar(distance));
     controls.setLookAt(camPos.x, camPos.y, camPos.z, worldPos.x, worldPos.y, worldPos.z, true);
   }
 
@@ -1886,7 +1905,8 @@ export function AboutSiloUniverse() {
     setSelectedPlanetId(planetId);
     setSelectedObjectId(id);
     setSelectedPost(null);
-    focusCameraOnObject(`${planetId}:${id}`);
+    const obj = panelConfig.planets[planetId].objects.find((o) => o.id === id);
+    focusCameraOnObject(`${planetId}:${id}`, obj?.focusDistanceMultiplier ?? null);
   }
 
   // HOTFIX-123(사용자 지시 — "행성을 클릭했을 때, 각 행성의 특정 설정을
@@ -1948,7 +1968,8 @@ export function AboutSiloUniverse() {
     setSelectedObjectId(null);
     setSelectedPlanetId(null);
     setSelectedPost(null);
-    focusCameraOnObject(`space:${id}`);
+    const obj = panelConfig.spaceObjects.find((o) => o.id === id);
+    focusCameraOnObject(`space:${id}`, obj?.focusDistanceMultiplier ?? null);
   }
   function handleSpaceObjectError(id: string) {
     const key = `space:${id}`;

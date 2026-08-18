@@ -11,6 +11,7 @@ import {
 } from "@/lib/tabHoverMotion";
 import type { AccountMenuStyleConfig } from "@/lib/accountMenuStyleSettings";
 import { ChromeAccountMenuView } from "../views";
+import { ChromeSelectionOverlay } from "../ChromeSelectionOverlay";
 
 export type ChromeAccountMenuBlockProps = {
   config: AccountMenuStyleConfig;
@@ -20,10 +21,13 @@ export type ChromeAccountMenuBlockProps = {
 export function ChromeAccountMenuBlock({ config }: ChromeAccountMenuBlockProps) {
   const {
     connectors: { connect },
-  } = useNode();
+    selected,
+    hovered,
+  } = useNode((node) => ({ selected: node.events.selected, hovered: node.events.hovered }));
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div ref={(dom) => { if (dom) connect(dom); }} className="relative">
       <ChromeAccountMenuView config={config} />
+      <ChromeSelectionOverlay selected={selected} hovered={hovered} label="사용자 메뉴" />
     </div>
   );
 }

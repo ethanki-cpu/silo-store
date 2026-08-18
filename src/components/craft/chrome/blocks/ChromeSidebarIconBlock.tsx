@@ -10,6 +10,7 @@ import { useNode } from "@craftjs/core";
 import { uploadImage } from "@/lib/adminImageUpload";
 import { DEFAULT_ICON_SIZE_PX, type SidebarIconsConfig } from "@/lib/sidebarIconsSettings";
 import { ChromeSidebarIconView } from "../views";
+import { ChromeSelectionOverlay } from "../ChromeSelectionOverlay";
 
 export type ChromeSidebarIconBlockProps = {
   side: "left" | "right";
@@ -20,10 +21,13 @@ export type ChromeSidebarIconBlockProps = {
 export function ChromeSidebarIconBlock({ side, config }: ChromeSidebarIconBlockProps) {
   const {
     connectors: { connect },
-  } = useNode();
+    selected,
+    hovered,
+  } = useNode((node) => ({ selected: node.events.selected, hovered: node.events.hovered }));
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div ref={(dom) => { if (dom) connect(dom); }} className="relative">
       <ChromeSidebarIconView side={side} config={config} />
+      <ChromeSelectionOverlay selected={selected} hovered={hovered} label={side === "left" ? "좌측 사이드바 아이콘" : "우측 사이드바 아이콘"} />
     </div>
   );
 }

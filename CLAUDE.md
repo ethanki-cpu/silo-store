@@ -80,6 +80,14 @@ This project maintains dedicated design/ops documents in `docs/` — treat each 
 3. **If a Blueprint needs to change to match new work, update it in the same change** — don't let code and Blueprint drift apart the way `docs/database-schema.sql` drifted before its 2026-07-23 resync.
 4. **When an Epic is completed, update `docs/EPIC.md`** (move it from 진행중/예정 to 완료), alongside the usual `CHANGELOG.md`/`NEXT_TASK.md` updates — see "세션 시작 시 읽기 순서" above for the full EPIC-completion doc-sync list (also includes `docs/PROJECT_DASHBOARD.md`/`docs/STAGES.md`, EPIC-054E).
 
+## Numbering convention (2026-08-19, 사용자 지시)
+
+**메인 정수 번호는 EPIC에만 부여한다.** 새로운 기획/기능 단위로서의 작업만 다음 정수(예: 이전 최고 번호가 135면 다음은 136)를 받는다.
+
+**HOTFIX는 독립된 정수를 소모할 수 없다** — 특정 EPIC 진행 중 또는 그 직후에 나온 버그 수정/후속 조정은 그 EPIC에 종속된 하위 버전으로 기록한다: `HOTFIX-<EPIC번호>.<n>` (예: EPIC-132 작업 이후 나온 버그 수정 두 건은 `HOTFIX-132.1`, `HOTFIX-132.2`). 어느 EPIC에 속하는지 애매하면(여러 EPIC에 걸친 수정 등) 가장 최근에, 가장 밀접하게 관련된 EPIC에 붙인다.
+
+**이 규칙은 2026-08-19부터 적용되는 새 커밋에만 적용된다** — 그 이전에 이미 `HOTFIX-<정수>` 형식으로 커밋/문서화된 항목(예: HOTFIX-131/133/134)은 소급해서 번호를 바꾸지 않는다(이미 push된 커밋 메시지/CHANGELOG 이력을 다시 쓰는 건 별도 위험이 큰 작업이라 사용자가 명시적으로 요청하지 않는 한 하지 않는다).
+
 ## Git operating rules
 
 These apply to every session in this repo, in addition to the general Git Safety Protocol — see also [`docs/git-sync.md`](docs/git-sync.md) for the full workflow.

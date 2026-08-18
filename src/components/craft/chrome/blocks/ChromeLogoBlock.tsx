@@ -11,6 +11,7 @@ import { useNode } from "@craftjs/core";
 import { uploadImage } from "@/lib/adminImageUpload";
 import { DEFAULT_LOGO_HEIGHT_PX, DEFAULT_LOGO_TEXT_COLOR, type MainLogoConfig } from "@/lib/mainLogoSettings";
 import { ChromeLogoView } from "../views";
+import { ChromeSelectionOverlay } from "../ChromeSelectionOverlay";
 
 export type ChromeLogoBlockProps = {
   config: MainLogoConfig;
@@ -20,10 +21,13 @@ export type ChromeLogoBlockProps = {
 export function ChromeLogoBlock({ config }: ChromeLogoBlockProps) {
   const {
     connectors: { connect },
-  } = useNode();
+    selected,
+    hovered,
+  } = useNode((node) => ({ selected: node.events.selected, hovered: node.events.hovered }));
   return (
-    <div ref={(dom) => { if (dom) connect(dom); }}>
+    <div ref={(dom) => { if (dom) connect(dom); }} className="relative">
       <ChromeLogoView config={config} />
+      <ChromeSelectionOverlay selected={selected} hovered={hovered} label="메인 로고" />
     </div>
   );
 }

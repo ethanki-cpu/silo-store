@@ -104,6 +104,32 @@ export function ObjectInspectorPanel({
           />
           <span className="text-white/50">{object.scale.toFixed(2)}</span>
         </label>
+        <label className="block text-[10px] text-white/60">
+          클릭 시 줌인 거리(배율, 비우면 자동)
+          <div className="mt-1 flex items-center gap-1.5">
+            <input
+              type="range"
+              min={1}
+              max={8}
+              step={0.1}
+              className="w-full"
+              value={object.focusDistanceMultiplier ?? 2.4}
+              onChange={(e) => onChange({ focusDistanceMultiplier: Number(e.target.value) })}
+            />
+            <span className="w-16 shrink-0 text-right text-white/50">
+              {object.focusDistanceMultiplier === null ? "자동" : object.focusDistanceMultiplier.toFixed(1) + "배"}
+            </span>
+          </div>
+          {object.focusDistanceMultiplier !== null && (
+            <button
+              type="button"
+              onClick={() => onChange({ focusDistanceMultiplier: null })}
+              className="mt-1 text-[10px] text-white/40 underline hover:text-white/70"
+            >
+              자동으로 되돌리기
+            </button>
+          )}
+        </label>
         <div className="text-[10px] text-white/40">
           위치는 3D 화면에서 오브젝트를 직접 드래그해 옮기세요(파란 화살표 기즈모) — 행성 표면에 자동으로 붙습니다.
           {object.position && (

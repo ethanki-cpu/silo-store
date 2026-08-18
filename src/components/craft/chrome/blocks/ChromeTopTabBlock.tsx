@@ -14,6 +14,7 @@ import {
 import type { TopTabStyleEntry } from "@/lib/topTabStyleSettings";
 import { ChromeTopTabView } from "../views";
 import { draggableTabProps } from "../ChromeTierZone";
+import { ChromeSelectionOverlay } from "../ChromeSelectionOverlay";
 
 export type ChromeTopTabBlockProps = {
   tabKey: string;
@@ -25,17 +26,20 @@ export type ChromeTopTabBlockProps = {
 export function ChromeTopTabBlock({ tabKey, defaultLabel, entry }: ChromeTopTabBlockProps) {
   const {
     connectors: { connect },
-  } = useNode();
+    selected,
+    hovered,
+  } = useNode((node) => ({ selected: node.events.selected, hovered: node.events.hovered }));
   // D1: 이 탭 칩 자체가 드래그 소스 — ChromeTierZone(1단/2단 드롭존)에
   // 놓으면 tier가 그 즉시 바뀐다. "cursor-move"로 드래그 가능함을
   // 시각적으로 알린다.
   return (
     <span
       ref={(dom) => { if (dom) connect(dom); }}
-      className="inline-block cursor-move"
+      className="relative inline-block cursor-move"
       {...draggableTabProps(tabKey)}
     >
       <ChromeTopTabView label={entry.labelOverride || defaultLabel} entry={entry} />
+      <ChromeSelectionOverlay selected={selected} hovered={hovered} label={entry.labelOverride || defaultLabel} />
     </span>
   );
 }

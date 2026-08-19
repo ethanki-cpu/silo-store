@@ -16,6 +16,15 @@
 // 드롭다운/메가메뉴/모바일 반응형 같은 실제 동작이 전혀 깨지지 않는다.
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "grapesjs";
+// HOTFIX(사용자 신고 — "이 페이지 빌더는 정말 처참한 수준이다", 스크린샷
+// 확인 — 레이어 패널의 눈 모양 아이콘이 원본 크기 그대로 거대하게
+// 나오고, 스타일 패널 드롭다운이 브라우저 기본 화살표로 나오는 등
+// 전체적으로 "스타일이 하나도 안 입혀진" 모습): GrapesJS는 JS 모듈만
+// import한다고 패널/아이콘/폼 컨트롤이 스타일링되지 않는다 — 자체
+// 스타일시트(grapes.min.css)를 별도로 import해야 패널 배경/테두리/
+// 아이콘 크기/버튼 모양이 전부 적용된다. 이 파일이 그 import를 아예
+// 빠뜨리고 있었던 것이 "처참해 보이는" 원인 전부였다.
+import "grapesjs/dist/css/grapes.min.css";
 import {
   HEADER_MENU_ITEM_KEYS,
   HEADER_MENU_ITEM_LABELS,

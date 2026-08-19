@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-20 (HOTFIX-134.6 — GrapesJS 헤더 에디터 스타일시트 누락으로 패널 전체가 "처참하게" 보이던 버그 수정)
+- **배경**: 사용자가 "헤더(상단 탭 + 사용자 메뉴)" 관리자 화면 스크린샷을 첨부하며 "이 페이지 빌더는 정말 처참한 수준이다, 이게 최선이냐"고 강하게 지적 — 레이어 패널의 눈 모양 아이콘이 원본 SVG 크기 그대로 거대하게 나오고, 스타일 패널 드롭다운이 브라우저 기본 화살표로 나오는 등 전체가 스타일이 하나도 안 입혀진 모습이었다.
+- **원인**: `HeaderGrapesEditor.tsx`(EPIC-134)가 `import("grapesjs")`로 JS 모듈만 동적 로드하고, GrapesJS 자체 스타일시트(`grapesjs/dist/css/grapes.min.css`)는 아예 import한 적이 없었다 — GrapesJS는 이 CSS 없이는 패널 배경/테두리/아이콘 크기/버튼 모양이 전혀 적용되지 않고 브라우저 기본 스타일 그대로 렌더링된다. "GrapesJS 자체가 조악하다"가 아니라 "필수 스타일시트 import 한 줄이 빠진" 단순 누락 버그였다.
+- **수정**: 파일 상단에 `import "grapesjs/dist/css/grapes.min.css";` 추가.
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors. Browser pane 실측 — 수정 전/후 스크린샷 비교(레이어 패널 다크 테마 적용, 아이콘이 78개 전부 13×13px로 정상 축소, 스타일 패널 드롭다운이 `appearance: none`으로 커스텀 스타일 적용, 캔버스에 실제 탭/계정 메뉴 항목 칩이 정상 배치돼 보임), 콘솔에 신규 에러 없음.
+- **변경 파일**: `src/components/admin/grapes/HeaderGrapesEditor.tsx`.
+
 ## 2026-08-19 (HOTFIX-134.5 — 프리셋 배경 점 그리드의 진짜 원인 제거: 화면에 고정된 2D 별 레이어를 완전히 삭제)
 - **배경**: 다른 컴퓨터에서 origin/main으로 동기화 후, 사용자가 스크린샷과 함께 "점 그리드가 화면을 패닝할 때마다 계속 따라다닌다"고 신고 — HOTFIX-134.4가 "실제 재현·수정"했다고 기록한 것과 같은 증상이 여전히 남아있었다.
 - **진짜 원인**: HOTFIX-134.4는 별 점 SVG가 15~40배로 확대 렌더링되던 **크기** 버그는 실제로 고쳤지만, 더 근본적인 구조 문제를 놓쳤다 — `PresetBackground.tsx`의 별 점은 `<Canvas>` 밖의 순수 2D DOM(`position: fixed`)에 CSS `background-repeat`로 그려지고 있었다. 즉 3D 카메라와 완전히 무관한 레이어라, 카메라를 아무리 돌리거나 패닝해도 이 점들은 화면에 그대로 붙박여 있을 수밖에 없었다 — "그리드가 화면을 따라다닌다"는 신고는 정확히 이 현상이었다(크기를 고쳐도 애초에 화면 고정 레이어인 이상 절대 해결될 수 없는 종류의 버그). 게다가 `AboutSiloUniverse.tsx`의 `UniverseParticles`(drei `<Stars>`/`<Sparkles>`/`<ShootingStars>`, `<Canvas>` 안에서 `backgroundMode`와 무관하게 이미 항상 렌더링되는 진짜 3D 별)가 이미 같은 역할을 정확하게 하고 있어서, 이 2D 레이어는 애초에 불필요한 중복이었다.

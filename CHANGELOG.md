@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-19 (HOTFIX-134.3 — 우주 공간 오브젝트 사본 간 크기/반짝임 위상 다양화)
+- **배경**: HOTFIX-134.2에서 "프리셋 배경 그리드처럼 보이는 문제"의 원인을 우주 공간 오브젝트 스프라이트 92개로 진단해 보고한 뒤, 사용자가 "그대로 두기(다른 방법으로 해결)"를 선택 — 디자인/개수/불투명도는 유지하되 그리드처럼 보이는 겉모습만 다른 방법으로 고쳐달라는 지시.
+- **진짜 원인 특정**: `SpaceObjectSprite`/`SpaceObjectModel`가 "개수"로 만든 사본(예: "손그림 별 클래식" 28개)마다 전부 `obj.id` **하나만** 시드로 썼다 — 그 결과 같은 디자인의 모든 사본이 완전히 같은 크기로 렌더링되고, 반짝임(sin 파동)도 완전히 같은 위상으로 동시에 맥동했다. 크기·리듬이 완전히 동일한 사물 수십 개가 무작위 위치에 흩뿌려지면(실제 3D 좌표 자체는 진짜 랜덤이었음, `spaceObjectDefaultPosition` 확인) 사람 눈에는 무작위 산개가 아니라 인위적인 반복 패턴("그리드")으로 읽힌다 — 스크린샷의 "이상한 점 그리드"는 이 시각적 착시였다.
+- **수정**: `SpaceObjectsLayer`가 각 사본에 `index`를 새로 전달, `SpaceObjectSprite`/`SpaceObjectModel` 둘 다 시드 계산에 `obj.id`뿐 아니라 `index`도 섞어(`${obj.id}#${index}` 해시) 사본마다 크기(0.7~1.3배 무작위)와 회전/반짝임 위상이 자연스럽게 달라지게 했다. 디자인(이미지 URL)·개수·전역 위치 분포·선택 글로우 불투명도 등 관리자가 실제로 설정한 값은 전혀 건드리지 않음 — 순수하게 "같은 디자인의 여러 사본을 시각적으로 덜 인위적으로 보이게" 렌더링만 조정.
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors, 신규 warning 없음. Browser pane으로 `/about-silo` 재렌더링 확인 — 이전 스크린샷들과 비교해 오브제 크기가 눈에 띄게 다양해짐을 확인, 콘솔에 신규 에러 없음(기존 무해한 노이즈만).
+- **변경 파일**: `src/components/about-silo/AboutSiloUniverse.tsx`.
+
 ## 2026-08-19 (HOTFIX-134.2 — 오브젝트 선택 글로우 정적화+opacity 설정, 업로드 실패 무음 처리 수정)
 - **배경**: 사용자가 About Silo 우주 관련 3건을 신고 — (1) Universe Settings에서 배경 프리셋 "수채화 블루"/"딥 블루" 선택 시 화면에 이상한 점 그리드가 생긴다, (2) 오브제 선택 시 나타나는 하늘색 구체가 커졌다 작아졌다(맥동) 하는데 opacity를 설정 가능하게 하고 맥동 없는 정적 파스텔 레이어로 바꿔달라, (3) SILO/My Page 행성에 오브제(.glb) 추가가 안 된다(60MB 넘는 파일이라 그런 것 같다).
 - **(2) 선택 글로우 정적화 + opacity 설정**: `UniverseObjectModel`/`SpaceObjectGlow`가 `useFrame`으로 매 프레임 scale/opacity를 사인파로 맥동시키던 로직을 완전히 제거 — 정적인 파스텔 하늘색(`#bae6fd`, 기존 두 곳이 쓰던 서로 다른 색 `#7dd3fc`/`#a8d8ff`를 하나로 통일) 레이어로 교체. 새 설정 `UniverseConfig.selectionGlowOpacity`(기본 0.5)를 `aboutSiloUniverseConfig.ts`에 추가하고 `UniverseSettingsPanel.tsx`에 슬라이더 신설, `AboutSiloUniverse.tsx`에 신규 `SelectionGlowOpacityContext`(React Context)로 Scene 루트에서 각 글로우 컴포넌트까지 중간 컴포넌트 props를 거치지 않고 전역 전달.

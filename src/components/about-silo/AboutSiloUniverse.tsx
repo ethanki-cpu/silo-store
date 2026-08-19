@@ -797,12 +797,14 @@ function SpaceObjectModel({
   selected,
   onSelect,
   registerRef,
+  index,
 }: {
   obj: SpaceObject;
   position: [number, number, number];
   selected: boolean;
   onSelect: () => void;
   registerRef: (group: THREE.Group | null) => void;
+  index: number;
 }) {
   const { scene } = useGLTF(obj.url);
   const { normalized, centerOffset, boundingRadius } = useMemo(() => {
@@ -824,12 +826,20 @@ function SpaceObjectModel({
 
   // 소행성처럼 천천히 스스로 굴러가는(자전) 느낌 — 행성 자전과 무관하게
   // 각 오브젝트가 독립적으로 아주 느리게 돈다.
+  // HOTFIX(사용자 신고 — "프리셋 배경에서 오브젝트가 이상한 점 그리드처럼
+  // 보인다"): 실제 원인은 "개수"로 복제한 사본들이 전부 obj.id 하나만
+  // 시드로 써서 크기·자전 속도·반짝임 위상이 완전히 동일했던 것 —
+  // 같은 모양·크기의 오브젝트 수십 개가 똑같은 리듬으로 움직이니 눈에는
+  // 무작위 산개가 아니라 인위적인 패턴(그리드)처럼 읽힌다. 사본 index를
+  // 시드에 섞어 사본마다 크기/속도/위상이 자연스럽게 달라지게 한다 —
+  // 디자인/개수/불투명도 등 관리자가 정한 값은 전혀 건드리지 않는다.
   const spinRef = useRef<THREE.Group>(null);
-  const spinSeed = useMemo(() => hashRandom01(obj.id.length + obj.id.charCodeAt(0)), [obj.id]);
+  const instanceSeed = useMemo(() => hashRandom01(obj.id.length + obj.id.charCodeAt(0) + index * 97), [obj.id, index]);
+  const scaleJitter = 0.75 + instanceSeed * 0.5;
   useFrame((_, delta) => {
     if (spinRef.current) {
-      spinRef.current.rotation.y += delta * (0.03 + spinSeed * 0.04);
-      spinRef.current.rotation.x += delta * (0.015 + spinSeed * 0.02);
+      spinRef.current.rotation.y += delta * (0.03 + instanceSeed * 0.04);
+      spinRef.current.rotation.x += delta * (0.015 + instanceSeed * 0.02);
     }
   });
 
@@ -837,7 +847,7 @@ function SpaceObjectModel({
     <group
       ref={registerRef}
       position={position}
-      scale={obj.scale}
+      scale={obj.scale * scaleJitter}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -859,20 +869,31 @@ function SpaceObjectSprite({
   selected,
   onSelect,
   registerRef,
+  index,
 }: {
   obj: SpaceObject;
   position: [number, number, number];
   selected: boolean;
   onSelect: () => void;
   registerRef: (group: THREE.Group | null) => void;
+  index: number;
 }) {
   const texture = useTexture(obj.url);
   const materialRef = useRef<THREE.SpriteMaterial>(null);
+  // HOTFIX(사용자 신고 — "프리셋 배경에서 오브젝트가 이상한 점
+  // 그리드처럼 보인다"): "개수"로 복제한 사본들이 obj.id만 시드로 써서
+  // 전부 완전히 같은 크기로, 완전히 같은 위상으로 동시에 반짝였다 —
+  // 같은 별 이미지 수십 개가 동일한 크기·리듬으로 화면에 흩뿌려지면
+  // 무작위 산개가 아니라 인위적인 반복 패턴(그리드)처럼 보인다. index를
+  // 시드에 섞어 사본마다 크기/반짝임 위상이 자연스럽게 달라지게 한다 —
+  // 디자인(이미지)·개수·전역 불투명도 등 관리자가 정한 값은 그대로 둔다.
   const seed = useMemo(() => {
     let h = 0;
-    for (let i = 0; i < obj.id.length; i++) h = (h * 31 + obj.id.charCodeAt(i)) % 1000;
+    const key = `${obj.id}#${index}`;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 1000;
     return h;
-  }, [obj.id]);
+  }, [obj.id, index]);
+  const scaleJitter = 0.7 + hashRandom01(seed + 500) * 0.6;
   // 별/은하수/별똥별 등은 반짝이는 편이 그 의미가 잘 살아서(사용자 지시
   // — 다른 반짝이는 오브젝트들과 동일한 트윙클 언어) 밝기를 사인파로
   // 맥동시킨다.
@@ -882,7 +903,7 @@ function SpaceObjectSprite({
     materialRef.current.opacity = 0.7 + Math.sin(t * 1.4 + seed) * 0.3;
   });
 
-  const baseScale = obj.scale * 3;
+  const baseScale = obj.scale * 3 * scaleJitter;
   return (
     <group
       ref={registerRef}
@@ -935,6 +956,7 @@ function SpaceObjectsLayer({
             registerRef: (g: THREE.Group | null) => {
               if (i === 0) registerRef(obj.id, g);
             },
+            index: i,
           };
           return (
             <AssetLoadErrorBoundary key={`${obj.id}#${i}`} fallback={null} onError={() => onError(obj.id)}>

@@ -45,15 +45,14 @@ export type HeaderLayoutItem = {
 
 export type HeaderLayoutConfig = { items: HeaderLayoutItem[] };
 
-// HOTFIX(범위 축소, 2026-08-19): 다른 모든 설정({pc,mobile} 독립값)과
-// 달리 이 레이아웃은 PC/모바일 공용 단일 목록으로 시작한다 — GrapesJS
-// Device Manager까지 이번 스코프에 넣으면 저장 데이터 모델과 캔버스 both
-// 복잡도가 크게 늘어나 위험도가 높아진다(사이트 전체에 영향을 주는
-// Navbar.tsx를 건드리는 작업이라 특히). 독립적인 모바일 레이아웃은 다음
-// 단계로 명시적으로 미룬다(NEXT_TASK.md 기록).
-export type HeaderLayoutValue = HeaderLayoutConfig;
+// HOTFIX(사용자 지시 — "pc/모바일 독립으로 설정할 수 있게 해야지"): 다른
+// 모든 설정(main_logo/sidebar_icons/top_tab_style/account_menu_style)과
+// 동일한 {pc, mobile} 독립값 패턴 — heroSlideshow/topTabStyle 등과 같은
+// 방식으로 관리자가 PC/모바일 탭을 토글해가며 서로 다른 순서·스타일을
+// 저장할 수 있다.
+export type HeaderLayoutValue = { pc: HeaderLayoutConfig; mobile: HeaderLayoutConfig };
 
-export function normalizeHeaderLayout(raw: unknown): HeaderLayoutValue {
+function normalizeHeaderLayoutConfig(raw: unknown): HeaderLayoutConfig {
   if (!raw || typeof raw !== "object") return { items: [] };
   const items = (raw as { items?: unknown }).items;
   if (!Array.isArray(items)) return { items: [] };
@@ -80,6 +79,23 @@ export function normalizeHeaderLayout(raw: unknown): HeaderLayoutValue {
       })
       .filter((it) => it.refId),
   };
+}
+
+// 구버전(2026-08-19 EPIC-134 최초 출시분) 저장값은 {pc,mobile} 구분 없이
+// {items:[...]} 단일 목록이었다 — 처음 조회 시 그 값을 pc/mobile 양쪽에
+// 그대로 복제해 back-compat("이미 만들어둔 레이아웃이 사라지지 않고
+// 그대로 양쪽에 남아있다가, 이후 각자 독립적으로 갈라져 나간다")한다.
+export function normalizeHeaderLayout(raw: unknown): HeaderLayoutValue {
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && ("pc" in raw || "mobile" in raw) && !("items" in raw)) {
+    const v = raw as { pc?: unknown; mobile?: unknown };
+    return { pc: normalizeHeaderLayoutConfig(v.pc), mobile: normalizeHeaderLayoutConfig(v.mobile) };
+  }
+  const legacy = normalizeHeaderLayoutConfig(raw);
+  return { pc: legacy, mobile: legacy };
+}
+
+export function defaultHeaderLayoutValue(): HeaderLayoutValue {
+  return { pc: { items: [] }, mobile: { items: [] } };
 }
 
 // 관리자가 한 번도 저장한 적 없을 때 캔버스를 채우는 시작 상태 — 실제

@@ -19,6 +19,7 @@ import { uploadImage, compressImage } from "@/lib/adminImageUpload";
 import { HeaderGrapesEditor } from "@/components/admin/grapes/HeaderGrapesEditor";
 import {
   normalizeHeaderLayout,
+  defaultHeaderLayoutValue,
   buildDefaultHeaderLayout,
   type HeaderLayoutItem,
   type HeaderLayoutValue,
@@ -274,14 +275,16 @@ export default function AdminNavigationSettingsPage() {
   const [topTabStyleValue, setTopTabStyleValue] = useState<TopTabStyleValue>(defaultTopTabStyleValue());
   const [accountMenuStyleValue, setAccountMenuStyleValue] = useState<AccountMenuStyleValue>(defaultAccountMenuStyleValue());
 
-  // EPIC-134: GrapesJS 통합 헤더 캔버스가 저장하는 값 — 탭/계정 메뉴
-  // 항목의 순서 및 항목별 스타일 오버라이드(headerLayoutSettings.ts).
-  const [headerLayoutValue, setHeaderLayoutValue] = useState<HeaderLayoutValue>({ items: [] });
+  // EPIC-134/HOTFIX(사용자 지시 — "pc/모바일 독립으로 설정할 수 있게
+  // 해야지"): GrapesJS 통합 헤더 캔버스가 저장하는 값 — 다른 설정들과
+  // 동일하게 chromeDeviceTab을 공유하는 {pc,mobile} shim 패턴.
+  const [headerLayoutValue, setHeaderLayoutValue] = useState<HeaderLayoutValue>(defaultHeaderLayoutValue());
   const [savingHeaderLayout, setSavingHeaderLayout] = useState(false);
   async function handleSaveHeaderLayout(items: HeaderLayoutItem[]) {
     setSavingHeaderLayout(true);
-    setHeaderLayoutValue({ items });
-    await handleSave("unified_header_layout", { items });
+    const next: HeaderLayoutValue = { ...headerLayoutValue, [chromeDeviceTab]: { items } };
+    setHeaderLayoutValue(next);
+    await handleSave("unified_header_layout", next);
     setSavingHeaderLayout(false);
   }
 
@@ -571,7 +574,7 @@ export default function AdminNavigationSettingsPage() {
             아이콘/상단 탭 디자인 셋 다 이 토글 하나를 공유한다 —
             슬라이드쇼는 이미 자기 자신만의 PC/모바일 탭이 있어(heroTab)
             대상이 아니고, 하단 메뉴는 Craft 전체화면 에디터라 별개다. */}
-        {(activeSection === "logo" || activeSection === "sidebarIcons") && (
+        {(activeSection === "logo" || activeSection === "sidebarIcons" || activeSection === "header") && (
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
             <span className="text-xs text-gray-500">지금 편집 중:</span>
             <div className="flex items-center rounded-md border border-gray-300 bg-white p-0.5 text-xs">
@@ -1329,10 +1332,17 @@ export default function AdminNavigationSettingsPage() {
             <p className="rounded-lg border border-gray-200 p-4 text-xs text-gray-400">상단 탭 목록을 불러오는 중이에요...</p>
           ) : (
             <HeaderGrapesEditor
+              // HOTFIX(PC/모바일 독립): GrapesJS 캔버스는 최초 마운트 시의
+              // initialItems만 시드로 쓰고 이후 prop 변화에 반응하지
+              // 않는다(HeaderGrapesEditor.tsx 참고) — chromeDeviceTab이
+              // 바뀔 때마다 key를 바꿔 강제로 리마운트해야 그 기기의
+              // 저장값으로 다시 시드된다(다른 Craft 에디터들의
+              // key={chromeDeviceTab} 패턴과 동일).
+              key={chromeDeviceTab}
               tabs={topNavRows.map((row) => ({ key: row.key ?? row.id, label: row.title }))}
               initialItems={
-                headerLayoutValue.items.length > 0
-                  ? headerLayoutValue.items
+                headerLayoutValue[chromeDeviceTab].items.length > 0
+                  ? headerLayoutValue[chromeDeviceTab].items
                   : buildDefaultHeaderLayout(topNavRows.map((row) => row.key ?? row.id))
               }
               saving={savingHeaderLayout}

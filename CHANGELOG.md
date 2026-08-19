@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-19 (HOTFIX-134.1 — 통합 헤더 레이아웃 PC/모바일 독립 설정)
+- **배경**: 사용자가 EPIC-134(GrapesJS 통합 헤더 캔버스) 직후 "pc/모바일 독립으로 설정할 수 있게 해야지"라고 신고 — 그 EPIC이 "의도적으로 범위 밖"으로 명시해뒀던 항목(PC/모바일 공용 단일 목록)을 다른 모든 설정(`main_logo`/`sidebar_icons`/`top_tab_style`/`account_menu_style`)과 동일하게 `{pc, mobile}` 독립값으로 확장.
+- **`headerLayoutSettings.ts`**: `HeaderLayoutValue`를 `HeaderLayoutConfig`(단일 목록)에서 `{ pc: HeaderLayoutConfig; mobile: HeaderLayoutConfig }`로 변경. `normalizeHeaderLayout()`이 신버전(`{pc,mobile}`)과 구버전(EPIC-134 최초 출시분, `{items:[...]}` 단일 목록) 둘 다 처리 — 구버전 값은 pc/mobile 양쪽에 그대로 복제해 back-compat(이미 저장해둔 레이아웃이 사라지지 않음). `defaultHeaderLayoutValue()` 신규.
+- **`page.tsx`(관리자 설정)**: `headerLayoutValue` state를 다른 섹션들과 동일한 `chromeDeviceTab` shim 패턴으로 전환, `HeaderGrapesEditor`에 `key={chromeDeviceTab}` 추가(GrapesJS 캔버스는 마운트 시의 initialItems만 시드로 쓰고 이후 prop 변화에 반응하지 않으므로, 기기 탭 전환 시 강제 리마운트가 필요 — 다른 Craft 에디터들과 동일한 이유). "헤더" 섹션을 PC/모바일 토글이 보이는 섹션 목록에 추가.
+- **`Navbar.tsx`**: `headerLayoutValue`(fetch 결과, `{pc,mobile}`)에서 `isMobileViewport`에 맞는 쪽만 고르는 `headerLayout` 파생값 추가(다른 3개 설정과 동일한 패턴) — 이후 렌더링 로직(`unifiedHeaderItems` 등)은 이 값만 참조.
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors(HOTFIX-116 교훈대로 build까지 확인). **실사용 검증**: 관리자 세션으로 PC 탭에서 저장 → 모바일 탭으로 전환(캔버스 리마운트 확인) → 저장 → DB에서 `setting_value.pc`/`setting_value.mobile`이 각각 독립된 12개 항목 배열로 저장됨을 직접 조회 확인(PC 저장이 모바일 저장에 덮어써지지 않음, 반대도 마찬가지). 데스크톱 뷰포트/375px 모바일 뷰포트 둘 다 새로고침해 각자 올바른 쪽(`pc`/`mobile`)을 읽어 렌더링함을 DOM으로 확인. 검증 후 테스트 데이터는 Management API로 삭제해 원상복구.
+- **다음에 확인 필요**: 실제로 PC와 모바일에 서로 다른 순서/스타일을 넣어보는 것(이번 세션은 구조적 독립성만 검증 — 두 값을 실제로 다르게 만들어 다른 화면에서 다르게 보이는지까지는 미확인, 메커니즘상 문제없을 것으로 판단되나 사람이 직접 확인 권장).
+- **변경 파일**: `src/lib/headerLayoutSettings.ts`, `src/app/admin/navigation/settings/page.tsx`, `src/components/Navbar.tsx`.
+
 ## 2026-08-19 (EPIC-134 — GrapesJS 기반 통합 헤더 캔버스 에디터, 상단 탭+사용자 메뉴 폐기·통합)
 - **배경**: 사용자가 "현재 6개 탭 방식 Form 기반 설정창은 WYSIWYG 빌더 요건을 전혀 충족하지 못한다"며 GrapesJS(또는 동급 캔버스 기반 Drag & Drop 에디터) 도입을 명시적으로 지시 — 기존 "상단 탭 디자인"/"사용자 메뉴 디자인"(Craft.js 기반, EPIC-132/HOTFIX-132.1/132.2) 두 탭을 완전히 폐기하고 하나의 캔버스에서 탭과 계정 메뉴 항목을 자유롭게 섞어 배치(예: "로그아웃 옆에 스튜디오 탭을 끌어다 놓을 수 있어야 함")할 것을 요구.
 - **`grapesjs@0.23.5` 신규 설치**: 이 저장소 최초의 "vanilla-JS 라이브러리를 ref 컨테이너에 imperative하게 마운트/파괴"하는 패턴(`next/dynamic` 대신 `useEffect` 내부 동적 `import("grapesjs")` + cleanup에서 `editor.destroy()`) — 기존 Craft.js(선언적 React 컴포넌트)와는 근본적으로 다른 통합 방식이라 이 리포에 전례가 없었다.

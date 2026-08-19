@@ -243,6 +243,9 @@ export function Navbar() {
       cancelled = true;
     };
   }, []);
+  // HOTFIX(사용자 지시 — "pc/모바일 독립으로 설정할 수 있게 해야지"): 다른
+  // 설정들과 동일하게 {pc, mobile}에서 지금 뷰포트에 맞는 쪽만 고른다.
+  const headerLayout = headerLayoutValue ? (isMobileViewport ? headerLayoutValue.mobile : headerLayoutValue.pc) : null;
 
   // HOTFIX(사용자 신고 — "홈페이지 설정관리에 프리뷰가 안 나오는데? PC와
   // 모바일 버전 실시간으로 보이게 해줘"): /admin/navigation/settings의
@@ -725,13 +728,13 @@ export function Navbar() {
     }
   }
 
-  // EPIC-134: headerLayoutValue.items(탭+계정 메뉴 뒤섞인 순서)를 실제
-  // 렌더 가능한 노드 목록으로 변환 — 삭제된 탭을 가리키는 stale 항목은
-  // 조용히 건너뛴다(사이트 구성 관리에서 탭이 삭제됐는데 예전 저장값이
-  // 남아있는 경우, 에러 없이 자연스럽게 무시).
+  // EPIC-134: headerLayout.items(탭+계정 메뉴 뒤섞인 순서, 지금 뷰포트의
+  // pc/mobile 값)를 실제 렌더 가능한 노드 목록으로 변환 — 삭제된 탭을
+  // 가리키는 stale 항목은 조용히 건너뛴다(사이트 구성 관리에서 탭이
+  // 삭제됐는데 예전 저장값이 남아있는 경우, 에러 없이 자연스럽게 무시).
   const navTabsByKey = new Map(navTabs.map((t) => [t.key, t]));
-  const unifiedHeaderItems = headerLayoutValue?.items.length
-    ? headerLayoutValue.items
+  const unifiedHeaderItems = headerLayout?.items.length
+    ? headerLayout.items
         .map((item) => {
           const node =
             item.type === "tab"

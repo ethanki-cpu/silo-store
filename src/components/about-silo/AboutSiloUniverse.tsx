@@ -35,6 +35,8 @@ import {
   useMemo,
   useRef,
   useState,
+  useContext,
+  createContext,
   Component,
   Suspense,
   type RefObject,
@@ -71,6 +73,16 @@ import { PresetBackground } from "./PresetBackground";
 import { UniverseSettingsPanel } from "./UniverseSettingsPanel";
 import { PlanetSettingsPanel } from "./PlanetSettingsPanel";
 import { ObjectInspectorPanel } from "./ObjectInspectorPanel";
+
+// HOTFIX(사용자 지시 — "선택된 오브제 주위 하늘색 구체의 opacity를 설정할
+// 수 있게 해줘"): UniverseObjectModel/SpaceObjectGlow가 Scene 루트로부터
+// 몇 단계씩 떨어져 있어(행성별 오브젝트 목록, 우주 공간 오브젝트 레이어
+// 등) 모든 중간 컴포넌트의 props를 거치지 않고 config.selectionGlowOpacity
+// 하나만 전역으로 전달하기 위한 Context.
+const SelectionGlowOpacityContext = createContext(0.5);
+// 파스텔 하늘색 — 예전엔 두 곳(#7dd3fc/#a8d8ff)이 서로 다른 색을 썼는데
+// 하나로 통일한다(사용자 지시 "파스텔 하늘색의 layer").
+const PASTEL_SKY_BLUE = "#bae6fd";
 
 // ============================================================
 // 데이터
@@ -619,18 +631,13 @@ function UniverseObjectModel({
     };
   }, [scene, radius]);
 
-  // 사용자 지시("클릭하면 오브제가 빛나게 glow 효과"): 임의 업로드
-  // .glb의 내부 머티리얼을 직접 건드리는 대신(구조가 제각각이라 위험),
-  // 선택 시에만 나타나는 가산 블렌딩 오라 구체를 은은하게 맥동시켜
-  // 글로우처럼 보이게 한다 — Scene의 Bloom 포스트프로세싱과 합쳐지면
-  // 실제로 빛나 보인다.
-  const glowRef = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
-    if (!glowRef.current) return;
-    const pulse = 0.75 + Math.sin(clock.getElapsedTime() * 2.6) * 0.25;
-    glowRef.current.scale.setScalar(pulse);
-    (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.35 + pulse * 0.25;
-  });
+  // HOTFIX(사용자 지시 — "하늘색 구체가 커졌다 작아졌다 하는데, opacity를
+  // 설정할 수 있게 해주고, 그냥 오브제 주위로 파스텔 하늘색 layer가
+  // 생기길 원해"): 예전엔 useFrame으로 scale/opacity를 매 프레임 맥동시켰다
+  // — 이제 정적인(맥동 없는) 파스텔 하늘색 레이어로 바꾸고, 불투명도는
+  // 관리자가 UniverseSettingsPanel에서 저장한 config.selectionGlowOpacity
+  // (Context로 전달, 위 SelectionGlowOpacityContext 참고)를 그대로 쓴다.
+  const glowOpacity = useContext(SelectionGlowOpacityContext);
 
   return (
     <group
@@ -648,12 +655,12 @@ function UniverseObjectModel({
       <primitive object={normalized} position={[0, baseOffsetY, 0]} />
       {selected && (
         <>
-          <mesh ref={glowRef} position={[0, baseOffsetY + boundingRadius * 0.5, 0]}>
+          <mesh position={[0, baseOffsetY + boundingRadius * 0.5, 0]}>
             <sphereGeometry args={[boundingRadius * 1.4, 16, 16]} />
             <meshBasicMaterial
-              color="#7dd3fc"
+              color={PASTEL_SKY_BLUE}
               transparent
-              opacity={0.5}
+              opacity={glowOpacity}
               toneMapped={false}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
@@ -662,7 +669,7 @@ function UniverseObjectModel({
           </mesh>
           <mesh position={[0, baseOffsetY + 0.25, 0]}>
             <ringGeometry args={[0.28, 0.32, 24]} />
-            <meshBasicMaterial color="#7dd3fc" transparent opacity={0.9} toneMapped={false} side={THREE.DoubleSide} />
+            <meshBasicMaterial color={PASTEL_SKY_BLUE} transparent opacity={0.9} toneMapped={false} side={THREE.DoubleSide} />
           </mesh>
         </>
       )}
@@ -765,20 +772,16 @@ function spaceObjectDefaultPosition(id: string, index = 0, scatterSeed = 0): [nu
 }
 
 function SpaceObjectGlow({ boundingRadius }: { boundingRadius: number }) {
-  const glowRef = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
-    if (!glowRef.current) return;
-    const pulse = 0.75 + Math.sin(clock.getElapsedTime() * 2.6) * 0.25;
-    glowRef.current.scale.setScalar(pulse);
-    (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.35 + pulse * 0.25;
-  });
+  // HOTFIX(사용자 지시 — 정적 파스텔 하늘색 레이어, opacity 설정 가능):
+  // UniverseObjectModel과 동일한 이유로 맥동 애니메이션 제거.
+  const glowOpacity = useContext(SelectionGlowOpacityContext);
   return (
-    <mesh ref={glowRef}>
+    <mesh>
       <sphereGeometry args={[boundingRadius * 1.6, 16, 16]} />
       <meshBasicMaterial
-        color="#a8d8ff"
+        color={PASTEL_SKY_BLUE}
         transparent
-        opacity={0.5}
+        opacity={glowOpacity}
         toneMapped={false}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
@@ -1587,7 +1590,7 @@ function Scene({
   const isSpaceSelection = selectedSpaceObjectId !== null;
 
   return (
-    <>
+    <SelectionGlowOpacityContext.Provider value={config.selectionGlowOpacity}>
       <ambientLight intensity={0.8} color="#ffe0ba" />
       <directionalLight position={[4, 6, 5]} intensity={0.9} color="#ffe6c4" />
       <directionalLight position={[-5, -2, -4]} intensity={0.3} color="#c9d8ff" />
@@ -1714,7 +1717,7 @@ function Scene({
         <Bloom luminanceThreshold={0.55} luminanceSmoothing={0.25} intensity={0.6} mipmapBlur />
         <Vignette eskil={false} offset={0.25} darkness={0.7} />
       </EffectComposer>
-    </>
+    </SelectionGlowOpacityContext.Provider>
   );
 }
 

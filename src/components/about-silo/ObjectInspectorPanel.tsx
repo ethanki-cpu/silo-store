@@ -68,7 +68,11 @@ export function ObjectInspectorPanel({
     setUploadingThumb(true);
     const { url, error } = await uploadFile(file, "gallery", "about-silo-universe-objects");
     setUploadingThumb(false);
-    if (!error && url) onChange({ thumbnailUrl: url });
+    if (error || !url) {
+      alert(`업로드에 실패했어요.\n\n${error ?? "알 수 없는 오류"}`);
+      return;
+    }
+    onChange({ thumbnailUrl: url });
   }
 
   return (

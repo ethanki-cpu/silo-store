@@ -106,6 +106,12 @@ export type UniverseConfig = {
   // 실뜨개 연결선 색상.
   lineColor: string;
 
+  // HOTFIX(사용자 지시 — "선택된 오브제 주위 하늘색 구체의 opacity를
+  // 설정할 수 있게 해달라"): 오브젝트 선택 시 나타나는 파스텔 하늘색
+  // 선택 레이어(정적, 더 이상 맥동하지 않음 — AboutSiloUniverse.tsx의
+  // UniverseObjectModel/SpaceObjectGlow 참고)의 불투명도(0~1).
+  selectionGlowOpacity: number;
+
   // HOTFIX-123: 행성별 설정(이름/색/텍스처/캐릭터/오브젝트/위성 소스+디자인).
   planets: {
     silo: PlanetConfig;
@@ -153,6 +159,7 @@ export function defaultUniverseConfig(): UniverseConfig {
     showThumbnails: false,
     orbitSpeed: 0.15,
     lineColor: "#f2e2b8",
+    selectionGlowOpacity: 0.5,
     planets: {
       silo: defaultPlanetConfig("SILO", "#e3a874"),
       user: defaultPlanetConfig("My Page", "#c3d8b8"),

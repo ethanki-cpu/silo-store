@@ -85,7 +85,11 @@ export function UniverseSettingsPanel({
     const bucket = kind === "sprite" ? "gallery" : "attachments";
     const { url, error } = await uploadFile(file, bucket, "about-silo-universe-space");
     setUploadingSpaceField(null);
-    if (!error && url) addSpaceObject(kind, url);
+    if (error || !url) {
+      alert(`업로드에 실패했어요.\n\n${error ?? "알 수 없는 오류"}`);
+      return;
+    }
+    addSpaceObject(kind, url);
   }
 
   function updateYoutubeUrl(index: number, value: string) {
@@ -191,6 +195,24 @@ export function UniverseSettingsPanel({
             onChange={(e) => onChange({ orbitSpeed: Number(e.target.value) })}
           />
           <span className="text-white/40">{config.orbitSpeed.toFixed(2)}</span>
+        </section>
+
+        {/* HOTFIX(사용자 지시 — "오브제 선택 시 하늘색 구체의 opacity를
+            설정할 수 있게 해줘"): 오브젝트 선택 시 나타나는 파스텔 하늘색
+            레이어(더 이상 맥동하지 않는 정적 레이어, AboutSiloUniverse.tsx
+            참고)의 불투명도. */}
+        <section>
+          <p className={SECTION_TITLE}>오브젝트 선택 레이어 불투명도</p>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            className="mt-1 w-full"
+            value={config.selectionGlowOpacity}
+            onChange={(e) => onChange({ selectionGlowOpacity: Number(e.target.value) })}
+          />
+          <span className="text-white/40">{config.selectionGlowOpacity.toFixed(2)}</span>
         </section>
 
         <section>

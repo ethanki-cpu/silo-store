@@ -68,12 +68,22 @@ export function PlanetSettingsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // HOTFIX(사용자 신고 — "silo/my page 행성에 오브제 추가가 작동되지
+  // 않아"): 원인은 업로드 실패(대부분 Supabase 프로젝트의 파일 용량
+  // 상한 — 무료 플랜은 50MB 고정, 유료 전환 전까지는 API로도 못 올림)를
+  // 그냥 조용히 무시하던 것 — 버튼이 "업로드 중..."에서 그냥 원래대로
+  // 돌아갈 뿐 아무 설명이 없어 "작동을 안 한다"로 보였다. 이제 실패
+  // 사유를 그대로 alert로 보여준다(이 파일의 다른 업로드 3곳과 동일).
   async function handleUpload(field: string, file: File | null, bucket: "attachments" | "gallery", apply: (url: string) => void) {
     if (!file) return;
     setUploadingField(field);
     const { url, error } = await uploadFile(file, bucket, "about-silo-universe");
     setUploadingField(null);
-    if (!error && url) apply(url);
+    if (error || !url) {
+      alert(`업로드에 실패했어요.\n\n${error ?? "알 수 없는 오류"}`);
+      return;
+    }
+    apply(url);
   }
 
   function addObject(url: string) {

@@ -55,20 +55,22 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-135("홈페이지 설정 관리" 4개 분리 화면을 실제 렌더 순서 그대로 쌓은
-craft.js 통합 캔버스 하나로 전환) — 로고→사용자 메뉴→상단 탭(1/2단)→
-슬라이드쇼→좌우 사이드바 아이콘을 한 화면에서 클릭-선택+왼쪽 설정 패널로
-편집(사용자가 "한 화면에서 모든 설정을" + "왼쪽 설정창"으로 명시적 요청).
-EPIC-134(GrapesJS)를 완전히 대체 — `HeaderGrapesEditor.tsx` 삭제. 저장은
-`site_settings` 그대로, 신규 `ChromeSlideshowBlock`(실제 `HeroSlideshow.tsx`
-재사용) 추가. Craft `<Frame>` 안에 React.Fragment를 직접 끼워 넣으면 죽는
-버그(`.name`/`.displayName` 없는 Symbol이라 "component (undefined)"로
-실패)를 실측 중 발견해 제거. `tsc`/`lint`/`build` 0 errors, Browser pane
-실측으로 통합 캔버스 5개 블록 전부(클릭 선택→왼쪽 패널→즉시 반영)+저장→
-홈페이지 새로고침 왕복까지 확인. 브랜치 `feature/EPIC-135`.
+EPIC-136(헤더 편집 캔버스를 "스타일 전용 복제품"에서 실제 `<Navbar>` 그
+자체로 전환 + 진짜 자유 드래그) — 사용자가 EPIC-135 캔버스를 "실제
+사이트와 다르다"/"블록을 눌러도 왼쪽에 설정이 없다"/"드래그로 자유롭게
+옮기게 해달라"고 재차 지적해 전면 재구축 확정. `Navbar.tsx`에 편집 모드
+prop을 얹어 관리자 캔버스가 실제 컴포넌트를 그대로 렌더링(클론 폐기,
+드리프트 구조적으로 불가능), 각 요소를 신규 `HeaderSlot`으로 감싸 클릭
+선택+`transform: translate(dx,dy)` 기반 자유 드래그(EPIC-108 %좌표
+시스템이 아닌 EPIC-117 tier1Tabs 트릭을 일반화). 실측 중 `position:fixed`
+헤더가 캔버스 안에서 안 보이던 버그 발견·수정. `src/components/craft/
+chrome/`(EPIC-132/135 전체) 삭제. `tsc`/`lint`/`build` 0 errors, Browser
+pane 실측(실제 홈페이지 무회귀, `PointerEvent` 직접 디스패치로 드래그
+로직 검증 — 저장→새로고침→관리자/공개 홈페이지 양쪽 transform 유지,
+PC/모바일 독립 확인). 브랜치 `feature/EPIC-136`.
 
-> 이 섹션은 EPIC-109(2026-08-14) 이후 EPIC-135(2026-08-20)까지 최상단
-> 갱신이 밀려 있었다 — 그 사이 EPIC-110~134는 `docs/EPIC.md`/`CHANGELOG.md`에
+> 이 섹션은 EPIC-109(2026-08-14) 이후 EPIC-136(2026-08-20)까지 최상단
+> 갱신이 밀려 있었다 — 그 사이 EPIC-110~135는 `docs/EPIC.md`/`CHANGELOG.md`에
 > 개별 기록돼 있음(기존에 이미 알려진 드리프트, 전체 소급 재작성은 범위 밖).
 
 직전 EPIC-109(자유 배치 이미지 리사이즈에 비율 유지/직접입력/프리셋 추가) —

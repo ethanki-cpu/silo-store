@@ -5,10 +5,16 @@
 // 클릭하면 선택은 되고(우측 설정 패널이 뜸) 값도 실시간으로 바뀌지만,
 // 클릭한 블록 자체에 아무 시각적 표시가 없어서 "지금 뭘 선택했는지"가
 // 안 보였다 — BuilderJS 등 상용 페이지 빌더는 선택된 블록에 테두리+
-// 이름표가 뜬다. 각 Chrome 블록의 connect()된 요소 안에 이 오버레이를
-// 겹쳐(pointer-events: none이라 실제 클릭/hover는 그대로 콘텐츠에
-// 전달됨) 선택/호버 상태를 보이게 한다.
-export function ChromeSelectionOverlay({
+// 이름표가 뜬다. 각 편집 가능한 요소 안에 이 오버레이를 겹쳐(pointer-events:
+// none이라 실제 클릭/hover는 그대로 콘텐츠에 전달됨) 선택/호버 상태를
+// 보이게 한다.
+// EPIC-136(헤더 재구축): 원래 Craft.js 전용(chrome/ 폴더)이었으나, 이
+// 컴포넌트 자체는 Craft에 의존하지 않는 순수 프레젠테이션이라 헤더가
+// Craft를 쓰지 않는 방식으로 바뀐 뒤에도 그대로 재사용할 수 있어 공용
+// 위치로 옮겼다(이름은 하위 호환을 위해 유지하지 않고 SelectionOverlay로
+// 정리 — 이 시점 기준 Craft 크롬 블록 전체가 삭제되어 옛 이름을 참조하는
+// 곳이 없다).
+export function SelectionOverlay({
   selected,
   hovered,
   label,

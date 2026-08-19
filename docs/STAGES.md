@@ -204,7 +204,21 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-135
+EPIC-136
+헤더 편집 캔버스를 "스타일 전용 복제품"에서 실제 `<Navbar>` 그 자체로 전환 + 진짜 자유
+드래그 — 사용자가 EPIC-135 캔버스를 "실제 사이트와 다르다"/"블록을 눌러도 왼쪽에
+설정이 없다"/"드래그로 자유롭게 옮기게 해달라"고 재차 지적해 전면 재구축을 확정.
+`Navbar.tsx`에 편집 모드 prop을 얹어 관리자 캔버스가 실제 컴포넌트를 그대로
+렌더링(클론 폐기, 드리프트 구조적으로 불가능), 각 요소를 신규 `HeaderSlot`으로 감싸
+클릭 선택+`transform: translate(dx,dy)` 기반 자유 드래그(EPIC-108 %좌표 시스템이 아닌
+EPIC-117 tier1Tabs 트릭을 일반화 — Navbar의 기존 relative 구조를 안 건드림). 실측 중
+`position:fixed` 헤더가 캔버스 안에서 안 보이던 버그 발견·수정. `src/components/craft/
+chrome/`(EPIC-132/135 전체) 삭제. `tsc`/`lint`/`build` 0 errors, Browser pane 실측(실제
+홈페이지 무회귀, `PointerEvent` 직접 디스패치로 드래그 로직 검증 — 저장→새로고침→
+관리자/공개 홈페이지 양쪽 transform 유지 확인, PC/모바일 독립 확인). 브랜치
+`feature/EPIC-136`.
+
+직전 EPIC-135
 "홈페이지 설정 관리"를 4개 분리 화면(로고/사이드바 아이콘/상단 탭/사용자 메뉴,
 EPIC-134까지의 GrapesJS 접근 포함)에서 실제 페이지 렌더 순서 그대로(로고→
 사용자 메뉴→상단 탭 1/2단→슬라이드쇼→좌우 사이드바 아이콘) 쌓아 보여주는

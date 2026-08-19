@@ -36,6 +36,13 @@ import {
   type HeaderLayoutValue,
   type HeaderMenuItemKey,
 } from "@/lib/headerLayoutSettings";
+import {
+  normalizeHeaderPositions,
+  getSlotOffset,
+  type HeaderPositionsConfig,
+  type HeaderSlotOffset,
+} from "@/lib/headerLayoutPositions";
+import { HeaderSlot } from "@/components/HeaderSlot";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -52,7 +59,31 @@ const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
 // 파일 URL을 써도 이름이 안 겹치게).
 const TOP_TAB_FONT_FAMILY_PREFIX = "SiloTopTabFont";
 
-export function Navbar() {
+// EPIC-136(사용자 지시 — "드래그앤 드롭으로 버튼이든, 이미지, 영상, 무슨
+// 요소든지 자유롭게 내가 선택하면 그 화면 안에서 마음대로 움직일수 있게
+// 해달라"): "홈페이지 설정 관리" 관리자 화면이 이 컴포넌트를 그대로,
+// 편집 모드 prop만 얹어서 렌더링한다 — 별도 "미리보기 클론"을 만들지
+// 않는다(EPIC-135까지의 접근과 근본적으로 다른 점). 캔버스가 곧 실제
+// 사이트라 완벽히 일치하고, 로그인 상태/드롭다운 메가메뉴 같은 실제 기능도
+// 관리자 화면 안에서 그대로 동작한다. 기본값(모든 props 생략)은 100%
+// 예전과 동일하게 렌더링된다.
+export function Navbar({
+  editable = false,
+  selectedSlotKey = null,
+  onSelectSlot,
+  positionsOverride,
+  onOffsetChange,
+  deviceOverride,
+}: {
+  editable?: boolean;
+  selectedSlotKey?: string | null;
+  onSelectSlot?: (slotKey: string) => void;
+  /** 관리자 화면이 "아직 저장 전, 지금 편집 중인" 값을 곧바로 반영하려고 site_settings 조회 대신 직접 넘긴다. */
+  positionsOverride?: HeaderPositionsConfig;
+  onOffsetChange?: (slotKey: string, next: HeaderSlotOffset) => void;
+  /** 관리자 화면의 PC/태블릿/모바일 토글 — 실제 뷰포트 폭 대신 이 값으로 강제한다(태블릿은 PC 데이터를 그대로 씀). */
+  deviceOverride?: "pc" | "mobile";
+} = {}) {
   const { session, member, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -79,7 +110,12 @@ export function Navbar() {
   // 렌더링된 헤더 높이를 ResizeObserver로 측정해 그만큼의 spacer를 대신
   // 넣는다. 로고 높이/탭 줄바꿈 수에 따라 높이가 가변적이라(고정값 하드코딩
   // 불가) 측정 방식을 택했다.
-  const hidden = useHideOnScroll();
+  // EPIC-136: 관리자 편집 캔버스 안에서는 fixed+숨김 스크롤 동작이 필요
+  // 없다(오히려 아래 fixed 해제와 짝을 이뤄야 정상적으로 캔버스 박스
+  // 안에 자리를 잡는다) — 훅 자체는 항상 호출하되(Hooks 규칙) 결과만
+  // 편집 모드에서 무시한다.
+  const hiddenByScroll = useHideOnScroll();
+  const hidden = editable ? false : hiddenByScroll;
   const topBarRef = useRef<HTMLDivElement>(null);
   const [topBarHeight, setTopBarHeight] = useState(0);
   useEffect(() => {
@@ -136,7 +172,8 @@ export function Navbar() {
   // — 아래 mainLogo/sidebarIcons/topTabStyle 변수는 "이미 뷰포트에 맞게
   // 골라진 단일 설정"이라 이후 렌더 코드는 이전과 동일하게 mainLogo?.text
   // 식으로 그대로 쓸 수 있다(필드 구조 자체는 안 바뀜).
-  const isMobileViewport = useIsMobileViewport();
+  const isMobileViewportReal = useIsMobileViewport();
+  const isMobileViewport = deviceOverride ? deviceOverride === "mobile" : isMobileViewportReal;
 
   // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
   // site_settings.main_logo를 조회해 로고를 대체한다. 값이 비어 있으면
@@ -246,6 +283,41 @@ export function Navbar() {
   // HOTFIX(사용자 지시 — "pc/모바일 독립으로 설정할 수 있게 해야지"): 다른
   // 설정들과 동일하게 {pc, mobile}에서 지금 뷰포트에 맞는 쪽만 고른다.
   const headerLayout = headerLayoutValue ? (isMobileViewport ? headerLayoutValue.mobile : headerLayoutValue.pc) : null;
+
+  // EPIC-136: 각 요소(로고/탭/계정 메뉴 항목)의 자유 드래그 위치 오프셋.
+  // positionsOverride가 오면(관리자 편집 화면) 그 값을 항상 우선하고,
+  // 없으면(공개 사이트) site_settings.header_positions를 직접 조회한다 —
+  // 다른 site_settings 기반 오버레이(main_logo 등)와 동일한 패턴.
+  const [headerPositionsValue, setHeaderPositionsValue] = useState<HeaderPositionsConfig | null>(null);
+  useEffect(() => {
+    if (positionsOverride) return;
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "header_positions")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const normalized = normalizeHeaderPositions(data?.setting_value);
+        setHeaderPositionsValue(isMobileViewport ? normalized.mobile : normalized.pc);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positionsOverride, isMobileViewport]);
+  const resolvedPositions = positionsOverride ?? headerPositionsValue ?? undefined;
+
+  function slotOffset(slotKey: string): HeaderSlotOffset {
+    return getSlotOffset(resolvedPositions, slotKey);
+  }
+  function handleSelectSlot(slotKey: string) {
+    onSelectSlot?.(slotKey);
+  }
+  function handleSlotOffsetChange(slotKey: string, next: HeaderSlotOffset) {
+    onOffsetChange?.(slotKey, next);
+  }
 
   // HOTFIX(사용자 신고 — "홈페이지 설정관리에 프리뷰가 안 나오는데? PC와
   // 모바일 버전 실시간으로 보이게 해줘"): /admin/navigation/settings의
@@ -470,9 +542,20 @@ export function Navbar() {
       } ${tabStyleClassName}`;
       return (
         <Fragment key={tab.key}>
-          <GatedNavLink href={tab.href!} minRankToRead={tab.minRankToRead} className={className}>
-            {tabLabel}
-          </GatedNavLink>
+          <HeaderSlot
+            slotKey={`tab:${tab.key}`}
+            label={tabLabel}
+            offset={slotOffset(`tab:${tab.key}`)}
+            editable={editable}
+            selected={selectedSlotKey === `tab:${tab.key}`}
+            onSelect={handleSelectSlot}
+            onOffsetChange={handleSlotOffsetChange}
+            as="span"
+          >
+            <GatedNavLink href={tab.href!} minRankToRead={tab.minRankToRead} className={className}>
+              {tabLabel}
+            </GatedNavLink>
+          </HeaderSlot>
           {writeButtonEl}
         </Fragment>
       );
@@ -495,6 +578,16 @@ export function Navbar() {
 
     return (
       <Fragment key={tab.key}>
+        <HeaderSlot
+          slotKey={`tab:${tab.key}`}
+          label={tabLabel}
+          offset={slotOffset(`tab:${tab.key}`)}
+          editable={editable}
+          selected={selectedSlotKey === `tab:${tab.key}`}
+          onSelect={handleSelectSlot}
+          onOffsetChange={handleSlotOffsetChange}
+          as="span"
+        >
         <div className="relative group/tab">
         {/* EPIC-058: href가 있는 드롭다운 트리거(예: 스튜디오 →
             /studio)는 클릭하면 Hub Page로 이동한다 — 펼침(hover)은
@@ -660,6 +753,7 @@ export function Navbar() {
           </div>
         )}
         </div>
+        </HeaderSlot>
         {writeButtonEl}
       </Fragment>
     );
@@ -755,17 +849,26 @@ export function Navbar() {
         .filter(Boolean)
     : null;
 
+  // EPIC-136: 편집 모드(관리자 캔버스)에서는 실제 <Link>/<a> 클릭이 그대로
+  // 페이지를 이동시켜 관리자 화면을 벗어나 버린다 — capture 단계에서 클릭
+  // 이벤트의 기본 동작만 막는다(전파는 막지 않으므로 HeaderSlot 자신의
+  // onClick(선택)은 그대로 이어서 동작한다).
   return (
-    <header>
+    <header onClickCapture={editable ? (e) => e.preventDefault() : undefined}>
       {/* EPIC-104: 로고 줄+탭 줄만 fixed+transform으로 띄워 스크롤 방향에
           따라 숨김/노출한다 — LeftSidebar/RightSidebar(자체적으로 이미
           position:fixed)는 이 wrapper 밖(형제)에 둔다. transform이 걸린
           조상은 자손 fixed 요소의 containing block을 바꿔버려 화면 좌표가
           아니라 이 wrapper 기준으로 어긋나게 되므로, 사이드바를 안에 넣지
           않는 것이 중요하다. */}
+      {/* EPIC-136: 관리자 편집 캔버스 안에서는 position:fixed를 그대로
+          쓰면 뷰포트 최상단으로 튀어올라 실제(진짜) 사이트 헤더 뒤에
+          가려진다(캔버스 박스 안이 아니라 화면 자체 기준으로 고정되므로)
+          — editable일 때는 일반 문서 흐름(static)으로 렌더링해 캔버스
+          박스 안에 자연스럽게 자리잡게 한다. */}
       <div
         ref={topBarRef}
-        className={`fixed inset-x-0 top-0 z-40 border-b border-gray-200 bg-white transition-transform duration-300 ${
+        className={`${editable ? "relative" : "fixed inset-x-0 top-0 z-40"} border-b border-gray-200 bg-white transition-transform duration-300 ${
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
       >
@@ -816,7 +919,16 @@ export function Navbar() {
             로고 자체는 항상 가운데 유지된다. 이 대칭 레이아웃이 EPIC-034의
             좌/중앙/우 "정렬 위치"(align)를 대체하므로 align은 더 이상 쓰지
             않는다(구버전 데이터 호환을 위해 필드 자체는 남겨둠). */}
-        <div className="flex items-center flex-1 min-w-0 gap-3">
+        <HeaderSlot
+          slotKey="logo"
+          label="로고"
+          offset={slotOffset("logo")}
+          editable={editable}
+          selected={selectedSlotKey === "logo"}
+          onSelect={handleSelectSlot}
+          onOffsetChange={handleSlotOffsetChange}
+          className="flex items-center flex-1 min-w-0 gap-3"
+        >
           <div className="flex-1 min-w-0 text-right truncate" style={logoSideTextStyle}>
             {mainLogo?.leftText}
           </div>
@@ -836,7 +948,7 @@ export function Navbar() {
           <div className="flex-1 min-w-0 text-left truncate" style={logoSideTextStyle}>
             {mainLogo?.rightText}
           </div>
-        </div>
+        </HeaderSlot>
 
         {/* EPIC-118(사용자 지시): 이전엔 이 자리를 absolute+right-4로 페이지
             맨 오른쪽에 고정했는데, 로그인 상태(관리자/등급/이름/로그아웃
@@ -870,12 +982,23 @@ export function Navbar() {
           {!unifiedHeaderItems && (
             <>
               {mounted && !loading && session && member?.is_admin && (
-                <Link
-                  href="/admin/payments"
-                  className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+                <HeaderSlot
+                  slotKey="account:admin"
+                  label="관리자"
+                  offset={slotOffset("account:admin")}
+                  editable={editable}
+                  selected={selectedSlotKey === "account:admin"}
+                  onSelect={handleSelectSlot}
+                  onOffsetChange={handleSlotOffsetChange}
+                  as="span"
                 >
-                  관리자
-                </Link>
+                  <Link
+                    href="/admin/payments"
+                    className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+                  >
+                    관리자
+                  </Link>
+                </HeaderSlot>
               )}
 
               {/* EPIC-087-PHASE-F: GNB 우측 순서 — [멤버십 신청/등급] |
@@ -886,54 +1009,98 @@ export function Navbar() {
                   또는 회원 행 없음) 팝오버를 띄울 데이터가 없어 대신 /membership
                   으로 보낸다. */}
               {mounted && !loading && session && (
-                member ? (
+                <HeaderSlot
+                  slotKey="account:tier"
+                  label="회원 등급"
+                  offset={slotOffset("account:tier")}
+                  editable={editable}
+                  selected={selectedSlotKey === "account:tier"}
+                  onSelect={handleSelectSlot}
+                  onOffsetChange={handleSlotOffsetChange}
+                  as="span"
+                >
+                  {member ? (
+                    <button
+                      type="button"
+                      onClick={() => setPopoverOpen((o) => !o)}
+                      className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+                    >
+                      {member.tier_name}
+                    </button>
+                  ) : (
+                    <Link href="/membership" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+                      멤버십 신청
+                    </Link>
+                  )}
+                </HeaderSlot>
+              )}
+
+              {mounted && !loading && session && (
+                <HeaderSlot
+                  slotKey="account:mypage"
+                  label="마이페이지"
+                  offset={slotOffset("account:mypage")}
+                  editable={editable}
+                  selected={selectedSlotKey === "account:mypage"}
+                  onSelect={handleSelectSlot}
+                  onOffsetChange={handleSlotOffsetChange}
+                  as="span"
+                >
+                  <Link href="/mypage" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+                    마이페이지
+                  </Link>
+                </HeaderSlot>
+              )}
+
+              {mounted && !loading && session && member && (
+                <HeaderSlot
+                  slotKey="account:name"
+                  label="회원 이름"
+                  offset={slotOffset("account:name")}
+                  editable={editable}
+                  selected={selectedSlotKey === "account:name"}
+                  onSelect={handleSelectSlot}
+                  onOffsetChange={handleSlotOffsetChange}
+                  as="span"
+                >
                   <button
                     type="button"
                     onClick={() => setPopoverOpen((o) => !o)}
                     className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
                   >
-                    {member.tier_name}
+                    {member.name}
                   </button>
-                ) : (
-                  <Link href="/membership" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
-                    멤버십 신청
-                  </Link>
-                )
+                </HeaderSlot>
               )}
 
-              {mounted && !loading && session && (
-                <Link href="/mypage" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
-                  마이페이지
-                </Link>
-              )}
-
-              {mounted && !loading && session && member && (
-                <button
-                  type="button"
-                  onClick={() => setPopoverOpen((o) => !o)}
-                  className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+              {mounted && !loading && (
+                <HeaderSlot
+                  slotKey="account:logout"
+                  label={session ? "로그아웃" : "로그인"}
+                  offset={slotOffset("account:logout")}
+                  editable={editable}
+                  selected={selectedSlotKey === "account:logout"}
+                  onSelect={handleSelectSlot}
+                  onOffsetChange={handleSlotOffsetChange}
+                  as="span"
                 >
-                  {member.name}
-                </button>
+                  {session ? (
+                    <button
+                      onClick={handleLogout}
+                      className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
+                    >
+                      로그아웃
+                    </button>
+                  ) : (
+                    <Link
+                      href="/login"
+                      className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
+                    >
+                      로그인
+                    </Link>
+                  )}
+                </HeaderSlot>
               )}
-
-              {mounted &&
-                !loading &&
-                (session ? (
-                  <button
-                    onClick={handleLogout}
-                    className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
-                  >
-                    로그아웃
-                  </button>
-                ) : (
-                  <Link
-                    href="/login"
-                    className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
-                  >
-                    로그인
-                  </Link>
-                ))}
             </>
           )}
 
@@ -986,43 +1153,55 @@ export function Navbar() {
       </nav>
       </div>
       {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이
-          위로 붙지 않게 한다(topBarHeight는 ResizeObserver 실측값). */}
-      <div style={{ height: topBarHeight }} />
+          위로 붙지 않게 한다(topBarHeight는 ResizeObserver 실측값).
+          EPIC-136: editable일 때는 위 wrapper가 이미 static(문서 흐름 안)
+          이라 이 spacer가 오히려 그만큼 이중으로 빈 공간을 만든다 —
+          편집 모드에서는 렌더링하지 않는다. */}
+      {!editable && <div style={{ height: topBarHeight }} />}
 
       {/* EPIC-040: 전체 높이 사이드바 열림 중 뒷배경을 어둡게 — 위 상단 탭
           팝업과는 별개 state(leftOpen/rightOpen)이므로 별도 backdrop. */}
       {/* EPIC-104: topBarRef가 이제 fixed z-40이라, 원래 z-30이던 이 backdrop
           을 z-45로 올려야 사이드바가 열렸을 때 헤더도 함께 어둡게 덮인다
           (전에는 헤더가 static이라 backdrop보다 항상 아래였음). */}
-      {(leftOpen || rightOpen) && (
+      {/* EPIC-136: 사이드바 여닫이 아이콘/전체 사이드바 자체는 "홈페이지
+          설정 관리"의 별도 "사이드바 아이콘" 섹션이 담당한다(화면 가장자리
+          fixed 트리거라 이 헤더 캔버스의 자유 드래그 대상이 아님) — 편집
+          모드에서는 아예 렌더링하지 않아 관리자 UI 위에 실제 사이트의
+          고정 트리거 아이콘이 겹쳐 보이는 걸 막는다. */}
+      {!editable && (leftOpen || rightOpen) && (
         <div
           onClick={closeSidebars}
           className="fixed inset-0 z-[45] bg-black/30"
         />
       )}
 
-      <LeftSidebar
-        tab={leftSidebarTab}
-        open={leftOpen}
-        onIconClick={() => setLeftOpen(true)}
-        onClose={() => setLeftOpen(false)}
-        iconDefaultUrl={sidebarIcons?.leftIconDefaultUrl || undefined}
-        iconHoverUrl={sidebarIcons?.leftIconHoverUrl || undefined}
-        iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
-        triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
-        topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
-      />
-      <RightSidebar
-        tab={rightSidebarTab}
-        open={rightOpen}
-        onIconClick={() => setRightOpen(true)}
-        onClose={() => setRightOpen(false)}
-        iconDefaultUrl={sidebarIcons?.rightIconDefaultUrl || undefined}
-        iconHoverUrl={sidebarIcons?.rightIconHoverUrl || undefined}
-        iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
-        triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
-        topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
-      />
+      {!editable && (
+        <LeftSidebar
+          tab={leftSidebarTab}
+          open={leftOpen}
+          onIconClick={() => setLeftOpen(true)}
+          onClose={() => setLeftOpen(false)}
+          iconDefaultUrl={sidebarIcons?.leftIconDefaultUrl || undefined}
+          iconHoverUrl={sidebarIcons?.leftIconHoverUrl || undefined}
+          iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
+          triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
+          topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
+        />
+      )}
+      {!editable && (
+        <RightSidebar
+          tab={rightSidebarTab}
+          open={rightOpen}
+          onIconClick={() => setRightOpen(true)}
+          onClose={() => setRightOpen(false)}
+          iconDefaultUrl={sidebarIcons?.rightIconDefaultUrl || undefined}
+          iconHoverUrl={sidebarIcons?.rightIconHoverUrl || undefined}
+          iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
+          triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
+          topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
+        />
+      )}
     </header>
   );
 }

@@ -30,6 +30,12 @@ import {
 } from "@/lib/sidebarIconsSettings";
 import { normalizeTopTabStyle, type TopTabStyleEntry, type TopTabStyleValue } from "@/lib/topTabStyleSettings";
 import { normalizeAccountMenuStyle, type AccountMenuStyleValue } from "@/lib/accountMenuStyleSettings";
+import {
+  normalizeHeaderLayout,
+  headerItemInlineStyle,
+  type HeaderLayoutValue,
+  type HeaderMenuItemKey,
+} from "@/lib/headerLayoutSettings";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -214,6 +220,29 @@ export function Navbar() {
     };
   }, []);
   const accountMenuStyle = accountMenuStyleValue ? (isMobileViewport ? accountMenuStyleValue.mobile : accountMenuStyleValue.pc) : null;
+
+  // EPIC-134(사용자 지시 — "GrapesJS로... 로그아웃 버튼 옆에 스튜디오 탭을
+  // 끌어다 놓을 수 있어야 함"): /admin/navigation/settings의 새 "헤더"
+  // 섹션(HeaderGrapesEditor)이 저장한, 탭과 계정 메뉴 항목을 뒤섞은 순서
+  // 목록 — 값이 있으면(관리자가 한 번이라도 저장했으면) 아래 렌더링에서
+  // 기존 tier1/tier2/계정 영역 3분할 레이아웃 대신 이 순서로 한 줄에
+  // 렌더링한다. 값이 없으면(기본 상태) 기존 3분할 레이아웃 그대로 —
+  // 완전히 optional한 오버레이라 이 기능을 쓰지 않으면 100% 기존과 동일.
+  const [headerLayoutValue, setHeaderLayoutValue] = useState<HeaderLayoutValue | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "unified_header_layout")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setHeaderLayoutValue(normalizeHeaderLayout(data?.setting_value));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // HOTFIX(사용자 신고 — "홈페이지 설정관리에 프리뷰가 안 나오는데? PC와
   // 모바일 버전 실시간으로 보이게 해줘"): /admin/navigation/settings의
@@ -633,6 +662,96 @@ export function Navbar() {
     );
   }
 
+  // EPIC-134: 계정 영역 5개 항목 중 하나를 key로 렌더링 — 기존에는 이
+  // 조건들이 JSX 안에 직접 나열돼 있었는데(아래 return 안, 통합 레이아웃이
+  // 아닐 때의 기본 경로), 통합 헤더 레이아웃(headerLayoutValue)이 이
+  // 항목들을 탭과 뒤섞어 임의 순서로 배치할 수 있어야 해서 함수로 뽑아
+  // 재사용한다 — 로그인 상태 게이팅/클래스/팝오버 여닫이 로직은 100%
+  // 그대로.
+  function renderMenuItem(key: HeaderMenuItemKey) {
+    if (!mounted || loading) return null;
+    switch (key) {
+      case "admin":
+        return session && member?.is_admin ? (
+          <Link key="admin" href="/admin/payments" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+            관리자
+          </Link>
+        ) : null;
+      case "tier":
+        if (!session) return null;
+        return member ? (
+          <button
+            key="tier"
+            type="button"
+            onClick={() => setPopoverOpen((o) => !o)}
+            className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+          >
+            {member.tier_name}
+          </button>
+        ) : (
+          <Link key="tier" href="/membership" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+            멤버십 신청
+          </Link>
+        );
+      case "mypage":
+        return session ? (
+          <Link key="mypage" href="/mypage" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+            마이페이지
+          </Link>
+        ) : null;
+      case "name":
+        return session && member ? (
+          <button
+            key="name"
+            type="button"
+            onClick={() => setPopoverOpen((o) => !o)}
+            className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+          >
+            {member.name}
+          </button>
+        ) : null;
+      case "logout":
+        return session ? (
+          <button key="logout" onClick={handleLogout} className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}>
+            로그아웃
+          </button>
+        ) : (
+          <Link key="logout" href="/login" className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}>
+            로그인
+          </Link>
+        );
+      default:
+        return null;
+    }
+  }
+
+  // EPIC-134: headerLayoutValue.items(탭+계정 메뉴 뒤섞인 순서)를 실제
+  // 렌더 가능한 노드 목록으로 변환 — 삭제된 탭을 가리키는 stale 항목은
+  // 조용히 건너뛴다(사이트 구성 관리에서 탭이 삭제됐는데 예전 저장값이
+  // 남아있는 경우, 에러 없이 자연스럽게 무시).
+  const navTabsByKey = new Map(navTabs.map((t) => [t.key, t]));
+  const unifiedHeaderItems = headerLayoutValue?.items.length
+    ? headerLayoutValue.items
+        .map((item) => {
+          const node =
+            item.type === "tab"
+              ? navTabsByKey.has(item.refId)
+                ? renderTab(navTabsByKey.get(item.refId)!)
+                : null
+              : renderMenuItem(item.refId as HeaderMenuItemKey);
+          if (!node) return null;
+          const style = headerItemInlineStyle(item.style);
+          return style ? (
+            <span key={item.id} style={style}>
+              {node}
+            </span>
+          ) : (
+            <Fragment key={item.id}>{node}</Fragment>
+          );
+        })
+        .filter(Boolean)
+    : null;
+
   return (
     <header>
       {/* EPIC-104: 로고 줄+탭 줄만 fixed+transform으로 띄워 스크롤 방향에
@@ -722,7 +841,10 @@ export function Navbar() {
             일반 flex 형제로 바꿔 가로 위치는 flexbox가 자동으로(계정 영역과
             절대 안 겹치게) 잡아주고, translateY만 줘서 세로로는 여전히
             로고 줄 하단 경계선에 걸치는(straddle) 효과를 낸다. */}
-        {tier1Tabs.length > 0 && (
+        {/* EPIC-134: 통합 헤더 레이아웃이 활성화돼 있으면(headerLayoutValue
+            저장됨) 이 1단 자리는 비운다 — 탭이 계정 메뉴와 뒤섞여 아래
+            unifiedHeaderItems 한 줄로 대신 렌더링된다. */}
+        {!unifiedHeaderItems && tier1Tabs.length > 0 && (
           <div
             className="relative z-10 flex shrink-0 translate-y-1/2 items-center gap-1"
             style={topTabStyle?.tier1OffsetPx ? { transform: `translateY(calc(50% - ${topTabStyle.tier1OffsetPx}px))` } : undefined}
@@ -737,72 +859,80 @@ export function Navbar() {
             ACCOUNT_MENU_ITEM_CLASS를 공유 — /admin/navigation/settings의
             "사용자 메뉴 디자인" 섹션이 저장한 서체/크기/색상/hover 모션이
             함께 적용된다. */}
+        {/* EPIC-134: 통합 헤더 레이아웃이 활성화돼 있으면 이 계정 영역도
+            비운다(항목들이 renderMenuItem을 통해 아래 unifiedHeaderItems
+            줄에 섞여 렌더링된다) — 팝오버만 위치 기준(relative)이 필요해
+            빈 wrapper를 유지한다. */}
         <div className="flex items-center gap-3 shrink-0 relative">
-          {mounted && !loading && session && member?.is_admin && (
-            <Link
-              href="/admin/payments"
-              className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
-            >
-              관리자
-            </Link>
-          )}
+          {!unifiedHeaderItems && (
+            <>
+              {mounted && !loading && session && member?.is_admin && (
+                <Link
+                  href="/admin/payments"
+                  className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+                >
+                  관리자
+                </Link>
+              )}
 
-          {/* EPIC-087-PHASE-F: GNB 우측 순서 — [멤버십 신청/등급] |
-              [마이페이지] | [회원 이름] | [로그아웃]. 이전엔 등급+이름이
-              "/mypage" 링크 하나로 합쳐져 있었다 — 요구사항대로 3개 항목으로
-              분리. 등급 항목/이름 항목 모두 클릭하면 같은 멤버십 팝오버가
-              열린다(요구사항 원문 그대로) — member가 아직 없으면(로딩 중
-              또는 회원 행 없음) 팝오버를 띄울 데이터가 없어 대신 /membership
-              으로 보낸다. */}
-          {mounted && !loading && session && (
-            member ? (
-              <button
-                type="button"
-                onClick={() => setPopoverOpen((o) => !o)}
-                className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
-              >
-                {member.tier_name}
-              </button>
-            ) : (
-              <Link href="/membership" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
-                멤버십 신청
-              </Link>
-            )
-          )}
+              {/* EPIC-087-PHASE-F: GNB 우측 순서 — [멤버십 신청/등급] |
+                  [마이페이지] | [회원 이름] | [로그아웃]. 이전엔 등급+이름이
+                  "/mypage" 링크 하나로 합쳐져 있었다 — 요구사항대로 3개 항목으로
+                  분리. 등급 항목/이름 항목 모두 클릭하면 같은 멤버십 팝오버가
+                  열린다(요구사항 원문 그대로) — member가 아직 없으면(로딩 중
+                  또는 회원 행 없음) 팝오버를 띄울 데이터가 없어 대신 /membership
+                  으로 보낸다. */}
+              {mounted && !loading && session && (
+                member ? (
+                  <button
+                    type="button"
+                    onClick={() => setPopoverOpen((o) => !o)}
+                    className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+                  >
+                    {member.tier_name}
+                  </button>
+                ) : (
+                  <Link href="/membership" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+                    멤버십 신청
+                  </Link>
+                )
+              )}
 
-          {mounted && !loading && session && (
-            <Link href="/mypage" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
-              마이페이지
-            </Link>
-          )}
+              {mounted && !loading && session && (
+                <Link href="/mypage" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+                  마이페이지
+                </Link>
+              )}
 
-          {mounted && !loading && session && member && (
-            <button
-              type="button"
-              onClick={() => setPopoverOpen((o) => !o)}
-              className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
-            >
-              {member.name}
-            </button>
-          )}
+              {mounted && !loading && session && member && (
+                <button
+                  type="button"
+                  onClick={() => setPopoverOpen((o) => !o)}
+                  className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+                >
+                  {member.name}
+                </button>
+              )}
 
-          {mounted &&
-            !loading &&
-            (session ? (
-              <button
-                onClick={handleLogout}
-                className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
-              >
-                로그아웃
-              </button>
-            ) : (
-              <Link
-                href="/login"
-                className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
-              >
-                로그인
-              </Link>
-            ))}
+              {mounted &&
+                !loading &&
+                (session ? (
+                  <button
+                    onClick={handleLogout}
+                    className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
+                  >
+                    로그아웃
+                  </button>
+                ) : (
+                  <Link
+                    href="/login"
+                    className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
+                  >
+                    로그인
+                  </Link>
+                ))}
+            </>
+          )}
 
           {popoverOpen && member && (
             <MembershipPopover
@@ -836,12 +966,20 @@ export function Navbar() {
           해도 모든 하위 그룹의 2차 플라이아웃이 한꺼번에 열려버린다. */}
       <nav
         className="relative flex flex-wrap items-center justify-center gap-1 px-4 border-t border-gray-100"
-        style={{
-          ...(topTabStyle?.rowHeightPx ? { minHeight: topTabStyle.rowHeightPx } : undefined),
-          ...(topTabStyle?.tier2OffsetPx ? { transform: `translateY(-${topTabStyle.tier2OffsetPx}px)` } : undefined),
-        }}
+        style={
+          unifiedHeaderItems
+            ? undefined
+            : {
+                ...(topTabStyle?.rowHeightPx ? { minHeight: topTabStyle.rowHeightPx } : undefined),
+                ...(topTabStyle?.tier2OffsetPx ? { transform: `translateY(-${topTabStyle.tier2OffsetPx}px)` } : undefined),
+              }
+        }
       >
-        {tier2Tabs.map(renderTab)}
+        {/* EPIC-134: unifiedHeaderItems가 있으면(관리자가 GrapesJS 통합
+            헤더 캔버스에서 저장한 적 있으면) 탭과 계정 메뉴 항목을 뒤섞은
+            그 순서 그대로 이 한 줄에 렌더링 — 없으면(기본 상태) 기존
+            tier2Tabs 그대로, 100% 이전과 동일하게 동작한다. */}
+        {unifiedHeaderItems ?? tier2Tabs.map(renderTab)}
       </nav>
       </div>
       {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이

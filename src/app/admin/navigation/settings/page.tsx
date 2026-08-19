@@ -11,16 +11,18 @@ import { Element } from "@craftjs/core";
 import { RootContainer } from "@/components/craft/home/RootContainer";
 import { ChromeLogoBlock } from "@/components/craft/chrome/blocks/ChromeLogoBlock";
 import { ChromeSidebarIconBlock } from "@/components/craft/chrome/blocks/ChromeSidebarIconBlock";
-import { ChromeTopTabBlock } from "@/components/craft/chrome/blocks/ChromeTopTabBlock";
-import { ChromeTierZone } from "@/components/craft/chrome/ChromeTierZone";
-import { ChromeAccountMenuBlock } from "@/components/craft/chrome/blocks/ChromeAccountMenuBlock";
 import { uploadImage, compressImage } from "@/lib/adminImageUpload";
+// EPIC-134: 아래 HeaderGrapesEditor가 상단 탭/사용자 메뉴 통합 캔버스를
+// 대체 — 그전엔 이 화면 전용이던 ChromeTopTabBlock/ChromeTierZone/
+// ChromeAccountMenuBlock/tabHoverMotion/MotionPreviewSamples import는
+// 더 이상 필요 없다(제거).
+import { HeaderGrapesEditor } from "@/components/admin/grapes/HeaderGrapesEditor";
 import {
-  TAB_HOVER_MOTIONS,
-  TAB_HOVER_MOTION_LABELS,
-  DEFAULT_TAB_HOVER_MOTION,
-  type TabHoverMotion,
-} from "@/lib/tabHoverMotion";
+  normalizeHeaderLayout,
+  buildDefaultHeaderLayout,
+  type HeaderLayoutItem,
+  type HeaderLayoutValue,
+} from "@/lib/headerLayoutSettings";
 import {
   normalizeHeroSlideshow,
   defaultHeroSlideshowValue,
@@ -51,18 +53,13 @@ import {
 import {
   normalizeTopTabStyle,
   defaultTopTabStyleValue,
-  defaultTopTabStyleEntry,
-  type TopTabStyleEntry,
-  type TopTabStyleConfig,
   type TopTabStyleValue,
 } from "@/lib/topTabStyleSettings";
 import {
   normalizeAccountMenuStyle,
   defaultAccountMenuStyleValue,
-  type AccountMenuStyleConfig,
   type AccountMenuStyleValue,
 } from "@/lib/accountMenuStyleSettings";
-import { MotionPreviewSamples } from "@/components/admin/MotionPreviewSamples";
 
 // EPIC-026: "홈페이지 설정 관리" 실 구현. site_settings(key-value, EPIC-026)의
 // 키(main_logo/hero_slideshow/sidebar_icons)를 조회/저장한다. 다른 CMS
@@ -167,7 +164,7 @@ export default function AdminNavigationSettingsPage() {
   // 것에서, 좌측 섹션 목록 → 클릭한 섹션 하나만 편집 폼으로 보여주는
   // 구조로 전환 — 나머지 폭을 우측 프리뷰에 더 크게 내줄 수 있다.
   const [activeSection, setActiveSection] = useState<
-    "logo" | "slideshow" | "sidebarIcons" | "topTabs" | "accountMenu" | "footer"
+    "logo" | "slideshow" | "sidebarIcons" | "header" | "footer"
   >("logo");
 
   // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 '하단메뉴관리'를 병합해줘"):
@@ -268,25 +265,24 @@ export default function AdminNavigationSettingsPage() {
     }));
   }
 
+  // EPIC-134: 이 두 값은 더 이상 이 페이지에서 직접 편집하지 않는다(편집은
+  // HeaderGrapesEditor → unified_header_layout로 이전) — 여전히 로드는
+  // 하는 이유는 아래 "슬라이드쇼" 섹션의 실시간 미리보기(LivePreviewFrame
+  // overrides)가 Navbar.tsx의 폴백 렌더링과 동일한 값을 함께 넘겨줘야
+  // 프리뷰가 실제 사이트와 어긋나지 않기 때문 — 레거시 DB 값을 읽기
+  // 전용으로만 보존한다.
   const [topTabStyleValue, setTopTabStyleValue] = useState<TopTabStyleValue>(defaultTopTabStyleValue());
-  const topTabStyle = topTabStyleValue[chromeDeviceTab];
-  function setTopTabStyle(next: TopTabStyleConfig | ((prev: TopTabStyleConfig) => TopTabStyleConfig)) {
-    setTopTabStyleValue((prev) => ({
-      ...prev,
-      [chromeDeviceTab]: typeof next === "function" ? (next as (p: TopTabStyleConfig) => TopTabStyleConfig)(prev[chromeDeviceTab]) : next,
-    }));
-  }
-
-  // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 맨 위의 '관리자, (회원
-  // 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의 디자인을
-  // 설정하는 또다른 탭을 만들어줘"): topTabStyle과 동일한 shim 패턴.
   const [accountMenuStyleValue, setAccountMenuStyleValue] = useState<AccountMenuStyleValue>(defaultAccountMenuStyleValue());
-  const accountMenuStyle = accountMenuStyleValue[chromeDeviceTab];
-  function setAccountMenuStyle(next: AccountMenuStyleConfig | ((prev: AccountMenuStyleConfig) => AccountMenuStyleConfig)) {
-    setAccountMenuStyleValue((prev) => ({
-      ...prev,
-      [chromeDeviceTab]: typeof next === "function" ? (next as (p: AccountMenuStyleConfig) => AccountMenuStyleConfig)(prev[chromeDeviceTab]) : next,
-    }));
+
+  // EPIC-134: GrapesJS 통합 헤더 캔버스가 저장하는 값 — 탭/계정 메뉴
+  // 항목의 순서 및 항목별 스타일 오버라이드(headerLayoutSettings.ts).
+  const [headerLayoutValue, setHeaderLayoutValue] = useState<HeaderLayoutValue>({ items: [] });
+  const [savingHeaderLayout, setSavingHeaderLayout] = useState(false);
+  async function handleSaveHeaderLayout(items: HeaderLayoutItem[]) {
+    setSavingHeaderLayout(true);
+    setHeaderLayoutValue({ items });
+    await handleSave("unified_header_layout", { items });
+    setSavingHeaderLayout(false);
   }
 
   const [topNavRows, setTopNavRows] = useState<TopNavRow[]>([]);
@@ -318,6 +314,7 @@ export default function AdminNavigationSettingsPage() {
             "sidebar_icons",
             "top_tab_style",
             "account_menu_style",
+            "unified_header_layout",
           ]),
         // EPIC-079-PHASE-4: 상단 탭 디자인 섹션이 편집 대상 목록으로 보여줄
         // 실제 최상위(depth 0) site_navigations 행 — "사이트 구성 관리"가
@@ -350,6 +347,8 @@ export default function AdminNavigationSettingsPage() {
           setTopTabStyleValue(normalizeTopTabStyle(row.setting_value));
         } else if (row.setting_key === "account_menu_style") {
           setAccountMenuStyleValue(normalizeAccountMenuStyle(row.setting_value));
+        } else if (row.setting_key === "unified_header_layout") {
+          setHeaderLayoutValue(normalizeHeaderLayout(row.setting_value));
         }
       }
       setFetching(false);
@@ -480,80 +479,11 @@ export default function AdminNavigationSettingsPage() {
     }));
   }
 
-  // EPIC-079-PHASE-4: 상단 탭 디자인 — tabId(row.key ?? row.id)별로 독립된
-  // TopTabStyleEntry를 갖는다. 아직 한 번도 편집 안 한 탭은 topTabStyle.tabs에
-  // 키 자체가 없으므로, patch할 때 defaultTopTabStyleEntry()로 채워 넣는다.
-  function updateTabStyle(tabId: string, patch: Partial<TopTabStyleEntry>) {
-    setTopTabStyle((prev) => ({
-      ...prev,
-      tabs: {
-        ...prev.tabs,
-        [tabId]: { ...defaultTopTabStyleEntry(), ...prev.tabs[tabId], ...patch },
-      },
-    }));
-  }
-  // D1(사용자 지시 — "상단 탭의 1단과 2단을... 드래그앤드랍으로 각 버튼
-  // 위치를 정하는거"): ChromeTierZone 드롭존에 탭 칩을 놓으면 그 탭의
-  // tier만 바뀐다(updateTabStyle 재사용).
-  // Craft.js의 <Frame>은 최초 마운트 시의 children만 읽고 이후 리렌더에서
-  // 다시 읽지 않는다(ChromeCraftEditor.tsx 주석 참고) — 그냥 topTabStyle이
-  // 바뀌기만 해서는 탭이 실제로 다른 드롭존 DOM으로 옮겨가지 않는다(값은
-  // 바뀌지만 화면엔 그대로 남아있는 채로 보임). tier가 바뀔 때만 이 버전을
-  // 올려 ChromeCraftEditor를 강제로 리마운트시켜 새 배치를 다시 읽게 한다
-  // — 타이핑 반영은 setProp으로 이미 실시간이라 이 리마운트가 그 흐름을
-  // 방해하지 않는다(드롭 때만 발생, 텍스트 입력 때는 발생 안 함).
-  const [topTabsTreeVersion, setTopTabsTreeVersion] = useState(0);
-
-  // HOTFIX-134(사용자 지시 — "1단과 2단을... 드래그앤드랍으로 각 버튼
-  // 위치를 정하는거, 그걸 원해"): tier뿐 아니라 같은 단 안에서의 좌우
-  // 순서도 드래그로 정할 수 있게 한다 — 명시적으로 옮긴 적 없는 탭은
-  // site_navigations 원래 순서(자연 인덱스*1000)를 쓰고, 드래그로 옮긴
-  // 탭은 그 자리의 앞뒤 탭 order의 중간값을 매긴다(fractional index —
-  // 매번 전체를 다시 번호 매길 필요 없이 무한히 끼워 넣을 수 있다).
-  function tabOrderValue(tabKey: string): number {
-    const explicit = topTabStyle.tabs[tabKey]?.order;
-    if (explicit !== null && explicit !== undefined) return explicit;
-    const naturalIndex = topNavRows.findIndex((r) => (r.key ?? r.id) === tabKey);
-    return (naturalIndex === -1 ? 0 : naturalIndex) * 1000;
-  }
-
-  function handleTabDrop(tabKey: string, tier: 1 | 2, beforeTabKey: string | null) {
-    const tabsInTier = topNavRows
-      .map((r) => r.key ?? r.id)
-      .filter((k) => k !== tabKey)
-      .filter((k) => (topTabStyle.tabs[k]?.tier ?? 2) === tier)
-      .sort((a, b) => tabOrderValue(a) - tabOrderValue(b));
-
-    let newOrder: number;
-    if (beforeTabKey && tabsInTier.includes(beforeTabKey)) {
-      const idx = tabsInTier.indexOf(beforeTabKey);
-      const beforeOrder = tabOrderValue(beforeTabKey);
-      const prevOrder = idx > 0 ? tabOrderValue(tabsInTier[idx - 1]) : beforeOrder - 1000;
-      newOrder = (prevOrder + beforeOrder) / 2;
-    } else {
-      const lastOrder = tabsInTier.length > 0 ? tabOrderValue(tabsInTier[tabsInTier.length - 1]) : 0;
-      newOrder = lastOrder + 1000;
-    }
-    updateTabStyle(tabKey, { tier, order: newOrder });
-    setTopTabsTreeVersion((v) => v + 1);
-  }
-
-  function addTabCustomFont(tabId: string) {
-    const entry = topTabStyle.tabs[tabId] ?? defaultTopTabStyleEntry();
-    updateTabStyle(tabId, { customFonts: [...entry.customFonts, makeDefaultCustomFont()] });
-  }
-
-  function updateTabCustomFont(tabId: string, fontId: string, patch: Partial<CustomFontEntry>) {
-    const entry = topTabStyle.tabs[tabId] ?? defaultTopTabStyleEntry();
-    updateTabStyle(tabId, {
-      customFonts: entry.customFonts.map((f) => (f.id === fontId ? { ...f, ...patch } : f)),
-    });
-  }
-
-  function removeTabCustomFont(tabId: string, fontId: string) {
-    const entry = topTabStyle.tabs[tabId] ?? defaultTopTabStyleEntry();
-    updateTabStyle(tabId, { customFonts: entry.customFonts.filter((f) => f.id !== fontId) });
-  }
+  // EPIC-134: 이 자리에 있던 updateTabStyle/tabOrderValue/handleTabDrop/
+  // addTabCustomFont 등(EPIC-079-PHASE-4/D1/HOTFIX-134)은 "상단 탭
+  // 디자인" 탭 전용 편집 로직이었다 — 그 탭 자체가 HeaderGrapesEditor로
+  // 대체되며 함께 제거. site_settings.top_tab_style은 더 이상 이 페이지가
+  // 쓰지 않지만(레거시 폴백 값으로만 로드), Navbar.tsx는 계속 읽는다.
 
   if (fetching) {
     return (
@@ -567,8 +497,11 @@ export default function AdminNavigationSettingsPage() {
     { key: "logo", label: "메인 로고", hint: "로고 이미지/텍스트, 좌우 문구" },
     { key: "slideshow", label: "슬라이드쇼", hint: "홈페이지 히어로 슬라이드" },
     { key: "sidebarIcons", label: "사이드바 아이콘", hint: "좌/우 여닫이 버튼 아이콘" },
-    { key: "topTabs", label: "상단 탭 디자인", hint: "탭 배치·서체·hover 모션" },
-    { key: "accountMenu", label: "사용자 메뉴 디자인", hint: "관리자·등급·마이페이지·이름·로그아웃" },
+    // EPIC-134(사용자 지시 — "GrapesJS를 도입하여... 밑바닥부터 새로
+    // 구축하라"): 기존 "상단 탭 디자인"/"사용자 메뉴 디자인" 두 탭을
+    // 하나로 통합 — GrapesJS 캔버스 하나에서 탭/계정 메뉴 항목을 자유롭게
+    // 섞어 순서를 정한다(HeaderGrapesEditor.tsx).
+    { key: "header", label: "헤더 (상단 탭 + 사용자 메뉴)", hint: "GrapesJS 캔버스로 자유 배치" },
     { key: "footer", label: "하단 메뉴 관리", hint: "Craft 에디터로 전체화면 편집" },
   ];
 
@@ -638,7 +571,7 @@ export default function AdminNavigationSettingsPage() {
             아이콘/상단 탭 디자인 셋 다 이 토글 하나를 공유한다 —
             슬라이드쇼는 이미 자기 자신만의 PC/모바일 탭이 있어(heroTab)
             대상이 아니고, 하단 메뉴는 Craft 전체화면 에디터라 별개다. */}
-        {(activeSection === "logo" || activeSection === "sidebarIcons" || activeSection === "topTabs" || activeSection === "accountMenu") && (
+        {(activeSection === "logo" || activeSection === "sidebarIcons") && (
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
             <span className="text-xs text-gray-500">지금 편집 중:</span>
             <div className="flex items-center rounded-md border border-gray-300 bg-white p-0.5 text-xs">
@@ -1377,266 +1310,36 @@ export default function AdminNavigationSettingsPage() {
         </section>
         )}
 
-        {/* EPIC-079-PHASE-4: 상단 탭 하나하나의 표시 텍스트/서체/크기/색상을
-            여기서 개별 편집한다 — 트리 구조(제목/href/순서/재부모화)는
-            여전히 "사이트 구성 관리"(/admin/site-structure)가 SSoT이고,
-            여기서는 그 위에 얹는 순수 디자인 오버레이만 다룬다(구조를
-            건드리지 않음 — labelOverride가 비어있으면 원래 제목 그대로). */}
-        {activeSection === "topTabs" && (
+        {/* EPIC-134(사용자 지시 — "기존 Form 기반 설정창을 완전히
+            폐기하고... GrapesJS를 도입하여 템플릿 시스템을 밑바닥부터 새로
+            구축하라"): 기존 "상단 탭 디자인"/"사용자 메뉴 디자인" 두 탭
+            (Craft.js 기반, EPIC-132/HOTFIX-132.1)을 대체 — 하나의 GrapesJS
+            캔버스에서 탭/계정 메뉴 항목을 자유롭게 섞어 순서를 정한다.
+            탭 자체의 추가/삭제/제목은 여전히 "사이트 구성 관리" 화면이
+            SSoT다. */}
+        {activeSection === "header" && (
         <section className="rounded-lg border border-gray-200 p-4">
-          <h2 className="text-lg font-semibold mb-1">상단 탭 디자인</h2>
+          <h2 className="text-lg font-semibold mb-1">헤더 (상단 탭 + 사용자 메뉴)</h2>
           <p className="text-sm text-gray-500 mb-3">
-            각 상단 탭의 표시 텍스트·서체·크기·색상을 개별적으로 바꿀 수 있어요.
-            표시 텍스트를 비워두면 &quot;사이트 구성 관리&quot;에서 정한 원래
-            이름이 그대로 쓰여요. 탭 자체를 추가/삭제/순서 변경하려면
-            &quot;사이트 구성 관리&quot; 화면을 이용하세요.
+            상단 탭과 사용자 메뉴(관리자·등급·마이페이지·이름·로그아웃)를 하나의 캔버스에서
+            자유롭게 섞어 배치해요. 탭 자체를 추가/삭제하려면 &quot;사이트 구성 관리&quot; 화면을
+            이용하세요 — 여기서는 순서와 부가 스타일(색상/크기/여백)만 정해요.
           </p>
-          <div className="mb-4">
-            <p className="mb-2 text-xs text-gray-500">
-              🎨 아래에서 탭을 직접 클릭하면 바로 편집할 수 있고, 탭 칩을 <strong>드래그해서 1단/2단 영역 사이로 옮기거나, 같은 단 안에서 다른 칩 앞에 끼워 넣어 좌우 순서를 바꿀</strong> 수 있어요(탭 추가/삭제는 안 돼요).
-            </p>
-            {topNavRows.length === 0 ? (
-              <p className="rounded-lg border border-gray-200 p-4 text-xs text-gray-400">상단 탭 목록을 불러오는 중이에요...</p>
-            ) : (
-              <ChromeCraftEditor
-                key={`${chromeDeviceTab}-${topTabsTreeVersion}`}
-                tree={
-                  <Element is={RootContainer} canvas id="ROOT">
-                    {/* D1(중요): ChromeTierZone은 Craft에 등록된 노드
-                        타입이 아니라 순수 드롭존 레이아웃용 div 래퍼다 —
-                        <ChromeTierZone> JSX 태그로 트리 안에 그대로
-                        끼워 넣으면 Craft의 정적 트리 파서가 이 컴포넌트
-                        참조 자체를 노드로 해석하려다 "Invariant failed"로
-                        죽는다(리졸버에 없는 컴포넌트라서). 일반 함수처럼
-                        직접 호출해 이미 펼쳐진 <div> 결과만 트리에 넣으면
-                        Craft 입장에서는 평범한 DOM 래퍼로만 보여 안전하다. */}
-                    {ChromeTierZone({
-                      label: "1단",
-                      hint: "로고 줄과 겹치는 자리 — 칩을 드래그해 좌우 순서도 바꿀 수 있어요",
-                      tier: 1,
-                      onDropTab: handleTabDrop,
-                      children: topNavRows
-                        .filter((row) => (topTabStyle.tabs[row.key ?? row.id]?.tier ?? 2) === 1)
-                        .sort((a, b) => tabOrderValue(a.key ?? a.id) - tabOrderValue(b.key ?? b.id))
-                        .map((row) => {
-                          const tabKey = row.key ?? row.id;
-                          return (
-                            <ChromeTopTabBlock
-                              key={tabKey}
-                              tabKey={tabKey}
-                              defaultLabel={row.title}
-                              entry={topTabStyle.tabs[tabKey] ?? defaultTopTabStyleEntry()}
-                              onEntryChange={(patch) => updateTabStyle(tabKey, patch)}
-                            />
-                          );
-                        }),
-                    })}
-                    {ChromeTierZone({
-                      label: "2단",
-                      hint: "기본 탭 줄 — 칩을 드래그해 좌우 순서도 바꿀 수 있어요",
-                      tier: 2,
-                      onDropTab: handleTabDrop,
-                      children: topNavRows
-                        .filter((row) => (topTabStyle.tabs[row.key ?? row.id]?.tier ?? 2) !== 1)
-                        .sort((a, b) => tabOrderValue(a.key ?? a.id) - tabOrderValue(b.key ?? b.id))
-                        .map((row) => {
-                          const tabKey = row.key ?? row.id;
-                          return (
-                            <ChromeTopTabBlock
-                              key={tabKey}
-                              tabKey={tabKey}
-                              defaultLabel={row.title}
-                              entry={topTabStyle.tabs[tabKey] ?? defaultTopTabStyleEntry()}
-                              onEntryChange={(patch) => updateTabStyle(tabKey, patch)}
-                            />
-                          );
-                        }),
-                    })}
-                  </Element>
-                }
-              />
-            )}
-          </div>
-          <div className="mb-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {/* HOTFIX(사용자 지시 — "일일이 숫자값을 넣어서 하는 게 너무
-                구시대적이야. 드래그앤드롭으로 하고 싶어"): 숫자 입력 대신
-                트랙을 드래그해 값을 정하는 슬라이더로 교체(DragValueSlider) —
-                우측에 정밀 조정용 ±버튼과 현재 값도 함께 보여준다. */}
-            <DragValueSlider
-              label="상단 탭 섹션 높이"
-              hint="기본(~36px)보다 작으면 효과 없어요."
-              value={topTabStyle.rowHeightPx ?? 40}
-              min={16}
-              max={400}
-              onChange={(v) => setTopTabStyle({ ...topTabStyle, rowHeightPx: v })}
-              allowAuto={topTabStyle.rowHeightPx !== null}
-              onClearAuto={() => setTopTabStyle({ ...topTabStyle, rowHeightPx: null })}
-            />
-            {/* EPIC-117/118(사용자 지시): 아래 각 탭의 "표시 위치"를 1단으로
-                지정하면 로고 줄 하단 경계선에 걸치게(로고 줄 절반+2단 탭
-                줄 절반) 자동 배치되는데, 이 값으로 위/아래 미세 조정을
-                더한다(양수면 더 위로, 즉 로고 줄 쪽으로 더 겹친다). 가로
-                위치는 더 이상 이 화면에서 조절할 필요가 없다 — 계정
-                영역(로그인/로그아웃 등) 바로 앞자리에 자동으로 배치돼
-                겹치지 않는다. */}
-            <DragValueSlider
-              label="1단 겹침 정도"
-              hint="로고 줄 쪽으로 더 이동"
-              value={topTabStyle.tier1OffsetPx}
-              min={-100}
-              max={200}
-              onChange={(v) => setTopTabStyle({ ...topTabStyle, tier1OffsetPx: v })}
-            />
-            <DragValueSlider
-              label="2단 위치 조정"
-              hint="위로 이동"
-              value={topTabStyle.tier2OffsetPx}
-              min={-100}
-              max={200}
-              onChange={(v) => setTopTabStyle({ ...topTabStyle, tier2OffsetPx: v })}
-            />
-          </div>
           {topNavRows.length === 0 ? (
-            <p className="text-sm text-gray-400">아직 등록된 상단 탭이 없어요.</p>
+            <p className="rounded-lg border border-gray-200 p-4 text-xs text-gray-400">상단 탭 목록을 불러오는 중이에요...</p>
           ) : (
-            <div className="space-y-3">
-              {topNavRows.map((row) => {
-                const tabId = row.key ?? row.id;
-                const entry = topTabStyle.tabs[tabId] ?? defaultTopTabStyleEntry();
-                return (
-                  <TopTabStyleRow
-                    key={row.id}
-                    originalTitle={row.title}
-                    entry={entry}
-                    onChange={(patch) => updateTabStyle(tabId, patch)}
-                    onAddCustomFont={() => addTabCustomFont(tabId)}
-                    onUpdateCustomFont={(fontId, patch) => updateTabCustomFont(tabId, fontId, patch)}
-                    onRemoveCustomFont={(fontId) => removeTabCustomFont(tabId, fontId)}
-                  />
-                );
-              })}
-            </div>
-          )}
-          <div className="flex items-center gap-3 mt-3">
-            <button
-              type="button"
-              onClick={() => handleSave("top_tab_style", topTabStyleValue)}
-              className={primaryButtonClass}
-            >
-              저장하기
-            </button>
-            {savedKey === "top_tab_style" && (
-              <span className="text-sm text-green-600">저장됐어요.</span>
-            )}
-          </div>
-        </section>
-        )}
-
-        {/* HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 맨 위의 '관리자,
-            (회원 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의
-            디자인을 설정하는 또다른 탭을 만들어줘, 그리고 그 디자인의
-            모션에 대해서도 옵션을 줘"): 계정 영역(우측 상단) 전체에
-            적용되는 서체/크기/색상 + hover 모션. */}
-        {activeSection === "accountMenu" && (
-        <section className="rounded-lg border border-gray-200 p-4">
-          <h2 className="text-lg font-semibold mb-1">사용자 메뉴 디자인</h2>
-          <p className="text-sm text-gray-500 mb-3">
-            우측 상단 &quot;관리자 / 등급 / 마이페이지 / 이름 / 로그아웃&quot; 5개 항목에 함께 적용돼요.
-          </p>
-          <div className="mb-4">
-            <p className="mb-2 text-xs text-gray-500">🎨 아래 미리보기를 직접 클릭하면 바로 편집할 수 있어요.</p>
-            <ChromeCraftEditor
-              key={chromeDeviceTab}
-              tree={
-                <Element is={RootContainer} canvas id="ROOT">
-                  <ChromeAccountMenuBlock
-                    config={accountMenuStyle}
-                    onConfigChange={(patch) => setAccountMenuStyle((prev) => ({ ...prev, ...patch }))}
-                  />
-                </Element>
+            <HeaderGrapesEditor
+              tabs={topNavRows.map((row) => ({ key: row.key ?? row.id, label: row.title }))}
+              initialItems={
+                headerLayoutValue.items.length > 0
+                  ? headerLayoutValue.items
+                  : buildDefaultHeaderLayout(topNavRows.map((row) => row.key ?? row.id))
               }
+              saving={savingHeaderLayout}
+              savedMessage={savedKey === "unified_header_layout" ? "저장됐어요." : null}
+              onSave={handleSaveHeaderLayout}
             />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">텍스트 서체 (직접 입력, 폴백용)</label>
-              <input
-                className={inputClass}
-                value={accountMenuStyle.fontFamily}
-                onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, fontFamily: e.target.value })}
-                placeholder="예: 'Pretendard', sans-serif"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">텍스트 크기 (px, 비우면 기본값)</label>
-              <input
-                type="number"
-                min={8}
-                max={64}
-                className={inputClass}
-                value={accountMenuStyle.fontSizePx ?? ""}
-                onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, fontSizePx: e.target.value ? Number(e.target.value) : null })}
-              />
-            </div>
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={accountMenuStyle.bold}
-                  onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, bold: e.target.checked })}
-                />
-                굵게 (Bold)
-              </label>
-            </div>
-          </div>
-          <div className="mt-3">
-            <label className="block text-xs text-gray-500 mb-1">텍스트 색상 (비우면 기본 색상)</label>
-            <div className="flex items-center gap-2">
-              {/^#[0-9a-fA-F]{6}$/.test(accountMenuStyle.color) && (
-                <input
-                  type="color"
-                  value={accountMenuStyle.color}
-                  onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, color: e.target.value })}
-                  className="h-9 w-12 rounded border border-gray-300 p-1"
-                />
-              )}
-              <input
-                className={`${inputClass} w-32`}
-                value={accountMenuStyle.color}
-                onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, color: e.target.value })}
-                placeholder="#4b5563"
-              />
-            </div>
-          </div>
-          <div className="mt-3">
-            <label className="block text-xs text-gray-500 mb-1">마우스를 올렸을 때(hover) 모션</label>
-            <select
-              className={inputClass}
-              value={accountMenuStyle.hoverMotion}
-              onChange={(e) => setAccountMenuStyle({ ...accountMenuStyle, hoverMotion: e.target.value as TabHoverMotion })}
-            >
-              {TAB_HOVER_MOTIONS.map((m) => (
-                <option key={m} value={m}>
-                  {TAB_HOVER_MOTION_LABELS[m]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="mt-3">
-            <MotionPreviewSamples selected={accountMenuStyle.hoverMotion} />
-          </div>
-          <div className="flex items-center gap-3 mt-3">
-            <button
-              type="button"
-              onClick={() => handleSave("account_menu_style", accountMenuStyleValue)}
-              className={primaryButtonClass}
-            >
-              저장하기
-            </button>
-            {savedKey === "account_menu_style" && (
-              <span className="text-sm text-green-600">저장됐어요.</span>
-            )}
-          </div>
+          )}
         </section>
         )}
         </div>
@@ -1683,170 +1386,6 @@ export default function AdminNavigationSettingsPage() {
         )}
       </div>
     </main>
-  );
-}
-
-// EPIC-079-PHASE-4: 상단 탭 디자인 섹션의 탭 1개짜리 편집 블록 — 메인
-// 로고 섹션의 커스텀 폰트 등록 UI와 동일한 패턴을 재사용한다.
-function TopTabStyleRow({
-  originalTitle,
-  entry,
-  onChange,
-  onAddCustomFont,
-  onUpdateCustomFont,
-  onRemoveCustomFont,
-}: {
-  originalTitle: string;
-  entry: TopTabStyleEntry;
-  onChange: (patch: Partial<TopTabStyleEntry>) => void;
-  onAddCustomFont: () => void;
-  onUpdateCustomFont: (fontId: string, patch: Partial<CustomFontEntry>) => void;
-  onRemoveCustomFont: (fontId: string) => void;
-}) {
-  return (
-    <div className="rounded-md border border-gray-200 p-3 space-y-2">
-      <p className="text-sm font-medium text-gray-700">{originalTitle}</p>
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">표시 텍스트 (비우면 원래 이름 사용)</label>
-        <input
-          className={inputClass}
-          value={entry.labelOverride}
-          onChange={(e) => onChange({ labelOverride: e.target.value })}
-          placeholder={originalTitle}
-        />
-      </div>
-
-      {/* EPIC-117(사용자 지시): "1단"을 고르면 이 탭이 기존 탭 줄(2단)이
-          아니라 로고 줄과 겹치는 자리에 뜬다 — 위 "1단 겹침 정도"로
-          겹치는 정도를 조절. */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">표시 위치</label>
-        <select
-          className={inputClass}
-          value={entry.tier === 1 ? "1" : "2"}
-          onChange={(e) => onChange({ tier: e.target.value === "1" ? 1 : 2 })}
-        >
-          <option value="2">2단(기본, 기존 탭 줄)</option>
-          <option value="1">1단(로고 섹션과 겹치게 배치)</option>
-        </select>
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-xs text-gray-500">커스텀 폰트 파일 (.woff, .woff2, .ttf 등)</label>
-          <button type="button" onClick={onAddCustomFont} className={smallButtonClass}>
-            + 폰트 추가
-          </button>
-        </div>
-        {entry.customFonts.length === 0 ? (
-          <p className="text-xs text-gray-400">아직 추가된 폰트가 없어요.</p>
-        ) : (
-          <div className="space-y-2">
-            {entry.customFonts.map((font) => (
-              <div key={font.id} className="flex items-center gap-2">
-                <input
-                  className={inputClass}
-                  value={font.url}
-                  onChange={(e) => onUpdateCustomFont(font.id, { url: e.target.value })}
-                  placeholder="https://... (Supabase Storage에 올린 폰트 파일의 공개 URL)"
-                />
-                <label className="flex items-center gap-1 text-xs text-gray-600 shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={font.isActive}
-                    onChange={(e) => onUpdateCustomFont(font.id, { isActive: e.target.checked })}
-                  />
-                  적용
-                </label>
-                <button
-                  type="button"
-                  onClick={() => onRemoveCustomFont(font.id)}
-                  className="text-xs text-red-600 hover:underline shrink-0"
-                >
-                  삭제
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">텍스트 서체 (직접 입력, 폴백용)</label>
-          <input
-            className={inputClass}
-            value={entry.fontFamily}
-            onChange={(e) => onChange({ fontFamily: e.target.value })}
-            placeholder="예: 'Pretendard', sans-serif"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">텍스트 크기 (px, 비우면 기본값)</label>
-          <input
-            type="number"
-            min={8}
-            max={64}
-            className={inputClass}
-            value={entry.fontSizePx ?? ""}
-            onChange={(e) => onChange({ fontSizePx: e.target.value ? Number(e.target.value) : null })}
-          />
-        </div>
-        <div className="flex items-end pb-2">
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={entry.bold}
-              onChange={(e) => onChange({ bold: e.target.checked })}
-            />
-            굵게 (Bold)
-          </label>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">텍스트 색상 (비우면 기본 색상)</label>
-        <div className="flex items-center gap-2">
-          {/^#[0-9a-fA-F]{6}$/.test(entry.color) && (
-            <input
-              type="color"
-              value={entry.color}
-              onChange={(e) => onChange({ color: e.target.value })}
-              className="h-9 w-12 rounded border border-gray-300 p-1"
-            />
-          )}
-          <input
-            className={`${inputClass} w-32`}
-            value={entry.color}
-            onChange={(e) => onChange({ color: e.target.value })}
-            placeholder="#166534"
-          />
-        </div>
-      </div>
-
-      {/* HOTFIX(사용자 지시 — "각 탭 위에 커서가 hover 되었을 때의 모션들을
-          6가지로 설정할 수 있게 해 고급스러운 느낌이 나도록"): 프리셋
-          6종 + 없음. 아무 것도 안 고르면 tabHoverMotion.ts의 기본값(금빛
-          그라디언트 밑줄)이 이미 적용돼 있다. */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">마우스를 올렸을 때(hover) 모션</label>
-        <select
-          className={inputClass}
-          value={entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION}
-          onChange={(e) => onChange({ hoverMotion: e.target.value as TabHoverMotion })}
-        >
-          {TAB_HOVER_MOTIONS.map((m) => (
-            <option key={m} value={m}>
-              {TAB_HOVER_MOTION_LABELS[m]}
-            </option>
-          ))}
-        </select>
-      </div>
-      {/* HOTFIX(사용자 지시 — "상단 메뉴탭... 모션에 대한 옵션을 프리뷰
-          할 수 있는 샘플을 보여줘"): 축소된 iframe 미리보기 대신 여기서
-          바로 6가지를 비교해볼 수 있는 샘플. */}
-      <MotionPreviewSamples selected={entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION} />
-    </div>
   );
 }
 

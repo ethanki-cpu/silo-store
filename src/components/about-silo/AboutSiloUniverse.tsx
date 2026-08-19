@@ -1886,7 +1886,31 @@ export function AboutSiloUniverse() {
   // 보다 항상 크게 클램프해 렌즈가 오브젝트 표면을 파고드는(clipping)
   // 것도 방지한다.
   const DEFAULT_FOCUS_DISTANCE_MULTIPLIER = 2.4;
-  function focusCameraOnObject(key: string, focusDistanceMultiplier?: number | null) {
+  // HOTFIX(사용자 신고 — "오브제 클릭하면 줌인되는 정도를 조절하는게
+  // 전혀 작동이 안되는데"): 두 가지가 겹쳐 있었다.
+  // (1) <CameraControls minDistance={0.6}>가 매 프레임 강제하는 전역
+  // 하한이라, boundingRadius*multiplier가 0.6보다 작은(작은 장식
+  // 오브젝트 대부분이 여기 해당 — 슬라이더 기본값 2.4를 포함한 하위~중간
+  // 구간 전체) 경우엔 배율을 아무리 바꿔도 실제 카메라 거리가 늘 0.6으로
+  // 눌려 아무 변화가 없었다(옛 코드의 `Math.max(..., controls.minDistance,
+  // 0.6)`은 이 라이브러리 강제를 그대로 따라간 것뿐 — 없애도 라이브러리가
+  // 매 프레임 다시 0.6으로 되돌린다). 그 하한의 원래 목적(행성 표면
+  // 클리핑 방지)은 행성처럼 큰 오브젝트 기준이라 훨씬 작은 개별 오브젝트를
+  // 들여다볼 때는 적용될 이유가 없어, 오브젝트 포커스 중에는 이 하한을
+  // 그 오브젝트가 실제로 필요로 하는 거리로 임시 하향한다(BASE_MIN_DISTANCE
+  // 보다 커지지는 않게 min으로 클램프). 포커스를 벗어나면(행성/게시물
+  // 선택, 패널 닫기, 리셋) restoreBaseMinDistance()로 되돌려 일반 자유
+  // 탐색에서는 여전히 행성 클리핑을 막는다.
+  // (2) ObjectInspectorPanel의 슬라이더 onChange는 patch를 state에만
+  // 반영할 뿐 카메라를 다시 움직이지 않아, 이미 선택된 오브젝트의 배율을
+  // 바꿔도 재클릭 전까지는 화면에 아무 변화가 없었다 — handleSelectedObjectChange
+  // 에서 focusDistanceMultiplier 변경 시 즉시(애니메이션 없이) 재포커스한다.
+  const BASE_MIN_DISTANCE = 0.6;
+  function restoreBaseMinDistance() {
+    const controls = cameraControlsRef.current;
+    if (controls) controls.minDistance = BASE_MIN_DISTANCE;
+  }
+  function focusCameraOnObject(key: string, focusDistanceMultiplier?: number | null, animate = true) {
     const controls = cameraControlsRef.current;
     const group = objectRefs.current.get(key);
     if (!controls || !group) return;
@@ -1895,10 +1919,11 @@ export function AboutSiloUniverse() {
     const size = box.getSize(new THREE.Vector3());
     const boundingRadius = Math.max(size.x, size.y, size.z, 0.05) * 0.5;
     const multiplier = focusDistanceMultiplier ?? DEFAULT_FOCUS_DISTANCE_MULTIPLIER;
-    const distance = Math.max(boundingRadius * multiplier, controls.minDistance, 0.6);
+    const distance = Math.max(boundingRadius * multiplier, 0.05);
+    controls.minDistance = Math.min(BASE_MIN_DISTANCE, distance);
     const dir = new THREE.Vector3(0.35, 0.3, 1.0).normalize();
     const camPos = worldPos.clone().add(dir.multiplyScalar(distance));
-    controls.setLookAt(camPos.x, camPos.y, camPos.z, worldPos.x, worldPos.y, worldPos.z, true);
+    controls.setLookAt(camPos.x, camPos.y, camPos.z, worldPos.x, worldPos.y, worldPos.z, animate);
   }
 
   function handleSelectObject(planetId: PlanetId, id: string) {
@@ -2163,6 +2188,7 @@ export function AboutSiloUniverse() {
     setSelectedPost(post);
     setSelectedObjectId(null);
     setSelectedPlanetId(null);
+    restoreBaseMinDistance();
     const controls = cameraControlsRef.current;
     if (!controls) return;
     const target = new THREE.Vector3(...position);
@@ -2173,6 +2199,7 @@ export function AboutSiloUniverse() {
   // 행성(SILO/유저) 자체를 클릭하면 카메라가 그 행성을 화면 중심으로
   // 부드럽게 줌인(fit to object)한다.
   function handleFocusPlanet(center: THREE.Vector3, radius: number) {
+    restoreBaseMinDistance();
     const controls = cameraControlsRef.current;
     if (!controls) return;
     const dir = new THREE.Vector3(0.4, 0.3, 1).normalize();
@@ -2185,6 +2212,7 @@ export function AboutSiloUniverse() {
     setSelectedObjectId(null);
     setSelectedPlanetId(null);
     setSelectedSpaceObjectId(null);
+    restoreBaseMinDistance();
     cameraControlsRef.current?.setLookAt(
       HOME_CAMERA_POS.x, HOME_CAMERA_POS.y, HOME_CAMERA_POS.z,
       HOME_TARGET.x, HOME_TARGET.y, HOME_TARGET.z,
@@ -2196,6 +2224,7 @@ export function AboutSiloUniverse() {
     setSelectedObjectId(null);
     setSelectedPlanetId(null);
     setSelectedSpaceObjectId(null);
+    restoreBaseMinDistance();
   }
 
   const selectedPlanetObject =
@@ -2210,8 +2239,17 @@ export function AboutSiloUniverse() {
   // onDelete만 어느 쪽이 선택됐는지에 따라 갈라 보낸다.
   const selectedObject = selectedPlanetObject ?? selectedSpaceObject;
   function handleSelectedObjectChange(patch: Partial<UniverseObject>) {
-    if (selectedPlanetObject && selectedPlanetId && selectedObjectId) updateObject(selectedPlanetId, selectedObjectId, patch);
-    else if (selectedSpaceObject && selectedSpaceObjectId) updateSpaceObject(selectedSpaceObjectId, patch);
+    if (selectedPlanetObject && selectedPlanetId && selectedObjectId) {
+      updateObject(selectedPlanetId, selectedObjectId, patch);
+      if (patch.focusDistanceMultiplier !== undefined) {
+        focusCameraOnObject(`${selectedPlanetId}:${selectedObjectId}`, patch.focusDistanceMultiplier, false);
+      }
+    } else if (selectedSpaceObject && selectedSpaceObjectId) {
+      updateSpaceObject(selectedSpaceObjectId, patch);
+      if (patch.focusDistanceMultiplier !== undefined) {
+        focusCameraOnObject(`space:${selectedSpaceObjectId}`, patch.focusDistanceMultiplier, false);
+      }
+    }
   }
   function handleSelectedObjectDelete() {
     if (selectedPlanetObject) removeSelectedObject();

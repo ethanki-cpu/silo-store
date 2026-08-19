@@ -28,14 +28,36 @@ const PRESET_STYLES: Record<BackgroundPreset, { background: string; starOpacity:
   },
 };
 
-// 별 패턴 — 서로 다른 크기의 radial-gradient 점을 반복 배치(4겹, 크기/간격
+// HOTFIX(사용자 신고 — "프리셋 배경(수채화 블루/딥 블루) 선택 시 화면에
+// 이상한 점 그리드가 생긴다", 실제로 코드로 재현/확인 완료): 원인은 이
+// 별 점을 SVG 이미지로 만들어 background-image로 쓸 때, SVG 자체의
+// 고유 크기(가로/세로 attribute, 예: 8x8)와 실제 타일 간격으로 쓰는
+// background-size(120~340px)가 서로 다르면 브라우저가 그 SVG 전체를
+// background-size 크기까지 확대해서 채운다는 것 — 즉 SVG 안의 작은 점
+// (r=1.5, 8x8 캔버스 기준)이 120~340px 타일 전체 크기로 15~40배
+// 확대되어, "옅은 별 점"이 아니라 화면을 뒤덮는 커다란 원형 얼룩의
+// 그리드로 렌더링된다(실제로 이 코드로 재현해 확인함 — cream 프리셋만
+// 멀쩡해 보였던 것도 starOpacity가 0.15로 낮아 이 거대해진 원이 상대적으로
+// 옅어 덜 도드라졌을 뿐, 실은 크림에도 같은 문제가 있었을 것). 고치는
+// 방법: SVG의 viewBox/width/height를 타일 크기(size)와 정확히 똑같이
+// 맞춰서 확대 배율이 항상 1:1이 되게 한다 — 그 안에서 점의 상대 위치
+// (offset)만 조정하면 되므로 크기별로 별도 data URI를 만든다.
+function starDotDataUrl(size: number, offset: number): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><circle cx="${offset}" cy="${offset}" r="1.4" fill="white"/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+// 별 패턴 — 서로 다른 크기의 점 이미지를 반복 배치(4겹, 크기/간격
 // 다르게)해 은하수처럼 흩뿌려진 느낌을 낸다.
 function starLayerStyle(size: number, opacity: number, offset: number): React.CSSProperties {
   return {
     position: "absolute",
     inset: 0,
     opacity,
-    backgroundImage: `radial-gradient(1.4px 1.4px at ${offset}px ${offset}px, #fff 100%, transparent 100%)`,
+    backgroundImage: `url("${starDotDataUrl(size, offset)}")`,
+    backgroundRepeat: "repeat",
+    // SVG 고유 크기가 이미 size와 동일하므로 backgroundSize는 사실상
+    // 그대로 유지(1:1)일 뿐 — 명시적으로 남겨 의도를 분명히 한다.
     backgroundSize: `${size}px ${size}px`,
   };
 }

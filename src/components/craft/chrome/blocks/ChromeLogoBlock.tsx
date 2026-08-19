@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { useNode } from "@craftjs/core";
 import { uploadImage } from "@/lib/adminImageUpload";
-import { DEFAULT_LOGO_HEIGHT_PX, DEFAULT_LOGO_TEXT_COLOR, type MainLogoConfig } from "@/lib/mainLogoSettings";
+import { DEFAULT_LOGO_HEIGHT_PX, DEFAULT_LOGO_TEXT_COLOR, type MainLogoConfig, type CustomFontEntry } from "@/lib/mainLogoSettings";
 import { ChromeLogoView } from "../views";
 import { ChromeSelectionOverlay } from "../ChromeSelectionOverlay";
 
@@ -36,6 +36,7 @@ function ChromeLogoSettings() {
   const { props, setProp } = useNode((node) => ({ props: node.data.props as ChromeLogoBlockProps }));
   const { config, onConfigChange } = props;
   const [uploading, setUploading] = useState(false);
+  const [uploadingFont, setUploadingFont] = useState(false);
 
   function patch(next: Partial<MainLogoConfig>) {
     setProp((draft) => {
@@ -50,6 +51,25 @@ function ChromeLogoSettings() {
     const { url } = await uploadImage(file, "main_logo");
     setUploading(false);
     if (url) patch({ type: "image", imageUrl: url });
+  }
+
+  async function handleFontFile(file: File | null) {
+    if (!file) return;
+    setUploadingFont(true);
+    const { url } = await uploadImage(file, "custom_fonts");
+    setUploadingFont(false);
+    if (url) {
+      const entry: CustomFontEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, isActive: true };
+      patch({ customFonts: [...config.customFonts, entry] });
+    }
+  }
+
+  function updateFont(id: string, fontPatch: Partial<CustomFontEntry>) {
+    patch({ customFonts: config.customFonts.map((f) => (f.id === id ? { ...f, ...fontPatch } : f)) });
+  }
+
+  function removeFont(id: string) {
+    patch({ customFonts: config.customFonts.filter((f) => f.id !== id) });
   }
 
   return (
@@ -124,6 +144,34 @@ function ChromeLogoSettings() {
         <input type="checkbox" checked={config.bold} onChange={(e) => patch({ bold: e.target.checked })} />
         굵게
       </label>
+
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <p className="font-medium text-gray-600">커스텀 폰트 파일 ({config.customFonts.length}개)</p>
+        {config.customFonts.map((font) => (
+          <div key={font.id} className="space-y-1 rounded border border-gray-200 p-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                <input type="checkbox" checked={font.isActive} onChange={(e) => updateFont(font.id, { isActive: e.target.checked })} />
+                사용
+              </label>
+              <button type="button" onClick={() => removeFont(font.id)} className="text-[11px] text-red-500 hover:underline">
+                삭제
+              </button>
+            </div>
+            <p className="truncate text-[10px] text-gray-400" title={font.url}>{font.url}</p>
+          </div>
+        ))}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">폰트 파일 추가 {uploadingFont && "(업로드 중...)"}</span>
+          <input
+            type="file"
+            accept=".woff,.woff2,.ttf,.otf"
+            onChange={(e) => handleFontFile(e.target.files?.[0] ?? null)}
+            disabled={uploadingFont}
+            className="w-full text-[11px]"
+          />
+        </label>
+      </div>
     </div>
   );
 }

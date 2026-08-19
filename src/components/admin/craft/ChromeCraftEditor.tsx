@@ -1,38 +1,63 @@
 "use client";
 
-// B2: 홈페이지 설정 관리의 4개 섹션(로고/사이드바 아이콘/상단 탭/계정
-// 메뉴)을 위한 경량 Craft 에디터 셸 — 기존 CraftPageEditor.tsx를 그대로
-// 쓰지 않는다: 그건 Toolbox(요소 추가)+page_builder.craft_state 저장
-// 흐름을 전제하는데, 여기는 요소 추가가 없고(계획 결정 5 — 상단 탭은
-// site_navigations에서 자동 생성, 로고/사이드바 아이콘/계정 메뉴는 항상
-// 정해진 자리만 있음) 저장도 site_settings로 계속 나간다(계획 결정 2) —
-// 그 두 전제가 안 맞아 <Editor>+<Frame>+재사용 SettingsSidebar만 조합한
-// 최소 셸을 새로 만들었다.
-//
-// 트리 갱신에 대해: Craft.js의 <Frame>은 최초 마운트 시의 children만
-// 읽고 이후 다시 읽지 않는다(공식 동작) — 그래서 이 컴포넌트를 부모가
-// key로 감싸(예: PC/모바일 전환 시 key={chromeDeviceTab}) 완전히
-// 리마운트해야 새 tree가 반영된다. 같은 세션 안에서 설정 패널로 값을
-// 바꾸는 것(타이핑하며 실시간으로 보이는 것)은 Frame을 다시 읽는 게
-// 아니라 각 블록이 자기 자신의 Craft setProp으로 스스로 다시 그리는
-// 것이라 이 제약과 무관하게 항상 즉시 반영된다.
+// HOTFIX(사용자 지시 — "페이지가 출력되는 위치 그대로 나오는 상태에서
+// 페이지 위의 요소들을 클릭 → 왼쪽 설정창... 왼쪽에 설정 윈도우, 오른쪽에
+// 홈페이지 블록들"): 예전엔 캔버스(왼쪽)+설정 패널(오른쪽) 좁은 카드
+// 하나였다 — 이제 실제 페이지 전체를 위에서 아래로(로고→사용자 메뉴→
+// 상단 탭→슬라이드쇼→사이드바 아이콘 순서) 쌓아 보여주는 큰 캔버스를
+// 오른쪽에, 선택된 블록의 설정을 왼쪽에 배치한다. PC/태블릿/모바일
+// 폭 토글을 상단 툴바에 둔다(BuilderJS 레퍼런스와 동일한 위치).
 import { Editor, Frame } from "@craftjs/core";
 import type { ReactNode } from "react";
 import { SettingsSidebar } from "@/components/craft/shared/SettingsSidebar";
 import { chromeResolver } from "@/components/craft/chrome/resolver";
 
+export type ChromeDeviceMode = "pc" | "tablet" | "mobile";
+
+const DEVICE_WIDTHS: Record<ChromeDeviceMode, number | undefined> = {
+  pc: undefined,
+  tablet: 820,
+  mobile: 390,
+};
+
+export function ChromeDeviceToggle({ value, onChange }: { value: ChromeDeviceMode; onChange: (v: ChromeDeviceMode) => void }) {
+  const OPTIONS: { key: ChromeDeviceMode; label: string }[] = [
+    { key: "pc", label: "🖥️ PC" },
+    { key: "tablet", label: "📱 태블릿" },
+    { key: "mobile", label: "📱 모바일" },
+  ];
+  return (
+    <div className="flex items-center rounded-md border border-gray-300 bg-white p-0.5 text-xs">
+      {OPTIONS.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => onChange(o.key)}
+          className={`rounded px-3 py-1 ${value === o.key ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ChromeCraftEditor({
   tree,
-  deviceWidth,
+  deviceMode = "pc",
+  minHeight = 500,
 }: {
   tree: ReactNode;
-  /** 지정하면 캔버스를 그 폭(px)으로 좁혀 모바일 미리보기처럼 보이게 한다. */
-  deviceWidth?: number;
+  deviceMode?: ChromeDeviceMode;
+  /** 캔버스가 짧은 페이지에서도 스크롤 없이 넉넉해 보이도록 하는 최소 높이(px). */
+  minHeight?: number;
 }) {
+  const deviceWidth = DEVICE_WIDTHS[deviceMode];
   return (
     <Editor resolver={chromeResolver} enabled>
-      <div className="flex h-[440px] w-full overflow-hidden rounded-lg border border-gray-200">
-        <div className="min-w-0 flex-1 overflow-auto bg-gray-100 p-4">
+      <div className="flex overflow-hidden rounded-lg border border-gray-200" style={{ minHeight }}>
+        <SettingsSidebar />
+        <div className="flex-1 overflow-auto bg-gray-100 p-4">
           <div
             className={deviceWidth ? "mx-auto border-x border-gray-300 bg-white shadow-lg" : "bg-white"}
             style={deviceWidth ? { width: deviceWidth } : undefined}
@@ -40,7 +65,6 @@ export function ChromeCraftEditor({
             <Frame>{tree}</Frame>
           </div>
         </div>
-        <SettingsSidebar />
       </div>
     </Editor>
   );

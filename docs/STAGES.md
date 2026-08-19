@@ -204,7 +204,40 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-109
+EPIC-135
+"홈페이지 설정 관리"를 4개 분리 화면(로고/사이드바 아이콘/상단 탭/사용자 메뉴,
+EPIC-134까지의 GrapesJS 접근 포함)에서 실제 페이지 렌더 순서 그대로(로고→
+사용자 메뉴→상단 탭 1/2단→슬라이드쇼→좌우 사이드바 아이콘) 쌓아 보여주는
+craft.js 캔버스 하나로 완전 통합 — 캔버스에서 블록을 클릭하면 왼쪽
+SettingsSidebar에 그 블록 전용 설정이 뜨고(사용자가 명시적으로 정정한 좌측
+배치), 저장은 여전히 `site_settings`(각 블록 `setProp`+기존 shim setter
+이중 배선, EPIC-132와 동일 패턴). `HeaderGrapesEditor.tsx`(EPIC-134) 삭제,
+새 `ChromeSlideshowBlock`(실제 공개 `HeroSlideshow.tsx` 재사용) 추가, 저장
+시 `unified_header_layout`을 함께 비워 `Navbar.tsx`가 항상 이 화면이 쓴
+`top_tab_style`/`account_menu_style` 값을 읽는 폴백 경로로 돌아가도록 보장.
+Craft `<Frame>` 트리 안에 `<>...</>` React.Fragment를 그대로 끼워 넣으면
+"Invariant failed: ...(undefined) does not exist in the resolver"로 죽는
+버그(Fragment가 `.name`/`.displayName` 없는 Symbol이라 발생)를 실측 중
+재발견 — HOTFIX-134의 기존 우회(`ChromeTierZone` 컴포넌트를 JSX 태그가 아닌
+일반 함수로 직접 호출)를 그대로 따르되 감싸던 Fragment 자체도 제거해 해결.
+`tsc`/`lint`/`build` 0 errors, Browser pane 실측으로 통합 캔버스 전체(로고/
+계정메뉴/1·2단 탭/슬라이드쇼/좌측 사이드바 아이콘) 순서·클릭 선택·좌측
+설정 패널 반영을 확인, 저장 버튼 클릭 후 실제 홈페이지 새로고침까지 왕복
+검증. **다음에 확인 필요**: 실제 마우스로 탭 칩을 드래그해 1단/2단 사이·같은
+단 안 순서를 바꾸는 손맛(브라우저 자동화가 신뢰되지 않은 drop 이벤트의
+`dataTransfer.getData()`를 빈 값으로 반환하는 한계로 자동 검증 불가, 로직은
+HOTFIX-134에서 검증된 것과 동일), 로고 블록에 새로 추가한 커스텀 폰트 관리
+UI(추가/토글/삭제) 실사용. 상세는 CHANGELOG.md 동명 항목 참고. 브랜치
+`feature/EPIC-135`.
+
+> **참고**: 이 블록(그리고 바로 아래 "Current EPIC" 섹션)은 EPIC-109
+> 시점(2026-08-14)부터 이번 갱신(EPIC-135, 2026-08-20)까지 최상단 마커만
+> 갱신되지 않고 있었다 — 그 사이 실제 완료된 EPIC-110~134는 `docs/EPIC.md`/
+> `CHANGELOG.md`에 전부 개별 기록되어 있으니 필요하면 그쪽을 참고할 것(이
+> 파일 자체가 이미 알고 있던 기존 드리프트, 이번 세션에서 전체 소급 재작성은
+> 하지 않음).
+
+직전 EPIC-109
 자유 배치 이미지 리사이즈에 비율 유지/직접입력/프리셋 추가 — `ImageBlock`에
 `lockAspectRatio` 토글+비율 프리셋 드롭다운+직접입력, `FreePositionHandles`가
 컨테이너 실제 픽셀 크기로 환산해 정사각형이 아닌 컨테이너에서도 정확한

@@ -10,6 +10,7 @@ import { ChromeLogoBlock } from "./blocks/ChromeLogoBlock";
 import { ChromeSidebarIconBlock } from "./blocks/ChromeSidebarIconBlock";
 import { ChromeTopTabBlock } from "./blocks/ChromeTopTabBlock";
 import { ChromeAccountMenuBlock } from "./blocks/ChromeAccountMenuBlock";
+import { ChromeSlideshowBlock } from "./blocks/ChromeSlideshowBlock";
 
 export const chromeResolver: Resolver = {
   RootContainer,
@@ -17,6 +18,7 @@ export const chromeResolver: Resolver = {
   ChromeSidebarIconBlock,
   ChromeTopTabBlock,
   ChromeAccountMenuBlock,
+  ChromeSlideshowBlock,
 };
 
-export { ChromeLogoBlock, ChromeSidebarIconBlock, ChromeTopTabBlock, ChromeAccountMenuBlock };
+export { ChromeLogoBlock, ChromeSidebarIconBlock, ChromeTopTabBlock, ChromeAccountMenuBlock, ChromeSlideshowBlock };

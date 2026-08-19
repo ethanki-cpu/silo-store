@@ -55,7 +55,23 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-109(자유 배치 이미지 리사이즈에 비율 유지/직접입력/프리셋 추가) —
+EPIC-135("홈페이지 설정 관리" 4개 분리 화면을 실제 렌더 순서 그대로 쌓은
+craft.js 통합 캔버스 하나로 전환) — 로고→사용자 메뉴→상단 탭(1/2단)→
+슬라이드쇼→좌우 사이드바 아이콘을 한 화면에서 클릭-선택+왼쪽 설정 패널로
+편집(사용자가 "한 화면에서 모든 설정을" + "왼쪽 설정창"으로 명시적 요청).
+EPIC-134(GrapesJS)를 완전히 대체 — `HeaderGrapesEditor.tsx` 삭제. 저장은
+`site_settings` 그대로, 신규 `ChromeSlideshowBlock`(실제 `HeroSlideshow.tsx`
+재사용) 추가. Craft `<Frame>` 안에 React.Fragment를 직접 끼워 넣으면 죽는
+버그(`.name`/`.displayName` 없는 Symbol이라 "component (undefined)"로
+실패)를 실측 중 발견해 제거. `tsc`/`lint`/`build` 0 errors, Browser pane
+실측으로 통합 캔버스 5개 블록 전부(클릭 선택→왼쪽 패널→즉시 반영)+저장→
+홈페이지 새로고침 왕복까지 확인. 브랜치 `feature/EPIC-135`.
+
+> 이 섹션은 EPIC-109(2026-08-14) 이후 EPIC-135(2026-08-20)까지 최상단
+> 갱신이 밀려 있었다 — 그 사이 EPIC-110~134는 `docs/EPIC.md`/`CHANGELOG.md`에
+> 개별 기록돼 있음(기존에 이미 알려진 드리프트, 전체 소급 재작성은 범위 밖).
+
+직전 EPIC-109(자유 배치 이미지 리사이즈에 비율 유지/직접입력/프리셋 추가) —
 `ImageBlock`에 비율 잠금 토글+프리셋 드롭다운+직접입력, `FreePositionHandles`가
 컨테이너 실제 픽셀 크기로 환산해 진짜 픽셀 비율을 유지하도록 확장. `tsc`/
 `lint`/`build` 0 errors, 클린 세션에서 1:1 잠금 리사이즈 픽셀 정확도 확인.

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-19 (HOTFIX-134.5 — 프리셋 배경 점 그리드의 진짜 원인 제거: 화면에 고정된 2D 별 레이어를 완전히 삭제)
+- **배경**: 다른 컴퓨터에서 origin/main으로 동기화 후, 사용자가 스크린샷과 함께 "점 그리드가 화면을 패닝할 때마다 계속 따라다닌다"고 신고 — HOTFIX-134.4가 "실제 재현·수정"했다고 기록한 것과 같은 증상이 여전히 남아있었다.
+- **진짜 원인**: HOTFIX-134.4는 별 점 SVG가 15~40배로 확대 렌더링되던 **크기** 버그는 실제로 고쳤지만, 더 근본적인 구조 문제를 놓쳤다 — `PresetBackground.tsx`의 별 점은 `<Canvas>` 밖의 순수 2D DOM(`position: fixed`)에 CSS `background-repeat`로 그려지고 있었다. 즉 3D 카메라와 완전히 무관한 레이어라, 카메라를 아무리 돌리거나 패닝해도 이 점들은 화면에 그대로 붙박여 있을 수밖에 없었다 — "그리드가 화면을 따라다닌다"는 신고는 정확히 이 현상이었다(크기를 고쳐도 애초에 화면 고정 레이어인 이상 절대 해결될 수 없는 종류의 버그). 게다가 `AboutSiloUniverse.tsx`의 `UniverseParticles`(drei `<Stars>`/`<Sparkles>`/`<ShootingStars>`, `<Canvas>` 안에서 `backgroundMode`와 무관하게 이미 항상 렌더링되는 진짜 3D 별)가 이미 같은 역할을 정확하게 하고 있어서, 이 2D 레이어는 애초에 불필요한 중복이었다.
+- **수정**: `PresetBackground.tsx`에서 별 점을 그리던 `starDotDataUrl`/`starLayerStyle` 및 3개 레이어 `<div>`를 전부 삭제 — 배경 그라디언트 색상 + 흐릿한 원거리 행성 2개만 남긴다. 실제 별은 이미 있던 `UniverseParticles`(3D, 카메라 이동에 정상적으로 시차가 생김)가 전담.
+- **환경 노트**: 이 세션에서 다른 컴퓨터의 커밋을 pull한 뒤 `npm run build`가 `Module not found: Can't resolve 'grapesjs'`로 실패했다 — `package.json`/`package-lock.json`은 최신이었지만 `node_modules`가 그대로라 그랬던 것, `npm install` 실행으로 해결(정상적인 멀티 디바이스 동기화 단계, 코드 버그 아님).
+- **검증**: `npx tsc --noEmit`/`npm run lint`/`npm run build` 전부 0 errors. Browser pane 실측 — 수정 전 스크린샷과 동일한 격자 무늬가 재현된 것을 먼저 확인 후 수정, 수정 후 스크린샷에서 격자 완전히 사라짐 확인 + 카메라를 실제로 드래그해 패닝한 전/후 스크린샷을 비교해 별과 행성이 함께 자연스럽게 시차 이동함(화면에 고정되지 않음)을 확인.
+- **변경 파일**: `src/components/about-silo/PresetBackground.tsx`.
+
 ## 2026-08-19 (HOTFIX-134.4 — 프리셋 배경 별 점 그리드 버그 실제 재현·수정)
 - **배경**: 사용자가 "그리드 버그가 있는건 확실하니까, 원인을 찾아서 해결해"라고 재차 지시 — HOTFIX-134.2/134.3의 "우주 공간 오브젝트 스프라이트 밀도" 진단만으로는 부족하다고 판단해 `PresetBackground.tsx`의 별 점 렌더링 자체를 다시 처음부터 조사.
 - **실제 재현 성공**: 별 점을 CSS `radial-gradient` 트릭 대신 SVG 이미지로 바꿔보는 과정에서 그 자체로 "그리드 버그"를 실제로 재현했다 — SVG를 `width="8" height="8"`(작은 고유 크기)로 만들고 `background-size: 120px 120px`(훨씬 큰 타일 간격)로 반복시키면, 브라우저가 SVG 전체를 8px→120px로 **15~40배 확대**해서 채운다. 그 결과 원래 "옅은 별 점 하나"였어야 할 이미지가 화면을 뒤덮는 커다란 원형 얼룩의 규칙적인 그리드로 렌더링됨을 Browser pane 스크린샷으로 직접 확인 — 사용자가 신고한 스크린샷과 정확히 같은 종류(간격이 일정한 원형 얼룩 그리드)의 결과.

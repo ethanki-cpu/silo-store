@@ -1,26 +1,41 @@
 "use client";
 
-// EPIC-136(사용자 지시 — "실제 홈페이지 상단의 출력되는 모습이랑 '홈페이지
-// 설정' 페이지의 모습이 다르잖아?" + "블록을 눌렀을때 왜 왼쪽에 아무런
-// 설정할수 있는게 없어?" + "드래그앤 드롭으로 버튼이든, 이미지, 영상, 무슨
-// 요소든지 자유롭게... 화면 안에서 마음대로 움직일수 있게 해달라"):
-// EPIC-135까지는 Navbar.tsx와 별개인 "스타일 전용 복제품"(craft/chrome/
-// views.tsx)을 캔버스에 그렸다 — 실제 로그인 이름 대신 placeholder 텍스트를
-// 보여주는 등 필연적으로 실제 사이트와 어긋났고(그 드리프트가 이번 신고의
-// 핵심 원인), 구조도 고정 슬롯이라 자유 드래그가 불가능했다. 이번엔 그
-// 클론을 완전히 버리고 실제 <Navbar>를 그대로 이 화면에 렌더링한다
-// (editable prop만 얹어서) — 캔버스가 곧 실제 사이트라 드리프트 자체가
-// 구조적으로 불가능하고, 로그인 상태/드롭다운 메가메뉴도 실제로 동작한다.
-// 각 요소(로고/탭/계정 메뉴 항목)는 Navbar.tsx 안에서 HeaderSlot으로
-// 감싸져 있어 클릭하면 이 페이지의 왼쪽 패널에 설정이 뜨고, 드래그하면
-// transform으로 화면 어디든 자유롭게 옮길 수 있다(headerLayoutPositions.ts
-// 참고 — Craft.js는 더 이상 헤더에 쓰지 않는다).
-import { useEffect, useState } from "react";
+// EPIC-137(사용자 지시 — "4개로 구분하지마 홈페이지를. 한개의 홈페이지를
+// 실시간으로 설정하는거야. 한개의 preview를 가지고, 각 블록마다 Elements,
+// Control 탭이 다르게 나오는거라구."): EPIC-136까지도 "홈페이지 헤더 디자인/
+// 슬라이드쇼/사이드바 아이콘/하단 메뉴 관리" 4개 섹션을 상단 버튼으로
+// 전환하는 방식이었다 — 사용자가 이걸 "또다시 4개의 화면"이라고 재차
+// 거부하고, BuilderJS 레퍼런스 그대로 (1) 화면 전환 없이 실제 페이지 전체를
+// 위에서 아래로 이어 보여주는 캔버스 하나, (2) 왼쪽에 Elements/Controls/
+// Page/Themes 4개 탭 패널을 명시적으로 요구했다. 이번 구현:
+// - 캔버스: Navbar(헤더, 이미 EPIC-136에서 실제 컴포넌트+자유 드래그로 전환
+//   완료) → 슬라이드쇼(실제 HeroSlideshow, 신규 클릭 선택) → 사이드바 아이콘
+//   미리보기(실제 좌/우 아이콘은 화면 가장자리 fixed 트리거라 인라인에
+//   그대로 넣을 수 없어, 실제 이미지를 쓰는 대표 미리보기 칩으로 대체 —
+//   클릭하면 동일하게 설정 가능) → 하단 메뉴(Footer, 기존 CraftFooterEditor
+//   전체화면 대신 같은 Editor를 이 캔버스 안에 인라인으로 얹음) 순서로 전부
+//   한 화면에 이어 붙인다.
+// - 왼쪽 패널: Elements(페이지 요소 목록 클릭 이동 + 하단 메뉴에 새 블록
+//   추가하는 기존 Toolbox 기능) / Controls(선택된 요소의 실제 설정 —
+//   이미지 필드마다 실제 썸네일 미리보기 포함) / Page(페이지 단위 안내) /
+//   Themes(호버 모션을 탭+계정 메뉴 전체에 일괄 적용) 4탭.
+// - 저장: 기존 site_settings 6개 키 + 하단 메뉴 craft_state까지 "저장하기"
+//   버튼 하나로 함께 저장한다(craft_state는 Editor 컨텍스트 밖에서 접근할
+//   수 없어 CraftBridge가 query/actions를 ref로 끌어올린다).
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Editor, Frame, useEditor } from "@craftjs/core";
 import { supabase } from "@/lib/supabaseClient";
 import { primaryButtonClass } from "../shared";
-import { CraftFooterEditor } from "@/components/admin/craft/CraftFooterEditor";
 import { Navbar } from "@/components/Navbar";
+import { HeroSlideshow } from "@/components/HeroSlideshow";
+import { SelectionOverlay } from "@/components/SelectionOverlay";
 import { uploadImage, compressImage } from "@/lib/adminImageUpload";
+import { fetchNavTabs, type NavTab } from "@/lib/navConfig";
+import { PRIMITIVE_RESOLVER, PRIMITIVE_BLOCK_OPTIONS } from "@/components/craft/primitives";
+import type { CraftBlockOption } from "@/components/craft/shared/types";
+import { craftFooterResolver } from "@/components/craft/footer/resolver";
+import { footerDefaultTree, footerBlockOptions } from "@/components/craft/footer/defaultTree";
 import {
   normalizeMainLogo,
   defaultMainLogoValue,
@@ -40,6 +55,7 @@ import {
   defaultTopTabStyleValue,
   defaultTopTabStyleEntry,
   type TopTabStyleValue,
+  type TopTabStyleEntry,
 } from "@/lib/topTabStyleSettings";
 import {
   normalizeAccountMenuStyle,
@@ -71,7 +87,152 @@ async function upsertSetting(key: string, value: unknown) {
     );
 }
 
-type Section = "header" | "slideshow" | "sidebarIcons" | "footer";
+type Selection = { kind: "slot"; key: string } | { kind: "craft" } | null;
+type LeftTab = "elements" | "controls" | "page" | "themes";
+
+// ── 캔버스 안에서 클릭으로만 선택되는 요소(슬라이드쇼/사이드바 아이콘) —
+// 자유 드래그는 안 준다(줄 전체를 차지하는 블록이라 "옆으로 옮기기"가
+// 의미가 없음, 순서는 실제 페이지 순서 그대로 고정).
+function ClickSelectSlot({
+  slotKey,
+  label,
+  selected,
+  onSelect,
+  className,
+  children,
+}: {
+  slotKey: string;
+  label: string;
+  selected: boolean;
+  onSelect: (key: string) => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`relative cursor-pointer ${className ?? ""}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(slotKey);
+      }}
+    >
+      {children}
+      <SelectionOverlay selected={selected} hovered={false} label={label} />
+    </div>
+  );
+}
+
+// ── Editor 컨텍스트(craft.js)는 React context라 이 컴포넌트 트리 밖에 있는
+// "저장하기" 버튼에서 query.serialize()를 직접 부를 수 없다 — Editor 안에
+// 항상 마운트돼 있는 이 브리지가 query/actions를 ref로 끌어올리고, 하단
+// 메뉴(Footer) 블록이 새로 선택될 때마다 상위 selection 상태도 갱신한다.
+function CraftBridge({
+  bridgeRef,
+  onCraftSelect,
+}: {
+  bridgeRef: React.MutableRefObject<{ query: ReturnType<typeof useEditor>["query"] } | null>;
+  onCraftSelect: () => void;
+}) {
+  const { query, selectedId } = useEditor((state) => ({
+    selectedId: ([...state.events.selected][0] as string | undefined) ?? null,
+  }));
+  const prevRef = useRef<string | null>(null);
+  useEffect(() => {
+    bridgeRef.current = { query };
+  }, [query, bridgeRef]);
+  useEffect(() => {
+    if (selectedId && selectedId !== "ROOT" && selectedId !== prevRef.current) {
+      prevRef.current = selectedId;
+      onCraftSelect();
+    }
+    if (!selectedId) prevRef.current = null;
+  }, [selectedId, onCraftSelect]);
+  return null;
+}
+
+// ── Elements 탭의 "하단 메뉴에 새 블록 추가" — 기존 Toolbox.tsx와 동일한
+// connectors.create() 드래그 소스 패턴이지만, w-60 aside 없이 이 패널
+// 안에 바로 넣을 수 있도록 얇게 다시 구현했다.
+function FooterElementButton({ option, onAdd }: { option: CraftBlockOption; onAdd: (option: CraftBlockOption) => void }) {
+  const { connectors } = useEditor();
+  return (
+    <button
+      type="button"
+      ref={(ref) => {
+        if (ref) connectors.create(ref, option.buildElement);
+      }}
+      onClick={() => onAdd(option)}
+      title="드래그해서 캔버스에 놓거나, 클릭하면 맨 끝에 추가돼요"
+      className="w-full cursor-grab rounded-md border border-gray-200 bg-white px-2 py-1.5 text-left text-xs text-gray-700 hover:border-gray-400 hover:bg-gray-50 active:cursor-grabbing"
+    >
+      {option.label}
+    </button>
+  );
+}
+function FooterElementsSection() {
+  const { query, actions } = useEditor();
+  function handleAdd(option: CraftBlockOption) {
+    const tree = query.parseReactElement(option.buildElement()).toNodeTree();
+    actions.addNodeTree(tree, "ROOT");
+  }
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">섹션</p>
+        <div className="space-y-1">
+          {footerBlockOptions.map((o) => (
+            <FooterElementButton key={o.label} option={o} onAdd={handleAdd} />
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">요소</p>
+        <div className="space-y-1">
+          {PRIMITIVE_BLOCK_OPTIONS.map((o) => (
+            <FooterElementButton key={o.label} option={o} onAdd={handleAdd} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Controls 탭에서 하단 메뉴(Footer) 블록이 선택됐을 때 — 기존
+// SettingsSidebar.tsx와 같은 로직이지만 w-72 aside 래퍼 없이 이 패널
+// 안에 바로 넣을 수 있게 다시 구현했다.
+function FooterCraftControls() {
+  const { selected } = useEditor((state) => {
+    const currentNodeId = [...state.events.selected][0];
+    if (!currentNodeId || !state.nodes[currentNodeId]) return { selected: null };
+    const node = state.nodes[currentNodeId];
+    return {
+      selected: {
+        name: node.data.displayName || node.data.name,
+        Settings: (node.related?.settings as React.ComponentType<Record<string, never>> | undefined) ?? null,
+        isRoot: currentNodeId === "ROOT",
+      },
+    };
+  });
+  if (!selected) return <p className="text-xs text-gray-400">하단 메뉴에서 블록을 클릭하면 설정이 여기 표시됩니다.</p>;
+  return (
+    <div>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">{selected.name} 설정</h3>
+      {selected.Settings ? (
+        <selected.Settings />
+      ) : (
+        <p className="text-xs text-gray-400">
+          {selected.isRoot ? "루트 캔버스에는 설정이 없어요." : "이 블록은 별도 설정이 없어요 — 더블클릭으로 텍스트/이미지를 바로 수정하세요."}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ImageThumb({ url, alt }: { url: string; alt: string }) {
+  if (!url) return null;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt={alt} className="mt-1 h-14 w-14 rounded border border-gray-200 object-cover" />;
+}
 
 export default function AdminNavigationSettingsPage() {
   const [fetching, setFetching] = useState(true);
@@ -79,55 +240,19 @@ export default function AdminNavigationSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  const [activeSection, setActiveSection] = useState<Section>("header");
-
-  const [footerPageId, setFooterPageId] = useState<string | null>(null);
-  const [footerCraftState, setFooterCraftState] = useState<string | null>(null);
-  const [footerLoading, setFooterLoading] = useState(false);
-  const [footerError, setFooterError] = useState<string | null>(null);
-
-  async function loadFooter() {
-    setFooterLoading(true);
-    setFooterError(null);
-    const { data: existing, error: fetchError } = await supabase
-      .from("page_builder")
-      .select("id, craft_state")
-      .eq("slug", "footer")
-      .maybeSingle();
-    if (fetchError) {
-      setFooterError(fetchError.message);
-      setFooterLoading(false);
-      return;
-    }
-    if (existing) {
-      setFooterPageId(existing.id);
-      setFooterCraftState(existing.craft_state ?? null);
-      setFooterLoading(false);
-      return;
-    }
-    const { data: created, error: createError } = await supabase
-      .from("page_builder")
-      .insert({ slug: "footer", title: "하단 Footer", status: "published", builder_type: "craft" })
-      .select("id, craft_state")
-      .single();
-    if (createError) {
-      setFooterError(createError.message);
-      setFooterLoading(false);
-      return;
-    }
-    setFooterPageId(created.id);
-    setFooterCraftState(created.craft_state ?? null);
-    setFooterLoading(false);
-  }
-
-  function handleSelectSection(key: Section) {
-    setActiveSection(key);
-    if (key === "footer" && footerPageId === null && !footerLoading) {
-      loadFooter();
-    }
-  }
-
   const [deviceTab, setDeviceTab] = useState<"pc" | "mobile">("pc");
+  const [selection, setSelection] = useState<Selection>(null);
+  const [leftTab, setLeftTab] = useState<LeftTab>("controls");
+  const craftBridgeRef = useRef<{ query: ReturnType<typeof useEditor>["query"] } | null>(null);
+
+  function selectSlot(key: string) {
+    setSelection({ kind: "slot", key });
+    setLeftTab("controls");
+  }
+  function handleCraftSelect() {
+    setSelection({ kind: "craft" });
+    setLeftTab("controls");
+  }
 
   const [mainLogoValue, setMainLogoValue] = useState<MainLogoValue>(() => defaultMainLogoValue());
   const [sidebarIconsValue, setSidebarIconsValue] = useState<SidebarIconsValue>(() => defaultSidebarIconsValue());
@@ -135,6 +260,10 @@ export default function AdminNavigationSettingsPage() {
   const [accountMenuStyleValue, setAccountMenuStyleValue] = useState<AccountMenuStyleValue>(() => defaultAccountMenuStyleValue());
   const [heroSlideshowValue, setHeroSlideshowValue] = useState<HeroSlideshowValue>(() => defaultHeroSlideshowValue());
   const [headerPositionsValue, setHeaderPositionsValue] = useState<HeaderPositionsValue>(() => defaultHeaderPositionsValue());
+  const [topNavRows, setTopNavRows] = useState<NavTab[]>([]);
+
+  const [footerPageId, setFooterPageId] = useState<string | null>(null);
+  const [footerCraftState, setFooterCraftState] = useState<string | null>(null);
 
   const sidebarIcons = sidebarIconsValue[deviceTab];
   const heroSlideshow = heroSlideshowValue[deviceTab];
@@ -142,10 +271,14 @@ export default function AdminNavigationSettingsPage() {
 
   useEffect(() => {
     async function load() {
-      const { data, error: fetchError } = await supabase
-        .from("site_settings")
-        .select("setting_key, setting_value")
-        .in("setting_key", ["main_logo", "hero_slideshow", "sidebar_icons", "top_tab_style", "account_menu_style", "header_positions"]);
+      const [{ data, error: fetchError }, navTabs, footerRow] = await Promise.all([
+        supabase
+          .from("site_settings")
+          .select("setting_key, setting_value")
+          .in("setting_key", ["main_logo", "hero_slideshow", "sidebar_icons", "top_tab_style", "account_menu_style", "header_positions"]),
+        fetchNavTabs(),
+        supabase.from("page_builder").select("id, craft_state").eq("slug", "footer").maybeSingle(),
+      ]);
       if (fetchError) {
         setError(fetchError.message);
         setFetching(false);
@@ -159,12 +292,25 @@ export default function AdminNavigationSettingsPage() {
         else if (row.setting_key === "account_menu_style") setAccountMenuStyleValue(normalizeAccountMenuStyle(row.setting_value));
         else if (row.setting_key === "header_positions") setHeaderPositionsValue(normalizeHeaderPositions(row.setting_value));
       }
+      setTopNavRows(navTabs.filter((t) => t.type !== "sidebar-left" && t.type !== "sidebar-right"));
+      if (footerRow.data) {
+        setFooterPageId(footerRow.data.id);
+        setFooterCraftState(footerRow.data.craft_state ?? null);
+      } else {
+        const { data: created } = await supabase
+          .from("page_builder")
+          .insert({ slug: "footer", title: "하단 Footer", status: "published", builder_type: "craft" })
+          .select("id, craft_state")
+          .single();
+        if (created) {
+          setFooterPageId(created.id);
+          setFooterCraftState(created.craft_state ?? null);
+        }
+      }
       setFetching(false);
     }
     load();
   }, []);
-
-  const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(null);
 
   function handleOffsetChange(slotKey: string, next: HeaderSlotOffset) {
     setHeaderPositionsValue((prev) => ({
@@ -183,6 +329,7 @@ export default function AdminNavigationSettingsPage() {
   async function handleSaveAll() {
     setSaving(true);
     setError(null);
+    const footerSerialized = craftBridgeRef.current?.query.serialize();
     const results = await Promise.all([
       upsertSetting("main_logo", mainLogoValue),
       upsertSetting("sidebar_icons", sidebarIconsValue),
@@ -190,9 +337,10 @@ export default function AdminNavigationSettingsPage() {
       upsertSetting("account_menu_style", accountMenuStyleValue),
       upsertSetting("hero_slideshow", heroSlideshowValue),
       upsertSetting("header_positions", headerPositionsValue),
-      // EPIC-134 GrapesJS 폐기 잔재 — Navbar.tsx가 이 값이 남아있으면
-      // 여전히 그쪽 폴백 경로를 우선하므로 항상 비워 둔다.
       upsertSetting("unified_header_layout", { pc: { items: [] }, mobile: { items: [] } }),
+      footerPageId && footerSerialized
+        ? supabase.from("page_builder").update({ craft_state: footerSerialized, updated_at: new Date().toISOString() }).eq("id", footerPageId)
+        : Promise.resolve({ error: null }),
     ]);
     const firstError = results.find((r) => r.error)?.error;
     setSaving(false);
@@ -200,10 +348,11 @@ export default function AdminNavigationSettingsPage() {
       setError(firstError.message);
       return;
     }
+    if (footerSerialized) setFooterCraftState(footerSerialized);
     setSavedAt(Date.now());
   }
 
-  if (fetching) {
+  if (fetching || !footerPageId) {
     return (
       <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
         <p className="text-gray-500">불러오는 중...</p>
@@ -211,60 +360,15 @@ export default function AdminNavigationSettingsPage() {
     );
   }
 
-  const SECTION_NAV: { key: Section; label: string; hint: string }[] = [
-    { key: "header", label: "홈페이지 헤더 디자인", hint: "로고·상단 탭·사용자 메뉴 — 실제 화면을 클릭·드래그로 편집" },
-    { key: "slideshow", label: "슬라이드쇼", hint: "홈페이지 메인 슬라이드" },
-    { key: "sidebarIcons", label: "사이드바 아이콘", hint: "좌우 여닫이 버튼" },
-    { key: "footer", label: "하단 메뉴 관리", hint: "Craft 에디터로 전체화면 편집" },
-  ];
-
-  if (activeSection === "footer") {
-    if (footerLoading || (!footerPageId && !footerError)) {
-      return (
-        <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
-          <p className="text-gray-500">하단 메뉴를 불러오는 중...</p>
-        </main>
-      );
-    }
-    if (footerError || !footerPageId) {
-      return (
-        <main className="flex-1 px-8 pb-8 max-w-4xl mx-auto w-full">
-          <p className="text-red-600">{footerError ?? "하단 Footer 페이지를 불러오지 못했어요."}</p>
-        </main>
-      );
-    }
-    return (
-      <CraftFooterEditor
-        pageId={footerPageId}
-        initialState={footerCraftState}
-        onClose={() => setActiveSection("header")}
-        onSaved={() => loadFooter()}
-      />
-    );
-  }
-
   return (
     <main className="flex-1 px-8 pb-8 max-w-[1600px] mx-auto w-full">
-      {error && <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-700 mb-6">{error}</div>}
+      {error && <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-700 mb-4">{error}</div>}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <nav className="flex flex-wrap gap-2">
-          {SECTION_NAV.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => handleSelectSection(s.key)}
-              className={`rounded-lg border px-3 py-2 text-left transition ${
-                activeSection === s.key
-                  ? "border-gray-800 bg-gray-900 text-white shadow"
-                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"
-              }`}
-            >
-              <span className="block text-sm font-medium">{s.label}</span>
-              <span className={`block text-xs ${activeSection === s.key ? "text-gray-300" : "text-gray-400"}`}>{s.hint}</span>
-            </button>
-          ))}
-        </nav>
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">홈페이지 설정 관리</h1>
+          <p className="text-xs text-gray-400">실제 홈페이지를 그대로 — 요소를 클릭해서 선택, 드래그해서 이동하세요.</p>
+        </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center rounded-md border border-gray-300 bg-white p-0.5 text-xs">
             <button
@@ -289,89 +393,249 @@ export default function AdminNavigationSettingsPage() {
         </div>
       </div>
 
-      {activeSection === "header" && (
-        <div className="flex overflow-hidden rounded-lg border border-gray-200" style={{ minHeight: 700 }}>
-          <div className="w-80 shrink-0 overflow-y-auto border-r border-gray-200 bg-white p-4">
-            <HeaderSlotSettingsPanel
-              selectedSlotKey={selectedSlotKey}
-              mainLogoValue={mainLogoValue}
-              setMainLogoValue={setMainLogoValue}
-              deviceTab={deviceTab}
-              topTabStyleValue={topTabStyleValue}
-              setTopTabStyleValue={setTopTabStyleValue}
-              accountMenuStyleValue={accountMenuStyleValue}
-              setAccountMenuStyleValue={setAccountMenuStyleValue}
-              headerPositions={headerPositions}
-              onResetOffset={resetSlotOffset}
-            />
+      <Editor resolver={{ ...PRIMITIVE_RESOLVER, ...craftFooterResolver }} enabled>
+        <CraftBridge bridgeRef={craftBridgeRef} onCraftSelect={handleCraftSelect} />
+        <div className="flex overflow-hidden rounded-lg border border-gray-200" style={{ minHeight: 900 }}>
+          <div className="flex w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
+            <div className="flex border-b border-gray-200 text-xs">
+              {([
+                ["elements", "Elements"],
+                ["controls", "Controls"],
+                ["page", "Page"],
+                ["themes", "Themes"],
+              ] as [LeftTab, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setLeftTab(key)}
+                  className={`flex-1 border-b-2 px-2 py-2.5 font-medium ${
+                    leftTab === key ? "border-gray-800 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {leftTab === "elements" && (
+                <div className="space-y-4 text-xs">
+                  <div>
+                    <p className="mb-2 font-semibold text-gray-500">페이지 요소 (클릭해서 선택)</p>
+                    <div className="space-y-1">
+                      <button type="button" onClick={() => selectSlot("logo")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                        로고
+                      </button>
+                      {topNavRows.map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => selectSlot(`tab:${tab.key}`)}
+                          className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50"
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                      {[
+                        ["account:admin", "관리자"],
+                        ["account:tier", "회원 등급"],
+                        ["account:mypage", "마이페이지"],
+                        ["account:name", "회원 이름"],
+                        ["account:logout", "로그인/로그아웃"],
+                      ].map(([key, label]) => (
+                        <button key={key} type="button" onClick={() => selectSlot(key)} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                          {label}
+                        </button>
+                      ))}
+                      <button type="button" onClick={() => selectSlot("slideshow")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                        슬라이드쇼
+                      </button>
+                      <button type="button" onClick={() => selectSlot("sidebar:left")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                        좌측 사이드바 아이콘
+                      </button>
+                      <button type="button" onClick={() => selectSlot("sidebar:right")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                        우측 사이드바 아이콘
+                      </button>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200 pt-3">
+                    <p className="mb-2 font-semibold text-gray-500">하단 메뉴에 새 블록 추가</p>
+                    <FooterElementsSection />
+                  </div>
+                </div>
+              )}
+
+              {leftTab === "controls" && (
+                <ControlsPanel
+                  selection={selection}
+                  deviceTab={deviceTab}
+                  mainLogoValue={mainLogoValue}
+                  setMainLogoValue={setMainLogoValue}
+                  topTabStyleValue={topTabStyleValue}
+                  setTopTabStyleValue={setTopTabStyleValue}
+                  accountMenuStyleValue={accountMenuStyleValue}
+                  setAccountMenuStyleValue={setAccountMenuStyleValue}
+                  heroSlideshowValue={heroSlideshowValue}
+                  setHeroSlideshowValue={setHeroSlideshowValue}
+                  sidebarIconsValue={sidebarIconsValue}
+                  setSidebarIconsValue={setSidebarIconsValue}
+                  headerPositions={headerPositions}
+                  onResetOffset={resetSlotOffset}
+                />
+              )}
+
+              {leftTab === "page" && (
+                <div className="space-y-3 text-xs text-gray-600">
+                  <p className="font-semibold text-gray-500">Page</p>
+                  <p>지금 편집 중인 건 홈페이지 전체 — 로고·상단 탭·사용자 메뉴·슬라이드쇼·사이드바 아이콘·하단 메뉴까지 한 화면에서 실시간으로 함께 편집돼요.</p>
+                  <p>
+                    탭(메뉴) 자체를 추가/삭제/순서 변경하려면{" "}
+                    <Link href="/admin/site-structure" className="text-blue-600 underline">
+                      사이트 구성 관리
+                    </Link>
+                    에서 하세요 — 여기서는 이미 있는 탭의 디자인·위치만 다뤄요.
+                  </p>
+                </div>
+              )}
+
+              {leftTab === "themes" && (
+                <ThemesPanel
+                  deviceTab={deviceTab}
+                  topNavRows={topNavRows}
+                  setTopTabStyleValue={setTopTabStyleValue}
+                  setAccountMenuStyleValue={setAccountMenuStyleValue}
+                />
+              )}
+            </div>
           </div>
+
           <div className="flex-1 overflow-auto bg-gray-100 p-4">
             <div className={deviceTab === "mobile" ? "mx-auto w-[390px] border-x border-gray-300 bg-white shadow-lg" : "bg-white"}>
               <Navbar
                 editable
-                selectedSlotKey={selectedSlotKey}
-                onSelectSlot={setSelectedSlotKey}
+                selectedSlotKey={selection?.kind === "slot" ? selection.key : null}
+                onSelectSlot={selectSlot}
                 positionsOverride={headerPositions}
                 onOffsetChange={handleOffsetChange}
                 deviceOverride={deviceTab}
               />
+
+              <ClickSelectSlot slotKey="slideshow" label="슬라이드쇼" selected={selection?.kind === "slot" && selection.key === "slideshow"} onSelect={selectSlot}>
+                {heroSlideshow.slides.length === 0 ? (
+                  <div className="flex h-40 items-center justify-center border-b border-dashed border-gray-300 bg-gray-50 text-xs text-gray-400">
+                    등록된 슬라이드가 없어요 — 왼쪽 Controls에서 슬라이드를 추가하세요.
+                  </div>
+                ) : (
+                  <HeroSlideshow
+                    device="both"
+                    slides={heroSlideshow.slides}
+                    autoAdvanceSeconds={heroSlideshow.autoAdvanceSeconds}
+                    objectFit={heroSlideshow.objectFit}
+                    wallpaperUrls={heroSlideshow.wallpaperUrls}
+                    marginTopPx={heroSlideshow.marginTopPx}
+                    marginBottomPx={heroSlideshow.marginBottomPx}
+                    marginLeftPx={heroSlideshow.marginLeftPx}
+                    marginRightPx={heroSlideshow.marginRightPx}
+                    heightVh={heroSlideshow.heightVh ?? 30}
+                  />
+                )}
+              </ClickSelectSlot>
+
+              <div className="flex gap-4 border-b border-gray-200 p-4">
+                <ClickSelectSlot
+                  slotKey="sidebar:left"
+                  label="좌측 사이드바 아이콘"
+                  selected={selection?.kind === "slot" && selection.key === "sidebar:left"}
+                  onSelect={selectSlot}
+                  className="flex flex-1 items-center gap-2 rounded border border-dashed border-gray-300 p-3"
+                >
+                  <SidebarIconPreview url={sidebarIcons.leftIconDefaultUrl} />
+                  <span className="text-xs text-gray-500">좌측 사이드바 아이콘(화면 가장자리 고정 — 대표 미리보기)</span>
+                </ClickSelectSlot>
+                <ClickSelectSlot
+                  slotKey="sidebar:right"
+                  label="우측 사이드바 아이콘"
+                  selected={selection?.kind === "slot" && selection.key === "sidebar:right"}
+                  onSelect={selectSlot}
+                  className="flex flex-1 items-center gap-2 rounded border border-dashed border-gray-300 p-3"
+                >
+                  <SidebarIconPreview url={sidebarIcons.rightIconDefaultUrl} />
+                  <span className="text-xs text-gray-500">우측 사이드바 아이콘(화면 가장자리 고정 — 대표 미리보기)</span>
+                </ClickSelectSlot>
+              </div>
+
+              <div className="border-b border-t-4 border-dashed border-gray-300 bg-gray-50 px-4 py-1.5 text-center text-[10px] uppercase tracking-wide text-gray-400">
+                하단 메뉴
+              </div>
+              <Frame data={footerCraftState ?? undefined}>{!footerCraftState && footerDefaultTree}</Frame>
             </div>
           </div>
         </div>
-      )}
-
-      {activeSection === "slideshow" && (
-        <SlideshowSection value={heroSlideshow} onChange={(patch) => setHeroSlideshowValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...patch } }))} />
-      )}
-
-      {activeSection === "sidebarIcons" && (
-        <SidebarIconsSection
-          value={sidebarIcons}
-          onChange={(patch) => setSidebarIconsValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...patch } }))}
-        />
-      )}
+      </Editor>
     </main>
   );
 }
 
-// ── 헤더 캔버스 왼쪽 설정 패널 — 클릭한 요소(slotKey)에 따라 다른 필드를 보여준다.
-function HeaderSlotSettingsPanel({
-  selectedSlotKey,
+function SidebarIconPreview({ url }: { url: string }) {
+  if (!url) return <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-lg">🔑</div>;
+  return <SidebarTriggerMediaPreview url={url} />;
+}
+
+function SidebarTriggerMediaPreview({ url }: { url: string }) {
+  const isVideo = /\.(webm|mp4)$/i.test(url);
+  if (isVideo) {
+    return <video src={url} className="h-10 w-10 shrink-0 rounded object-contain" muted loop autoPlay playsInline />;
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="" className="h-10 w-10 shrink-0 rounded object-contain" />;
+}
+
+// ── Controls 탭 본문 — selection 종류별로 실제 필드를 보여준다.
+function ControlsPanel({
+  selection,
+  deviceTab,
   mainLogoValue,
   setMainLogoValue,
-  deviceTab,
   topTabStyleValue,
   setTopTabStyleValue,
   accountMenuStyleValue,
   setAccountMenuStyleValue,
+  heroSlideshowValue,
+  setHeroSlideshowValue,
+  sidebarIconsValue,
+  setSidebarIconsValue,
   headerPositions,
   onResetOffset,
 }: {
-  selectedSlotKey: string | null;
+  selection: Selection;
+  deviceTab: "pc" | "mobile";
   mainLogoValue: MainLogoValue;
   setMainLogoValue: React.Dispatch<React.SetStateAction<MainLogoValue>>;
-  deviceTab: "pc" | "mobile";
   topTabStyleValue: TopTabStyleValue;
   setTopTabStyleValue: React.Dispatch<React.SetStateAction<TopTabStyleValue>>;
   accountMenuStyleValue: AccountMenuStyleValue;
   setAccountMenuStyleValue: React.Dispatch<React.SetStateAction<AccountMenuStyleValue>>;
+  heroSlideshowValue: HeroSlideshowValue;
+  setHeroSlideshowValue: React.Dispatch<React.SetStateAction<HeroSlideshowValue>>;
+  sidebarIconsValue: SidebarIconsValue;
+  setSidebarIconsValue: React.Dispatch<React.SetStateAction<SidebarIconsValue>>;
   headerPositions: { slots: Record<string, HeaderSlotOffset> };
   onResetOffset: (slotKey: string) => void;
 }) {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFont, setUploadingFont] = useState(false);
+  const [uploadingSlideIdx, setUploadingSlideIdx] = useState<number | null>(null);
+  const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<number | null>(null);
+  const [uploadingSidebarField, setUploadingSidebarField] = useState<string | null>(null);
 
-  if (!selectedSlotKey) {
-    return <p className="text-xs text-gray-400">캔버스에서 요소를 클릭하면 설정이 여기 표시됩니다.</p>;
-  }
+  if (!selection) return <p className="text-xs text-gray-400">캔버스에서 요소를 클릭하면 설정이 여기 표시됩니다.</p>;
+  if (selection.kind === "craft") return <FooterCraftControls />;
 
+  const selectedSlotKey = selection.key;
   const offset = headerPositions.slots[selectedSlotKey];
-  const positionSection = (
+  const positionSection = (selectedSlotKey === "slideshow" || selectedSlotKey.startsWith("sidebar:")) ? null : (
     <div className="mt-4 space-y-2 border-t border-gray-200 pt-3">
       <p className="text-xs font-semibold text-gray-500">위치</p>
-      <p className="text-[11px] leading-relaxed text-gray-400">
-        선택된 요소 위의 ✥ 핸들을 캔버스에서 직접 드래그해 화면 어디로든 옮기세요.
-      </p>
+      <p className="text-[11px] leading-relaxed text-gray-400">선택된 요소 위의 ✥ 핸들을 캔버스에서 직접 드래그해 화면 어디로든 옮기세요.</p>
       {offset && (offset.dxPx !== 0 || offset.dyPx !== 0) && (
         <button type="button" onClick={() => onResetOffset(selectedSlotKey)} className="text-xs text-blue-600 hover:underline">
           원래 위치로 되돌리기
@@ -408,11 +672,7 @@ function HeaderSlotSettingsPanel({
         <p className="text-sm font-semibold text-gray-700">로고</p>
         <label className="block">
           <span className="mb-1 block text-gray-600">유형</span>
-          <select
-            value={mainLogo.type}
-            onChange={(e) => patchLogo({ type: e.target.value as "text" | "image" })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          >
+          <select value={mainLogo.type} onChange={(e) => patchLogo({ type: e.target.value as "text" | "image" })} className="w-full rounded border border-gray-300 px-2 py-1">
             <option value="text">텍스트</option>
             <option value="image">이미지</option>
           </select>
@@ -426,6 +686,7 @@ function HeaderSlotSettingsPanel({
           <label className="block">
             <span className="mb-1 block text-gray-600">이미지 {uploadingLogo && "(업로드 중...)"}</span>
             <input type="file" accept="image/*" disabled={uploadingLogo} onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+            <ImageThumb url={mainLogo.imageUrl} alt="로고 미리보기" />
           </label>
         )}
         <label className="block">
@@ -438,12 +699,7 @@ function HeaderSlotSettingsPanel({
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">로고 이미지 높이(px)</span>
-          <input
-            type="number"
-            value={mainLogo.heightPx}
-            onChange={(e) => patchLogo({ heightPx: Number(e.target.value) || DEFAULT_LOGO_HEIGHT_PX })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          />
+          <input type="number" value={mainLogo.heightPx} onChange={(e) => patchLogo({ heightPx: Number(e.target.value) || DEFAULT_LOGO_HEIGHT_PX })} className="w-full rounded border border-gray-300 px-2 py-1" />
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">텍스트 색상</span>
@@ -466,11 +722,7 @@ function HeaderSlotSettingsPanel({
                   />
                   사용
                 </label>
-                <button
-                  type="button"
-                  onClick={() => patchLogo({ customFonts: mainLogo.customFonts.filter((f) => f.id !== font.id) })}
-                  className="text-[11px] text-red-500 hover:underline"
-                >
+                <button type="button" onClick={() => patchLogo({ customFonts: mainLogo.customFonts.filter((f) => f.id !== font.id) })} className="text-[11px] text-red-500 hover:underline">
                   삭제
                 </button>
               </div>
@@ -491,7 +743,7 @@ function HeaderSlotSettingsPanel({
     const tabKey = selectedSlotKey.slice("tab:".length);
     const topTabStyle = topTabStyleValue[deviceTab];
     const entry = topTabStyle.tabs[tabKey] ?? defaultTopTabStyleEntry();
-    function patchTab(patch: Partial<typeof entry>) {
+    function patchTab(patch: Partial<TopTabStyleEntry>) {
       setTopTabStyleValue((prev) => ({
         ...prev,
         [deviceTab]: { ...prev[deviceTab], tabs: { ...prev[deviceTab].tabs, [tabKey]: { ...entry, ...patch } } },
@@ -503,6 +755,13 @@ function HeaderSlotSettingsPanel({
         <label className="block">
           <span className="mb-1 block text-gray-600">표시 텍스트(비우면 원래 이름)</span>
           <input value={entry.labelOverride} onChange={(e) => patchTab({ labelOverride: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">배치</span>
+          <select value={entry.tier ?? 2} onChange={(e) => patchTab({ tier: Number(e.target.value) === 1 ? 1 : 2 })} className="w-full rounded border border-gray-300 px-2 py-1">
+            <option value={2}>2단(기본 탭 줄)</option>
+            <option value={1}>1단(로고 줄과 겹침)</option>
+          </select>
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">글자 크기(px)</span>
@@ -524,13 +783,11 @@ function HeaderSlotSettingsPanel({
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">호버 모션</span>
-          <select
-            value={entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION}
-            onChange={(e) => patchTab({ hoverMotion: e.target.value as typeof entry.hoverMotion })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          >
+          <select value={entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION} onChange={(e) => patchTab({ hoverMotion: e.target.value as TopTabStyleEntry["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
             {TAB_HOVER_MOTIONS.map((m) => (
-              <option key={m} value={m}>{TAB_HOVER_MOTION_LABELS[m]}</option>
+              <option key={m} value={m}>
+                {TAB_HOVER_MOTION_LABELS[m]}
+              </option>
             ))}
           </select>
         </label>
@@ -541,7 +798,7 @@ function HeaderSlotSettingsPanel({
 
   if (selectedSlotKey.startsWith("account:")) {
     const accountMenuStyle = accountMenuStyleValue[deviceTab];
-    function patchAccount(patch: Partial<typeof accountMenuStyle>) {
+    function patchAccount(patch: Partial<AccountMenuStyleValue["pc"]>) {
       setAccountMenuStyleValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...patch } }));
     }
     return (
@@ -572,13 +829,11 @@ function HeaderSlotSettingsPanel({
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">호버 모션</span>
-          <select
-            value={accountMenuStyle.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION}
-            onChange={(e) => patchAccount({ hoverMotion: e.target.value as typeof accountMenuStyle.hoverMotion })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          >
+          <select value={accountMenuStyle.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION} onChange={(e) => patchAccount({ hoverMotion: e.target.value as AccountMenuStyleValue["pc"]["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
             {TAB_HOVER_MOTIONS.map((m) => (
-              <option key={m} value={m}>{TAB_HOVER_MOTION_LABELS[m]}</option>
+              <option key={m} value={m}>
+                {TAB_HOVER_MOTION_LABELS[m]}
+              </option>
             ))}
           </select>
         </label>
@@ -587,190 +842,218 @@ function HeaderSlotSettingsPanel({
     );
   }
 
-  return positionSection;
-}
-
-// ── 슬라이드쇼 섹션(단순 폼 — 캔버스 아님, 홈페이지 본문 요소라 Navbar 편집 화면과는 별개)
-function SlideshowSection({
-  value,
-  onChange,
-}: {
-  value: HeroSlideshowValue["pc"];
-  onChange: (patch: Partial<HeroSlideshowValue["pc"]>) => void;
-}) {
-  const [uploadingSlideIdx, setUploadingSlideIdx] = useState<number | null>(null);
-  const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<number | null>(null);
-
-  function addSlide() {
-    onChange({ slides: [...value.slides, { imageUrl: "", title: "", description: "" }] });
-  }
-  function updateSlide(index: number, patch: Partial<SlideItem>) {
-    onChange({ slides: value.slides.map((s, i) => (i === index ? { ...s, ...patch } : s)) });
-  }
-  function removeSlide(index: number) {
-    onChange({ slides: value.slides.filter((_, i) => i !== index) });
-  }
-  async function handleSlideFile(index: number, file: File | null) {
-    if (!file) return;
-    setUploadingSlideIdx(index);
-    const { url } = await uploadImage(file, "slides");
-    setUploadingSlideIdx(null);
-    if (url) updateSlide(index, { imageUrl: url });
-  }
-  function addWallpaper() {
-    if (value.wallpaperUrls.length >= MAX_WALLPAPERS) return;
-    onChange({ wallpaperUrls: [...value.wallpaperUrls, ""] });
-  }
-  function removeWallpaper(index: number) {
-    onChange({ wallpaperUrls: value.wallpaperUrls.filter((_, i) => i !== index) });
-  }
-  async function handleWallpaperFile(index: number, file: File | null) {
-    if (!file) return;
-    setUploadingWallpaperIdx(index);
-    const compressed = await compressImage(file, value.wallpaperQuality);
-    const { url } = await uploadImage(compressed, "wallpaper");
-    setUploadingWallpaperIdx(null);
-    if (url) onChange({ wallpaperUrls: value.wallpaperUrls.map((u, i) => (i === index ? url : u)) });
-  }
-
-  return (
-    <section className="max-w-2xl rounded-lg border border-gray-200 p-4">
-      <h2 className="mb-3 text-lg font-semibold">슬라이드쇼</h2>
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-gray-600">슬라이드 ({value.slides.length}개)</p>
-        {value.slides.map((slide, idx) => (
-          <div key={idx} className="space-y-1 rounded border border-gray-200 p-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">#{idx + 1}</span>
-              <button type="button" onClick={() => removeSlide(idx)} className="text-xs text-red-500 hover:underline">삭제</button>
+  if (selectedSlotKey === "slideshow") {
+    const value = heroSlideshowValue[deviceTab];
+    function patch(next: Partial<HeroSlideshowValue["pc"]>) {
+      setHeroSlideshowValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...next } }));
+    }
+    function addSlide() {
+      patch({ slides: [...value.slides, { imageUrl: "", title: "", description: "" }] });
+    }
+    function updateSlide(index: number, slidePatch: Partial<SlideItem>) {
+      patch({ slides: value.slides.map((s, i) => (i === index ? { ...s, ...slidePatch } : s)) });
+    }
+    function removeSlide(index: number) {
+      patch({ slides: value.slides.filter((_, i) => i !== index) });
+    }
+    async function handleSlideFile(index: number, file: File | null) {
+      if (!file) return;
+      setUploadingSlideIdx(index);
+      const { url } = await uploadImage(file, "slides");
+      setUploadingSlideIdx(null);
+      if (url) updateSlide(index, { imageUrl: url });
+    }
+    function addWallpaper() {
+      if (value.wallpaperUrls.length >= MAX_WALLPAPERS) return;
+      patch({ wallpaperUrls: [...value.wallpaperUrls, ""] });
+    }
+    function removeWallpaper(index: number) {
+      patch({ wallpaperUrls: value.wallpaperUrls.filter((_, i) => i !== index) });
+    }
+    async function handleWallpaperFile(index: number, file: File | null) {
+      if (!file) return;
+      setUploadingWallpaperIdx(index);
+      const compressed = await compressImage(file, value.wallpaperQuality);
+      const { url } = await uploadImage(compressed, "wallpaper");
+      setUploadingWallpaperIdx(null);
+      if (url) patch({ wallpaperUrls: value.wallpaperUrls.map((u, i) => (i === index ? url : u)) });
+    }
+    return (
+      <div className="space-y-3 text-xs">
+        <p className="text-sm font-semibold text-gray-700">슬라이드쇼</p>
+        <div className="space-y-2">
+          <p className="font-medium text-gray-600">슬라이드 ({value.slides.length}개)</p>
+          {value.slides.map((slide, idx) => (
+            <div key={idx} className="space-y-1 rounded border border-gray-200 p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-gray-400">#{idx + 1}</span>
+                <button type="button" onClick={() => removeSlide(idx)} className="text-[11px] text-red-500 hover:underline">
+                  삭제
+                </button>
+              </div>
+              <div className="flex items-start gap-2">
+                <ImageThumb url={slide.imageUrl} alt={`슬라이드 ${idx + 1}`} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <input type="file" accept="image/*" disabled={uploadingSlideIdx === idx} onChange={(e) => handleSlideFile(idx, e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+                  <input value={slide.title} placeholder="제목(선택)" onChange={(e) => updateSlide(idx, { title: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+                  <input value={slide.description} placeholder="설명(선택)" onChange={(e) => updateSlide(idx, { description: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+                </div>
+              </div>
             </div>
-            <input type="file" accept="image/*" disabled={uploadingSlideIdx === idx} onChange={(e) => handleSlideFile(idx, e.target.files?.[0] ?? null)} className="w-full text-xs" />
-            <input value={slide.title} placeholder="제목(선택)" onChange={(e) => updateSlide(idx, { title: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1 text-sm" />
-            <input value={slide.description} placeholder="설명(선택)" onChange={(e) => updateSlide(idx, { description: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1 text-sm" />
-          </div>
-        ))}
-        <button type="button" onClick={addSlide} className="w-full rounded border border-gray-300 py-1.5 text-sm text-gray-600 hover:bg-gray-50">+ 슬라이드 추가</button>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <label className="block text-sm">
+          ))}
+          <button type="button" onClick={addSlide} className="w-full rounded border border-gray-300 py-1 text-gray-600 hover:bg-gray-50">
+            + 슬라이드 추가
+          </button>
+        </div>
+        <label className="block">
           <span className="mb-1 block text-gray-600">섹션 높이(vh, 비우면 자동)</span>
-          <input type="number" value={value.heightVh ?? ""} onChange={(e) => onChange({ heightVh: e.target.value ? Number(e.target.value) : null })} className="w-full rounded border border-gray-300 px-2 py-1" />
+          <input type="number" value={value.heightVh ?? ""} onChange={(e) => patch({ heightVh: e.target.value ? Number(e.target.value) : null })} className="w-full rounded border border-gray-300 px-2 py-1" />
         </label>
-        <label className="block text-sm">
+        <label className="block">
           <span className="mb-1 block text-gray-600">자동 전환(초)</span>
-          <input type="number" value={value.autoAdvanceSeconds} onChange={(e) => onChange({ autoAdvanceSeconds: Number(e.target.value) || 5 })} className="w-full rounded border border-gray-300 px-2 py-1" />
+          <input type="number" value={value.autoAdvanceSeconds} onChange={(e) => patch({ autoAdvanceSeconds: Number(e.target.value) || 5 })} className="w-full rounded border border-gray-300 px-2 py-1" />
         </label>
-        <label className="block text-sm">
+        <label className="block">
           <span className="mb-1 block text-gray-600">이미지 맞춤</span>
-          <select value={value.objectFit} onChange={(e) => onChange({ objectFit: e.target.value as "cover" | "contain" })} className="w-full rounded border border-gray-300 px-2 py-1">
+          <select value={value.objectFit} onChange={(e) => patch({ objectFit: e.target.value as "cover" | "contain" })} className="w-full rounded border border-gray-300 px-2 py-1">
             <option value="cover">꽉 채우기(cover)</option>
             <option value="contain">전체 보이기(contain)</option>
           </select>
         </label>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <label className="block text-sm">
-          <span className="mb-1 block text-gray-600">위 여백(px)</span>
-          <input type="number" value={value.marginTopPx} onChange={(e) => onChange({ marginTopPx: Number(e.target.value) || 0 })} className="w-full rounded border border-gray-300 px-2 py-1" />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-gray-600">아래 여백(px)</span>
-          <input type="number" value={value.marginBottomPx} onChange={(e) => onChange({ marginBottomPx: Number(e.target.value) || 0 })} className="w-full rounded border border-gray-300 px-2 py-1" />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-gray-600">좌 여백(px)</span>
-          <input type="number" value={value.marginLeftPx} onChange={(e) => onChange({ marginLeftPx: Number(e.target.value) || 0 })} className="w-full rounded border border-gray-300 px-2 py-1" />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-gray-600">우 여백(px)</span>
-          <input type="number" value={value.marginRightPx} onChange={(e) => onChange({ marginRightPx: Number(e.target.value) || 0 })} className="w-full rounded border border-gray-300 px-2 py-1" />
-        </label>
-      </div>
-
-      {value.objectFit === "contain" && (
-        <div className="mt-4 space-y-2">
-          <p className="text-sm font-medium text-gray-600">여백 배경 이미지 ({value.wallpaperUrls.length}/{MAX_WALLPAPERS})</p>
-          {value.wallpaperUrls.map((url, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <input type="file" accept="image/*" disabled={uploadingWallpaperIdx === idx} onChange={(e) => handleWallpaperFile(idx, e.target.files?.[0] ?? null)} className="min-w-0 flex-1 text-xs" />
-              <button type="button" onClick={() => removeWallpaper(idx)} className="shrink-0 text-xs text-red-500 hover:underline">삭제</button>
-            </div>
-          ))}
-          {value.wallpaperUrls.length < MAX_WALLPAPERS && (
-            <button type="button" onClick={addWallpaper} className="w-full rounded border border-gray-300 py-1.5 text-sm text-gray-600 hover:bg-gray-50">+ 배경 이미지 추가</button>
-          )}
-          <label className="block text-sm">
-            <span className="mb-1 block text-gray-600">압축 품질(%)</span>
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={value.wallpaperQuality}
-              onChange={(e) => onChange({ wallpaperQuality: Math.max(1, Math.min(100, Number(e.target.value) || 100)) })}
-              className="w-full rounded border border-gray-300 px-2 py-1"
-            />
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="mb-1 block text-gray-600">위 여백(px)</span>
+            <input type="number" value={value.marginTopPx} onChange={(e) => patch({ marginTopPx: Number(e.target.value) || 0 })} className="w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">아래 여백(px)</span>
+            <input type="number" value={value.marginBottomPx} onChange={(e) => patch({ marginBottomPx: Number(e.target.value) || 0 })} className="w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">좌 여백(px)</span>
+            <input type="number" value={value.marginLeftPx} onChange={(e) => patch({ marginLeftPx: Number(e.target.value) || 0 })} className="w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">우 여백(px)</span>
+            <input type="number" value={value.marginRightPx} onChange={(e) => patch({ marginRightPx: Number(e.target.value) || 0 })} className="w-full rounded border border-gray-300 px-2 py-1" />
           </label>
         </div>
-      )}
-    </section>
-  );
-}
-
-// ── 사이드바 아이콘 섹션(단순 폼 — 좌우 고정 2개, 화면 가장자리에 fixed로 뜨는 트리거라 헤더 캔버스와는 별개)
-function SidebarIconsSection({
-  value,
-  onChange,
-}: {
-  value: SidebarIconsValue["pc"];
-  onChange: (patch: Partial<SidebarIconsValue["pc"]>) => void;
-}) {
-  const [uploadingField, setUploadingField] = useState<string | null>(null);
-
-  async function handleFile(field: "leftIconDefaultUrl" | "leftIconHoverUrl" | "rightIconDefaultUrl" | "rightIconHoverUrl", file: File | null) {
-    if (!file) return;
-    setUploadingField(field);
-    const { url } = await uploadImage(file, "sidebar_icons");
-    setUploadingField(null);
-    if (url) onChange({ [field]: url } as Partial<SidebarIconsValue["pc"]>);
+        {value.objectFit === "contain" && (
+          <div className="space-y-2">
+            <p className="font-medium text-gray-600">
+              여백 배경 이미지 ({value.wallpaperUrls.length}/{MAX_WALLPAPERS})
+            </p>
+            {value.wallpaperUrls.map((url, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <ImageThumb url={url} alt={`배경 ${idx + 1}`} />
+                <input type="file" accept="image/*" disabled={uploadingWallpaperIdx === idx} onChange={(e) => handleWallpaperFile(idx, e.target.files?.[0] ?? null)} className="min-w-0 flex-1 text-[11px]" />
+                <button type="button" onClick={() => removeWallpaper(idx)} className="shrink-0 text-[11px] text-red-500 hover:underline">
+                  삭제
+                </button>
+              </div>
+            ))}
+            {value.wallpaperUrls.length < MAX_WALLPAPERS && (
+              <button type="button" onClick={addWallpaper} className="w-full rounded border border-gray-300 py-1 text-gray-600 hover:bg-gray-50">
+                + 배경 이미지 추가
+              </button>
+            )}
+            <label className="block">
+              <span className="mb-1 block text-gray-600">압축 품질(%)</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={value.wallpaperQuality}
+                onChange={(e) => patch({ wallpaperQuality: Math.max(1, Math.min(100, Number(e.target.value) || 100)) })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+          </div>
+        )}
+      </div>
+    );
   }
 
-  return (
-    <section className="max-w-2xl rounded-lg border border-gray-200 p-4">
-      <h2 className="mb-3 text-lg font-semibold">사이드바 아이콘</h2>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        {(["left", "right"] as const).map((side) => {
-          const defaultField = side === "left" ? "leftIconDefaultUrl" : "rightIconDefaultUrl";
-          const hoverField = side === "left" ? "leftIconHoverUrl" : "rightIconHoverUrl";
-          return (
-            <div key={side} className="space-y-2">
-              <p className="text-sm font-medium text-gray-600">{side === "left" ? "좌측" : "우측"} 아이콘</p>
-              <label className="block text-sm">
-                <span className="mb-1 block text-gray-600">기본 이미지/영상 {uploadingField === defaultField && "(업로드 중...)"}</span>
-                <input type="file" accept="image/*,video/webm,video/mp4" onChange={(e) => handleFile(defaultField, e.target.files?.[0] ?? null)} disabled={uploadingField !== null} className="w-full text-xs" />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-gray-600">호버 이미지/영상 {uploadingField === hoverField && "(업로드 중...)"}</span>
-                <input type="file" accept="image/*,video/webm,video/mp4" onChange={(e) => handleFile(hoverField, e.target.files?.[0] ?? null)} disabled={uploadingField !== null} className="w-full text-xs" />
-              </label>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <label className="block text-sm">
-          <span className="mb-1 block text-gray-600">아이콘 크기(px, 좌우 공통)</span>
-          <input type="number" value={value.iconSizePx || DEFAULT_ICON_SIZE_PX} onChange={(e) => onChange({ iconSizePx: Number(e.target.value) || DEFAULT_ICON_SIZE_PX })} className="w-full rounded border border-gray-300 px-2 py-1" />
+  if (selectedSlotKey.startsWith("sidebar:")) {
+    const side = selectedSlotKey === "sidebar:left" ? "left" : "right";
+    const value = sidebarIconsValue[deviceTab];
+    function patch(next: Partial<SidebarIconsValue["pc"]>) {
+      setSidebarIconsValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...next } }));
+    }
+    const defaultField = side === "left" ? "leftIconDefaultUrl" : "rightIconDefaultUrl";
+    const hoverField = side === "left" ? "leftIconHoverUrl" : "rightIconHoverUrl";
+    async function handleFile(field: "leftIconDefaultUrl" | "leftIconHoverUrl" | "rightIconDefaultUrl" | "rightIconHoverUrl", file: File | null) {
+      if (!file) return;
+      setUploadingSidebarField(field);
+      const { url } = await uploadImage(file, "sidebar_icons");
+      setUploadingSidebarField(null);
+      if (url) patch({ [field]: url } as Partial<SidebarIconsValue["pc"]>);
+    }
+    return (
+      <div className="space-y-3 text-xs">
+        <p className="text-sm font-semibold text-gray-700">{side === "left" ? "좌측" : "우측"} 사이드바 아이콘</p>
+        <p className="text-[11px] text-gray-400">이 자리는 화면 가장자리에 항상 고정이라 추가/삭제할 수 없어요.</p>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">기본 이미지/영상 {uploadingSidebarField === defaultField && "(업로드 중...)"}</span>
+          <input type="file" accept="image/*,video/webm,video/mp4" onChange={(e) => handleFile(defaultField, e.target.files?.[0] ?? null)} disabled={uploadingSidebarField !== null} className="w-full text-[11px]" />
+          <ImageThumb url={value[defaultField]} alt="기본 아이콘 미리보기" />
         </label>
-        <label className="block text-sm">
+        <label className="block">
+          <span className="mb-1 block text-gray-600">호버 이미지/영상 {uploadingSidebarField === hoverField && "(업로드 중...)"}</span>
+          <input type="file" accept="image/*,video/webm,video/mp4" onChange={(e) => handleFile(hoverField, e.target.files?.[0] ?? null)} disabled={uploadingSidebarField !== null} className="w-full text-[11px]" />
+          <ImageThumb url={value[hoverField]} alt="호버 아이콘 미리보기" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">아이콘 크기(px, 좌우 공통)</span>
+          <input type="number" value={value.iconSizePx || DEFAULT_ICON_SIZE_PX} onChange={(e) => patch({ iconSizePx: Number(e.target.value) || DEFAULT_ICON_SIZE_PX })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="block">
           <span className="mb-1 block text-gray-600">여닫이 방식(좌우 공통)</span>
-          <select value={value.triggerMode} onChange={(e) => onChange({ triggerMode: e.target.value as "click" | "hover" })} className="w-full rounded border border-gray-300 px-2 py-1">
+          <select value={value.triggerMode} onChange={(e) => patch({ triggerMode: e.target.value as "click" | "hover" })} className="w-full rounded border border-gray-300 px-2 py-1">
             <option value="click">클릭해야 열림</option>
             <option value="hover">마우스를 올리면 바로 열림</option>
           </select>
         </label>
       </div>
-    </section>
+    );
+  }
+
+  return null;
+}
+
+function ThemesPanel({
+  deviceTab,
+  topNavRows,
+  setTopTabStyleValue,
+  setAccountMenuStyleValue,
+}: {
+  deviceTab: "pc" | "mobile";
+  topNavRows: NavTab[];
+  setTopTabStyleValue: React.Dispatch<React.SetStateAction<TopTabStyleValue>>;
+  setAccountMenuStyleValue: React.Dispatch<React.SetStateAction<AccountMenuStyleValue>>;
+}) {
+  function applyMotionToAll(motion: (typeof TAB_HOVER_MOTIONS)[number]) {
+    setTopTabStyleValue((prev) => {
+      const cfg = prev[deviceTab];
+      const nextTabs = { ...cfg.tabs };
+      for (const tab of topNavRows) {
+        nextTabs[tab.key] = { ...(nextTabs[tab.key] ?? defaultTopTabStyleEntry()), hoverMotion: motion };
+      }
+      return { ...prev, [deviceTab]: { ...cfg, tabs: nextTabs } };
+    });
+    setAccountMenuStyleValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], hoverMotion: motion } }));
+  }
+  return (
+    <div className="space-y-3 text-xs">
+      <p className="font-semibold text-gray-500">호버 모션 테마</p>
+      <p className="text-[11px] text-gray-400">상단 탭 전체 + 사용자 메뉴 전체에 한 번에 적용해요(개별 조정은 각 요소의 Controls에서 다시 바꿀 수 있어요).</p>
+      <div className="space-y-1">
+        {TAB_HOVER_MOTIONS.map((m) => (
+          <button key={m} type="button" onClick={() => applyMotionToAll(m)} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+            {TAB_HOVER_MOTION_LABELS[m]}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

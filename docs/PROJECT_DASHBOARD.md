@@ -55,7 +55,18 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-136(헤더 편집 캔버스를 "스타일 전용 복제품"에서 실제 `<Navbar>` 그
+EPIC-137("홈페이지 설정 관리"를 화면 전환 없는 단일 실시간 캔버스 +
+Elements/Controls/Page/Themes 4탭 패널로 재구성) — 사용자가 EPIC-136도
+여전히 "4개의 화면"이라 재차 거부, 화면 전환 없는 단일 캔버스(헤더→
+슬라이드쇼→사이드바 아이콘 미리보기→하단 메뉴까지 실제 순서로 이어붙임)
++ Elements/Controls/Page/Themes 4탭 왼쪽 패널로 재편. 이미지 필드마다
+실제 썸네일 미리보기 추가, Craft.js(하단 메뉴)와 커스텀 슬롯(헤더 등)
+두 selection 체계를 CraftBridge로 통합. `tsc`/`lint`/`build` 0 errors,
+Browser pane 실측(캔버스 연속성/썸네일/selection 통합/저장 왕복) 확인.
+브랜치 `feature/EPIC-137`.
+
+직전 EPIC-136
+(헤더 편집 캔버스를 "스타일 전용 복제품"에서 실제 `<Navbar>` 그
 자체로 전환 + 진짜 자유 드래그) — 사용자가 EPIC-135 캔버스를 "실제
 사이트와 다르다"/"블록을 눌러도 왼쪽에 설정이 없다"/"드래그로 자유롭게
 옮기게 해달라"고 재차 지적해 전면 재구축 확정. `Navbar.tsx`에 편집 모드

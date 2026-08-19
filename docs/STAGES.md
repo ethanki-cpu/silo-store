@@ -204,7 +204,21 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-136
+EPIC-137
+"홈페이지 설정 관리"를 화면 전환 없는 단일 실시간 캔버스 + Elements/Controls/
+Page/Themes 4탭 패널로 재구성 — 사용자가 EPIC-136도 여전히 "4개의 화면"이라고
+재차 거부, BuilderJS 레퍼런스대로 화면 전환 없는 단일 캔버스+4탭 왼쪽 패널을
+명시적으로 요구. 섹션 전환 버튼 완전 제거, 캔버스 하나에 Navbar(헤더)→
+슬라이드쇼→사이드바 아이콘 대표 미리보기→하단 메뉴(Footer, 인라인 Frame)까지
+실제 페이지 순서로 이어 붙임. 왼쪽 패널을 Elements(요소 목록+블록 추가)/
+Controls(선택된 요소 설정, 이미지 필드마다 실제 썸네일 신규)/Page(안내)/
+Themes(호버 모션 일괄 적용) 4탭으로 재편, Craft.js와 커스텀 슬롯 selection을
+CraftBridge로 통합. `tsc`/`lint`/`build` 0 errors, Browser pane 실측으로
+캔버스 연속성/썸네일/selection 통합/저장→새로고침 왕복 확인. 브랜치
+`feature/EPIC-137`.
+
+직전 EPIC-136
+
 헤더 편집 캔버스를 "스타일 전용 복제품"에서 실제 `<Navbar>` 그 자체로 전환 + 진짜 자유
 드래그 — 사용자가 EPIC-135 캔버스를 "실제 사이트와 다르다"/"블록을 눌러도 왼쪽에
 설정이 없다"/"드래그로 자유롭게 옮기게 해달라"고 재차 지적해 전면 재구축을 확정.

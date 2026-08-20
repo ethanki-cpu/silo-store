@@ -44,6 +44,8 @@ import {
   type HeaderSlotOffset,
 } from "@/lib/headerLayoutPositions";
 import { HeaderSlot } from "@/components/HeaderSlot";
+import { TopSidebarPanel } from "@/components/TopSidebarPanel";
+import { normalizeTopSidebar, type TopSidebarConfig } from "@/lib/topSidebarSettings";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -75,6 +77,7 @@ export function Navbar({
   positionsOverride,
   onOffsetChange,
   deviceOverride,
+  topSidebarOverride,
 }: {
   editable?: boolean;
   selectedSlotKey?: string | null;
@@ -84,6 +87,8 @@ export function Navbar({
   onOffsetChange?: (slotKey: string, next: HeaderSlotOffset) => void;
   /** 관리자 화면의 PC/태블릿/모바일 토글 — 실제 뷰포트 폭 대신 이 값으로 강제한다(태블릿은 PC 데이터를 그대로 씀). */
   deviceOverride?: "pc" | "mobile";
+  /** positionsOverride와 동일한 이유 — 상단 사이드바(TopSidebarPanel) 편집 중인 값을 즉시 반영. */
+  topSidebarOverride?: TopSidebarConfig;
 } = {}) {
   const { session, member, loading } = useAuth();
   const router = useRouter();
@@ -319,6 +324,30 @@ export function Navbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positionsOverride, isMobileViewport]);
   const resolvedPositions = positionsOverride ?? headerPositionsValue ?? undefined;
+
+  // HOTFIX-137.9: 상단 사이드바(TopSidebarPanel) 설정 — 다른 site_settings
+  // 기반 오버레이와 동일한 override-우선 패턴.
+  const [topSidebarValue, setTopSidebarValue] = useState<TopSidebarConfig | null>(null);
+  useEffect(() => {
+    if (topSidebarOverride) return;
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "top_sidebar")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const normalized = normalizeTopSidebar(data?.setting_value);
+        setTopSidebarValue(isMobileViewport ? normalized.mobile : normalized.pc);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topSidebarOverride, isMobileViewport]);
+  const resolvedTopSidebar = topSidebarOverride ?? topSidebarValue ?? undefined;
+  const [topSidebarOpen, setTopSidebarOpen] = useState(false);
 
   function slotOffset(slotKey: string): HeaderSlotOffset {
     return getSlotOffset(resolvedPositions, slotKey);
@@ -966,9 +995,18 @@ export function Navbar({
           가려진다(캔버스 박스 안이 아니라 화면 자체 기준으로 고정되므로)
           — editable일 때는 일반 문서 흐름(static)으로 렌더링해 캔버스
           박스 안에 자연스럽게 자리잡게 한다. */}
+      {/* HOTFIX(사용자 신고 — "상단 탭 드롭다운이 슬라이드쇼에 가려서 안
+          보여"): EPIC-136이 position:fixed만 걷어내려다 z-40까지 함께
+          지웠다 — editable일 때 이 wrapper가 z-index:auto인 채로 남아
+          더 이상 독립된 stacking context가 아니게 되면서, 내부의 z-40
+          드롭다운 flyout이 DOM 순서상 뒤에 오는 슬라이드쇼(역시
+          position:relative, z-index:auto)에 그대로 덮여버렸다(둘 다
+          "auto" 레벨이라 나중에 그려지는 쪽이 위로 올라옴). editable
+          여부와 무관하게 z-40은 항상 유지해야 원래(비-editable) 사이트와
+          동일한 stacking이 보장된다. */}
       <div
         ref={topBarRef}
-        className={`${editable ? "relative" : "fixed inset-x-0 top-0 z-40"} border-b border-gray-200 bg-white transition-transform duration-300 ${
+        className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} border-b border-gray-200 bg-white transition-transform duration-300 ${
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
       >
@@ -1214,6 +1252,35 @@ export function Navbar({
                   )}
                 </HeaderSlot>
               )}
+
+              {/* HOTFIX-137.9(사용자 지시 — "상단 사이드바 를 설정하고
+                  싶어... 맨위 오른쪽에 아이콘을 누르면 사이드바가 아래로
+                  슬라이드"): 실 사이트에서는 top_sidebar.enabled가 켜져
+                  있을 때만 아이콘을 보여주고(꺼져 있으면 빈 패널을 여는
+                  아이콘만 남는 걸 방지), 관리자 편집 화면에서는 enabled
+                  여부와 무관하게 항상 보여서 켜고 끄는 것 자체를 이 캔버스
+                  에서 클릭해 만들 수 있게 한다. */}
+              {mounted && !loading && (editable || resolvedTopSidebar?.enabled) && (
+                <HeaderSlot
+                  slotKey="top-sidebar-trigger"
+                  label="상단 사이드바 열기 버튼"
+                  offset={slotOffset("top-sidebar-trigger")}
+                  editable={editable}
+                  selected={selectedSlotKey === "top-sidebar-trigger"}
+                  onSelect={handleSelectSlot}
+                  onOffsetChange={handleSlotOffsetChange}
+                  as="span"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTopSidebarOpen((o) => !o)}
+                    aria-label="상단 사이드바 열기"
+                    className="text-lg text-gray-600 hover:text-gray-900"
+                  >
+                    ☰
+                  </button>
+                </HeaderSlot>
+              )}
             </>
           )}
 
@@ -1268,6 +1335,13 @@ export function Navbar({
             tier2Tabs 그대로, 100% 이전과 동일하게 동작한다. */}
         {unifiedHeaderItems ?? tier2Tabs.map(renderTab)}
       </nav>
+      {/* HOTFIX-137.9: topBarRef 자신이 이미 실 사이트에서는 position:fixed,
+          편집 모드에서는 position:relative — 둘 다 유효한 포지셔닝
+          기준(containing block)이라 이 안에 두면 TopSidebarPanel도 같은
+          기준을 그대로 물려받는다(별도 앵커를 새로 만들 필요 없음). */}
+      {resolvedTopSidebar && (
+        <TopSidebarPanel links={resolvedTopSidebar.links} open={topSidebarOpen} onClose={() => setTopSidebarOpen(false)} editable={editable} />
+      )}
       </div>
       {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이
           위로 붙지 않게 한다(topBarHeight는 ResizeObserver 실측값).

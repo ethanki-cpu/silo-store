@@ -32,6 +32,7 @@ import { HeroSlideshow } from "@/components/HeroSlideshow";
 import { SelectionOverlay } from "@/components/SelectionOverlay";
 import { uploadImage, compressImage } from "@/lib/adminImageUpload";
 import { fetchNavTabs, type NavTab, type DbTargetType } from "@/lib/navConfig";
+import { ensurePageForSlug, hrefToSlug } from "@/lib/pageTemplates";
 import { PRIMITIVE_RESOLVER, PRIMITIVE_BLOCK_OPTIONS } from "@/components/craft/primitives";
 import type { CraftBlockOption } from "@/components/craft/shared/types";
 import { craftFooterResolver } from "@/components/craft/footer/resolver";
@@ -74,6 +75,13 @@ import {
   type HeaderPositionsValue,
   type HeaderSlotOffset,
 } from "@/lib/headerLayoutPositions";
+import {
+  normalizeTopSidebar,
+  defaultTopSidebarValue,
+  type TopSidebarValue,
+  type TopSidebarLink,
+  type TopSidebarChildLink,
+} from "@/lib/topSidebarSettings";
 import { TAB_HOVER_MOTIONS, TAB_HOVER_MOTION_LABELS, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
 
 // HOTFIX-137.4(사용자 지시 — "여백 배경 이미지 갯수를 10개가 아닌 100개로"): 10 → 100.
@@ -363,6 +371,7 @@ export default function AdminNavigationSettingsPage() {
   const [accountMenuStyleValue, setAccountMenuStyleValue] = useState<AccountMenuStyleValue>(() => defaultAccountMenuStyleValue());
   const [heroSlideshowValue, setHeroSlideshowValue] = useState<HeroSlideshowValue>(() => defaultHeroSlideshowValue());
   const [headerPositionsValue, setHeaderPositionsValue] = useState<HeaderPositionsValue>(() => defaultHeaderPositionsValue());
+  const [topSidebarValue, setTopSidebarValue] = useState<TopSidebarValue>(() => defaultTopSidebarValue());
   const [topNavRows, setTopNavRows] = useState<NavTab[]>([]);
 
   const [footerPageId, setFooterPageId] = useState<string | null>(null);
@@ -371,6 +380,7 @@ export default function AdminNavigationSettingsPage() {
   const sidebarIcons = sidebarIconsValue[deviceTab];
   const heroSlideshow = heroSlideshowValue[deviceTab];
   const headerPositions = headerPositionsValue[deviceTab];
+  const topSidebar = topSidebarValue[deviceTab];
 
   useEffect(() => {
     async function load() {
@@ -378,7 +388,7 @@ export default function AdminNavigationSettingsPage() {
         supabase
           .from("site_settings")
           .select("setting_key, setting_value")
-          .in("setting_key", ["main_logo", "hero_slideshow", "sidebar_icons", "top_tab_style", "account_menu_style", "header_positions"]),
+          .in("setting_key", ["main_logo", "hero_slideshow", "sidebar_icons", "top_tab_style", "account_menu_style", "header_positions", "top_sidebar"]),
         fetchNavTabs(),
         supabase.from("page_builder").select("id, craft_state").eq("slug", "footer").maybeSingle(),
       ]);
@@ -394,6 +404,7 @@ export default function AdminNavigationSettingsPage() {
         else if (row.setting_key === "top_tab_style") setTopTabStyleValue(normalizeTopTabStyle(row.setting_value));
         else if (row.setting_key === "account_menu_style") setAccountMenuStyleValue(normalizeAccountMenuStyle(row.setting_value));
         else if (row.setting_key === "header_positions") setHeaderPositionsValue(normalizeHeaderPositions(row.setting_value));
+        else if (row.setting_key === "top_sidebar") setTopSidebarValue(normalizeTopSidebar(row.setting_value));
       }
       setTopNavRows(navTabs.filter((t) => t.type !== "sidebar-left" && t.type !== "sidebar-right"));
       if (footerRow.data) {
@@ -414,6 +425,87 @@ export default function AdminNavigationSettingsPage() {
     }
     load();
   }, []);
+
+  // HOTFIX-137.8(사용자 지시 — "상단 탭, 사용자 메뉴에 새로운 요소를
+  // 추가하거나, 복제하거나, 삭제하는걸 할수 없는데?"): "사용자 메뉴"는
+  // EPIC-138부터 별도 데이터가 아니라 site_navigations 최상위 행의
+  // target_types에 "user_menu" 플래그 하나 붙는 것뿐이다(UserMenuDropdown.tsx
+  // 참고) — 즉 "상단 탭 추가"와 "사용자 메뉴 항목 추가"는 같은 테이블에 대한
+  // 같은 CRUD고, 노출 위치(어느 탭 줄/사이드바/사용자 메뉴에 보일지)는 이미
+  // 있는 "노출 위치" 체크박스로 정하면 된다 — 그래서 추가/복제/삭제도 하나의
+  // 공용 함수 세트로 처리한다. CategoryTreeManager.tsx(사이트 구성 관리)의
+  // addChild/deleteRow와 동일한 컬럼/기본값을 그대로 재사용해 두 화면의
+  // 데이터가 어긋나지 않게 한다.
+  async function refetchNavTabs() {
+    const { tabs } = await fetchNavTabs();
+    setTopNavRows(tabs.filter((t) => t.type !== "sidebar-left" && t.type !== "sidebar-right"));
+  }
+
+  async function addNavItem() {
+    const siblingCount = topNavRows.length;
+    const { data: inserted, error: insertError } = await supabase
+      .from("site_navigations")
+      .insert({ parent_id: null, title: "새 탭", target_types: ["tier2_tab"], sort_order: siblingCount })
+      .select("id")
+      .single();
+    if (insertError || !inserted) {
+      alert(`탭 생성에 실패했어요.\n${insertError?.message ?? "알 수 없는 오류"}`);
+      return;
+    }
+    const autoHref = `/c/${inserted.id}`;
+    const { error: hrefError } = await supabase.from("site_navigations").update({ href: autoHref }).eq("id", inserted.id);
+    if (!hrefError) {
+      ensurePageForSlug(hrefToSlug(autoHref), "새 탭", null).catch(() => {});
+    }
+    await refetchNavTabs();
+    selectSlot(`tab:${inserted.id}`);
+  }
+
+  async function duplicateNavItem(tab: NavTab) {
+    if (!tab.id) return;
+    const siblingCount = topNavRows.length;
+    const { data: inserted, error: insertError } = await supabase
+      .from("site_navigations")
+      .insert({
+        parent_id: null,
+        title: `${tab.label} 복사본`,
+        href: tab.href ?? null,
+        target_types: tab.targetTypes ?? ["tier2_tab"],
+        sort_order: siblingCount,
+      })
+      .select("id")
+      .single();
+    if (insertError || !inserted) {
+      alert(`탭 복제에 실패했어요.\n${insertError?.message ?? "알 수 없는 오류"}`);
+      return;
+    }
+    // 스타일(글자 크기/색상/굵기/호버 모션 등)도 함께 복제 — 원본 탭 키의
+    // 설정을 새 탭 키로 그대로 복사한다(양쪽 기기 모두).
+    setTopTabStyleValue((prev) => {
+      const next = { ...prev };
+      for (const device of ["pc", "mobile"] as const) {
+        const sourceEntry = prev[device].tabs[tab.key];
+        if (sourceEntry) {
+          next[device] = { ...next[device], tabs: { ...next[device].tabs, [inserted.id]: { ...sourceEntry } } };
+        }
+      }
+      return next;
+    });
+    await refetchNavTabs();
+    selectSlot(`tab:${inserted.id}`);
+  }
+
+  async function deleteNavItem(tab: NavTab) {
+    if (!tab.id) return;
+    if (!confirm(`"${tab.label}"을(를) 삭제할까요? 이 탭에 속한 하위 항목도 함께 삭제돼요.`)) return;
+    const { error: deleteError } = await supabase.from("site_navigations").delete().eq("id", tab.id);
+    if (deleteError) {
+      alert(`삭제에 실패했어요.\n${deleteError.message}`);
+      return;
+    }
+    setSelection(null);
+    await refetchNavTabs();
+  }
 
   function handleOffsetChange(slotKey: string, next: HeaderSlotOffset) {
     setHeaderPositionsValue((prev) => ({
@@ -440,6 +532,7 @@ export default function AdminNavigationSettingsPage() {
       upsertSetting("account_menu_style", accountMenuStyleValue),
       upsertSetting("hero_slideshow", heroSlideshowValue),
       upsertSetting("header_positions", headerPositionsValue),
+      upsertSetting("top_sidebar", topSidebarValue),
       upsertSetting("unified_header_layout", { pc: { items: [] }, mobile: { items: [] } }),
       footerPageId && footerSerialized
         ? supabase.from("page_builder").update({ craft_state: footerSerialized, updated_at: new Date().toISOString() }).eq("id", footerPageId)
@@ -560,6 +653,13 @@ export default function AdminNavigationSettingsPage() {
                           {tab.label}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={addNavItem}
+                        className="block w-full rounded border border-dashed border-gray-300 px-2 py-1.5 text-left text-blue-600 hover:bg-blue-50"
+                      >
+                        + 새 탭/메뉴 항목 추가
+                      </button>
                       <button type="button" onClick={() => selectSlot("write-button")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
                         글쓰기
                       </button>
@@ -583,6 +683,12 @@ export default function AdminNavigationSettingsPage() {
                       <button type="button" onClick={() => selectSlot("sidebar:right")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
                         우측 사이드바 아이콘
                       </button>
+                      <button type="button" onClick={() => selectSlot("top-sidebar-trigger")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                        상단 사이드바 열기 버튼
+                      </button>
+                      <button type="button" onClick={() => selectSlot("top-sidebar")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                        상단 사이드바 (Kinfolk형 메가 메뉴)
+                      </button>
                     </div>
                   </div>
                   <div className="border-t border-gray-200 pt-3">
@@ -598,6 +704,8 @@ export default function AdminNavigationSettingsPage() {
                   deviceTab={deviceTab}
                   topNavRows={topNavRows}
                   setTopNavRows={setTopNavRows}
+                  onDuplicateNavItem={duplicateNavItem}
+                  onDeleteNavItem={deleteNavItem}
                   mainLogoValue={mainLogoValue}
                   setMainLogoValue={setMainLogoValue}
                   topTabStyleValue={topTabStyleValue}
@@ -610,6 +718,8 @@ export default function AdminNavigationSettingsPage() {
                   setSidebarIconsValue={setSidebarIconsValue}
                   headerPositions={headerPositions}
                   onResetOffset={resetSlotOffset}
+                  topSidebarValue={topSidebarValue}
+                  setTopSidebarValue={setTopSidebarValue}
                 />
               )}
 
@@ -647,6 +757,7 @@ export default function AdminNavigationSettingsPage() {
                 positionsOverride={headerPositions}
                 onOffsetChange={handleOffsetChange}
                 deviceOverride={deviceTab}
+                topSidebarOverride={topSidebar}
               />
 
               <ClickSelectSlot slotKey="slideshow" label="슬라이드쇼" selected={selection?.kind === "slot" && selection.key === "slideshow"} onSelect={selectSlot}>
@@ -725,6 +836,8 @@ function ControlsPanel({
   deviceTab,
   topNavRows,
   setTopNavRows,
+  onDuplicateNavItem,
+  onDeleteNavItem,
   mainLogoValue,
   setMainLogoValue,
   topTabStyleValue,
@@ -737,11 +850,15 @@ function ControlsPanel({
   setSidebarIconsValue,
   headerPositions,
   onResetOffset,
+  topSidebarValue,
+  setTopSidebarValue,
 }: {
   selection: Selection;
   deviceTab: "pc" | "mobile";
   topNavRows: NavTab[];
   setTopNavRows: React.Dispatch<React.SetStateAction<NavTab[]>>;
+  onDuplicateNavItem: (tab: NavTab) => void;
+  onDeleteNavItem: (tab: NavTab) => void;
   mainLogoValue: MainLogoValue;
   setMainLogoValue: React.Dispatch<React.SetStateAction<MainLogoValue>>;
   topTabStyleValue: TopTabStyleValue;
@@ -754,6 +871,8 @@ function ControlsPanel({
   setSidebarIconsValue: React.Dispatch<React.SetStateAction<SidebarIconsValue>>;
   headerPositions: { slots: Record<string, HeaderSlotOffset> };
   onResetOffset: (slotKey: string) => void;
+  topSidebarValue: TopSidebarValue;
+  setTopSidebarValue: React.Dispatch<React.SetStateAction<TopSidebarValue>>;
 }) {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFont, setUploadingFont] = useState(false);
@@ -766,7 +885,7 @@ function ControlsPanel({
 
   const selectedSlotKey = selection.key;
   const offset = headerPositions.slots[selectedSlotKey];
-  const positionSection = (selectedSlotKey === "slideshow" || selectedSlotKey.startsWith("sidebar:")) ? null : (
+  const positionSection = (selectedSlotKey === "slideshow" || selectedSlotKey === "top-sidebar" || selectedSlotKey.startsWith("sidebar:")) ? null : (
     <div className="mt-4 space-y-2 border-t border-gray-200 pt-3">
       <p className="text-xs font-semibold text-gray-500">위치</p>
       <p className="text-[11px] leading-relaxed text-gray-400">선택된 요소 위의 ✥ 핸들을 캔버스에서 직접 드래그해 화면 어디로든 옮기세요.</p>
@@ -904,7 +1023,29 @@ function ControlsPanel({
     }
     return (
       <div className="space-y-3 text-xs">
-        <p className="text-sm font-semibold text-gray-700">상단 탭</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">상단 탭 / 메뉴 항목</p>
+          {tab && (
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                title="복제"
+                onClick={() => onDuplicateNavItem(tab)}
+                className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+              >
+                복제
+              </button>
+              <button
+                type="button"
+                title="삭제"
+                onClick={() => onDeleteNavItem(tab)}
+                className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+              >
+                삭제
+              </button>
+            </div>
+          )}
+        </div>
         <label className="block">
           <span className="mb-1 block text-gray-600">표시 텍스트(비우면 원래 이름)</span>
           <input value={entry.labelOverride} onChange={(e) => patchTab({ labelOverride: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
@@ -974,8 +1115,13 @@ function ControlsPanel({
     }
     return (
       <div className="space-y-3 text-xs">
-        <p className="text-sm font-semibold text-gray-700">사용자 메뉴</p>
-        <p className="text-[11px] text-gray-400">관리자 / 회원 등급 / 마이페이지 / 회원 이름 / 로그아웃 5개 항목 전체에 함께 적용돼요(위치는 항목별로 따로 옮길 수 있어요).</p>
+        <p className="text-sm font-semibold text-gray-700">계정 영역 (관리자·등급·마이페이지·이름·로그아웃)</p>
+        <p className="text-[11px] text-gray-400">
+          관리자 / 회원 등급 / 마이페이지 / 회원 이름 / 로그아웃 — 이 5개는 로그인 상태에 따라 자동으로 나타나는 고정 항목이라 여기서 추가/삭제는 안 돼요(위치·스타일만 조정). 스타일은 5개 전체에 함께 적용돼요.
+        </p>
+        <p className="text-[11px] text-gray-400">
+          &ldquo;마이페이지&rdquo; 클릭 시 뜨는 드롭다운에 항목을 추가하고 싶으면 — Elements 탭의 &ldquo;+ 새 탭/메뉴 항목 추가&rdquo;로 만든 뒤, 그 항목의 Controls에서 노출 위치를 &ldquo;사용자 메뉴&rdquo;로 체크하세요.
+        </p>
         <label className="block">
           <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
           <input value={accountMenuStyle.fontFamily} onChange={(e) => patchAccount({ fontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
@@ -1021,6 +1167,20 @@ function ControlsPanel({
         {positionSection}
       </div>
     );
+  }
+
+  if (selectedSlotKey === "top-sidebar-trigger") {
+    return (
+      <div className="space-y-3 text-xs">
+        <p className="text-sm font-semibold text-gray-700">상단 사이드바 열기 버튼</p>
+        <p className="text-[11px] text-gray-400">클릭하면 아래에서 편집하는 &ldquo;상단 사이드바&rdquo; 패널이 위에서 아래로 슬라이드해 열려요. 위치만 자유롭게 옮길 수 있어요(캔버스에서 직접 클릭해 열고 닫아 미리볼 수도 있어요).</p>
+        {positionSection}
+      </div>
+    );
+  }
+
+  if (selectedSlotKey === "top-sidebar") {
+    return <TopSidebarControls value={topSidebarValue} setValue={setTopSidebarValue} deviceTab={deviceTab} />;
   }
 
   if (selectedSlotKey === "slideshow") {
@@ -1218,6 +1378,118 @@ function ControlsPanel({
   }
 
   return null;
+}
+
+// ── "상단 사이드바"(Kinfolk형 메가 메뉴, HOTFIX-137.9) 전용 Controls —
+// column 2(링크 목록, 항목마다 hover 이미지)와 그 하위 column 3(children)을
+// 여기서 추가/삭제/재배치한다. column 1(이름/등급/팔로워 등)은 실제 세션
+// 데이터라 TopSidebarPanel.tsx가 직접 조회 — 관리자가 편집할 대상이 아니다.
+function TopSidebarControls({
+  value,
+  setValue,
+  deviceTab,
+}: {
+  value: TopSidebarValue;
+  setValue: React.Dispatch<React.SetStateAction<TopSidebarValue>>;
+  deviceTab: "pc" | "mobile";
+}) {
+  const [uploadingLinkId, setUploadingLinkId] = useState<string | null>(null);
+  const config = value[deviceTab];
+
+  function patch(next: Partial<TopSidebarValue["pc"]>) {
+    setValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...next } }));
+  }
+  function updateLink(id: string, linkPatch: Partial<TopSidebarLink>) {
+    patch({ links: config.links.map((l) => (l.id === id ? { ...l, ...linkPatch } : l)) });
+  }
+  function addLink() {
+    const newLink: TopSidebarLink = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, label: "새 링크", href: "#", imageUrl: "", children: [] };
+    patch({ links: [...config.links, newLink] });
+  }
+  function removeLink(id: string) {
+    patch({ links: config.links.filter((l) => l.id !== id) });
+  }
+  function moveLink(id: string, dir: -1 | 1) {
+    const idx = config.links.findIndex((l) => l.id === id);
+    const nextIdx = idx + dir;
+    if (idx < 0 || nextIdx < 0 || nextIdx >= config.links.length) return;
+    const next = [...config.links];
+    [next[idx], next[nextIdx]] = [next[nextIdx], next[idx]];
+    patch({ links: next });
+  }
+  async function handleLinkImage(id: string, file: File | null) {
+    if (!file) return;
+    setUploadingLinkId(id);
+    const { url } = await uploadImage(file, "top_sidebar");
+    setUploadingLinkId(null);
+    if (url) updateLink(id, { imageUrl: url });
+  }
+  function addChild(linkId: string) {
+    const link = config.links.find((l) => l.id === linkId);
+    if (!link) return;
+    const newChild: TopSidebarChildLink = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, label: "새 하위 링크", href: "#" };
+    updateLink(linkId, { children: [...link.children, newChild] });
+  }
+  function updateChild(linkId: string, childId: string, childPatch: Partial<TopSidebarChildLink>) {
+    const link = config.links.find((l) => l.id === linkId);
+    if (!link) return;
+    updateLink(linkId, { children: link.children.map((c) => (c.id === childId ? { ...c, ...childPatch } : c)) });
+  }
+  function removeChild(linkId: string, childId: string) {
+    const link = config.links.find((l) => l.id === linkId);
+    if (!link) return;
+    updateLink(linkId, { children: link.children.filter((c) => c.id !== childId) });
+  }
+
+  return (
+    <div className="space-y-3 text-xs">
+      <p className="text-sm font-semibold text-gray-700">상단 사이드바</p>
+      <p className="text-[11px] text-gray-400">
+        헤더 우측의 &ldquo;상단 사이드바 열기 버튼&rdquo;을 누르면 화면 위에서 아래로 슬라이드해 열려요. 왼쪽 이름/등급/팔로워 등은 실제 로그인 정보라 여기서 편집할 수 없어요 — 아래 목록만 관리자가 정하는 링크예요.
+      </p>
+      <label className="flex items-center gap-2 text-gray-600">
+        <input type="checkbox" checked={config.enabled} onChange={(e) => patch({ enabled: e.target.checked })} />
+        상단 사이드바 사용
+      </label>
+
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <p className="font-medium text-gray-600">링크 목록 ({config.links.length}개)</p>
+        {config.links.map((link, idx) => (
+          <div key={link.id} className="space-y-1.5 rounded border border-gray-200 p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-gray-400">#{idx + 1}</span>
+              <div className="flex items-center gap-1">
+                <button type="button" disabled={idx === 0} onClick={() => moveLink(link.id, -1)} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30">↑</button>
+                <button type="button" disabled={idx === config.links.length - 1} onClick={() => moveLink(link.id, 1)} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30">↓</button>
+                <button type="button" onClick={() => removeLink(link.id)} className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50">삭제</button>
+              </div>
+            </div>
+            <input value={link.label} placeholder="라벨" onChange={(e) => updateLink(link.id, { label: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+            <input value={link.href} placeholder="링크 주소" onChange={(e) => updateLink(link.id, { href: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+            <div className="flex items-start gap-2">
+              <ImageThumb url={link.imageUrl} alt={`${link.label} 미리보기`} />
+              <label className="block min-w-0 flex-1">
+                <span className="mb-1 block text-gray-600">hover 이미지 {uploadingLinkId === link.id && "(업로드 중...)"}</span>
+                <input type="file" accept="image/*" disabled={uploadingLinkId === link.id} onChange={(e) => handleLinkImage(link.id, e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+              </label>
+            </div>
+            <div className="space-y-1 border-t border-gray-100 pt-1.5">
+              <p className="text-[11px] font-medium text-gray-500">하위 목록 ({link.children.length}개) — 이 링크에 마우스를 올리면 나타나요</p>
+              {link.children.map((child) => (
+                <div key={child.id} className="flex items-center gap-1">
+                  <input value={child.label} placeholder="라벨" onChange={(e) => updateChild(link.id, child.id, { label: e.target.value })} className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1" />
+                  <input value={child.href} placeholder="링크" onChange={(e) => updateChild(link.id, child.id, { href: e.target.value })} className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1" />
+                  <button type="button" onClick={() => removeChild(link.id, child.id)} className="shrink-0 text-[11px] text-red-500 hover:underline">삭제</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => addChild(link.id)} className="w-full rounded border border-gray-300 py-1 text-gray-600 hover:bg-gray-50">+ 하위 링크 추가</button>
+            </div>
+          </div>
+        ))}
+        <button type="button" onClick={addLink} className="w-full rounded border border-gray-300 py-1 text-gray-600 hover:bg-gray-50">+ 링크 추가</button>
+      </div>
+    </div>
+  );
 }
 
 function ThemesPanel({

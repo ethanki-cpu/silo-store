@@ -204,7 +204,23 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-137
+EPIC-140
+상단 탭/사용자 메뉴 추가·복제·삭제 + 드롭다운 z-index 버그 수정 + 신규
+"상단 사이드바"(Kinfolk형 메가 메뉴) — z-index 버그는 EPIC-136이 헤더
+wrapper의 position:fixed를 편집 모드에서 걷어낼 때 z-40까지 함께 지워
+stacking context가 사라진 게 원인(DOM 조상 체인 직접 추적으로 확정).
+탭 CRUD는 EPIC-138의 user_menu target_type 발견으로 "상단 탭 추가"와
+"사용자 메뉴 항목 추가"가 같은 site_navigations CRUD임을 확인,
+CategoryTreeManager.tsx와 동일 컬럼/흐름으로 addNavItem/duplicateNavItem/
+deleteNavItem 신설. 신규 상단 사이드바는 TopSidebarPanel.tsx+
+topSidebarSettings.ts(컬럼1 실제 세션 데이터/컬럼2 관리자 링크 목록/컬럼3
+hover cascade) + Navbar.tsx 신규 트리거 아이콘 + 관리자 TopSidebarControls.
+`tsc`/`lint`/`build` 0 errors. 이번 세션은 로그인 세션이 없는 새 브라우저
+프로필이라 캔버스 내 클릭/드래그는 직접 확인 못함(원인 추적·기존 검증된
+로직 재사용으로 근거 대체) — 로그아웃 상태 공개 홈페이지 무회귀만 확인.
+브랜치 `feature/EPIC-140`.
+
+직전 EPIC-137
 "홈페이지 설정 관리"를 화면 전환 없는 단일 실시간 캔버스 + Elements/Controls/
 Page/Themes 4탭 패널로 재구성 — 사용자가 EPIC-136도 여전히 "4개의 화면"이라고
 재차 거부, BuilderJS 레퍼런스대로 화면 전환 없는 단일 캔버스+4탭 왼쪽 패널을

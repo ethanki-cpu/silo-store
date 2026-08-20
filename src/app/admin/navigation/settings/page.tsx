@@ -1445,12 +1445,8 @@ function TopSidebarControls({
     <div className="space-y-3 text-xs">
       <p className="text-sm font-semibold text-gray-700">상단 사이드바</p>
       <p className="text-[11px] text-gray-400">
-        헤더 우측의 &ldquo;상단 사이드바 열기 버튼&rdquo;을 누르면 화면 위에서 아래로 슬라이드해 열려요. 왼쪽 이름/등급/팔로워 등은 실제 로그인 정보라 여기서 편집할 수 없어요 — 아래 목록만 관리자가 정하는 링크예요.
+        헤더 우측의 &ldquo;상단 사이드바 열기 버튼&rdquo;은 다른 헤더 요소처럼 항상 표시돼요(따로 켜고 끄지 않아요). 클릭하면 화면 위에서 아래로 슬라이드해 열려요. 왼쪽 이름/등급/팔로워 등은 실제 로그인 정보라 여기서 편집할 수 없어요 — 아래 목록만 관리자가 정하는 링크예요.
       </p>
-      <label className="flex items-center gap-2 text-gray-600">
-        <input type="checkbox" checked={config.enabled} onChange={(e) => patch({ enabled: e.target.checked })} />
-        상단 사이드바 사용
-      </label>
 
       <div className="space-y-2 border-t border-gray-200 pt-3">
         <p className="font-medium text-gray-600">링크 목록 ({config.links.length}개)</p>

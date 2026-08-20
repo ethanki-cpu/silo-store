@@ -25,14 +25,13 @@ export type TopSidebarLink = {
 };
 
 export type TopSidebarConfig = {
-  enabled: boolean;
   links: TopSidebarLink[];
 };
 
 export type TopSidebarValue = { pc: TopSidebarConfig; mobile: TopSidebarConfig };
 
 export function defaultTopSidebarConfig(): TopSidebarConfig {
-  return { enabled: false, links: [] };
+  return { links: [] };
 }
 
 export function defaultTopSidebarValue(): TopSidebarValue {
@@ -58,7 +57,6 @@ function normalizeLink(raw: unknown): TopSidebarLink {
 function normalizeConfig(raw: unknown): TopSidebarConfig {
   const v = raw as Partial<TopSidebarConfig> | null;
   return {
-    enabled: v?.enabled ?? false,
     links: Array.isArray(v?.links) ? v!.links.map(normalizeLink) : [],
   };
 }

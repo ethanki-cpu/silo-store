@@ -31,7 +31,7 @@ import { Navbar } from "@/components/Navbar";
 import { HeroSlideshow } from "@/components/HeroSlideshow";
 import { SelectionOverlay } from "@/components/SelectionOverlay";
 import { uploadImage, compressImage } from "@/lib/adminImageUpload";
-import { fetchNavTabs, type NavTab } from "@/lib/navConfig";
+import { fetchNavTabs, type NavTab, type DbTargetType } from "@/lib/navConfig";
 import { PRIMITIVE_RESOLVER, PRIMITIVE_BLOCK_OPTIONS } from "@/components/craft/primitives";
 import type { CraftBlockOption } from "@/components/craft/shared/types";
 import { craftFooterResolver } from "@/components/craft/footer/resolver";
@@ -76,7 +76,22 @@ import {
 } from "@/lib/headerLayoutPositions";
 import { TAB_HOVER_MOTIONS, TAB_HOVER_MOTION_LABELS, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
 
-const MAX_WALLPAPERS = 10;
+// HOTFIX-137.4(사용자 지시 — "여백 배경 이미지 갯수를 10개가 아닌 100개로"): 10 → 100.
+const MAX_WALLPAPERS = 100;
+
+// HOTFIX-137.5(사용자 지시 — "각 요소마다 '드롭다운'이 되게 하는걸
+// 선택할수 있는 기능을 만들고"): EPIC-138이 "사이트 구성 관리 > 사이트
+// 메뉴"에 만든 것과 동일한 라벨 — 여기서도 바로 편집할 수 있게(다른
+// 화면으로 안내만 하던 것 대신) 탭 Controls 패널에 동일한 체크박스를
+// 노출한다.
+const TAB_TARGET_TYPE_LABELS: Record<DbTargetType, string> = {
+  tier1_tab: "1단 상단탭",
+  tier2_tab: "2단 상단탭",
+  dropdown: "드롭다운",
+  sidebar_left: "왼쪽 사이드바",
+  sidebar_right: "오른쪽 사이드바",
+  user_menu: "사용자 메뉴",
+};
 
 async function upsertSetting(key: string, value: unknown) {
   return supabase
@@ -130,16 +145,19 @@ function CraftBridge({
   bridgeRef,
   onCraftSelect,
 }: {
-  bridgeRef: React.MutableRefObject<{ query: ReturnType<typeof useEditor>["query"] } | null>;
+  bridgeRef: React.MutableRefObject<{
+    query: ReturnType<typeof useEditor>["query"];
+    actions: ReturnType<typeof useEditor>["actions"];
+  } | null>;
   onCraftSelect: () => void;
 }) {
-  const { query, selectedId } = useEditor((state) => ({
+  const { query, actions, selectedId } = useEditor((state) => ({
     selectedId: ([...state.events.selected][0] as string | undefined) ?? null,
   }));
   const prevRef = useRef<string | null>(null);
   useEffect(() => {
-    bridgeRef.current = { query };
-  }, [query, bridgeRef]);
+    bridgeRef.current = { query, actions };
+  }, [query, actions, bridgeRef]);
   useEffect(() => {
     if (selectedId && selectedId !== "ROOT" && selectedId !== prevRef.current) {
       prevRef.current = selectedId;
@@ -147,6 +165,27 @@ function CraftBridge({
     }
     if (!selectedId) prevRef.current = null;
   }, [selectedId, onCraftSelect]);
+  // HOTFIX-137.7(사용자 지시 — BuilderJS 레퍼런스 "Every action undoable.
+  // ⌘Z saves the day"): Craft.js는 undo/redo가 이미 내장돼 있다
+  // (actions.history.undo/redo) — 키보드 단축키만 새로 연결한다. 입력
+  // 필드(텍스트/textarea/contentEditable) 안에서는 가로채지 않고 그
+  // 필드의 네이티브 undo가 정상 동작하도록 비워둔다.
+  useEffect(() => {
+    function isEditableTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      if (isEditableTarget(e.target)) return;
+      e.preventDefault();
+      if (e.shiftKey) actions.history.redo();
+      else actions.history.undo();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [actions]);
   return null;
 }
 
@@ -197,26 +236,87 @@ function FooterElementsSection() {
   );
 }
 
-// ── Controls 탭에서 하단 메뉴(Footer) 블록이 선택됐을 때 — 기존
-// SettingsSidebar.tsx와 같은 로직이지만 w-72 aside 래퍼 없이 이 패널
-// 안에 바로 넣을 수 있게 다시 구현했다.
+// ── 하단 메뉴(Footer) 블록의 선택-인식 액션 바 — HOTFIX-137.6(사용자
+// 지시 — "요소를 클릭하면 왜 움직이는것만 되고, 그걸 수정하거나
+// 삭제하는게 없어?"): "수정"은 아래 <selected.Settings />가 이미
+// 담당하지만 "삭제"가 없었다 — Craft.js의 actions.delete/move(둘 다
+// 문서화된 안전한 단일 노드 API)로 삭제+같은 부모 안 순서 이동(위/아래)을
+// 추가한다. "복제"는 Craft.js 내부 addNodeTree가 전달된 트리의 노드
+// id를 그대로 재사용해 state.nodes를 덮어써(라이브 코드 리버스엔지니어링으로
+// 확인) 기존 노드와 충돌할 위험이 있어 — id를 직접 재생성하는 우회가
+// 필요한데, 이 세션은 Browser pane으로 실제 검증이 안 되는 상태라
+// 실사용 중인 하단 메뉴(모든 페이지에 노출)를 망가뜨릴 위험을 감수하지
+// 않고 이번 범위에서 뺐다(NEXT_TASK.md에 후속 항목으로 기록).
 function FooterCraftControls() {
-  const { selected } = useEditor((state) => {
+  const { selected, actions, query } = useEditor((state) => {
     const currentNodeId = [...state.events.selected][0];
     if (!currentNodeId || !state.nodes[currentNodeId]) return { selected: null };
     const node = state.nodes[currentNodeId];
+    const parentId = node.data.parent;
+    const siblings = parentId ? state.nodes[parentId]?.data.nodes ?? [] : [];
+    const index = siblings.indexOf(currentNodeId);
     return {
       selected: {
+        id: currentNodeId,
         name: node.data.displayName || node.data.name,
         Settings: (node.related?.settings as React.ComponentType<Record<string, never>> | undefined) ?? null,
         isRoot: currentNodeId === "ROOT",
+        isDeletable: node.data.parent !== null && currentNodeId !== "ROOT",
+        parentId,
+        canMoveUp: index > 0,
+        canMoveDown: index >= 0 && index < siblings.length - 1,
       },
     };
   });
   if (!selected) return <p className="text-xs text-gray-400">하단 메뉴에서 블록을 클릭하면 설정이 여기 표시됩니다.</p>;
+
+  function moveBy(offset: 1 | -1) {
+    if (!selected || !selected.parentId) return;
+    const siblings = query.node(selected.parentId).get().data.nodes;
+    const index = siblings.indexOf(selected.id);
+    if (index < 0) return;
+    actions.move(selected.id, selected.parentId, index + offset);
+  }
+
   return (
     <div>
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">{selected.name} 설정</h3>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{selected.name} 설정</h3>
+        {!selected.isRoot && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              title="위로 이동"
+              disabled={!selected.canMoveUp}
+              onClick={() => moveBy(-1)}
+              className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              title="아래로 이동"
+              disabled={!selected.canMoveDown}
+              onClick={() => moveBy(1)}
+              className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+            >
+              ↓
+            </button>
+            {selected.isDeletable && (
+              <button
+                type="button"
+                title="삭제"
+                onClick={() => {
+                  if (confirm("이 블록을 삭제할까요?")) actions.delete(selected.id);
+                }}
+                className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+              >
+                삭제
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {selected.Settings ? (
         <selected.Settings />
       ) : (
@@ -243,7 +343,10 @@ export default function AdminNavigationSettingsPage() {
   const [deviceTab, setDeviceTab] = useState<"pc" | "mobile">("pc");
   const [selection, setSelection] = useState<Selection>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>("controls");
-  const craftBridgeRef = useRef<{ query: ReturnType<typeof useEditor>["query"] } | null>(null);
+  const craftBridgeRef = useRef<{
+    query: ReturnType<typeof useEditor>["query"];
+    actions: ReturnType<typeof useEditor>["actions"];
+  } | null>(null);
 
   function selectSlot(key: string) {
     setSelection({ kind: "slot", key });
@@ -386,6 +489,28 @@ export default function AdminNavigationSettingsPage() {
               📱 모바일
             </button>
           </div>
+          {/* HOTFIX-137.7: Craft.js 내장 undo/redo를 하단 메뉴(Footer)
+              캔버스 범위에서 쓸 수 있게 노출 — ⌘/Ctrl+Z, ⌘/Ctrl+Shift+Z
+              단축키는 CraftBridge가 처리하고, 이 버튼은 클릭으로도 같은
+              동작을 하는 보조 진입점. */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="실행 취소 (Ctrl/⌘+Z)"
+              onClick={() => craftBridgeRef.current?.actions.history.undo()}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              ↶ 실행 취소
+            </button>
+            <button
+              type="button"
+              title="다시 실행 (Ctrl/⌘+Shift+Z)"
+              onClick={() => craftBridgeRef.current?.actions.history.redo()}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              ↷ 다시 실행
+            </button>
+          </div>
           <button type="button" onClick={handleSaveAll} disabled={saving} className={primaryButtonClass}>
             {saving ? "저장 중..." : "저장하기"}
           </button>
@@ -435,6 +560,9 @@ export default function AdminNavigationSettingsPage() {
                           {tab.label}
                         </button>
                       ))}
+                      <button type="button" onClick={() => selectSlot("write-button")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                        글쓰기
+                      </button>
                       {[
                         ["account:admin", "관리자"],
                         ["account:tier", "회원 등급"],
@@ -468,6 +596,8 @@ export default function AdminNavigationSettingsPage() {
                 <ControlsPanel
                   selection={selection}
                   deviceTab={deviceTab}
+                  topNavRows={topNavRows}
+                  setTopNavRows={setTopNavRows}
                   mainLogoValue={mainLogoValue}
                   setMainLogoValue={setMainLogoValue}
                   topTabStyleValue={topTabStyleValue}
@@ -593,6 +723,8 @@ function SidebarTriggerMediaPreview({ url }: { url: string }) {
 function ControlsPanel({
   selection,
   deviceTab,
+  topNavRows,
+  setTopNavRows,
   mainLogoValue,
   setMainLogoValue,
   topTabStyleValue,
@@ -608,6 +740,8 @@ function ControlsPanel({
 }: {
   selection: Selection;
   deviceTab: "pc" | "mobile";
+  topNavRows: NavTab[];
+  setTopNavRows: React.Dispatch<React.SetStateAction<NavTab[]>>;
   mainLogoValue: MainLogoValue;
   setMainLogoValue: React.Dispatch<React.SetStateAction<MainLogoValue>>;
   topTabStyleValue: TopTabStyleValue;
@@ -743,11 +877,30 @@ function ControlsPanel({
     const tabKey = selectedSlotKey.slice("tab:".length);
     const topTabStyle = topTabStyleValue[deviceTab];
     const entry = topTabStyle.tabs[tabKey] ?? defaultTopTabStyleEntry();
+    const tab = topNavRows.find((t) => t.key === tabKey);
+    const hasChildren = !!(tab?.groups?.length || tab?.items?.length);
     function patchTab(patch: Partial<TopTabStyleEntry>) {
       setTopTabStyleValue((prev) => ({
         ...prev,
         [deviceTab]: { ...prev[deviceTab], tabs: { ...prev[deviceTab].tabs, [tabKey]: { ...entry, ...patch } } },
       }));
+    }
+    // HOTFIX-137.5(사용자 지시 — "각 요소마다 '드롭다운'이 되게 하는걸
+    // 선택할수 있는 기능을 만들고"): site_navigations.target_types를 이
+    // 화면에서 바로 편집 — CategoryTreeManager.tsx(사이트 메뉴)와 같은
+    // 테이블/컬럼을 직접 update하고, 로컬 topNavRows도 낙관적으로 갱신해
+    // 다시 불러오지 않아도 화면(체크 상태·캔버스의 실제 탭 배치)이 바로
+    // 반영되게 한다.
+    async function toggleTargetType(type: DbTargetType) {
+      if (!tab?.id) return;
+      const current = tab.targetTypes ?? [];
+      const next = current.includes(type) ? current.filter((t) => t !== type) : [...current, type];
+      const { error } = await supabase.from("site_navigations").update({ target_types: next }).eq("id", tab.id);
+      if (error) {
+        alert(`노출 위치 변경에 실패했어요.\n${error.message}`);
+        return;
+      }
+      setTopNavRows((prev) => prev.map((t) => (t.key === tabKey ? { ...t, targetTypes: next } : t)));
     }
     return (
       <div className="space-y-3 text-xs">
@@ -756,13 +909,31 @@ function ControlsPanel({
           <span className="mb-1 block text-gray-600">표시 텍스트(비우면 원래 이름)</span>
           <input value={entry.labelOverride} onChange={(e) => patchTab({ labelOverride: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
         </label>
-        {/* EPIC-138(사용자 지시): 1단/2단 배치는 이제 "사이트 구성 관리 >
-            사이트 메뉴"에서 카테고리별 노출 위치로 직접 고른다(이중 설정
-            방지) — 여기 있던 배치 셀렉트는 제거했다. */}
-        <p className="rounded border border-dashed border-gray-300 px-2 py-1.5 text-[11px] text-gray-500">
-          1단/2단 배치는 <Link href="/admin/site-structure" className="underline">사이트 구성 관리 &gt; 사이트 메뉴</Link>에서
-          이 탭의 노출 위치로 고를 수 있어요.
-        </p>
+        <div>
+          <span className="mb-1 block text-gray-600">노출 위치 (복수 선택 가능)</span>
+          {tab?.id ? (
+            <div className="space-y-1 rounded border border-gray-200 p-2">
+              {(Object.entries(TAB_TARGET_TYPE_LABELS) as [DbTargetType, string][]).map(([type, label]) => (
+                <label key={type} className="flex items-center gap-2 text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={(tab.targetTypes ?? []).includes(type)}
+                    onChange={() => toggleTargetType(type)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-400">이 탭은 여기서 편집할 수 없어요(사이드바 전용) — 사이트 구성 관리에서 편집하세요.</p>
+          )}
+        </div>
+        {hasChildren && (
+          <label className="flex items-center gap-2 text-gray-600">
+            <input type="checkbox" checked={!!entry.megaDropdown} onChange={(e) => patchTab({ megaDropdown: e.target.checked })} />
+            메가 드롭다운으로 보기(그룹/항목을 한 번에 나란히 펼침)
+          </label>
+        )}
         <label className="block">
           <span className="mb-1 block text-gray-600">글자 크기(px)</span>
           <input
@@ -842,6 +1013,16 @@ function ControlsPanel({
     );
   }
 
+  if (selectedSlotKey === "write-button") {
+    return (
+      <div className="space-y-3 text-xs">
+        <p className="text-sm font-semibold text-gray-700">글쓰기 버튼</p>
+        <p className="text-[11px] text-gray-400">항상 &ldquo;마이 페이지&rdquo; 탭 바로 오른쪽에 붙어있는 전역 버튼이에요. 위치만 자유롭게 옮길 수 있어요.</p>
+        {positionSection}
+      </div>
+    );
+  }
+
   if (selectedSlotKey === "slideshow") {
     const value = heroSlideshowValue[deviceTab];
     function patch(next: Partial<HeroSlideshowValue["pc"]>) {
@@ -856,12 +1037,21 @@ function ControlsPanel({
     function removeSlide(index: number) {
       patch({ slides: value.slides.filter((_, i) => i !== index) });
     }
+    // HOTFIX-137.3(사용자 지시 — "슬라이드쇼 요소에 여백 배경 이미지를
+    // 업로드하면 프리뷰가 안나와"): url을 얻지 못하면(업로드 실패, 예:
+    // Supabase 무료 플랜 파일 용량 상한) 조용히 아무 일도 안 일어나
+    // "업로드했는데 왜 안 뜨지"로 보였다 — HOTFIX-134.2가 다른 업로드
+    // 경로에 적용한 것과 동일하게 실패 사유를 alert로 보여준다.
     async function handleSlideFile(index: number, file: File | null) {
       if (!file) return;
       setUploadingSlideIdx(index);
-      const { url } = await uploadImage(file, "slides");
+      const { url, error: uploadErr } = await uploadImage(file, "slides");
       setUploadingSlideIdx(null);
-      if (url) updateSlide(index, { imageUrl: url });
+      if (url) {
+        updateSlide(index, { imageUrl: url });
+      } else {
+        alert(`슬라이드 이미지 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+      }
     }
     function addWallpaper() {
       if (value.wallpaperUrls.length >= MAX_WALLPAPERS) return;
@@ -873,10 +1063,19 @@ function ControlsPanel({
     async function handleWallpaperFile(index: number, file: File | null) {
       if (!file) return;
       setUploadingWallpaperIdx(index);
-      const compressed = await compressImage(file, value.wallpaperQuality);
-      const { url } = await uploadImage(compressed, "wallpaper");
-      setUploadingWallpaperIdx(null);
-      if (url) patch({ wallpaperUrls: value.wallpaperUrls.map((u, i) => (i === index ? url : u)) });
+      try {
+        const compressed = await compressImage(file, value.wallpaperQuality);
+        const { url, error: uploadErr } = await uploadImage(compressed, "wallpaper");
+        if (url) {
+          patch({ wallpaperUrls: value.wallpaperUrls.map((u, i) => (i === index ? url : u)) });
+        } else {
+          alert(`여백 배경 이미지 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+        }
+      } catch (e) {
+        alert(`여백 배경 이미지 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setUploadingWallpaperIdx(null);
+      }
     }
     return (
       <div className="space-y-3 text-xs">

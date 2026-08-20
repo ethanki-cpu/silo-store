@@ -37,6 +37,14 @@ export type NavTab = {
   items?: NavItem[]; // type === "dropdown"
   groups?: NavGroup[]; // type === "sidebar-left" | "sidebar-right"
   minRankToRead?: number | null;
+  // HOTFIX-137.5(사용자 지시 — "각 요소마다 '드롭다운'이 되게 하는걸
+  // 선택할수 있는 기능을 만들고"): "홈페이지 설정 관리"의 탭 Controls
+  // 패널에서 site_navigations.target_types를 바로 편집할 수 있게 원본
+  // 행의 실제 id와 target_types 배열을 그대로 실어 보낸다 — key는
+  // 최상위 탭에만 있고(없으면 id로 대체) update 쿼리는 id로 걸어야
+  // 모호하지 않다.
+  id?: string;
+  targetTypes?: DbTargetType[];
   // EPIC-138(사용자 지시): "1단 상단탭"/"2단 상단탭"을 이 카테고리가
   // 상단 탭 줄 중 어디에 나타날지 직접 고르는 target_types 값으로
   // 옮겼다(예전엔 /admin/navigation/settings의 별도 tier 설정이었음) —
@@ -693,6 +701,8 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavD
         href: top.href ?? "#",
         minRankToRead: rankFor(top.href, slugToRank),
         tiers,
+        id: top.id,
+        targetTypes: top.target_types,
       };
     }
 
@@ -724,6 +734,8 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavD
         items,
         minRankToRead: rankFor(top.href ?? null, slugToRank),
         tiers,
+        id: top.id,
+        targetTypes: top.target_types,
       };
     }
 
@@ -754,6 +766,8 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavD
       groups,
       minRankToRead: rankFor(top.href ?? null, slugToRank),
       tiers,
+      id: top.id,
+      targetTypes: top.target_types,
     };
   });
 

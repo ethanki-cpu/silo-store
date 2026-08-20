@@ -541,15 +541,27 @@ export function Navbar({
     // sort_order로 바뀔 수 있음) key === "mypage"인 탭 바로 뒤에
     // 끼워 넣는 것이 "마이 페이지 오른쪽"이라는 요구를 가장 안정적으로
     // 만족한다.
+    // HOTFIX-137.2(사용자 지시 — "상단탭에 '글쓰기'가 드래그&드랍이
+    // 안돼"): 다른 탭/계정 메뉴 항목과 달리 이 버튼만 HeaderSlot으로
+    // 감싸지 않은 평범한 Link였다 — 편집 모드에서 선택/드래그가 아예
+    // 불가능했던 원인. 전용 slotKey("write-button")로 감싼다.
     const writeButtonEl =
       tab.key === "mypage" ? (
-        <Link
+        <HeaderSlot
           key="global-write-button"
-          href={writeHref}
-          className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}
+          slotKey="write-button"
+          label="글쓰기"
+          offset={slotOffset("write-button")}
+          editable={editable}
+          selected={selectedSlotKey === "write-button"}
+          onSelect={handleSelectSlot}
+          onOffsetChange={handleSlotOffsetChange}
+          as="span"
         >
-          글쓰기
-        </Link>
+          <Link href={writeHref} className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}>
+            글쓰기
+          </Link>
+        </HeaderSlot>
       ) : null;
 
     if (tab.type === "link") {
@@ -581,6 +593,27 @@ export function Navbar({
     const hasChildren =
       (tab.groups && tab.groups.length > 0) ||
       (tab.items && tab.items.length > 0);
+    // HOTFIX-137.5(사용자 지시 — "한번에 여러 카테고리를 보이는 '메가
+    // 드롭다운'도 가능한 옵션으로 넣어줘"): 탭별 스타일 설정에 저장된
+    // megaDropdown 플래그 — true면 아래 flyout을 열마다 그룹/항목을
+    // 나란히 펼쳐 한 번에 다 보여주는 그리드로 렌더링한다(기존 중첩
+    // 리스트는 항목에 마우스를 올려야 2차 플라이아웃이 열림).
+    const isMega = !!topTabEntries[tab.key]?.megaDropdown;
+    const megaColumns = isMega
+      ? tab.groups && tab.groups.length > 0
+        ? tab.groups.map((g) => ({
+            label: g.groupLabel,
+            href: g.href,
+            minRankToRead: g.minRankToRead,
+            sub: g.items,
+          }))
+        : (tab.items ?? []).map((i) => ({
+            label: i.label,
+            href: i.href,
+            minRankToRead: i.minRankToRead,
+            sub: i.children ?? [],
+          }))
+      : [];
 
     // hover 중(group-hover/tab)에는 사이드바와 동일한 테마 색상
     // (green-800)으로, 그 외엔 route-active 여부만 반영한다.
@@ -641,6 +674,42 @@ export function Navbar({
           // 순수 CSS로, EPIC-041-042-HOTFIX가 피하려던 JS hover 버그를
           // 재도입하지 않음).
           <div className="hidden group-hover/tab:block group-focus-within/tab:block absolute left-0 top-full pt-4 z-40">
+            {isMega ? (
+              // HOTFIX-137.5: 메가 드롭다운 — 컬럼(그룹 또는 1차 항목)을
+              // 전부 나란히 펼쳐, 마우스를 올리지 않아도 하위 항목까지
+              // 한 번에 보인다. 컬럼 헤더는 href가 있으면 Hub Page 링크.
+              <div className="flex flex-wrap gap-8 rounded-md border border-gray-200 bg-white shadow-md p-5 min-w-[28rem]">
+                {megaColumns.map((col, idx) => (
+                  <div key={`${col.label}-${idx}`} className="min-w-[9rem]">
+                    {col.href ? (
+                      <GatedNavLink
+                        href={col.href}
+                        minRankToRead={col.minRankToRead}
+                        onClick={(e) => e.currentTarget.blur()}
+                        className="mb-2 block text-sm font-semibold text-gray-800 hover:underline"
+                      >
+                        {col.label}
+                      </GatedNavLink>
+                    ) : (
+                      <p className="mb-2 text-sm font-semibold text-gray-800">{col.label}</p>
+                    )}
+                    <div className="space-y-1.5">
+                      {col.sub.map((item, subIdx) => (
+                        <GatedNavLink
+                          key={`${item.href}-${subIdx}`}
+                          href={item.href}
+                          minRankToRead={item.minRankToRead}
+                          onClick={(e) => e.currentTarget.blur()}
+                          className="block text-sm text-gray-600 hover:text-gray-900 hover:underline"
+                        >
+                          {item.label}
+                        </GatedNavLink>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="w-64 rounded-md border border-gray-200 bg-white shadow-md py-2">
               {tab.groups && tab.groups.length > 0
                 ? tab.groups.map((group) => {
@@ -766,6 +835,7 @@ export function Navbar({
                     ),
                   )}
             </div>
+            )}
           </div>
         )}
         </div>

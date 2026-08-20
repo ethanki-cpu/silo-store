@@ -78,9 +78,21 @@ export function HeaderSlot({
     <Tag
       style={wrapperStyle}
       className={className}
-      onClick={
+      // HOTFIX-137.1(사용자 지시 — "'로그아웃' 버튼을 조정하려고 클릭하면
+      // 진짜 로그아웃이 되버려"): 예전엔 onClick(버블 단계)에서 선택만
+      // 처리하고 stopPropagation만 했는데, 그건 "위로 전파되는 것"만 막지
+      // "이 요소 자신의 onClick/기본 동작(로그아웃 실행, <a> 네비게이션)"은
+      // 전혀 막지 못한다 — 클릭 이벤트는 자식(children) 쪽에서 먼저
+      // 발생하므로 children의 onClick(handleLogout 등)이 그대로 실행된
+      // "뒤에" 이 wrapper의 onClick이 뒤늦게 선택 처리를 했던 것. 캡처
+      // 단계(onClickCapture, 루트→타깃 방향으로 자식보다 먼저 실행)에서
+      // preventDefault+stopPropagation을 걸어 아예 children까지 이벤트가
+      // 도달하기 전에 막는다 — 편집 모드에서는 어떤 children(로그아웃
+      // 버튼/링크 등)도 실제 동작을 실행하지 않고 오직 선택만 된다.
+      onClickCapture={
         editable
           ? (e) => {
+              e.preventDefault();
               e.stopPropagation();
               onSelect(slotKey);
             }

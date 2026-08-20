@@ -33,6 +33,14 @@ export type TopTabStyleEntry = {
   // 쓴다. 값이 있으면 그 숫자로 정렬하고, 삽입은 앞뒤 탭 order의 중간값을
   // 매겨 넣어(fractional index) 매번 전체를 다시 번호 매길 필요가 없다.
   order?: number | null;
+  // HOTFIX-137.5(사용자 지시 — "한번에 여러 카테고리를 보이는 '메가
+  // 드롭다운'도 가능한 옵션으로 넣어줘"): 드롭다운/사이드바 모양(하위
+  // 항목이 있는 탭)에서, 기존처럼 항목에 마우스를 올려야 2차 플라이아웃이
+  // 열리는 중첩 리스트 대신 모든 그룹/항목을 한 번에 나란히 펼쳐 보여주는
+  // 그리드형 메가 메뉴로 렌더링할지 — 이 값은 순수 표시 방식(스타일)이라
+  // site_navigations가 아니라 여기(탭별 스타일 설정)에 둔다. 없거나
+  // false면 기존 중첩 리스트 그대로.
+  megaDropdown?: boolean;
 };
 
 export type TopTabStyleConfig = {

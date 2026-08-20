@@ -40,7 +40,26 @@ import { RENDER_TYPE_OPTIONS, RANK_OPTIONS } from "@/components/admin/BoardForm"
 // 드롭하면 그 행의 자식으로 재부모화(parent_id 변경)된다. 컨테이너 자체도
 // useDroppable로 등록해두어 자식이 하나도 없는 행에도 드롭할 수 있다.
 
-export type TargetTypeLiteral = "tab" | "sidebar_left" | "sidebar_right" | "dropdown";
+// EPIC-138(사용자 지시): 예전엔 최상위 카테고리 하나가 target_type 하나만
+// 가질 수 있었다("상단탭"/"드롭다운"/"왼쪽 사이드바"/"오른쪽 사이드바" 중
+// 배타적 선택) — 사용자가 "1단 상단탭"/"2단 상단탭"/"사용자 메뉴"까지
+// 추가하고, 카테고리마다 복수 선택(동시에 여러 위치에 노출)이 가능하게
+// 해달라고 요청해 target_type(단일값) → target_types(배열)로 바뀐다.
+// "상단탭"(구, 별도 tier 설정과 무관하게 늘 flat link)은 폐기하고
+// tier1_tab/tier2_tab 두 개로 분리했다 — 이제 이 화면에서 직접 1단/2단을
+// 고르며, 예전에 /admin/navigation/settings "상단 탭 디자인"에 따로
+// 있던 tier 셀렉트는 이중 설정을 피하기 위해 제거됐다(navConfig.ts 참고).
+// dropdown/sidebar_left/sidebar_right는 여전히 "이 카테고리가 하위
+// 항목을 어떤 모양(메가메뉴 items vs groups)으로 보여줄지 + (사이드바인
+// 경우) 전용 여닫이 패널을 가질지"를 뜻하고, tier1_tab/tier2_tab과는
+// 완전히 독립적인 별개 플래그다(navConfig.ts의 buildNavTree 참고).
+export type TargetTypeLiteral =
+  | "tier1_tab"
+  | "tier2_tab"
+  | "dropdown"
+  | "sidebar_left"
+  | "sidebar_right"
+  | "user_menu";
 
 type CategoryNavRow = {
   id: string;
@@ -48,7 +67,7 @@ type CategoryNavRow = {
   title: string;
   href: string | null;
   parent_id: string | null;
-  target_type: TargetTypeLiteral;
+  target_types: TargetTypeLiteral[];
   sort_order: number;
   is_active: boolean;
   topic: string | null;
@@ -164,7 +183,9 @@ export function CategoryTreeManager({
   // 누르면 어떤 종류의 새 상단 탭을 만들지 미리 골라야 한다 — 예전엔
   // targetTypes[0]으로 항상 고정돼 있었지만, 이제 한 화면에서 4종류 전부를
   // 다루므로 명시적 선택이 필요하다.
-  const [newRootType, setNewRootType] = useState<TargetTypeLiteral>(targetTypes?.[0] ?? "tab");
+  const [newRootTypes, setNewRootTypes] = useState<TargetTypeLiteral[]>(
+    targetTypes ?? ["tier2_tab"],
+  );
   // EPIC-077: href → 연결된 page_builder id — 행의 "페이지 수정" 바로가기
   // 버튼용. hrefToSlug(nav.href) === page.slug 완전 일치 규칙(adminTreeGrouping.ts
   // 와 동일)으로 매칭한다.
@@ -200,7 +221,7 @@ export function CategoryTreeManager({
   const sensors = useSensors(useSensor(PointerSensor));
 
   const NAV_SELECT_FIELDS =
-    "id, key, title, href, parent_id, target_type, sort_order, is_active, topic, thumbnail_url, description, is_public";
+    "id, key, title, href, parent_id, target_types, sort_order, is_active, topic, thumbnail_url, description, is_public";
 
   // EPIC-079-PHASE-4 후속: page_builder에 있지만 어떤 site_navigations
   // 행에도 매칭 안 된 페이지들을 "미분류 페이지" 버킷 아래 실제 행으로
@@ -244,7 +265,7 @@ export function CategoryTreeManager({
           key: UNASSIGNED_BUCKET_KEY,
           title: "미분류 페이지",
           parent_id: null,
-          target_type: "tab",
+          target_types: ["tier2_tab"],
           is_active: false,
           sort_order: 9999,
         })
@@ -261,7 +282,7 @@ export function CategoryTreeManager({
         title: p.title,
         href: `/${p.slug}`,
         description: p.description,
-        target_type: "tab" as TargetTypeLiteral,
+        target_types: ["tier2_tab"] as TargetTypeLiteral[],
         is_active: false,
         sort_order: siblingCount + i,
       })),
@@ -330,7 +351,11 @@ export function CategoryTreeManager({
 
   const rootIds = new Set(
     rows
-      .filter((r) => r.parent_id === null && (!targetTypes || targetTypes.includes(r.target_type)))
+      .filter(
+        (r) =>
+          r.parent_id === null &&
+          (!targetTypes || r.target_types.some((t) => targetTypes.includes(t))),
+      )
       .map((r) => r.id),
   );
 
@@ -582,14 +607,14 @@ export function CategoryTreeManager({
     await load();
   }
 
-  async function addChild(parentId: string | null, targetType: TargetTypeLiteral) {
+  async function addChild(parentId: string | null, targetTypesForRow: TargetTypeLiteral[]) {
     const siblingCount = rows.filter((r) => r.parent_id === parentId).length;
     const { data: inserted, error: insertError } = await supabase
       .from("site_navigations")
       .insert({
         parent_id: parentId,
         title: "새 항목",
-        target_type: targetType,
+        target_types: targetTypesForRow,
         sort_order: siblingCount,
       })
       .select("id")
@@ -761,25 +786,16 @@ export function CategoryTreeManager({
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">{title}</h2>
         <div className="flex items-center gap-2">
-          {/* EPIC-079-PHASE-4: targetTypes로 고정된 인스턴스가 아니면(=단일
-              통합 트리) 새 상단 탭의 노출 방식(링크/드롭다운/좌우 사이드바)을
-              먼저 골라야 한다 — Depth 0 추가가 곧 상단 탭 추가이므로. */}
+          {/* EPIC-079-PHASE-4/EPIC-138: targetTypes로 고정된 인스턴스가
+              아니면(=단일 통합 트리) 새 상단 탭의 노출 위치(1단/2단 상단탭·
+              드롭다운·좌우 사이드바·사용자 메뉴, 복수 선택 가능)를 먼저
+              골라야 한다 — Depth 0 추가가 곧 상단 탭 추가이므로. */}
           {!targetTypes && (
-            <select
-              value={newRootType}
-              onChange={(e) => setNewRootType(e.target.value as TargetTypeLiteral)}
-              className="text-xs rounded-md border border-gray-300 px-2 py-1"
-            >
-              {Object.entries(TARGET_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <TargetTypePopoverSelect value={newRootTypes} onChange={setNewRootTypes} />
           )}
           <button
             type="button"
-            onClick={() => addChild(null, targetTypes?.[0] ?? newRootType)}
+            onClick={() => addChild(null, targetTypes ?? newRootTypes)}
             className={smallButtonClass}
           >
             + 최상위 탭 추가
@@ -926,7 +942,7 @@ function TreeLevel({
   onManage: (id: string | null) => void;
   onUpdate: (id: string, patch: Partial<CategoryNavRow>) => Promise<boolean>;
   onDelete: (id: string) => void;
-  onAddChild: (parentId: string | null, targetType: TargetTypeLiteral) => void;
+  onAddChild: (parentId: string | null, targetTypes: TargetTypeLiteral[]) => void;
   allBoards: BoardRow[];
   boardBranchMap: Map<string, string>;
   onManageBoard: (id: string | null) => void;
@@ -1248,7 +1264,7 @@ function CategoryRow({
   onManage: (id: string | null) => void;
   onUpdate: (id: string, patch: Partial<CategoryNavRow>) => Promise<boolean>;
   onDelete: (id: string) => void;
-  onAddChild: (parentId: string | null, targetType: TargetTypeLiteral) => void;
+  onAddChild: (parentId: string | null, targetTypes: TargetTypeLiteral[]) => void;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   // EPIC-088: 하위 nav 행/배정된 게시판이 하나라도 있으면 접기/펼치기
@@ -1418,31 +1434,25 @@ function CategoryRow({
               #{row.topic}
             </span>
           )}
-          {/* EPIC-079-PHASE-4: 최상위(=상단 탭) 노드는 노출 방식(링크/드롭다운/
-              좌우 사이드바)이 "관리" 모달 안에 파묻혀 있어 바로 바꾸기 번거로웠다
-              — 행에서 곧바로 고를 수 있는 전용 컨트롤을 추가한다. 하위 노드는
-              상위(루트)의 target_type을 그대로 물려받으므로(트리 인스턴스가
-              루트 target_type으로 범위를 나누던 이전 구조의 흔적) 여기서는
-              편집 불가 — CategoryDetailModal과 동일한 규칙. */}
+          {/* EPIC-079-PHASE-4/EPIC-138: 최상위(=상단 탭) 노드는 노출 위치
+              (1단/2단 상단탭·드롭다운·좌우 사이드바·사용자 메뉴)가 "관리"
+              모달 안에 파묻혀 있어 바로 바꾸기 번거로웠다 — 행에서 곧바로
+              고를 수 있는 전용 컨트롤을 추가한다(복수 선택 가능 — 동시에
+              여러 위치에 노출됨). 하위 노드는 상위(루트)의 target_types를
+              그대로 물려받으므로(트리 인스턴스가 루트 target_type으로
+              범위를 나누던 이전 구조의 흔적) 여기서는 편집 불가 —
+              CategoryDetailModal과 동일한 규칙. */}
           {row.parent_id === null && (
-            <select
-              value={row.target_type}
-              onChange={(e) => onUpdate(row.id, { target_type: e.target.value as TargetTypeLiteral })}
-              className="text-xs rounded-md border border-gray-300 px-1.5 py-1"
-              title="이 상단 탭의 노출 방식"
-            >
-              {Object.entries(TARGET_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <TargetTypePopoverSelect
+              value={row.target_types}
+              onChange={(next) => onUpdate(row.id, { target_types: next })}
+            />
           )}
 
           <div className="ml-auto flex gap-1">
             <button
               type="button"
-              onClick={() => onAddChild(row.id, row.target_type)}
+              onClick={() => onAddChild(row.id, row.target_types)}
               className={smallButtonClass}
             >
               추가
@@ -1528,11 +1538,88 @@ function EditPageButton({
 }
 
 const TARGET_TYPE_LABELS: Record<TargetTypeLiteral, string> = {
-  tab: "상단 탭",
+  tier1_tab: "1단 상단탭",
+  tier2_tab: "2단 상단탭",
   dropdown: "드롭다운",
   sidebar_left: "왼쪽 사이드바",
   sidebar_right: "오른쪽 사이드바",
+  user_menu: "사용자 메뉴",
 };
+
+// EPIC-138: 최상위 카테고리의 노출 위치 복수 선택 체크박스 목록 — 모달
+// (넓은 공간)과 아래 팝오버(좁은 행 안) 양쪽에서 재사용한다.
+function TargetTypeCheckboxList({
+  value,
+  onChange,
+}: {
+  value: TargetTypeLiteral[];
+  onChange: (next: TargetTypeLiteral[]) => void;
+}) {
+  function toggle(type: TargetTypeLiteral) {
+    onChange(value.includes(type) ? value.filter((t) => t !== type) : [...value, type]);
+  }
+  return (
+    <div className="space-y-1">
+      {(Object.entries(TARGET_TYPE_LABELS) as [TargetTypeLiteral, string][]).map(([type, label]) => (
+        <label key={type} className="flex items-center gap-2 text-xs text-gray-700">
+          <input type="checkbox" checked={value.includes(type)} onChange={() => toggle(type)} />
+          {label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+// EPIC-138: 트리 행 안(가로 공간이 좁음)에서 쓰는 컴팩트 버전 — 현재 선택된
+// 라벨들을 버튼에 요약해서 보여주고, 클릭하면 체크박스 목록이 팝오버로 뜬다.
+// MembershipPopover.tsx와 동일한 표준 click-outside + Escape 패턴.
+function TargetTypePopoverSelect({
+  value,
+  onChange,
+}: {
+  value: TargetTypeLiteral[];
+  onChange: (next: TargetTypeLiteral[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  const summary =
+    value.length > 0 ? value.map((t) => TARGET_TYPE_LABELS[t]).join(", ") : "노출 위치 선택 안 함";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="max-w-[180px] truncate rounded-md border border-gray-300 px-1.5 py-1 text-left text-xs hover:bg-gray-50"
+        title="이 상단 탭의 노출 위치(복수 선택 가능)"
+      >
+        {summary}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-44 rounded-md border border-gray-200 bg-white p-2 shadow-md">
+          <TargetTypeCheckboxList value={value} onChange={onChange} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 type LinkedPageInfo = {
   id: string;
@@ -1580,7 +1667,7 @@ function CategoryDetailModal({
   const [topic, setTopic] = useState(row.topic ?? "");
   const [description, setDescription] = useState(row.description ?? "");
   const [thumbnailUrl, setThumbnailUrl] = useState(row.thumbnail_url ?? "");
-  const [targetType, setTargetType] = useState<TargetTypeLiteral>(row.target_type);
+  const [selectedTargetTypes, setSelectedTargetTypes] = useState<TargetTypeLiteral[]>(row.target_types);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1873,27 +1960,18 @@ function CategoryDetailModal({
             </select>
           </div>
 
-          {/* EPIC-077: target_type은 루트 노드가 바뀌면 addChild가 하위로
-              그대로 전파하고, 각 트리 인스턴스는 targetTypes로 범위를
+          {/* EPIC-077/EPIC-138: target_types는 루트 노드가 바뀌면 addChild가
+              하위로 그대로 전파하고, 각 트리 인스턴스는 targetTypes로 범위를
               필터링하므로 하위 노드에서 단독으로 바꾸면 구조가 어긋난다 —
-              루트에서만 편집 가능, 하위는 읽기전용 배지. */}
+              루트에서만 편집 가능(복수 선택), 하위는 읽기전용 배지. */}
           <div>
-            <label className="block text-sm mb-1">노출 위치</label>
+            <label className="block text-sm mb-1">노출 위치 (복수 선택 가능)</label>
             {row.parent_id === null ? (
-              <select
-                className={inputClass}
-                value={targetType}
-                onChange={(e) => setTargetType(e.target.value as TargetTypeLiteral)}
-              >
-                {Object.entries(TARGET_TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <TargetTypeCheckboxList value={selectedTargetTypes} onChange={setSelectedTargetTypes} />
             ) : (
               <span className="inline-block text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">
-                {TARGET_TYPE_LABELS[row.target_type]} (상위 항목과 동일 — 최상위 항목에서만 변경 가능)
+                {row.target_types.map((t) => TARGET_TYPE_LABELS[t]).join(", ") || "없음"} (상위 항목과
+                동일 — 최상위 항목에서만 변경 가능)
               </span>
             )}
           </div>
@@ -2193,7 +2271,7 @@ function CategoryDetailModal({
                   topic: topic || null,
                   description: description || null,
                   thumbnail_url: thumbnailUrl || null,
-                  ...(row.parent_id === null ? { target_type: targetType } : {}),
+                  ...(row.parent_id === null ? { target_types: selectedTargetTypes } : {}),
                 })
               }
               className="flex-1 rounded-md bg-gray-800 text-white px-3 py-2"

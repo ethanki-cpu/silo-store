@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
-import { fetchNavTabs, getActiveNavTabKey, type NavTab } from "@/lib/navConfig";
+import { fetchNavTabs, getActiveNavTabKey, type NavTab, type NavItem } from "@/lib/navConfig";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
+import { UserMenuDropdown } from "@/components/UserMenuDropdown";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { useHideOnScroll } from "@/lib/useHideOnScroll";
 import { tabHoverMotionCss, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
@@ -150,15 +151,25 @@ export function Navbar({
 
   // EPIC-087-PHASE-F: GNB "멤버십 등급"/"회원 이름" 클릭 시 여는 팝오버.
   const [popoverOpen, setPopoverOpen] = useState(false);
+  // EPIC-138(사용자 지시): "마이페이지" 클릭 시 여는 드롭다운 — "사용자
+  // 메뉴"로 태그된 카테고리 링크가 여기 담긴다. 회원 등급/이름 팝오버와
+  // 같은 자리(계정 영역 relative wrapper) 위에 뜨므로 동시에 둘 다 열려
+  // 있으면 서로 겹쳐 보인다 — 하나를 열면 다른 하나는 닫는다.
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // EPIC-023: 탭/사이드바/드롭다운 구성을 site_navigations(DB)에서 조회.
   // 로딩 중이거나 조회 실패 시 navConfig.ts의 FALLBACK_NAV_TABS로 자동 대체되어
   // 화면에 탭이 아예 비는 일은 없다.
   const [navTabs, setNavTabs] = useState<NavTab[]>([]);
+  // EPIC-138: "사용자 메뉴"로 태그된 카테고리 — 계정 영역 "마이페이지"
+  // 드롭다운(UserMenuDropdown)에 노출된다.
+  const [userMenuItems, setUserMenuItems] = useState<NavItem[]>([]);
   useEffect(() => {
     let cancelled = false;
-    fetchNavTabs().then((tabs) => {
-      if (!cancelled) setNavTabs(tabs);
+    fetchNavTabs().then(({ tabs, userMenuItems }) => {
+      if (cancelled) return;
+      setNavTabs(tabs);
+      setUserMenuItems(userMenuItems);
     });
     return () => {
       cancelled = true;
@@ -480,11 +491,16 @@ export function Navbar({
     return [colorRule, motionCss].filter(Boolean).join("\n");
   })();
 
-  // EPIC-117(사용자 지시): 탭을 "1단"(로고 줄과 겹치는 자리)/"2단"(기존
-  // 탭 줄) 중 어디에 배치할지 — /admin/navigation/settings "상단 탭
-  // 디자인"에서 탭별로 지정한다. 지정 안 하면(기존 데이터) 전부 2단.
-  function tabTier(tab: NavTab): 1 | 2 {
-    return topTabEntries[tab.key]?.tier === 1 ? 1 : 2;
+  // EPIC-138(사용자 지시): "1단"(로고 줄과 겹치는 자리)/"2단"(기존 탭 줄)
+  // 배치는 이제 "사이트 구성 관리 > 사이트 메뉴"에서 카테고리별
+  // target_types(tier1_tab/tier2_tab)로 직접 고른다 — 예전처럼
+  // /admin/navigation/settings에 별도 tier 설정이 있는 게 아니다(이중
+  // 설정 방지). 복수 선택이면(tier1_tab과 tier2_tab 둘 다) 두 줄 모두에
+  // 나타나고, 둘 다 선택 안 하면(사이드바 전용/사용자 메뉴 전용 카테고리)
+  // 상단 탭 줄에는 아예 나타나지 않는다. tiers가 없으면(FALLBACK_NAV_TABS
+  // 스냅샷 등) 예전 기본값과 동일하게 2단으로 취급한다.
+  function tabTiers(tab: NavTab): (1 | 2)[] {
+    return tab.tiers ?? [2];
   }
   // HOTFIX-134(사용자 지시 — "1단과 2단을... 드래그앤드랍으로 각 버튼
   // 위치를 정하는거"): 관리자가 "홈페이지 설정 관리"의 캔버스에서 탭
@@ -497,11 +513,11 @@ export function Navbar({
   }
   const orderedNavTabs = navTabs.map((tab, i) => ({ tab, order: tabOrderValue(tab, i) }));
   const tier1Tabs = orderedNavTabs
-    .filter(({ tab }) => tabTier(tab) === 1)
+    .filter(({ tab }) => tabTiers(tab).includes(1))
     .sort((a, b) => a.order - b.order)
     .map(({ tab }) => tab);
   const tier2Tabs = orderedNavTabs
-    .filter(({ tab }) => tabTier(tab) !== 1)
+    .filter(({ tab }) => tabTiers(tab).includes(2))
     .sort((a, b) => a.order - b.order)
     .map(({ tab }) => tab);
 
@@ -780,7 +796,10 @@ export function Navbar({
           <button
             key="tier"
             type="button"
-            onClick={() => setPopoverOpen((o) => !o)}
+            onClick={() => {
+              setPopoverOpen((o) => !o);
+              setUserMenuOpen(false);
+            }}
             className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
           >
             {member.tier_name}
@@ -792,16 +811,27 @@ export function Navbar({
         );
       case "mypage":
         return session ? (
-          <Link key="mypage" href="/mypage" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+          <button
+            key="mypage"
+            type="button"
+            onClick={() => {
+              setUserMenuOpen((o) => !o);
+              setPopoverOpen(false);
+            }}
+            className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+          >
             마이페이지
-          </Link>
+          </button>
         ) : null;
       case "name":
         return session && member ? (
           <button
             key="name"
             type="button"
-            onClick={() => setPopoverOpen((o) => !o)}
+            onClick={() => {
+              setPopoverOpen((o) => !o);
+              setUserMenuOpen(false);
+            }}
             className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
           >
             {member.name}
@@ -1022,7 +1052,10 @@ export function Navbar({
                   {member ? (
                     <button
                       type="button"
-                      onClick={() => setPopoverOpen((o) => !o)}
+                      onClick={() => {
+                        setPopoverOpen((o) => !o);
+                        setUserMenuOpen(false);
+                      }}
                       className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
                     >
                       {member.tier_name}
@@ -1046,9 +1079,16 @@ export function Navbar({
                   onOffsetChange={handleSlotOffsetChange}
                   as="span"
                 >
-                  <Link href="/mypage" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserMenuOpen((o) => !o);
+                      setPopoverOpen(false);
+                    }}
+                    className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+                  >
                     마이페이지
-                  </Link>
+                  </button>
                 </HeaderSlot>
               )}
 
@@ -1065,7 +1105,10 @@ export function Navbar({
                 >
                   <button
                     type="button"
-                    onClick={() => setPopoverOpen((o) => !o)}
+                    onClick={() => {
+                      setPopoverOpen((o) => !o);
+                      setUserMenuOpen(false);
+                    }}
                     className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
                   >
                     {member.name}
@@ -1111,6 +1154,10 @@ export function Navbar({
               tierName={member.tier_name}
               onClose={() => setPopoverOpen(false)}
             />
+          )}
+
+          {userMenuOpen && (
+            <UserMenuDropdown items={userMenuItems} onClose={() => setUserMenuOpen(false)} />
           )}
         </div>
       </div>

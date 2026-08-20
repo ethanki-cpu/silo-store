@@ -37,24 +37,45 @@ export type NavTab = {
   items?: NavItem[]; // type === "dropdown"
   groups?: NavGroup[]; // type === "sidebar-left" | "sidebar-right"
   minRankToRead?: number | null;
+  // EPIC-138(사용자 지시): "1단 상단탭"/"2단 상단탭"을 이 카테고리가
+  // 상단 탭 줄 중 어디에 나타날지 직접 고르는 target_types 값으로
+  // 옮겼다(예전엔 /admin/navigation/settings의 별도 tier 설정이었음) —
+  // 둘 다 선택되면 두 줄 모두에 나타난다. 둘 다 선택 안 하면(사이드바
+  // 전용 패널이거나 사용자 메뉴 전용인 카테고리) 상단 탭 줄에는 아예
+  // 나타나지 않는다. Navbar.tsx가 이 배열로 tier1Tabs/tier2Tabs를
+  // 직접 필터링한다. 없으면(예: FALLBACK_NAV_TABS 스냅샷) 예전 기본값과
+  // 동일하게 [2]로 취급한다.
+  tiers?: (1 | 2)[];
 };
 
-// DB(site_navigations)의 target_type 값 ↔ 기존 NavTabType 매핑.
-// 'tab'은 하위 그룹/드롭다운 없이 바로 이동하는 단일 링크 탭(예: 마이페이지).
-type DbTargetType = "tab" | "sidebar_left" | "sidebar_right" | "dropdown";
+// DB(site_navigations)의 target_types 값(복수) ↔ 기존 NavTabType 매핑.
+// EPIC-138: 예전엔 카테고리 하나가 target_type 하나만 가졌다(배타적) —
+// 이제 여러 플래그를 동시에 선택할 수 있다. 이 파일이 담당하는 "탭 하나의
+// 모양"(NavTabType: link/dropdown/sidebar-left/sidebar-right)은 그 중
+// dropdown/sidebar_left/sidebar_right 세 플래그로만 결정하고(우선순위
+// sidebar_left > sidebar_right > dropdown > 아무것도 없으면 flat link),
+// tier1_tab/tier2_tab/user_menu는 "모양"과 무관한 별개의 노출 위치라
+// NavTab.tiers와 buildNavTree()가 별도로 만드는 userMenuItems로 갈린다.
+export type DbTargetType =
+  | "tier1_tab"
+  | "tier2_tab"
+  | "dropdown"
+  | "sidebar_left"
+  | "sidebar_right"
+  | "user_menu";
 
-function mapTargetType(t: DbTargetType): NavTabType {
-  switch (t) {
-    case "sidebar_left":
-      return "sidebar-left";
-    case "sidebar_right":
-      return "sidebar-right";
-    case "dropdown":
-      return "dropdown";
-    case "tab":
-    default:
-      return "link";
-  }
+function mapTargetTypes(types: DbTargetType[]): NavTabType {
+  if (types.includes("sidebar_left")) return "sidebar-left";
+  if (types.includes("sidebar_right")) return "sidebar-right";
+  if (types.includes("dropdown")) return "dropdown";
+  return "link";
+}
+
+function tiersOf(types: DbTargetType[]): (1 | 2)[] {
+  const tiers: (1 | 2)[] = [];
+  if (types.includes("tier1_tab")) tiers.push(1);
+  if (types.includes("tier2_tab")) tiers.push(2);
+  return tiers;
 }
 
 type SiteNavRow = {
@@ -63,7 +84,7 @@ type SiteNavRow = {
   title: string;
   href: string | null;
   parent_id: string | null;
-  target_type: DbTargetType;
+  target_types: DbTargetType[];
 };
 
 // EPIC-080: 이전엔(EPIC-044) 헤리티지(할머니/할아버지)·주제별 게시판·요일별
@@ -644,7 +665,13 @@ function rankFor(href: string | null, slugToRank: Map<string, number>): number |
   return slugToRank.get(hrefToSlug(href)) ?? null;
 }
 
-function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavTab[] {
+// EPIC-138: fetchNavTabs()가 예전엔 NavTab[] 하나만 돌려줬는데, "사용자
+// 메뉴"(마이페이지 드롭다운 안)에 노출되는 카테고리는 상단 탭 줄/사이드바와
+// 완전히 다른 자리라 NavTab 모양(link/dropdown/sidebar-left/sidebar-right)
+// 으로 표현할 수 없다 — 평범한 NavItem 목록으로 별도로 반환한다.
+export type NavData = { tabs: NavTab[]; userMenuItems: NavItem[] };
+
+function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavData {
   const byParent = new Map<string | null, SiteNavRow[]>();
   for (const row of rows) {
     const list = byParent.get(row.parent_id) ?? [];
@@ -654,8 +681,9 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavT
 
   const topRows = byParent.get(null) ?? [];
 
-  return topRows.map((top) => {
-    const type = mapTargetType(top.target_type);
+  const tabs = topRows.map((top) => {
+    const type = mapTargetTypes(top.target_types);
+    const tiers = tiersOf(top.target_types);
 
     if (type === "link") {
       return {
@@ -664,6 +692,7 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavT
         type,
         href: top.href ?? "#",
         minRankToRead: rankFor(top.href, slugToRank),
+        tiers,
       };
     }
 
@@ -694,6 +723,7 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavT
         href: top.href ?? undefined,
         items,
         minRankToRead: rankFor(top.href ?? null, slugToRank),
+        tiers,
       };
     }
 
@@ -723,17 +753,32 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavT
       href: top.href ?? undefined,
       groups,
       minRankToRead: rankFor(top.href ?? null, slugToRank),
+      tiers,
     };
   });
+
+  // EPIC-138: "사용자 메뉴"로 태그된 최상위 카테고리 — 계정 영역의
+  // "마이페이지" 드롭다운(UserMenuDropdown.tsx)에 상단 탭/사이드바와
+  // 완전히 독립적으로 노출된다. 하위 항목(children)은 이 자리에서는
+  // 다루지 않는다(단순 링크 목록 자리라 서브메뉴 depth를 지원하지 않음).
+  const userMenuItems: NavItem[] = topRows
+    .filter((top) => top.target_types.includes("user_menu"))
+    .map((top) => ({
+      label: top.title,
+      href: top.href ?? "#",
+      minRankToRead: rankFor(top.href, slugToRank),
+    }));
+
+  return { tabs, userMenuItems };
 }
 
 // site_navigations(EPIC-023)에서 활성 상태인 탭/그룹/항목을 조회해 트리로 조립한다.
 // 실패하거나 아직 시드가 적용되지 않은 경우 FALLBACK_NAV_TABS를 반환한다.
-export async function fetchNavTabs(): Promise<NavTab[]> {
+export async function fetchNavTabs(): Promise<NavData> {
   const [navResult, rankResult] = await Promise.all([
     supabase
       .from("site_navigations")
-      .select("id, key, title, href, parent_id, target_type")
+      .select("id, key, title, href, parent_id, target_types")
       .eq("is_active", true)
       .order("sort_order", { ascending: true }),
     // EPIC-088: 메뉴별 티어 접근 제어 — 게이트가 걸린(min_rank_to_read가
@@ -744,7 +789,7 @@ export async function fetchNavTabs(): Promise<NavTab[]> {
   const { data, error } = navResult;
 
   if (error || !data || data.length === 0) {
-    return FALLBACK_NAV_TABS;
+    return { tabs: FALLBACK_NAV_TABS, userMenuItems: [] };
   }
 
   const slugToRank = new Map<string, number>(

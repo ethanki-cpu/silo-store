@@ -271,7 +271,7 @@ export default function AdminNavigationSettingsPage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data, error: fetchError }, navTabs, footerRow] = await Promise.all([
+      const [{ data, error: fetchError }, { tabs: navTabs }, footerRow] = await Promise.all([
         supabase
           .from("site_settings")
           .select("setting_key, setting_value")
@@ -756,13 +756,13 @@ function ControlsPanel({
           <span className="mb-1 block text-gray-600">표시 텍스트(비우면 원래 이름)</span>
           <input value={entry.labelOverride} onChange={(e) => patchTab({ labelOverride: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-gray-600">배치</span>
-          <select value={entry.tier ?? 2} onChange={(e) => patchTab({ tier: Number(e.target.value) === 1 ? 1 : 2 })} className="w-full rounded border border-gray-300 px-2 py-1">
-            <option value={2}>2단(기본 탭 줄)</option>
-            <option value={1}>1단(로고 줄과 겹침)</option>
-          </select>
-        </label>
+        {/* EPIC-138(사용자 지시): 1단/2단 배치는 이제 "사이트 구성 관리 >
+            사이트 메뉴"에서 카테고리별 노출 위치로 직접 고른다(이중 설정
+            방지) — 여기 있던 배치 셀렉트는 제거했다. */}
+        <p className="rounded border border-dashed border-gray-300 px-2 py-1.5 text-[11px] text-gray-500">
+          1단/2단 배치는 <Link href="/admin/site-structure" className="underline">사이트 구성 관리 &gt; 사이트 메뉴</Link>에서
+          이 탭의 노출 위치로 고를 수 있어요.
+        </p>
         <label className="block">
           <span className="mb-1 block text-gray-600">글자 크기(px)</span>
           <input

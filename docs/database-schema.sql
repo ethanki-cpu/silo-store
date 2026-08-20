@@ -834,13 +834,23 @@ create table member_bucket_list (
 -- 상단 탭/사이드바 그룹/링크 항목을 하나의 자기참조 트리로 표현.
 -- parent_id가 null이면 최상위 탭. key는 최상위 탭에만 부여(getActiveNavTabKey
 -- 판정용 문자열, src/lib/navConfig.ts와 1:1 대응) — 하위 그룹/항목은 null.
+-- EPIC-138(2026-08-20, 사용자 지시): 최상위(parent_id is null) 행의 노출
+-- 위치가 하나만 고를 수 있던 target_type(단일 enum) 대신, 여러 위치에
+-- 동시 노출 가능한 target_types(배열)로 바뀌었다 — 6개 값: tier1_tab/
+-- tier2_tab(예전 "탭" 단일값을 폐기하고 상단 탭 1단/2단으로 분리, 예전엔
+-- site_settings.top_tab_style의 별도 tier 필드가 담당하던 이중 설정을
+-- 여기로 통합)/dropdown/sidebar_left/sidebar_right(그대로)/user_menu
+-- (신규 — 계정 영역 "마이페이지" 드롭다운에 노출, src/components/
+-- UserMenuDropdown.tsx). 마이그레이션 시 옛 target_type 컬럼은 되돌리기
+-- 쉽도록 남겨뒀다(더 이상 어떤 코드도 읽지 않는 사실상 죽은 컬럼).
 create table site_navigations (
   id            uuid primary key default gen_random_uuid(),
   key           text unique,
   title         text not null,
   href          text,
   parent_id     uuid references site_navigations(id) on delete cascade,
-  target_type   text not null check (target_type in ('tab','sidebar_left','sidebar_right','dropdown')),
+  target_type   text not null check (target_type in ('tab','sidebar_left','sidebar_right','dropdown')),  -- EPIC-138: 더 이상 코드에서 읽지 않음, 되돌리기용으로만 남겨둠
+  target_types  text[] not null default '{}',  -- EPIC-138: 실제로 쓰이는 컬럼 — tier1_tab/tier2_tab/dropdown/sidebar_left/sidebar_right/user_menu 중 복수 선택
   sort_order    int not null default 0,
   is_active     boolean not null default true,
   topic         varchar,          -- EPIC-035: 주제/태그. 라이브 DB에는 아직 미적용(아래 ALTER TABLE 참고)
@@ -864,6 +874,12 @@ create table site_categories (
   created_at  timestamptz not null default now()
 );
 
+-- EPIC-138(2026-08-20): 아래 시드 덤프는 2026-08-12 시점(target_type 단일
+-- 컬럼 시절) 스냅샷이라 target_types 컬럼 값을 담고 있지 않다 — 이 파일
+-- 전체가 "점-in-time 덤프, 라이브가 SSoT" 원칙이라(파일 상단 캐비어트 참고)
+-- 125행 전체를 다시 마이그레이션해서 고치는 대신 위 CREATE TABLE의
+-- target_types 컬럼 정의와 이 캐비어트만 갱신했다 — 실제 라이브 값은
+-- 항상 Management API로 재조회해 확인할 것.
 -- site_navigations 시드: EPIC-095(요구사항 1.1) — Management API로 라이브 DB를
 -- 직접 재조회해(2026-08-12) 생성한 실제 상태 그대로의 덤프(id 포함, 총 125행 —
 -- 활성 119행 + 비활성 6행). 이전엔 EPIC-019 초기 하드코딩을 그대로 옮긴 가상의

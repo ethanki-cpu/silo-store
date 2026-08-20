@@ -32,6 +32,18 @@
 > `sidebar-left`/`sidebar-right` 분기에서만 조립 결과에 `href`를 담지 않아 상단 탭 클릭도
 > 좌/우 사이드바 패널 헤더 클릭도 전부 무반응이었다 — 그 한 줄을 고치고 `LeftSidebar.tsx`/
 > `RightSidebar.tsx`의 패널 헤더도 `tab.href`가 있으면 `<Link>`로 렌더링하도록 함께 수정했다.
+>
+> **EPIC-138(2026-08-20, 사용자 지시)에서 바뀐 것**: `site_navigations.target_type`(단일값,
+> 배타적 선택)이 `target_types`(배열, 복수 선택 가능)로 바뀌었다. 이제 "모양"(dropdown/
+> sidebar_left/sidebar_right — 아래 표의 `type` 컬럼)과 "1단/2단 상단 탭 배치"(tier1_tab/
+> tier2_tab)는 완전히 독립된 두 축이다 — 예전엔 후자가 `/admin/navigation/settings`("상단 탭
+> 디자인")에 있는 별도 tier 설정이었는데(이중 설정), 이제 "사이트 구성 관리 > 사이트 메뉴"에서
+> 카테고리 자체의 노출 위치로 직접 고른다. 신규 `user_menu` 플래그를 선택하면 계정 영역
+> "마이페이지" 클릭 시 여는 드롭다운(`UserMenuDropdown.tsx`)에 그 카테고리 링크가 추가로
+> 노출된다(상단 탭/사이드바와 완전히 독립적인 별도 자리). 아래 표의 "기본 target"/`type` 열은
+> 여전히 유효하지만(모양은 안 바뀜), 각 탭의 실제 tier1/tier2 소속은 라이브 `target_types` 값을
+> Management API로 재조회해 확인해야 한다(2026-08-20 마이그레이션 기준: 스튜디오/마이 페이지만
+> tier1_tab, 나머지는 tier2_tab).
 
 ## 1. 구조 개요
 

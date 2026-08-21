@@ -6,11 +6,34 @@ import { supabase } from "@/lib/supabaseClient";
 
 const STORAGE_BUCKET = "public-assets";
 
+// HOTFIX-141.3(사용자 신고 — "상단 사이드바 여닫이 트리거 아이콘...기본
+// 이미지가 업로드가 안돼", 실제 alert로 확인된 원인: "Invalid key:
+// top_sidebar_trigger/...ChatGPT Image 2026년 8월 22일 오전 03_59_23.webp"):
+// 이 함수가 모든 업로드(로고/슬라이드/사이드바 아이콘/링크 이미지/폰트 등)의
+// 저장 경로를 `file.name`을 그대로 이어붙여 만드는데, Supabase Storage는
+// S3 호환 오브젝트 키라 한글·공백(특히 ChatGPT 내보내기가 쓰는 좁은
+// 공백문자 등 비-ASCII 공백)이 섞인 파일명을 그대로 넣으면 "Invalid key"로
+// 거부한다. 원본 파일명은 어디에도 노출되지 않는 내부 저장 키일 뿐이라,
+// 사람이 매번 파일명을 영문으로 바꿔 재업로드하게 만드는 대신 여기서
+// 한 번에 안전한 키로 정규화한다 — 확장자는 보존하고 나머지는 영숫자/
+// -/_만 남긴다.
+function sanitizeFileName(name: string): string {
+  const dotIndex = name.lastIndexOf(".");
+  const base = dotIndex > 0 ? name.slice(0, dotIndex) : name;
+  const ext = dotIndex > 0 ? name.slice(dotIndex).replace(/[^a-zA-Z0-9.]/g, "") : "";
+  const safeBase =
+    base
+      .replace(/[^a-zA-Z0-9-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "") || "file";
+  return `${safeBase}${ext}`;
+}
+
 export async function uploadImage(
   file: File,
   folder: string,
 ): Promise<{ url: string | null; error: string | null }> {
-  const path = `${folder}/${Date.now()}-${file.name}`;
+  const path = `${folder}/${Date.now()}-${sanitizeFileName(file.name)}`;
   const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKET)
     .upload(path, file);

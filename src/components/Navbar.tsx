@@ -592,6 +592,49 @@ export function Navbar({
     .sort((a, b) => a.order - b.order)
     .map(({ tab }) => tab);
 
+  // EPIC-084-REVISED: 전역 "글쓰기" 버튼.
+  // HOTFIX-141.2(사용자 신고 — "홈페이지 설정 관리에 '글쓰기' 와 '마이페이지
+  // (드롭다운)' 요소가 사라졌어"): 예전엔 이 버튼이 "마이 페이지" 탭
+  // 렌더링(tab.key === "mypage") 안에 끼워 넣는 방식이었다 — "마이 페이지
+  // 옆"이라는 원래 요구는 만족했지만, 관리자가 "마이 페이지" 탭 자체의
+  // 노출 위치(site_navigations.target_types)를 전부 해제해 탭이 아예
+  // 렌더링되지 않게 되자(예: 계정 영역 드롭다운으로만 쓰고 싶어서) 글쓰기
+  // 버튼까지 부수 효과로 통째로 사라져버렸다 — 두 UI가 같은 "마이페이지"
+  // 라는 이름을 공유할 뿐 실제로는 독립된 요소(하나는 site_navigations
+  // 탭, 하나는 로그인 세션에 묶인 계정 영역 버튼)라 이 결합 자체가
+  // 설계상 취약점이었다. 글쓰기 버튼은 이미 자기 자신의 드래그 위치
+  // (slotKey "write-button")를 저장하므로 특정 탭에 안 붙어도 관리자가
+  // 원하는 자리로 옮길 수 있다 — 탭 렌더링과 완전히 분리해 항상 한 번만
+  // 그린다(tier1Tabs가 아니라 tier2Tabs 뒤에 — 지금까지 "마이 페이지"가
+  // 주로 tier2였던 것과 가장 비슷한 자리).
+  const writeButtonHidden = accountMenuStyleValue?.writeButtonHidden ?? false;
+  const extraWriteButtonIds = accountMenuStyleValue?.extraWriteButtonIds ?? [];
+  function writeButtonNode(slotKey: string, label: string) {
+    return (
+      <HeaderSlot
+        key={slotKey}
+        slotKey={slotKey}
+        label={label}
+        offset={slotOffset(slotKey)}
+        editable={editable}
+        selected={selectedSlotKey === slotKey}
+        onSelect={handleSelectSlot}
+        onOffsetChange={handleSlotOffsetChange}
+        as="span"
+      >
+        <Link href={writeHref} className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}>
+          글쓰기
+        </Link>
+      </HeaderSlot>
+    );
+  }
+  const writeButtonEl = (
+    <>
+      {!writeButtonHidden && writeButtonNode("write-button", "글쓰기")}
+      {extraWriteButtonIds.map((id) => writeButtonNode(`write-button:extra:${id}`, "글쓰기 사본"))}
+    </>
+  );
+
   // EPIC-079-PHASE-4/EPIC-117: 탭 하나(type이 "link"인 단순 링크, 또는
   // 드롭다운/메가메뉴가 있는 버튼)를 렌더링 — 원래 <nav> 안의 map 콜백
   // 이었는데, 1단/2단 두 자리에서 똑같이 재사용하려고 함수로 뽑았다.
@@ -603,51 +646,6 @@ export function Navbar({
     // HOTFIX: hover 모션 CSS는 커스텀 엔트리 여부와 무관하게 모든 탭에
     // 붙으므로(위 topTabStyleCss 참고) 클래스도 항상 적용한다.
     const tabStyleClassName = `silo-top-tab-${topTabClassSuffix(tab.key)}`;
-
-    // EPIC-084-REVISED: 전역 "글쓰기" 버튼 — "마이 페이지" 탭 바로
-    // 오른쪽에 노출한다(요구사항 갱신: 기존 EPIC-084는 왼쪽에 뒀었는데
-    // "마이 페이지 오른쪽"으로 정정됨 — 최종 순서 About Silo | 사일로
-    // 상점 | 살롱데상 | 스튜디오 | 마이 페이지 | 글쓰기). 이 탭 순서가
-    // 항상 고정은 아니지만(§1 문서 기준 DOM 순서일 뿐 site_navigations
-    // sort_order로 바뀔 수 있음) key === "mypage"인 탭 바로 뒤에
-    // 끼워 넣는 것이 "마이 페이지 오른쪽"이라는 요구를 가장 안정적으로
-    // 만족한다.
-    // HOTFIX-137.2(사용자 지시 — "상단탭에 '글쓰기'가 드래그&드랍이
-    // 안돼"): 다른 탭/계정 메뉴 항목과 달리 이 버튼만 HeaderSlot으로
-    // 감싸지 않은 평범한 Link였다 — 편집 모드에서 선택/드래그가 아예
-    // 불가능했던 원인. 전용 slotKey("write-button")로 감싼다.
-    // HOTFIX-141(사용자 지시 — "글쓰기... 같은 '사용자 메뉴' 요소들을
-    // 복제/삭제 하는 기능이 없어"): 계정 영역 5개 항목과 동일한
-    // hidden/extra 모델 — writeButtonHidden으로 숨기고,
-    // extraWriteButtonIds 개수만큼 사본을 더 그린다.
-    const writeButtonHidden = accountMenuStyleValue?.writeButtonHidden ?? false;
-    const extraWriteButtonIds = accountMenuStyleValue?.extraWriteButtonIds ?? [];
-    function writeButtonNode(slotKey: string, label: string) {
-      return (
-        <HeaderSlot
-          key={slotKey}
-          slotKey={slotKey}
-          label={label}
-          offset={slotOffset(slotKey)}
-          editable={editable}
-          selected={selectedSlotKey === slotKey}
-          onSelect={handleSelectSlot}
-          onOffsetChange={handleSlotOffsetChange}
-          as="span"
-        >
-          <Link href={writeHref} className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}>
-            글쓰기
-          </Link>
-        </HeaderSlot>
-      );
-    }
-    const writeButtonEl =
-      tab.key === "mypage" ? (
-        <>
-          {!writeButtonHidden && writeButtonNode("write-button", "글쓰기")}
-          {extraWriteButtonIds.map((id) => writeButtonNode(`write-button:extra:${id}`, "글쓰기 사본"))}
-        </>
-      ) : null;
 
     if (tab.type === "link") {
       const className = `${TAB_BUTTON_BASE} ${
@@ -669,7 +667,6 @@ export function Navbar({
               {tabLabel}
             </GatedNavLink>
           </HeaderSlot>
-          {writeButtonEl}
         </Fragment>
       );
     }
@@ -925,7 +922,6 @@ export function Navbar({
         )}
         </div>
         </HeaderSlot>
-        {writeButtonEl}
       </Fragment>
     );
   }
@@ -1332,6 +1328,9 @@ export function Navbar({
             그 순서 그대로 이 한 줄에 렌더링 — 없으면(기본 상태) 기존
             tier2Tabs 그대로, 100% 이전과 동일하게 동작한다. */}
         {unifiedHeaderItems ?? tier2Tabs.map(renderTab)}
+        {/* HOTFIX-141.2: 이제 "마이 페이지" 탭 렌더링에 더 이상 묶이지
+            않는 독립 요소 — 탭 노출 여부와 무관하게 항상 한 번 그린다. */}
+        {!unifiedHeaderItems && writeButtonEl}
       </nav>
       {/* HOTFIX-137.9: topBarRef 자신이 이미 실 사이트에서는 position:fixed,
           편집 모드에서는 position:relative — 둘 다 유효한 포지셔닝

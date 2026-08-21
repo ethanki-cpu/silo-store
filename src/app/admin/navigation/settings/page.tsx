@@ -813,7 +813,7 @@ export default function AdminNavigationSettingsPage() {
                         ["account:tier", "회원 등급"],
                         ["account:mypage", "마이페이지"],
                         ["account:name", "회원 이름"],
-                        ["account:logout", "로그인/로그아웃"],
+                        ["account:logout", "로그인/로그아웃 (기본 숨김 — 상단 사이드바로 이동)"],
                       ].map(([key, label]) => (
                         <button key={key} type="button" onClick={() => selectSlot(key)} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
                           {label}
@@ -1291,6 +1291,11 @@ function ControlsPanel({
         <p className="text-[11px] text-gray-400">
           관리자 / 회원 등급 / 마이페이지 / 회원 이름 / 로그아웃 — 로그인 상태에 따라 자동으로 나타나는 항목이라 &ldquo;삭제&rdquo;는 데이터를 지우는 게 아니라 숨기는 것이고, &ldquo;복제&rdquo;는 같은 항목을 하나 더 그리는 거예요. 서체/색상/모션 스타일은 전체(원본+사본)에 함께 적용돼요.
         </p>
+        {kind === "logout" && (
+          <p className="rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-700">
+            HOTFIX-141.2: 로그인/로그아웃 버튼은 이제 여기 대신 &ldquo;상단 사이드바&rdquo;(Elements 탭)의 column 1 맨 위에 표시돼요 — 기본적으로 이 계정 영역 자리는 숨김 처리했어요. 계정 영역에도 다시 보이게 하려면 아래 &ldquo;복원&rdquo;을 누르세요.
+          </p>
+        )}
         {hiddenKinds.length > 0 && (
           <div className="rounded border border-gray-200 p-2">
             <p className="mb-1 text-[11px] font-medium text-gray-500">숨긴 항목</p>
@@ -1662,10 +1667,34 @@ function TopSidebarControls({
   const [uploadingBankImage, setUploadingBankImage] = useState(false);
   const [uploadingTriggerField, setUploadingTriggerField] = useState<"triggerIconDefaultUrl" | "triggerIconHoverUrl" | null>(null);
   const [uploadingTopSidebarFont, setUploadingTopSidebarFont] = useState(false);
+  const [uploadingLoginFont, setUploadingLoginFont] = useState(false);
   const config = value[deviceTab];
 
   function patch(next: Partial<TopSidebarValue["pc"]>) {
     setValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...next } }));
+  }
+  // HOTFIX-141.2(사용자 지시 — "로그인 / 로그아웃 버튼... 폰트 파일 업로드,
+  // 폰트 크기, 색깔, hover 모션옵션 을 설정하게 해줘"): 위 patch()와 같은
+  // 모양이지만 loginButtonStyle 서브 객체만 갱신한다.
+  function patchLoginStyle(next: Partial<TopSidebarConfig["loginButtonStyle"]>) {
+    patch({ loginButtonStyle: { ...config.loginButtonStyle, ...next } });
+  }
+  async function handleLoginFontFile(file: File | null) {
+    if (!file) return;
+    setUploadingLoginFont(true);
+    try {
+      const { url, error: uploadErr } = await uploadImage(file, "custom_fonts");
+      if (url) {
+        const entry: CustomFontEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, isActive: true };
+        patchLoginStyle({ customFonts: [...config.loginButtonStyle.customFonts, entry] });
+      } else {
+        alert(`폰트 파일 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+      }
+    } catch (e) {
+      alert(`폰트 파일 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploadingLoginFont(false);
+    }
   }
   function updateLink(id: string, linkPatch: Partial<TopSidebarLink>) {
     patch({ links: config.links.map((l) => (l.id === id ? { ...l, ...linkPatch } : l)) });
@@ -1780,11 +1809,18 @@ function TopSidebarControls({
   async function handleTopSidebarFontFile(file: File | null) {
     if (!file) return;
     setUploadingTopSidebarFont(true);
-    const { url } = await uploadImage(file, "custom_fonts");
-    setUploadingTopSidebarFont(false);
-    if (url) {
-      const entry: CustomFontEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, isActive: true };
-      patch({ customFonts: [...config.customFonts, entry] });
+    try {
+      const { url, error: uploadErr } = await uploadImage(file, "custom_fonts");
+      if (url) {
+        const entry: CustomFontEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, isActive: true };
+        patch({ customFonts: [...config.customFonts, entry] });
+      } else {
+        alert(`폰트 파일 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+      }
+    } catch (e) {
+      alert(`폰트 파일 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploadingTopSidebarFont(false);
     }
   }
   function addChild(linkId: string) {
@@ -1856,6 +1892,80 @@ function TopSidebarControls({
         <label className="block">
           <span className="mb-1 block text-gray-600">링크 hover 모션</span>
           <select value={config.hoverMotion} onChange={(e) => patch({ hoverMotion: e.target.value as TopSidebarConfig["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
+            {TAB_HOVER_MOTIONS.map((m) => (
+              <option key={m} value={m}>
+                {TAB_HOVER_MOTION_LABELS[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {/* HOTFIX-141.2(사용자 지시 — "지금 현재 '로그인/로그아웃' 버튼을
+          없애고 '상단 사이드바' 에 로그인 / 로그아웃 버튼이 보이면
+          좋겠어. 그리고 그 버튼을 내가 마음대로 설정할수 있게, 폰트 파일
+          업로드, 폰트 크기, 색깔, hover 모션옵션 을 설정하게 해줘"):
+          계정 영역에 있던 로그인/로그아웃 버튼을 여기(column 1 맨 위)로
+          옮겼다 — 패널 전체 서체와 독립된 자체 폰트/크기/색/모션. */}
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <p className="font-medium text-gray-600">로그인/로그아웃 버튼</p>
+        <p className="text-[11px] text-gray-400">헤더 계정 영역 대신 여기(column 1 맨 위)에 항상 표시돼요. 로그인 상태면 &ldquo;로그아웃&rdquo;, 아니면 &ldquo;로그인&rdquo; 링크가 자동으로 나타나요.</p>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
+          <input value={config.loginButtonStyle.fontFamily} onChange={(e) => patchLoginStyle({ fontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <div className="space-y-1.5">
+          <p className="mb-1 block text-gray-600">커스텀 폰트 파일 ({config.loginButtonStyle.customFonts.length}개)</p>
+          {config.loginButtonStyle.customFonts.map((font) => (
+            <div key={font.id} className="rounded border border-gray-200 p-1.5">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-1 text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={font.isActive}
+                    onChange={(e) =>
+                      patchLoginStyle({
+                        customFonts: config.loginButtonStyle.customFonts.map((f) => (f.id === font.id ? { ...f, isActive: e.target.checked } : f)),
+                      })
+                    }
+                  />
+                  사용
+                </label>
+                <button
+                  type="button"
+                  onClick={() => patchLoginStyle({ customFonts: config.loginButtonStyle.customFonts.filter((f) => f.id !== font.id) })}
+                  className="text-[11px] text-red-500 hover:underline"
+                >
+                  삭제
+                </button>
+              </div>
+              <p className="truncate text-[10px] text-gray-400" title={font.url}>{font.url}</p>
+            </div>
+          ))}
+          <label className="block">
+            <span className="mb-1 block text-gray-600">폰트 파일 추가 {uploadingLoginFont && "(업로드 중...)"}</span>
+            <input type="file" accept=".woff,.woff2,.ttf,.otf" disabled={uploadingLoginFont} onChange={(e) => handleLoginFontFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          </label>
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">글자 크기(px)</span>
+          <input
+            type="number"
+            min={8}
+            max={48}
+            value={config.loginButtonStyle.fontSizePx ?? ""}
+            placeholder="기본값"
+            onChange={(e) => patchLoginStyle({ fontSizePx: e.target.value ? Number(e.target.value) : null })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">색상</span>
+          <input type="color" value={config.loginButtonStyle.color || "#111827"} onChange={(e) => patchLoginStyle({ color: e.target.value })} className="h-8 w-full rounded border border-gray-300" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">hover 모션</span>
+          <select value={config.loginButtonStyle.hoverMotion} onChange={(e) => patchLoginStyle({ hoverMotion: e.target.value as TopSidebarConfig["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
             {TAB_HOVER_MOTIONS.map((m) => (
               <option key={m} value={m}>
                 {TAB_HOVER_MOTION_LABELS[m]}

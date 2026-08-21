@@ -24,6 +24,7 @@
 // 벗어나지 않게).
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import type { TopSidebarConfig } from "@/lib/topSidebarSettings";
@@ -54,6 +55,9 @@ export const FIXED_LINKS = [
 ];
 
 const LINK_HOVER_CLASS = "silo-top-sidebar-link";
+// HOTFIX-141.2: 계정 영역에서 옮겨온 로그인/로그아웃 버튼 전용 hover 모션
+// 클래스 — 패널 전체 링크(LINK_HOVER_CLASS)와 별도로 다른 모션을 걸 수 있다.
+const LOGIN_BUTTON_CLASS = "silo-top-sidebar-login-btn";
 
 export function TopSidebarPanel({
   config,
@@ -78,6 +82,14 @@ export function TopSidebarPanel({
   onSelect?: () => void;
 }) {
   const { session, member } = useAuth();
+  const router = useRouter();
+  // HOTFIX-141.2: Navbar.tsx의 handleLogout과 동일한 동작 — 계정 영역에서
+  // 옮겨왔을 뿐 로그아웃 자체의 의미는 그대로 유지한다.
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
+  }
   const [followerCount, setFollowerCount] = useState<number | null>(null);
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -189,6 +201,48 @@ export function TopSidebarPanel({
     [activeFonts],
   );
 
+  // HOTFIX-141.2: 로그인/로그아웃 버튼 전용 서체/크기/색상/hover 모션 —
+  // 위 패널 전체 서체(resolvedFontFamily)와 완전히 독립된 자체 폰트 업로드를
+  // 지원한다(사용자 지시 — "그 버튼을 내가 마음대로 설정할수 있게, 폰트
+  // 파일 업로드, 폰트 크기, 색깔, hover 모션옵션 을 설정하게 해줘").
+  const loginStyle = config.loginButtonStyle;
+  const activeLoginFonts = useMemo(
+    () => loginStyle.customFonts.filter((f) => f.isActive && f.url),
+    [loginStyle.customFonts],
+  );
+  const resolvedLoginFontFamily = useMemo(() => {
+    if (activeLoginFonts.length === 0) return loginStyle.fontFamily || undefined;
+    return activeLoginFonts
+      .map((f) => `'silo-top-sidebar-login-font-${f.id}'`)
+      .concat(loginStyle.fontFamily ? [loginStyle.fontFamily] : ["inherit"])
+      .join(", ");
+  }, [activeLoginFonts, loginStyle.fontFamily]);
+  const loginFontFaceCss = useMemo(
+    () =>
+      activeLoginFonts
+        .map((f) => `@font-face { font-family: 'silo-top-sidebar-login-font-${f.id}'; src: url('${f.url}'); font-display: swap; }`)
+        .join("\n"),
+    [activeLoginFonts],
+  );
+  const loginMotionCss = useMemo(
+    () => tabHoverMotionCss(LOGIN_BUTTON_CLASS, loginStyle.hoverMotion),
+    [loginStyle.hoverMotion],
+  );
+  const loginButtonInlineStyle = {
+    fontFamily: resolvedLoginFontFamily,
+    fontSize: loginStyle.fontSizePx ? `${loginStyle.fontSizePx}px` : undefined,
+    color: loginStyle.color || undefined,
+  };
+  const loginLogoutButton = session && member ? (
+    <button type="button" onClick={handleLogout} className={`block text-left font-medium ${LOGIN_BUTTON_CLASS}`} style={loginButtonInlineStyle}>
+      로그아웃
+    </button>
+  ) : (
+    <Link href="/login" onClick={onClose} className={`block font-medium ${LOGIN_BUTTON_CLASS}`} style={loginButtonInlineStyle}>
+      로그인
+    </Link>
+  );
+
   return (
     <div
       ref={panelRef}
@@ -217,6 +271,8 @@ export function TopSidebarPanel({
     >
       {motionCss && <style>{motionCss}</style>}
       {fontFaceCss && <style>{fontFaceCss}</style>}
+      {loginMotionCss && <style>{loginMotionCss}</style>}
+      {loginFontFaceCss && <style>{loginFontFaceCss}</style>}
       <button
         type="button"
         data-panel-close
@@ -253,6 +309,12 @@ export function TopSidebarPanel({
             </div>,
             // column 1: 실제 세션 데이터 + 고정 바로가기.
             <div key="col-1" className="shrink-0 space-y-3 text-sm" style={{ width: config.columnWidthsPx[1] }}>
+              {/* HOTFIX-141.2(사용자 지시 — "지금 현재 '로그인/로그아웃'
+                  버튼을 없애고 '상단 사이드바' 에 로그인 / 로그아웃 버튼이
+                  보이면 좋겠어"): 계정 영역에 있던 로그인/로그아웃 버튼을
+                  여기로 옮겼다 — 로그인 여부와 무관하게 항상 column 1 맨
+                  위에 보인다. */}
+              {loginLogoutButton}
               {session && member ? (
             <>
               <p className="font-medium" style={{ color: config.textColor || "#111827" }}>{member.name}</p>
@@ -285,11 +347,7 @@ export function TopSidebarPanel({
               </div>
               <p className="text-gray-400">메시지 (준비 중)</p>
             </>
-          ) : (
-            <Link href="/login" onClick={onClose} className="block font-medium hover:underline" style={{ color: config.textColor || "#111827" }}>
-              로그인
-            </Link>
-          )}
+          ) : null}
           <div className="space-y-1.5 border-t border-gray-100 pt-2">
             {/* HOTFIX-141.1: column 2로 옮긴(hiddenFixedLinkHrefs에 포함된)
                 항목은 여기서 더 이상 그리지 않는다 — column 2 쪽에 관리자가

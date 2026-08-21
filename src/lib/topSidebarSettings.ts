@@ -11,6 +11,22 @@
 import { DEFAULT_TAB_HOVER_MOTION, type TabHoverMotion } from "./tabHoverMotion";
 import type { CustomFontEntry } from "./mainLogoSettings";
 
+// HOTFIX-141.2(사용자 지시 — "지금 현재 '로그인/로그아웃' 버튼을 없애고
+// '상단 사이드바' 에 로그인 / 로그아웃 버튼이 보이면 좋겠어. 그리고 그
+// 버튼을 내가 마음대로 설정할수 있게, 폰트 파일 업로드, 폰트 크기, 색깔,
+// hover 모션옵션 을 설정하게 해줘"): 계정 영역의 "account:logout"
+// HeaderSlot(로그인/로그아웃 겸용)을 상단 사이드바 column 1로 옮긴다.
+// 이 버튼만의 독립된 스타일 — 패널 전체 서체(위 fontFamily/customFonts)와
+// 별개로 이 버튼에만 다른 폰트 파일을 걸 수 있어야 하므로 자체
+// customFonts 배열을 둔다(mainLogoSettings.customFonts와 동일 패턴).
+export type LoginButtonStyle = {
+  fontFamily: string;
+  customFonts: CustomFontEntry[];
+  fontSizePx: number | null;
+  color: string;
+  hoverMotion: TabHoverMotion;
+};
+
 export type TopSidebarChildLink = {
   id: string;
   label: string;
@@ -85,9 +101,20 @@ export type TopSidebarConfig = {
   // 새 항목을 만들어 넣는다(TopSidebarControls의 "column 2로 이동"
   // 버튼) — 결과적으로 "옮긴" 것과 동일한 효과.
   hiddenFixedLinkHrefs: string[];
+  loginButtonStyle: LoginButtonStyle;
 };
 
 export type TopSidebarValue = { pc: TopSidebarConfig; mobile: TopSidebarConfig };
+
+export function defaultLoginButtonStyle(): LoginButtonStyle {
+  return {
+    fontFamily: "",
+    customFonts: [],
+    fontSizePx: null,
+    color: "",
+    hoverMotion: DEFAULT_TAB_HOVER_MOTION,
+  };
+}
 
 export function defaultTopSidebarConfig(): TopSidebarConfig {
   return {
@@ -104,6 +131,7 @@ export function defaultTopSidebarConfig(): TopSidebarConfig {
     columnWidthsPx: [160, 192, 224, 224],
     columnOrder: [0, 1, 2, 3],
     hiddenFixedLinkHrefs: [],
+    loginButtonStyle: defaultLoginButtonStyle(),
   };
 }
 
@@ -153,6 +181,19 @@ function normalizeConfig(raw: unknown): TopSidebarConfig {
       return fallback.columnOrder;
     })(),
     hiddenFixedLinkHrefs: Array.isArray(v?.hiddenFixedLinkHrefs) ? (v!.hiddenFixedLinkHrefs as string[]) : fallback.hiddenFixedLinkHrefs,
+    loginButtonStyle: normalizeLoginButtonStyle(v?.loginButtonStyle),
+  };
+}
+
+function normalizeLoginButtonStyle(raw: unknown): LoginButtonStyle {
+  const v = raw as Partial<LoginButtonStyle> | null;
+  const fallback = defaultLoginButtonStyle();
+  return {
+    fontFamily: v?.fontFamily ?? fallback.fontFamily,
+    customFonts: Array.isArray(v?.customFonts) ? (v!.customFonts as CustomFontEntry[]) : fallback.customFonts,
+    fontSizePx: typeof v?.fontSizePx === "number" ? v.fontSizePx : fallback.fontSizePx,
+    color: v?.color ?? fallback.color,
+    hoverMotion: v?.hoverMotion ?? fallback.hoverMotion,
   };
 }
 

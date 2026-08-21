@@ -25,7 +25,12 @@ type Guides = { v: number[]; h: number[] };
 // 가까워지면 안내선을 그린다. 스냅(자동 보정)까지는 하지 않고 시각적
 // 안내만 — 강제로 위치를 튕기면 "드래그가 먹통"처럼 느껴질 위험이 있어
 // 순수 피드백으로만 범위를 좁혔다.
-const GUIDE_THRESHOLD_PX = 4;
+// HOTFIX-141.2(사용자 지시 — "가이드라인에 'center' 맞추기와 다른 요소들과의
+// align이 가능하는걸 원해"): HOTFIX-141.1은 안내선을 순수 시각 피드백으로만
+// 넣고 실제로 위치를 보정하지는 않았다(강제로 튕기면 드래그가 먹통처럼
+// 느껴질까 봐) — 이번엔 그 요청대로 실제로 달라붙게 만든다. 이 반경 안에
+// 들어오면 그 축으로 정확히 스냅하고 안내선도 그 자리에 뜬다.
+const SNAP_THRESHOLD_PX = 6;
 
 function collectGuideTargets(selfEl: Element): { vCenters: number[]; hCenters: number[] } {
   const vCenters: number[] = [];
@@ -116,18 +121,40 @@ export function HeaderSlot({
   function moveDrag(e: ReactPointerEvent<HTMLButtonElement>) {
     const drag = dragRef.current;
     if (!drag) return;
-    const nextDx = drag.startDx + (e.clientX - drag.startX);
-    const nextDy = drag.startDy + (e.clientY - drag.startY);
-    onOffsetChange(slotKey, { dxPx: nextDx, dyPx: nextDy, raised: true });
+    let nextDx = drag.startDx + (e.clientX - drag.startX);
+    let nextDy = drag.startDy + (e.clientY - drag.startY);
 
     if (wrapperRef.current) {
       const centerX = drag.baseLeft + drag.width / 2 + nextDx;
       const centerY = drag.baseTop + drag.height / 2 + nextDy;
       const { vCenters, hCenters } = collectGuideTargets(wrapperRef.current);
-      const v = vCenters.filter((x) => Math.abs(x - centerX) < GUIDE_THRESHOLD_PX);
-      const h = hCenters.filter((y) => Math.abs(y - centerY) < GUIDE_THRESHOLD_PX);
-      setGuides({ v, h });
+
+      // 여러 후보가 반경 안에 들어오면 가장 가까운 것 하나에만 달라붙는다
+      // (여러 축에 동시에 끌려가면 오히려 어디에 붙었는지 헷갈린다).
+      let bestV: number | null = null;
+      let bestVDist = SNAP_THRESHOLD_PX;
+      for (const x of vCenters) {
+        const d = Math.abs(x - centerX);
+        if (d < bestVDist) {
+          bestVDist = d;
+          bestV = x;
+        }
+      }
+      let bestH: number | null = null;
+      let bestHDist = SNAP_THRESHOLD_PX;
+      for (const y of hCenters) {
+        const d = Math.abs(y - centerY);
+        if (d < bestHDist) {
+          bestHDist = d;
+          bestH = y;
+        }
+      }
+      if (bestV !== null) nextDx += bestV - centerX;
+      if (bestH !== null) nextDy += bestH - centerY;
+      setGuides({ v: bestV !== null ? [bestV] : [], h: bestH !== null ? [bestH] : [] });
     }
+
+    onOffsetChange(slotKey, { dxPx: nextDx, dyPx: nextDy, raised: true });
   }
   function endDrag() {
     dragRef.current = null;

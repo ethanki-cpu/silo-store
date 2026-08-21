@@ -161,9 +161,20 @@ export function HeaderSlot({
     setGuides({ v: [], h: [] });
   }
 
+  // HOTFIX-141.8(사용자 신고 — "'관리자' 랑 '스튜디오' 가 클릭이 안되잖아":
+  // 실제로 재현해보니 dxPx/dyPx가 전부 0이어도 여전히 막혀 있었다 — 예전엔
+  // "한 번이라도 드래그된 적 있으면"(value.raised, 드래그 종료 시 영구
+  // true로 저장됨) z-index:30을 계속 유지했는데, 로고처럼 flex-1로 헤더
+  // 폭 전체를 차지하는 슬롯이 이 상태가 되면 실제 위치는 그대로여도
+  // z-index만 남아 시각적으로 안 보여도 자기 박스 범위 안의 다른(격상 안 된)
+  // 요소 클릭을 전부 가로챈다 — "관리자"/"스튜디오"가 반복해서 다시
+  // 막히던 진짜 원인이었다(DB의 오프셋 값을 아무리 0,0으로 되돌려도
+  // raised:true만 남아있으면 재발). 이제 "실제로 옮겨진 상태"(moved) 또는
+  // "지금 선택된 상태"(selected)일 때만 격상한다 — 과거에 한 번 드래그됐던
+  // 이력 자체는 더 이상 격상 이유가 아니다.
   const wrapperStyle: CSSProperties = {
     ...style,
-    ...(moved || (value.raised && editable) ? { position: "relative", zIndex: 30 } : undefined),
+    ...(moved || (selected && editable) ? { position: "relative", zIndex: 30 } : undefined),
     ...(moved ? { transform: `translate(${value.dxPx}px, ${value.dyPx}px)` } : undefined),
   };
 

@@ -52,6 +52,7 @@ import {
   useAnimations,
   Stars,
   Sparkles,
+  Outlines,
   type CameraControls as CameraControlsImpl,
 } from "@react-three/drei";
 import CameraControlsClass from "camera-controls";
@@ -330,17 +331,25 @@ function PlanetMaterial({
   customTextureUrl,
   textureOpacity,
   radius,
+  selected = false,
 }: {
   baseColor: string;
   customTextureUrl: string;
   textureOpacity: number;
   radius: number;
+  // HOTFIX-140.4(사용자 지시 — "행성이 클릭되면... 표면에 얇은
+  // 하이라이트가 되게만 해줘"): 행성은 항상 단일 <mesh>(sphereGeometry
+  // 하나)라 drei의 <Outlines/>를 그대로 쓸 수 있다(임의 다중 메시
+  // glTF와 달리 group.parent.geometry가 항상 존재).
+  selected?: boolean;
 }) {
   const blended = usePlanetBlendedTexture(baseColor, customTextureUrl, textureOpacity);
+  const glowOpacity = useContext(SelectionGlowOpacityContext);
   return (
     <mesh>
       <sphereGeometry args={[radius, 48, 48]} />
       <meshStandardMaterial map={blended} />
+      {selected && <Outlines thickness={0.035} color={PASTEL_SKY_BLUE} opacity={glowOpacity} transparent />}
     </mesh>
   );
 }
@@ -615,7 +624,7 @@ function UniverseObjectModel({
   // SILO(반지름 ~2.0)처럼 큰 행성 위에서는 상대적으로 지나치게 작았다
   // — My Page 행성(반지름 ~1.0)에서 자연스럽던 크기를 기준으로 반지름에
   // 비례하는 비율로 바꿔, 어느 행성에 놓든 상대적으로 같은 크기로 보이게 한다.
-  const { normalized, baseOffsetY, boundingRadius } = useMemo(() => {
+  const { normalized, baseOffsetY } = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
     const size = box.getSize(new THREE.Vector3());
@@ -623,21 +632,30 @@ function UniverseObjectModel({
     const targetSize = radius * 0.45;
     clone.scale.setScalar(targetSize / maxDim);
     const rescaledBox = new THREE.Box3().setFromObject(clone);
-    const rescaledSize = rescaledBox.getSize(new THREE.Vector3());
     return {
       normalized: clone,
       baseOffsetY: -rescaledBox.min.y,
-      boundingRadius: Math.max(rescaledSize.x, rescaledSize.y, rescaledSize.z, 0.2) * 0.65,
     };
   }, [scene, radius]);
 
-  // HOTFIX(사용자 지시 — "하늘색 구체가 커졌다 작아졌다 하는데, opacity를
-  // 설정할 수 있게 해주고, 그냥 오브제 주위로 파스텔 하늘색 layer가
-  // 생기길 원해"): 예전엔 useFrame으로 scale/opacity를 매 프레임 맥동시켰다
-  // — 이제 정적인(맥동 없는) 파스텔 하늘색 레이어로 바꾸고, 불투명도는
+  // HOTFIX-140.4(사용자 지시 — "하늘색 구체가 안보이게 해줘... 표면에
+  // 얇은 하이라이트가 되게만 해줘"): 예전엔 오브젝트를 통째로 감싸는
+  // 커다란 구체였다 — ModelSelectionOutline(위 정의, BackSide 셸 기법)로
+  // 교체해 실제 표면을 따라가는 얇은 테두리만 남긴다. 불투명도는 여전히
   // 관리자가 UniverseSettingsPanel에서 저장한 config.selectionGlowOpacity
   // (Context로 전달, 위 SelectionGlowOpacityContext 참고)를 그대로 쓴다.
   const glowOpacity = useContext(SelectionGlowOpacityContext);
+
+  // HOTFIX-140.4(사용자 지시 — "오브제들이 반짝이는 효과가 없는거
+  // 같은데... 그 모션 효과를 여러가지 오브제마다 설정할수 있게 해줘"):
+  // registerRef가 달린 바깥 group(드래그 이동/카메라 포커스 기준점)은
+  // 절대 안 건드리고, 그 안에 한 겹 더 감싼 group(innerRef)만
+  // bob/spin으로 움직인다 — 표면 배치 좌표·카메라 거리 계산과 완전히
+  // 무관하게 안전히 얹을 수 있다.
+  const { innerRef, materialsRef } = useObjectMotion(obj.motion, obj.id);
+  useEffect(() => {
+    materialsRef.current = collectTransparentMaterials(normalized);
+  }, [normalized, materialsRef]);
 
   return (
     <group
@@ -652,27 +670,10 @@ function UniverseObjectModel({
       onPointerOver={() => (document.body.style.cursor = "pointer")}
       onPointerOut={() => (document.body.style.cursor = "auto")}
     >
-      <primitive object={normalized} position={[0, baseOffsetY, 0]} />
-      {selected && (
-        <>
-          <mesh position={[0, baseOffsetY + boundingRadius * 0.5, 0]}>
-            <sphereGeometry args={[boundingRadius * 1.4, 16, 16]} />
-            <meshBasicMaterial
-              color={PASTEL_SKY_BLUE}
-              transparent
-              opacity={glowOpacity}
-              toneMapped={false}
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-          <mesh position={[0, baseOffsetY + 0.25, 0]}>
-            <ringGeometry args={[0.28, 0.32, 24]} />
-            <meshBasicMaterial color={PASTEL_SKY_BLUE} transparent opacity={0.9} toneMapped={false} side={THREE.DoubleSide} />
-          </mesh>
-        </>
-      )}
+      <group ref={innerRef}>
+        <primitive object={normalized} position={[0, baseOffsetY, 0]} />
+        {selected && <ModelSelectionOutline source={normalized} opacity={glowOpacity} position={[0, baseOffsetY, 0]} />}
+      </group>
     </group>
   );
 }
@@ -747,6 +748,101 @@ function hashRandom01(i: number): number {
   return x - Math.floor(x);
 }
 
+function hashSeedFromKey(key: string): number {
+  let seed = 0;
+  for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) % 100000;
+  return hashRandom01(seed);
+}
+
+// HOTFIX-140.4(사용자 지시 — "오브제를 클릭했을때, 하늘색 구체가
+// 안보이게 해줘... 표면에 얇은 하이라이트가 되게만 해줘"): 예전 선택
+// 표시는 오브젝트를 통째로 감싸는 커다란 구체(SpaceObjectGlow 등)라
+// 실제 오브젝트가 작으면 "그냥 하늘색 공"처럼 보였다. drei의 <Outlines/>
+// 는 <mesh> 하나(geometry 하나)에만 붙는 헬퍼라(내부적으로
+// group.parent.geometry를 직접 읽음) 여러 메시로 이뤄진 임의의 업로드
+// glTF 전체엔 그대로 못 쓴다 — 대신 이 컴포넌트가 직접 "전체를 살짝
+// 확대한 뒷면(BackSide) 셸" 기법(toon 아웃라인의 표준 트릭)으로 흉내
+// 낸다: 원본을 통째로 복제해 모든 메시의 재질을 얇고 반투명한 단색
+// BackSide 재질로 바꾸고 살짝(scale) 키워서 원본 뒤에 겹쳐 그리면,
+// 원본 실루엣 가장자리를 따라 얇은 테두리만 남는다 — 메시 개수/구조와
+// 무관하게 항상 정확히 "그 오브젝트의 실제 표면"을 따라간다.
+function ModelSelectionOutline({
+  source,
+  opacity,
+  position = [0, 0, 0],
+  thickness = 0.035,
+}: {
+  source: THREE.Object3D;
+  opacity: number;
+  /** <primitive object={source}>에 준 것과 동일한 position을 그대로 넘겨야 원본과 정확히 겹친다. */
+  position?: [number, number, number];
+  thickness?: number;
+}) {
+  const outline = useMemo(() => {
+    const clone = source.clone(true);
+    clone.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.material = new THREE.MeshBasicMaterial({
+          color: PASTEL_SKY_BLUE,
+          transparent: true,
+          opacity,
+          side: THREE.BackSide,
+          depthWrite: false,
+          toneMapped: false,
+        });
+      }
+    });
+    return clone;
+  }, [source, opacity]);
+  return <primitive object={outline} position={position} scale={1 + thickness} />;
+}
+
+// HOTFIX-140.4(사용자 지시 — "오브제들이 반짝이는 효과가 없는거 같은데,
+// 그 모션 효과를 여러가지 오브제마다 설정할수 있게 해줘"): 스케일은
+// 절대 건드리지 않는다 — ObjectMotion 타입 주석 참고(카메라 줌 거리가
+// 바운딩 반지름에 비례해 계산되므로). twinkle은 materialsRef에 채워진
+// 실제 재질들의 opacity를, bob/spin은 innerRef(원본을 감싸는 내부
+// group, 바깥쪽 registerRef/드래그용 group과는 별개)의 position.y/
+// rotation.y만 매 프레임 갱신한다.
+function useObjectMotion(motion: string | undefined, seedKey: string) {
+  const seed = useMemo(() => hashSeedFromKey(seedKey), [seedKey]);
+  const innerRef = useRef<THREE.Group>(null);
+  const materialsRef = useRef<THREE.Material[]>([]);
+  useFrame(({ clock }) => {
+    const m = motion ?? "none";
+    if (m === "none") return;
+    const t = clock.getElapsedTime();
+    if (m === "twinkle") {
+      const op = THREE.MathUtils.clamp(0.5 + Math.sin(t * 1.4 + seed * 10) * 0.5, 0.08, 1);
+      materialsRef.current.forEach((mat) => {
+        (mat as THREE.MeshBasicMaterial).opacity = op;
+      });
+    } else if (m === "bob" && innerRef.current) {
+      innerRef.current.position.y = Math.sin(t * 0.9 + seed * 10) * 0.12;
+    } else if (m === "spin" && innerRef.current) {
+      innerRef.current.rotation.y += 0.012 + seed * 0.01;
+    }
+  });
+  return { innerRef, materialsRef };
+}
+
+function collectTransparentMaterials(root: THREE.Object3D): THREE.Material[] {
+  const materials: THREE.Material[] = [];
+  root.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.material) return;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    mats.forEach((m) => {
+      if (m && "opacity" in m) {
+        (m as THREE.Material).transparent = true;
+        materials.push(m as THREE.Material);
+      }
+    });
+  });
+  return materials;
+}
+
 // 두 행성 중간 지점을 중심으로 넓게 흩뿌린다 — id 문자열을 해시해 시드로
 // 쓰므로, position이 없는 한(드래그해 옮기기 전) 같은 오브젝트는 항상
 // 같은 자리에 뜬다(새로고침해도 흩어진 자리가 바뀌지 않도록).
@@ -771,26 +867,6 @@ function spaceObjectDefaultPosition(id: string, index = 0, scatterSeed = 0): [nu
   ];
 }
 
-function SpaceObjectGlow({ boundingRadius }: { boundingRadius: number }) {
-  // HOTFIX(사용자 지시 — 정적 파스텔 하늘색 레이어, opacity 설정 가능):
-  // UniverseObjectModel과 동일한 이유로 맥동 애니메이션 제거.
-  const glowOpacity = useContext(SelectionGlowOpacityContext);
-  return (
-    <mesh>
-      <sphereGeometry args={[boundingRadius * 1.6, 16, 16]} />
-      <meshBasicMaterial
-        color={PASTEL_SKY_BLUE}
-        transparent
-        opacity={glowOpacity}
-        toneMapped={false}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
-  );
-}
-
 function SpaceObjectModel({
   obj,
   position,
@@ -807,7 +883,7 @@ function SpaceObjectModel({
   index: number;
 }) {
   const { scene } = useGLTF(obj.url);
-  const { normalized, centerOffset, boundingRadius } = useMemo(() => {
+  const { normalized, centerOffset } = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
     const size = box.getSize(new THREE.Vector3());
@@ -815,14 +891,13 @@ function SpaceObjectModel({
     const targetSize = 0.45;
     clone.scale.setScalar(targetSize / maxDim);
     const rescaledBox = new THREE.Box3().setFromObject(clone);
-    const rescaledSize = rescaledBox.getSize(new THREE.Vector3());
     const center = rescaledBox.getCenter(new THREE.Vector3());
     return {
       normalized: clone,
       centerOffset: [-center.x, -center.y, -center.z] as [number, number, number],
-      boundingRadius: Math.max(rescaledSize.x, rescaledSize.y, rescaledSize.z, 0.2) * 0.65,
     };
   }, [scene]);
+  const glowOpacity = useContext(SelectionGlowOpacityContext);
 
   // 소행성처럼 천천히 스스로 굴러가는(자전) 느낌 — 행성 자전과 무관하게
   // 각 오브젝트가 독립적으로 아주 느리게 돈다.
@@ -843,6 +918,14 @@ function SpaceObjectModel({
     }
   });
 
+  // HOTFIX-140.4: 위 spinRef는 항상 켜져 있는 기본 자전이고, 이 hook은
+  // 관리자가 오브젝트별로 고른 추가 모션(none/twinkle/bob/spin)을 그
+  // 안쪽에 한 겹 더 얹는다 — 서로 독립적으로 동작.
+  const { innerRef, materialsRef } = useObjectMotion(obj.motion, `${obj.id}#${index}`);
+  useEffect(() => {
+    materialsRef.current = collectTransparentMaterials(normalized);
+  }, [normalized, materialsRef]);
+
   return (
     <group
       ref={registerRef}
@@ -856,9 +939,11 @@ function SpaceObjectModel({
       onPointerOut={() => (document.body.style.cursor = "auto")}
     >
       <group ref={spinRef}>
-        <primitive object={normalized} position={centerOffset} />
+        <group ref={innerRef}>
+          <primitive object={normalized} position={centerOffset} />
+          {selected && <ModelSelectionOutline source={normalized} opacity={glowOpacity} position={centerOffset} />}
+        </group>
       </group>
-      {selected && <SpaceObjectGlow boundingRadius={boundingRadius} />}
     </group>
   );
 }
@@ -880,6 +965,7 @@ function SpaceObjectSprite({
 }) {
   const texture = useTexture(obj.url);
   const materialRef = useRef<THREE.SpriteMaterial>(null);
+  const glowOpacity = useContext(SelectionGlowOpacityContext);
   // HOTFIX(사용자 신고 — "프리셋 배경에서 오브젝트가 이상한 점
   // 그리드처럼 보인다"): "개수"로 복제한 사본들이 obj.id만 시드로 써서
   // 전부 완전히 같은 크기로, 완전히 같은 위상으로 동시에 반짝였다 —
@@ -894,14 +980,22 @@ function SpaceObjectSprite({
     return h;
   }, [obj.id, index]);
   const scaleJitter = 0.7 + hashRandom01(seed + 500) * 0.6;
-  // 별/은하수/별똥별 등은 반짝이는 편이 그 의미가 잘 살아서(사용자 지시
-  // — 다른 반짝이는 오브젝트들과 동일한 트윙클 언어) 밝기를 사인파로
-  // 맥동시킨다.
+  // HOTFIX-140.4(사용자 지시 — "그 모션 효과를 여러가지 오브제마다
+  // 설정할수 있게 해줘"): 예전엔 트윙클이 하드코딩이라 끌 수도, 다른
+  // 모션으로 바꿀 수도 없었다 — obj.motion이 없으면(관리자가 아직
+  // 안 고름) 기존과 동일하게 "twinkle"을 기본값으로 써서 지금까지
+  // 보이던 모습이 그대로 유지된다.
+  const motion = obj.motion ?? "twinkle";
   useFrame(({ clock }) => {
     if (!materialRef.current) return;
+    if (motion !== "twinkle") {
+      if (materialRef.current.opacity !== 1) materialRef.current.opacity = 1;
+      return;
+    }
     const t = clock.getElapsedTime();
     materialRef.current.opacity = 0.7 + Math.sin(t * 1.4 + seed) * 0.3;
   });
+  const { innerRef } = useObjectMotion(motion === "twinkle" ? undefined : motion, `${obj.id}#${index}`);
 
   const baseScale = obj.scale * 3 * scaleJitter;
   return (
@@ -915,10 +1009,21 @@ function SpaceObjectSprite({
       onPointerOver={() => (document.body.style.cursor = "pointer")}
       onPointerOut={() => (document.body.style.cursor = "auto")}
     >
-      <sprite scale={[baseScale, baseScale, 1]}>
-        <spriteMaterial ref={materialRef} map={texture} transparent toneMapped={false} depthWrite={false} />
-      </sprite>
-      {selected && <SpaceObjectGlow boundingRadius={baseScale * 0.5} />}
+      <group ref={innerRef}>
+        {/* HOTFIX-140.4(사용자 지시 — "하늘색 구체가 안보이게 해줘...
+            표면에 얇은 하이라이트가 되게만 해줘"): 감싸는 구체 대신,
+            같은 이미지를 살짝 더 크게 하늘색으로 틴트해 뒤에 겹쳐 그린다
+            — 텍스처의 알파(투명) 모양을 그대로 재사용해 이미지의 실제
+            보이는 실루엣을 정확히 따라가는 얇은 테두리가 된다. */}
+        {selected && (
+          <sprite scale={[baseScale * 1.18, baseScale * 1.18, 1]} renderOrder={-1}>
+            <spriteMaterial map={texture} color={PASTEL_SKY_BLUE} transparent opacity={glowOpacity} toneMapped={false} depthWrite={false} />
+          </sprite>
+        )}
+        <sprite scale={[baseScale, baseScale, 1]}>
+          <spriteMaterial ref={materialRef} map={texture} transparent toneMapped={false} depthWrite={false} />
+        </sprite>
+      </group>
     </group>
   );
 }
@@ -983,6 +1088,7 @@ function CentralPlanet({
   onFocus,
   onOpenSettings,
   onClipsLoaded,
+  selected,
   selectedObjectId,
   onSelectObject,
   onObjectError,
@@ -993,6 +1099,7 @@ function CentralPlanet({
   onFocus: () => void;
   onOpenSettings: () => void;
   onClipsLoaded: (clips: string[]) => void;
+  selected: boolean;
   selectedObjectId: string | null;
   onSelectObject: (id: string) => void;
   onObjectError: (id: string) => void;
@@ -1014,7 +1121,7 @@ function CentralPlanet({
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
-        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={PLANET_RADIUS} />
+        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={PLANET_RADIUS} selected={selected} />
         {/* HOTFIX-123(사용자 지시 — "오브제가 행성과 함께 돌아가도록"):
             장식 오브젝트를 행성 자전 그룹 안에 로컬 좌표로 중첩시켜 행성이
             자전하면 표면에 붙은 채 함께 돈다. */}
@@ -1054,6 +1161,7 @@ function UserPlanet({
   onFocus,
   onOpenSettings,
   onClipsLoaded,
+  selected,
   selectedObjectId,
   onSelectObject,
   onObjectError,
@@ -1064,6 +1172,7 @@ function UserPlanet({
   onFocus: () => void;
   onOpenSettings: () => void;
   onClipsLoaded: (clips: string[]) => void;
+  selected: boolean;
   selectedObjectId: string | null;
   onSelectObject: (id: string) => void;
   onObjectError: (id: string) => void;
@@ -1091,7 +1200,7 @@ function UserPlanet({
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
-        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={USER_PLANET_RADIUS} />
+        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={USER_PLANET_RADIUS} selected={selected} />
         <UniverseObjectsLayer
           objects={planetConfig.objects}
           radius={USER_SURFACE_RADIUS}
@@ -1218,12 +1327,13 @@ function ConnectingThread({ color }: { color: string }) {
 // 파티클 기반 감성 우주 배경 — Stars/Sparkles(drei) + 절차적 별똥별.
 // ============================================================
 
-const SHOOTING_STAR_COUNT = 4;
-
-function ShootingStars() {
+// HOTFIX-140.4(사용자 지시 — "'우주'인데 별똥별 효과... 옵션도 추가해줘
+// 랜덤으로 보이게 그리고 내가 설정할수 있게"): 별똥별 자체는 이미 있었지만
+// 개수 4개 고정 + on/off·색상·속도 조절이 전혀 없었다 — config로 받는다.
+function ShootingStars({ count, color, speedMultiplier }: { count: number; color: string; speedMultiplier: number }) {
   const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
   const stateRef = useRef(
-    Array.from({ length: SHOOTING_STAR_COUNT }, (_, i) => ({
+    Array.from({ length: count }, (_, i) => ({
       t: 1 + i * 1.7,
       active: false,
       start: new THREE.Vector3(),
@@ -1252,7 +1362,7 @@ function ShootingStars() {
         return;
       }
       s.t += delta;
-      const speed = 16;
+      const speed = 16 * speedMultiplier;
       mesh.position.copy(s.start).addScaledVector(s.dir, s.t * speed);
       mesh.lookAt(mesh.position.clone().add(s.dir));
       mesh.visible = true;
@@ -1267,9 +1377,10 @@ function ShootingStars() {
 
   return (
     <>
-      {/* react-hooks/refs: 렌더 중엔 상수(SHOOTING_STAR_COUNT)만 읽고,
-          실제 상태는 stateRef(ref)에 두되 렌더 출력에 영향을 주지 않는다. */}
-      {Array.from({ length: SHOOTING_STAR_COUNT }, (_, i) => i).map((i) => (
+      {/* react-hooks/refs: 렌더 중엔 count(그리고 관리자가 저장한 값이라
+          바뀔 수 있음)만 읽고, 실제 상태는 stateRef(ref)에 두되 렌더
+          출력에 영향을 주지 않는다. */}
+      {Array.from({ length: count }, (_, i) => i).map((i) => (
         <mesh
           key={i}
           ref={(el) => {
@@ -1278,7 +1389,7 @@ function ShootingStars() {
           visible={false}
         >
           <boxGeometry args={[0.6, 0.015, 0.015]} />
-          <meshBasicMaterial color="#fff8e0" transparent opacity={1} toneMapped={false} />
+          <meshBasicMaterial color={color} transparent opacity={1} toneMapped={false} />
         </mesh>
       ))}
     </>
@@ -1297,12 +1408,23 @@ function disableRaycast(points: THREE.Points | null) {
   if (points) points.raycast = () => {};
 }
 
-function UniverseParticles() {
+function UniverseParticles({
+  shootingStars,
+}: {
+  shootingStars: UniverseConfig["shootingStars"];
+}) {
   return (
     <>
       <Stars ref={disableRaycast} radius={80} depth={45} count={4500} factor={3} saturation={0} fade speed={0.4} />
       <Sparkles ref={disableRaycast} count={140} scale={20} size={2.2} speed={0.25} color="#ffe9c2" />
-      <ShootingStars />
+      {shootingStars.enabled && (
+        // key={count}: count가 바뀔 때(관리자가 슬라이더 조정) 내부
+        // stateRef/meshRefs가 초기 개수로 고정돼 있어 그냥 리렌더로는
+        // 새 개수가 반영되지 않는다 — 컴포넌트를 통째로 리마운트해
+        // 새 count로 다시 초기화한다(별똥별은 상태가 없는 순수 장식이라
+        // 리마운트해도 아무 부작용 없음).
+        <ShootingStars key={shootingStars.count} count={shootingStars.count} color={shootingStars.color} speedMultiplier={shootingStars.speedMultiplier} />
+      )}
     </>
   );
 }
@@ -1562,6 +1684,7 @@ function Scene({
   onUserClipsLoaded,
   onFocusPlanet,
   onOpenPlanetSettings,
+  openPlanetSettings,
   onObjectError,
   selectedPlanetId,
   selectedObjectId,
@@ -1584,6 +1707,12 @@ function Scene({
   onUserClipsLoaded: (clips: string[]) => void;
   onFocusPlanet: (center: THREE.Vector3, radius: number) => void;
   onOpenPlanetSettings: (planetId: PlanetId) => void;
+  // HOTFIX-140.4(사용자 지시 — "행성이 클릭되면, 클릭됐다는걸 알수
+  // 있게... 표면에 얇은 하이라이트가 되게만 해줘"): selectedPlanetId는
+  // "이 행성 위의 어떤 오브젝트가 선택됐는지"를 나타내는 값이라(행성
+  // 자체를 클릭해도 안 바뀜) 행성 자체의 하이라이트에는 못 쓴다 — 그
+  // 행성의 설정 패널이 열려 있는 동안만 켜지는 이 값을 대신 쓴다.
+  openPlanetSettings: PlanetId | null;
   onObjectError: (planetId: PlanetId, id: string) => void;
   selectedPlanetId: PlanetId | null;
   selectedObjectId: string | null;
@@ -1617,7 +1746,7 @@ function Scene({
       <directionalLight position={[4, 6, 5]} intensity={0.9} color="#ffe6c4" />
       <directionalLight position={[-5, -2, -4]} intensity={0.3} color="#c9d8ff" />
 
-      <UniverseParticles />
+      <UniverseParticles shootingStars={config.shootingStars} />
 
       <CentralPlanet
         planetConfig={config.planets.silo}
@@ -1625,6 +1754,7 @@ function Scene({
         onFocus={() => onFocusPlanet(SILO_CENTER, PLANET_RADIUS)}
         onOpenSettings={() => onOpenPlanetSettings("silo")}
         onClipsLoaded={onSiloClipsLoaded}
+        selected={openPlanetSettings === "silo"}
         selectedObjectId={selectedPlanetId === "silo" ? selectedObjectId : null}
         onSelectObject={(id) => onSelectObject("silo", id)}
         onObjectError={(id) => onObjectError("silo", id)}
@@ -1640,6 +1770,7 @@ function Scene({
         onFocus={() => onFocusPlanet(USER_CENTER, USER_PLANET_RADIUS)}
         onOpenSettings={() => onOpenPlanetSettings("user")}
         onClipsLoaded={onUserClipsLoaded}
+        selected={openPlanetSettings === "user"}
         selectedObjectId={selectedPlanetId === "user" ? selectedObjectId : null}
         onSelectObject={(id) => onSelectObject("user", id)}
         onObjectError={(id) => onObjectError("user", id)}
@@ -2327,6 +2458,7 @@ export function AboutSiloUniverse() {
             onUserClipsLoaded={setUserClips}
             onFocusPlanet={handleFocusPlanet}
             onOpenPlanetSettings={handleOpenPlanetSettings}
+            openPlanetSettings={openPlanetSettings}
             onObjectError={handleObjectError}
             selectedPlanetId={selectedPlanetId}
             selectedObjectId={selectedObjectId}

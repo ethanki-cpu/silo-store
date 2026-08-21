@@ -197,12 +197,12 @@ export function UniverseSettingsPanel({
           <span className="text-white/40">{config.orbitSpeed.toFixed(2)}</span>
         </section>
 
-        {/* HOTFIX(사용자 지시 — "오브제 선택 시 하늘색 구체의 opacity를
-            설정할 수 있게 해줘"): 오브젝트 선택 시 나타나는 파스텔 하늘색
-            레이어(더 이상 맥동하지 않는 정적 레이어, AboutSiloUniverse.tsx
-            참고)의 불투명도. */}
+        {/* HOTFIX-140.4(사용자 지시 — "오브제를 클릭했을때, 하늘색
+            구체가 안보이게 해줘... 표면에 얇은 하이라이트가 되게만
+            해줘"): 감싸는 구체는 없어지고 표면을 따라가는 얇은 외곽선이
+            됐다 — 이 슬라이더는 이제 그 외곽선의 불투명도를 조절한다. */}
         <section>
-          <p className={SECTION_TITLE}>오브젝트 선택 레이어 불투명도</p>
+          <p className={SECTION_TITLE}>선택 시 표면 하이라이트 불투명도</p>
           <input
             type="range"
             min={0}
@@ -213,6 +213,65 @@ export function UniverseSettingsPanel({
             onChange={(e) => onChange({ selectionGlowOpacity: Number(e.target.value) })}
           />
           <span className="text-white/40">{config.selectionGlowOpacity.toFixed(2)}</span>
+        </section>
+
+        {/* HOTFIX-140.4(사용자 지시 — "'우주'인데 별똥별 효과... 옵션도
+            추가해줘 랜덤으로 보이게 그리고 내가 설정할수 있게"): 별똥별
+            자체는 이미 있었지만 개수 4개 고정 + on/off·색상·속도 조절이
+            전혀 없었다. */}
+        <section>
+          <p className={SECTION_TITLE}>별똥별</p>
+          <label className="mb-1.5 flex items-center gap-2 text-[10px] text-white/70">
+            <input
+              type="checkbox"
+              checked={config.shootingStars.enabled}
+              onChange={(e) => onChange({ shootingStars: { ...config.shootingStars, enabled: e.target.checked } })}
+            />
+            켜기(무작위 간격으로 계속 떨어져요)
+          </label>
+          {config.shootingStars.enabled && (
+            <div className="space-y-1.5">
+              <label className={FIELD_LABEL}>
+                개수
+                <input
+                  type="number"
+                  min={0}
+                  max={20}
+                  value={config.shootingStars.count}
+                  onChange={(e) =>
+                    onChange({ shootingStars: { ...config.shootingStars, count: Math.max(0, Math.min(20, Number(e.target.value) || 0)) } })
+                  }
+                  className={`mt-1 ${INPUT}`}
+                />
+              </label>
+              <label className={FIELD_LABEL}>
+                속도
+                <input
+                  type="range"
+                  min={0.3}
+                  max={3}
+                  step={0.1}
+                  className="mt-1 w-full"
+                  value={config.shootingStars.speedMultiplier}
+                  onChange={(e) => onChange({ shootingStars: { ...config.shootingStars, speedMultiplier: Number(e.target.value) } })}
+                />
+                <span className="text-white/40">{config.shootingStars.speedMultiplier.toFixed(1)}배</span>
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="color"
+                  className="h-7 w-9 shrink-0 rounded border border-white/15 bg-transparent"
+                  value={config.shootingStars.color}
+                  onChange={(e) => onChange({ shootingStars: { ...config.shootingStars, color: e.target.value } })}
+                />
+                <input
+                  className={INPUT}
+                  value={config.shootingStars.color}
+                  onChange={(e) => onChange({ shootingStars: { ...config.shootingStars, color: e.target.value } })}
+                />
+              </div>
+            </div>
+          )}
         </section>
 
         <section>

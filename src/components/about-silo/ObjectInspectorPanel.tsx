@@ -19,11 +19,22 @@
 // 그대로 쓴다).
 import { uploadFile } from "@/lib/storage";
 import { supabase } from "@/lib/supabaseClient";
-import type { UniverseObject } from "@/lib/aboutSiloUniverseConfig";
+import type { UniverseObject, ObjectMotion } from "@/lib/aboutSiloUniverseConfig";
 import { useEffect, useState } from "react";
 import { useDraggablePanel } from "./useDraggablePanel";
 
 type BoardOption = { slug: string; name: string };
+
+// HOTFIX-140.4(사용자 지시 — "오브제들이 반짝이는 효과가 없는거 같은데,
+// 그 모션 효과를 여러가지 오브제마다 설정할수 있게 해줘"): 3D 오브젝트
+// 유휴 모션 프리셋 — 스케일은 카메라 줌 거리 계산과 얽혀 있어 일부러
+// 빠졌다(aboutSiloUniverseConfig.ts의 ObjectMotion 주석 참고).
+const MOTION_OPTIONS: { value: ObjectMotion; label: string }[] = [
+  { value: "none", label: "없음" },
+  { value: "twinkle", label: "반짝임(투명도)" },
+  { value: "bob", label: "위아래 부유" },
+  { value: "spin", label: "제자리 회전" },
+];
 
 export function ObjectInspectorPanel({
   object,
@@ -107,6 +118,20 @@ export function ObjectInspectorPanel({
             onChange={(e) => onChange({ scale: Number(e.target.value) || 0.3 })}
           />
           <span className="text-white/50">{object.scale.toFixed(2)}</span>
+        </label>
+        <label className="block text-[10px] text-white/60">
+          모션 효과
+          <select
+            className="mt-1 w-full rounded border border-white/15 bg-black/30 px-1.5 py-1 text-[11px] text-white"
+            value={object.motion ?? "none"}
+            onChange={(e) => onChange({ motion: e.target.value as ObjectMotion })}
+          >
+            {MOTION_OPTIONS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="block text-[10px] text-white/60">
           클릭 시 줌인 거리(배율, 비우면 자동)

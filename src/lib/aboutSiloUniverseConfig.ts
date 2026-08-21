@@ -14,6 +14,17 @@
 // 묶음(PlanetConfig)을 갖도록 `planets: { silo, user }`로 재구성한다. 기존
 // 저장된 평평한 필드는 normalizeUniverseConfig()가 자동으로 planets.silo로
 // 마이그레이션해 하위 호환한다(라이브 DB의 기존 저장값이 깨지지 않도록).
+// HOTFIX-140.4(사용자 지시 — "오브제들이 반짝이는 효과가 없는거 같은데,
+// 그 모션 효과를 여러가지 오브제마다 설정할수 있게 해줘"): 오브제(행성
+// 표면 장식/우주 공간 오브젝트 공통)마다 고를 수 있는 유휴 모션 프리셋 —
+// tabHoverMotion.ts가 이미 쓰는 "여러 프리셋 중 선택" 패턴을 3D 오브젝트에
+// 적용한다. "pulse"(크기 변화)는 일부러 넣지 않았다 — 카메라 클릭-줌
+// 거리가 오브젝트의 실제 바운딩 반지름에 비례해 계산되는데(HOTFIX-132.1),
+// 스케일을 주기적으로 바꾸면 그 계산이 매 프레임 어긋나 줌 거리가
+// 흔들린다. 그래서 이 4개는 전부 위치/회전/불투명도만 바꾼다(스케일은
+// 절대 안 건드림) — 카메라 로직과 완전히 독립적으로 안전하게 얹을 수 있다.
+export type ObjectMotion = "none" | "twinkle" | "bob" | "spin";
+
 export type UniverseObject = {
   id: string;
   /** 업로드된 .glb 모델의 public URL. */
@@ -48,6 +59,12 @@ export type UniverseObject = {
   // 참고) — 값을 넣으면 그 배율(바운딩 반지름의 몇 배 거리에서 멈출지)
   // 로 강제 오버라이드한다.
   focusDistanceMultiplier: number | null;
+  // HOTFIX-140.4: 없으면(undefined) 렌더링하는 쪽이 종류별 기본값으로
+  // 폴백한다(우주 공간 이미지 빌보드는 "twinkle", 그 외엔 "none") —
+  // normalize에서 강제로 채우지 않고 렌더 시점 기본값으로 남겨, 관리자가
+  // 명시적으로 "없음"을 고른 것과 "아직 한 번도 안 고른 것"을 구분하지
+  // 않아도 되게 한다(어차피 의미상 차이가 없음).
+  motion?: ObjectMotion;
 };
 
 // HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할 수 있는
@@ -106,16 +123,30 @@ export type UniverseConfig = {
   // 실뜨개 연결선 색상.
   lineColor: string;
 
-  // HOTFIX(사용자 지시 — "선택된 오브제 주위 하늘색 구체의 opacity를
-  // 설정할 수 있게 해달라"): 오브젝트 선택 시 나타나는 파스텔 하늘색
-  // 선택 레이어(정적, 더 이상 맥동하지 않음 — AboutSiloUniverse.tsx의
-  // UniverseObjectModel/SpaceObjectGlow 참고)의 불투명도(0~1).
+  // HOTFIX-140.4(사용자 지시 — "오브제를 클릭했을때, 하늘색 구체가
+  // 안보이게 해줘... 표면에 얇은 하이라이트가 되게만 해줘"): 필드 이름은
+  // 하위 호환을 위해 그대로 뒀지만 의미가 "감싸는 구체 opacity"에서
+  // "표면을 따라 그리는 얇은 외곽선(drei Outlines)의 opacity"로 바뀌었다
+  // — AboutSiloUniverse.tsx의 SelectionOutline 참고.
   selectionGlowOpacity: number;
 
   // HOTFIX-123: 행성별 설정(이름/색/텍스처/캐릭터/오브젝트/위성 소스+디자인).
   planets: {
     silo: PlanetConfig;
     user: PlanetConfig;
+  };
+
+  // HOTFIX-140.4(사용자 지시 — "'우주'인데 별똥별 효과... 옵션도
+  // 추가해줘 랜덤으로 보이게 그리고 내가 설정할수 있게"): 별똥별은
+  // 이전부터 코드에 있었지만(ShootingStars, AboutSiloUniverse.tsx)
+  // 개수 4개 고정 + on/off·색상·속도 설정이 전혀 없었다 — 이제 관리자가
+  // 직접 조절한다.
+  shootingStars: {
+    enabled: boolean;
+    count: number;
+    color: string;
+    /** 배속 — 1이면 기존 기본 속도 그대로. */
+    speedMultiplier: number;
   };
 
   // HOTFIX(사용자 지시 — "별, 은하수, 별똥별, asteroid 등등 우주에
@@ -164,10 +195,15 @@ export function defaultUniverseConfig(): UniverseConfig {
       silo: defaultPlanetConfig("SILO", "#e3a874"),
       user: defaultPlanetConfig("My Page", "#c3d8b8"),
     },
+    // 기존에 하드코딩돼 있던 값(SHOOTING_STAR_COUNT=4, #fff8e0) 그대로
+    // 기본값으로 삼아 — 저장된 적 없는 사이트는 지금까지와 똑같이 보인다.
+    shootingStars: { enabled: true, count: 4, color: "#fff8e0", speedMultiplier: 1 },
     spaceObjects: [],
     autoSaveEnabled: true,
   };
 }
+
+const VALID_OBJECT_MOTIONS: ObjectMotion[] = ["none", "twinkle", "bob", "spin"];
 
 function normalizeObject(raw: unknown): UniverseObject {
   const o = (raw ?? {}) as Partial<UniverseObject>;
@@ -182,6 +218,7 @@ function normalizeObject(raw: unknown): UniverseObject {
     link: o.link ?? "",
     boardSlug: o.boardSlug ?? "",
     focusDistanceMultiplier: typeof o.focusDistanceMultiplier === "number" ? o.focusDistanceMultiplier : null,
+    motion: VALID_OBJECT_MOTIONS.includes(o.motion as ObjectMotion) ? o.motion : undefined,
   };
 }
 
@@ -236,5 +273,12 @@ export function normalizeUniverseConfig(raw: unknown): UniverseConfig {
           scatterSeed: typeof (o as Partial<SpaceObject>)?.scatterSeed === "number" ? (o as Partial<SpaceObject>).scatterSeed! : 0,
         }))
       : defaults.spaceObjects,
+    shootingStars: {
+      enabled: typeof value.shootingStars?.enabled === "boolean" ? value.shootingStars.enabled : defaults.shootingStars.enabled,
+      count: typeof value.shootingStars?.count === "number" ? value.shootingStars.count : defaults.shootingStars.count,
+      color: typeof value.shootingStars?.color === "string" && value.shootingStars.color ? value.shootingStars.color : defaults.shootingStars.color,
+      speedMultiplier:
+        typeof value.shootingStars?.speedMultiplier === "number" ? value.shootingStars.speedMultiplier : defaults.shootingStars.speedMultiplier,
+    },
   };
 }

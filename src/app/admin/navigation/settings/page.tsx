@@ -337,10 +337,32 @@ function FooterCraftControls() {
   );
 }
 
+// HOTFIX-140.3(사용자 지시 — "기존 preview 도 너무 작아서 안보이니까,
+// preview 위에 마우스를 hover 하면 더 크게 보이게 해줘. 슬라이드 쇼의
+// 이미지들도 마찬가지야"): 이 컴포넌트가 로고/슬라이드/여백 배경/사이드바
+// 아이콘/상단 사이드바 이미지 뱅크·링크 이미지까지 이 화면의 모든 이미지
+// 썸네일이 공유하는 곳이라 여기 한 곳만 고치면 전부 적용된다. 확대
+// 미리보기는 position:fixed로 뷰포트 기준 중앙에 띄운다 — 이 패널
+// 자체가 overflow-y-auto라 absolute였다면 스크롤 클리핑에 잘렸을 것.
 function ImageThumb({ url, alt }: { url: string; alt: string }) {
+  const [hovering, setHovering] = useState(false);
   if (!url) return null;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt={alt} className="mt-1 h-14 w-14 rounded border border-gray-200 object-cover" />;
+  return (
+    <div
+      className="relative mt-1 inline-block"
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt={alt} className="h-14 w-14 rounded border border-gray-200 object-cover" />
+      {hovering && (
+        <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={alt} className="max-h-[80vh] max-w-[80vw] rounded-lg border-4 border-white object-contain shadow-2xl" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdminNavigationSettingsPage() {

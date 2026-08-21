@@ -794,7 +794,11 @@ export function Navbar({
           // 다음 Tab이 자연스럽게 안쪽 링크로 이어진다(JS state 없이
           // 순수 CSS로, EPIC-041-042-HOTFIX가 피하려던 JS hover 버그를
           // 재도입하지 않음).
-          <div className="hidden group-hover/tab:block group-focus-within/tab:block absolute left-0 top-full pt-4 z-40">
+          <div
+            className={`hidden group-hover/tab:block group-focus-within/tab:block absolute top-full pt-4 z-40 ${
+              tabStyleEntry?.dropdownAlign === "right" ? "right-0" : "left-0"
+            }`}
+          >
             {isMega ? (
               // HOTFIX-137.5: 메가 드롭다운 — 컬럼(그룹 또는 1차 항목)을
               // 전부 나란히 펼쳐, 마우스를 올리지 않아도 하위 항목까지
@@ -896,7 +900,11 @@ export function Navbar({
                           pl-2가 그룹 행↔플라이아웃 사이의 브릿지 역할.
                           hasItems일 때만 렌더링(위 HOTFIX-096 참고). */}
                       {hasItems && (
-                        <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
+                        <div
+                          className={`hidden group-hover/row:block group-focus-within/row:block absolute top-0 z-50 ${
+                            tabStyleEntry?.dropdownAlign === "right" ? "right-full pr-2" : "left-full pl-2"
+                          }`}
+                        >
                           <div
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
                             style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
@@ -933,7 +941,11 @@ export function Navbar({
                           <span>{item.label}</span>
                           <span className="text-gray-400 text-xs">›</span>
                         </GatedNavLink>
-                        <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
+                        <div
+                          className={`hidden group-hover/row:block group-focus-within/row:block absolute top-0 z-50 ${
+                            tabStyleEntry?.dropdownAlign === "right" ? "right-full pr-2" : "left-full pl-2"
+                          }`}
+                        >
                           <div
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
                             style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
@@ -1176,10 +1188,36 @@ export function Navbar({
         style={mainLogo?.rowHeightPx ? { minHeight: mainLogo.rowHeightPx } : undefined}
       >
         {/* EPIC-039: 로고 이미지를 중앙에 두고 좌/우 텍스트를 대칭으로
-            배치 — 양옆을 동일한 flex-1 컨테이너로 감싸 텍스트 길이가 달라도
-            로고 자체는 항상 가운데 유지된다. 이 대칭 레이아웃이 EPIC-034의
-            좌/중앙/우 "정렬 위치"(align)를 대체하므로 align은 더 이상 쓰지
-            않는다(구버전 데이터 호환을 위해 필드 자체는 남겨둠). */}
+            배치하던 원래 설계 — 양옆을 동일한 flex-1 컨테이너로 감싸
+            텍스트 길이가 달라도 로고가 항상 가운데 유지되게 했다.
+            HOTFIX-141.10(사용자 신고 — "모바일 preview 에 메인 로고
+            왼쪽 오른쪽에 I'm your Silo 안나오는거 고쳐줘, 그리고 차라리
+            모바일에서는 메인로고 양옆의 텍스트를 독립적으로 움직일수
+            있게 해줘 드래그 & 드롭으로"): 이 flex-1/min-w-0 조합은 로고
+            그래픽(shrink-0, 안 줄어듦)이 좁은 화면(모바일 390px)에서
+            남는 공간을 다 차지해버리면 두 텍스트가 폭 0으로 완전히
+            찌그러지는 문제가 있었다 — "안 보인다"가 실제로는 렌더링은
+            되는데 너비가 0이라 보이는 픽셀이 없었던 것. 좌/우 텍스트를
+            로고 자체(여전히 flex-1 — tier1 탭/계정 영역을 오른쪽으로
+            미는 역할은 그대로 유지)에서 완전히 분리해 각자 독립된
+            HeaderSlot(다른 헤더 요소와 동일한 자유 드래그)으로 만들었다
+            — 더 이상 flex-1 형제에 눌려 찌그러지지 않고, PC/모바일 각각
+            원하는 자리로 직접 옮길 수 있다. */}
+        {mainLogo?.leftText && (
+          <HeaderSlot
+            slotKey="logo-left-text"
+            label="로고 왼쪽 텍스트"
+            offset={slotOffset("logo-left-text")}
+            editable={editable}
+            selected={selectedSlotKey === "logo-left-text"}
+            onSelect={handleSelectSlot}
+            onOffsetChange={handleSlotOffsetChange}
+            as="span"
+            className="shrink-0 whitespace-nowrap self-center"
+          >
+            <span style={logoSideTextStyle}>{mainLogo.leftText}</span>
+          </HeaderSlot>
+        )}
         <HeaderSlot
           slotKey="logo"
           label="로고"
@@ -1188,11 +1226,8 @@ export function Navbar({
           selected={selectedSlotKey === "logo"}
           onSelect={handleSelectSlot}
           onOffsetChange={handleSlotOffsetChange}
-          className="flex items-center flex-1 min-w-0 gap-3"
+          className="flex items-center justify-center flex-1 min-w-0"
         >
-          <div className="flex-1 min-w-0 text-right truncate" style={logoSideTextStyle}>
-            {mainLogo?.leftText}
-          </div>
           <Link href="/" className="font-bold shrink-0">
             {mainLogo?.type === "image" && mainLogo.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -1206,10 +1241,22 @@ export function Navbar({
               mainLogo?.text || DEFAULT_LOGO_TEXT
             )}
           </Link>
-          <div className="flex-1 min-w-0 text-left truncate" style={logoSideTextStyle}>
-            {mainLogo?.rightText}
-          </div>
         </HeaderSlot>
+        {mainLogo?.rightText && (
+          <HeaderSlot
+            slotKey="logo-right-text"
+            label="로고 오른쪽 텍스트"
+            offset={slotOffset("logo-right-text")}
+            editable={editable}
+            selected={selectedSlotKey === "logo-right-text"}
+            onSelect={handleSelectSlot}
+            onOffsetChange={handleSlotOffsetChange}
+            as="span"
+            className="shrink-0 whitespace-nowrap self-center"
+          >
+            <span style={logoSideTextStyle}>{mainLogo.rightText}</span>
+          </HeaderSlot>
+        )}
 
         {/* EPIC-118(사용자 지시): 이전엔 이 자리를 absolute+right-4로 페이지
             맨 오른쪽에 고정했는데, 로그인 상태(관리자/등급/이름/로그아웃

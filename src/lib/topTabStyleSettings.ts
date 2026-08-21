@@ -54,6 +54,15 @@ export type TopTabStyleEntry = {
   dropdownCustomFonts?: CustomFontEntry[];
   dropdownFontSizePx?: number | null;
   dropdownColor?: string;
+  // HOTFIX-141.10(사용자 신고 — "모바일 preview 에, 'about silo' '사일로
+  // 상점', '살롱데상' '온라인 도슨트' 드롭다운이 잘 안보이는 문제"):
+  // 폭을 줄여도(dropdownWidthPx) 화면 오른쪽 끝에 가까운 탭은 여전히
+  // `left-0`(트리거 왼쪽 끝에 맞춰 오른쪽으로 펼침) 기준이라 넘칠 수
+  // 있다 — 실측해보니 맨 오른쪽 탭("온라인 도슨트")의 드롭다운이 모바일
+  // 390px 프레임에서 102px이나 오른쪽으로 넘쳤다. "right"를 고르면
+  // 트리거 오른쪽 끝에 맞춰 왼쪽으로 펼쳐(`right-0`) 화면 오른쪽 가장자리
+  // 탭에 쓸 수 있다. 없으면 기존 왼쪽 정렬 그대로.
+  dropdownAlign?: "left" | "right";
 };
 
 export type TopTabStyleConfig = {

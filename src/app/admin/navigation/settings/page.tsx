@@ -442,6 +442,7 @@ export default function AdminNavigationSettingsPage() {
   const heroSlideshow = heroSlideshowValue[deviceTab];
   const headerPositions = headerPositionsValue[deviceTab];
   const topSidebar = topSidebarValue[deviceTab];
+  const mainLogoForDevice = mainLogoValue[deviceTab];
 
   // HOTFIX-141: 전역 실행취소/다시실행 — 위 7개 설정 state를 하나의
   // 스냅샷으로 묶어 되돌린다. footer(Craft.js)/topNavRows(site_navigations)는
@@ -827,6 +828,16 @@ export default function AdminNavigationSettingsPage() {
                       <button type="button" onClick={() => selectSlot("logo")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
                         로고
                       </button>
+                      {mainLogoForDevice.leftText && (
+                        <button type="button" onClick={() => selectSlot("logo-left-text")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                          로고 왼쪽 텍스트
+                        </button>
+                      )}
+                      {mainLogoForDevice.rightText && (
+                        <button type="button" onClick={() => selectSlot("logo-right-text")} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
+                          로고 오른쪽 텍스트
+                        </button>
+                      )}
                       {topNavRows.map((tab) => (
                         <button
                           key={tab.key}
@@ -1167,6 +1178,27 @@ function ControlsPanel({
     );
   }
 
+  if (selectedSlotKey === "logo-left-text" || selectedSlotKey === "logo-right-text") {
+    const isLeft = selectedSlotKey === "logo-left-text";
+    return (
+      <div className="space-y-3 text-xs">
+        <p className="text-sm font-semibold text-gray-700">로고 {isLeft ? "왼쪽" : "오른쪽"} 텍스트</p>
+        <p className="text-[11px] text-gray-400">
+          HOTFIX-141.10: 로고 그래픽과 더 이상 폭을 나눠 쓰지 않는 독립 요소예요 — 다른 헤더 요소처럼 자유롭게 드래그해서 옮기세요(모바일에서 특히 유용해요).
+        </p>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">텍스트</span>
+          <input
+            value={isLeft ? mainLogo.leftText : mainLogo.rightText}
+            onChange={(e) => patchLogo(isLeft ? { leftText: e.target.value } : { rightText: e.target.value })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+        {positionSection}
+      </div>
+    );
+  }
+
   if (selectedSlotKey.startsWith("tab:")) {
     const tabKey = selectedSlotKey.slice("tab:".length);
     const topTabStyle = topTabStyleValue[deviceTab];
@@ -1276,6 +1308,17 @@ function ControlsPanel({
           <div className="space-y-2 border-t border-gray-200 pt-3">
             <p className="font-medium text-gray-600">드롭다운 / 하위 카테고리</p>
             <p className="text-[11px] text-gray-400">모바일처럼 화면이 좁을 때 하위 카테고리가 화면 밖으로 잘려 안 보이면 폭을 줄여보세요(1차 드롭다운과 2차 하위 카테고리 둘 다 이 값을 써요).</p>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">펼치는 방향(화면 오른쪽 끝에 가까운 탭은 &ldquo;오른쪽 기준&rdquo;으로 바꾸면 왼쪽으로 펼쳐져 안 잘려요)</span>
+              <select
+                value={entry.dropdownAlign ?? "left"}
+                onChange={(e) => patchTab({ dropdownAlign: e.target.value as TopTabStyleEntry["dropdownAlign"] })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              >
+                <option value="left">왼쪽 기준(오른쪽으로 펼침) — 기본값</option>
+                <option value="right">오른쪽 기준(왼쪽으로 펼침)</option>
+              </select>
+            </label>
             <label className="block">
               <span className="mb-1 block text-gray-600">폭(px, 비우면 기본값 256/224)</span>
               <input
@@ -1804,6 +1847,7 @@ function TopSidebarControls({
   const [uploadingTopSidebarFont, setUploadingTopSidebarFont] = useState(false);
   const [uploadingLoginFont, setUploadingLoginFont] = useState(false);
   const [draggedLinkId, setDraggedLinkId] = useState<string | null>(null);
+  const [draggedChildId, setDraggedChildId] = useState<string | null>(null);
   const config = value[deviceTab];
 
   function patch(next: Partial<TopSidebarValue["pc"]>) {
@@ -1991,6 +2035,23 @@ function TopSidebarControls({
     const link = config.links.find((l) => l.id === linkId);
     if (!link) return;
     updateLink(linkId, { children: link.children.filter((c) => c.id !== childId) });
+  }
+  // HOTFIX-141.10(사용자 지시 — "'상단 사이드바' 의 각 칼럼 안의 요소들을
+  // 자유롭게 움직일수 있게 해달라고 드래그 & 드롭으로"): column 2 링크
+  // 목록은 이미 드래그 재정렬이 있었는데(HOTFIX-141.7) 그 하위(column 3,
+  // hover 시 나타나는 목록)는 삭제/추가만 있고 순서를 바꿀 방법이 아예
+  // 없었다 — 동일한 그립+네이티브 드래그 패턴을 하위 목록에도 적용.
+  function reorderChild(linkId: string, draggedChildId: string, targetChildId: string) {
+    if (draggedChildId === targetChildId) return;
+    const link = config.links.find((l) => l.id === linkId);
+    if (!link) return;
+    const children = [...link.children];
+    const fromIdx = children.findIndex((c) => c.id === draggedChildId);
+    const toIdx = children.findIndex((c) => c.id === targetChildId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = children.splice(fromIdx, 1);
+    children.splice(toIdx, 0, moved);
+    updateLink(linkId, { children });
   }
 
   return (
@@ -2310,7 +2371,25 @@ function TopSidebarControls({
             <div className="space-y-1 border-t border-gray-100 pt-1.5">
               <p className="text-[11px] font-medium text-gray-500">하위 목록 ({link.children.length}개) — 이 링크에 마우스를 올리면 나타나요</p>
               {link.children.map((child) => (
-                <div key={child.id} className="flex items-center gap-1">
+                <div
+                  key={child.id}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedChildId) reorderChild(link.id, draggedChildId, child.id);
+                    setDraggedChildId(null);
+                  }}
+                  className={`flex items-center gap-1 rounded transition-colors ${draggedChildId === child.id ? "bg-blue-50 opacity-60" : ""}`}
+                >
+                  <span
+                    draggable
+                    onDragStart={() => setDraggedChildId(child.id)}
+                    onDragEnd={() => setDraggedChildId(null)}
+                    className="shrink-0 cursor-move text-gray-300"
+                    title="드래그해서 순서 바꾸기"
+                  >
+                    ⠿
+                  </span>
                   <input value={child.label} placeholder="라벨" onChange={(e) => updateChild(link.id, child.id, { label: e.target.value })} className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1" />
                   <input value={child.href} placeholder="링크" onChange={(e) => updateChild(link.id, child.id, { href: e.target.value })} className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1" />
                   <button type="button" onClick={() => removeChild(link.id, child.id)} className="shrink-0 text-[11px] text-red-500 hover:underline">삭제</button>

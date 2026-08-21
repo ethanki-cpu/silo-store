@@ -64,6 +64,9 @@ const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
 // 함께 섞어 탭마다 독립된 font-family 이름을 만든다(다른 탭이 같은 폰트
 // 파일 URL을 써도 이름이 안 겹치게).
 const TOP_TAB_FONT_FAMILY_PREFIX = "SiloTopTabFont";
+// HOTFIX-141.7: 드롭다운/하위 카테고리 전용 커스텀 폰트 @font-face 접두사
+// — 탭 자체의 폰트(TOP_TAB_FONT_FAMILY_PREFIX)와 별개로 독립 설정한다.
+const TOP_TAB_DROPDOWN_FONT_FAMILY_PREFIX = "SiloTopTabDropdownFont";
 
 // EPIC-136(사용자 지시 — "드래그앤 드롭으로 버튼이든, 이미지, 영상, 무슨
 // 요소든지 자유롭게 내가 선택하면 그 화면 안에서 마음대로 움직일수 있게
@@ -519,9 +522,15 @@ export function Navbar({
         if (entry.bold) rules.push(`font-weight: bold !important;`);
         if (entry.color) rules.push(`color: ${entry.color} !important;`);
       }
-      // hover 시엔 기존 배경(green-800)과의 대비를 위해 커스텀 색상 대신
-      // 항상 흰 글씨를 유지한다 — 서체/크기/굵기는 hover에서도 그대로.
-      const colorRule = rules.length > 0 ? `.${cls} { ${rules.join(" ")} }\n.${cls}:hover { color: #fff !important; }` : "";
+      // HOTFIX-141.7(사용자 신고 — "상단 탭에 hover 할때 아무 글씨도
+      // 안보이는거"): 이 hover 강제 흰색 규칙은 원래 탭 hover 시 뜨던
+      // 진한 초록 배경(green-800)과 대비시키기 위한 것이었는데, 바로 아래
+      // hoverNeutralizeRule(HOTFIX-141)이 그 배경 자체를 투명하게 지워버려
+      // — 흰 배경 위에 강제로 흰 글씨가 남는 흰-바탕-흰-글씨 조합이 돼
+      // 완전히 안 보이게 됐다. 배경이 더 이상 어둡지 않으므로 글자색을
+      // 강제할 이유가 없다 — hover 표현은 이제 hoverMotion(모션 CSS)이
+      // 전담한다.
+      const colorRule = rules.length > 0 ? `.${cls} { ${rules.join(" ")} }` : "";
       // HOTFIX-141(사용자 지시 — "상단탭 버튼들에 호버모션이 다른걸로
       // 바뀌어도 적용이안되고 있어"): TAB_BUTTON_INACTIVE/dropdown 탭의
       // hover:bg-green-800(또는 group-hover/tab:bg-green-800) 배경 전환이
@@ -536,6 +545,36 @@ export function Navbar({
       const hoverNeutralizeRule = `.${cls}:hover { background-color: transparent !important; border-color: transparent !important; }`;
       const motionCss = tabHoverMotionCss(cls, entry?.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION);
       return [colorRule, hoverNeutralizeRule, motionCss].filter(Boolean).join("\n");
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  // HOTFIX-141.7(사용자 지시 — "드롭다운과 하위 카테고리의... 폰트업로드/
+  // 크기/색상을 설정할수 있게 해줘"): 탭 자체의 스타일(위)과 별개로,
+  // 드롭다운/하위 카테고리 플라이아웃 안의 텍스트에 적용되는 서체/크기/
+  // 색상 — topTabDropdownClassName()이 각 플라이아웃 컨테이너에 붙인다.
+  function topTabDropdownClassName(tabKey: string) {
+    return `silo-top-tab-dropdown-${topTabClassSuffix(tabKey)}`;
+  }
+  function topTabDropdownFontFamilyValue(tabKey: string, entry: TopTabStyleEntry) {
+    const active = (entry.dropdownCustomFonts ?? []).filter((f) => f.isActive && f.url);
+    if (active.length === 0) return entry.dropdownFontFamily || undefined;
+    return active
+      .map((f) => `'${TOP_TAB_DROPDOWN_FONT_FAMILY_PREFIX}-${topTabClassSuffix(tabKey)}-${f.id}'`)
+      .concat(entry.dropdownFontFamily ? [entry.dropdownFontFamily] : ["inherit"])
+      .join(", ");
+  }
+  const topTabDropdownStyleCss = navTabs
+    .map((tab) => {
+      const entry = topTabEntries[tab.key];
+      if (!entry) return "";
+      const cls = topTabDropdownClassName(tab.key);
+      const rules: string[] = [];
+      const ff = topTabDropdownFontFamilyValue(tab.key, entry);
+      if (ff) rules.push(`font-family: ${ff} !important;`);
+      if (entry.dropdownFontSizePx) rules.push(`font-size: ${entry.dropdownFontSizePx}px !important;`);
+      if (entry.dropdownColor) rules.push(`color: ${entry.dropdownColor} !important;`);
+      return rules.length > 0 ? `.${cls} { ${rules.join(" ")} }` : "";
     })
     .filter(Boolean)
     .join("\n");
@@ -792,7 +831,10 @@ export function Navbar({
                 ))}
               </div>
             ) : (
-            <div className="w-64 rounded-md border border-gray-200 bg-white shadow-md py-2">
+            <div
+              className={`w-64 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
+              style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
+            >
               {tab.groups && tab.groups.length > 0
                 ? tab.groups.map((group) => {
                     // HOTFIX-096(사용자 지시): group.items가 비어있는
@@ -855,7 +897,10 @@ export function Navbar({
                           hasItems일 때만 렌더링(위 HOTFIX-096 참고). */}
                       {hasItems && (
                         <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
-                          <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
+                          <div
+                            className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
+                            style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
+                          >
                             {group.items.map((item, idx) => (
                               <GatedNavLink
                                 key={`${item.href}-${idx}`}
@@ -889,7 +934,10 @@ export function Navbar({
                           <span className="text-gray-400 text-xs">›</span>
                         </GatedNavLink>
                         <div className="hidden group-hover/row:block group-focus-within/row:block absolute left-full top-0 pl-2 z-50">
-                          <div className="w-56 rounded-md border border-gray-200 bg-white shadow-md py-2">
+                          <div
+                            className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
+                            style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
+                          >
                             {item.children.map((child, idx) => (
                               <GatedNavLink
                                 key={`${child.href}-${idx}`}
@@ -1102,6 +1150,26 @@ export function Navbar({
         `}</style>
       )}
       {topTabStyleCss && <style>{topTabStyleCss}</style>}
+      {/* HOTFIX-141.7: 드롭다운/하위 카테고리 전용 커스텀 폰트 @font-face
+          — 위 탭 자체 폰트 블록과 동일한 패턴, 별도 접두사로 안 겹치게. */}
+      {Object.entries(topTabEntries).some(([, e]) => (e.dropdownCustomFonts ?? []).some((f) => f.isActive && f.url)) && (
+        <style>{`
+          ${Object.entries(topTabEntries)
+            .flatMap(([tabId, entry]) =>
+              (entry.dropdownCustomFonts ?? [])
+                .filter((f) => f.isActive && f.url)
+                .map(
+                  (f) => `@font-face {
+              font-family: '${TOP_TAB_DROPDOWN_FONT_FAMILY_PREFIX}-${topTabClassSuffix(tabId)}-${f.id}';
+              src: url('${f.url}');
+              font-display: swap;
+            }`,
+                ),
+            )
+            .join("\n")}
+        `}</style>
+      )}
+      {topTabDropdownStyleCss && <style>{topTabDropdownStyleCss}</style>}
       {accountMenuStyleCss && <style>{accountMenuStyleCss}</style>}
       <div
         className="relative flex items-center p-4 gap-4"

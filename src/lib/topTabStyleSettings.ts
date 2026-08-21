@@ -41,6 +41,19 @@ export type TopTabStyleEntry = {
   // site_navigations가 아니라 여기(탭별 스타일 설정)에 둔다. 없거나
   // false면 기존 중첩 리스트 그대로.
   megaDropdown?: boolean;
+  // HOTFIX-141.7(사용자 지시 — "모바일 버전에는 넓이가 좁기 때문에, 상단
+  // 탭의 드롭다운 메뉴와 하위 카테고리들이 안보여... 드롭다운과 하위
+  // 카테고리의 폭을 조절하고, 폰트업로드/크기/색상을 설정할수 있게
+  // 해줘"): 드롭다운(1차)과 하위 카테고리 플라이아웃(2차) 둘 다 지금까지
+  // w-64/w-56으로 고정폭이었다 — 모바일 프레임(390px)에서 2차 플라이아웃이
+  // 1차 드롭다운 오른쪽에 이어 붙는 구조(absolute left-full)라 폭 합이
+  // 쉽게 화면을 넘어가 잘려 안 보였다. 폭/서체/크기/색을 탭별로 직접
+  // 설정할 수 있게 한다 — 없으면 기존 w-64/w-56 그대로.
+  dropdownWidthPx?: number | null;
+  dropdownFontFamily?: string;
+  dropdownCustomFonts?: CustomFontEntry[];
+  dropdownFontSizePx?: number | null;
+  dropdownColor?: string;
 };
 
 export type TopTabStyleConfig = {
@@ -68,6 +81,11 @@ export function defaultTopTabStyleEntry(): TopTabStyleEntry {
     tier: 2,
     hoverMotion: DEFAULT_TAB_HOVER_MOTION,
     order: null,
+    dropdownWidthPx: null,
+    dropdownFontFamily: "",
+    dropdownCustomFonts: [],
+    dropdownFontSizePx: null,
+    dropdownColor: "",
   };
 }
 

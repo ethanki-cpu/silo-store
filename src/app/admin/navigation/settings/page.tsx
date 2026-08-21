@@ -1000,6 +1000,7 @@ function ControlsPanel({
   const [uploadingSlideIdx, setUploadingSlideIdx] = useState<number | null>(null);
   const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<number | null>(null);
   const [uploadingSidebarField, setUploadingSidebarField] = useState<string | null>(null);
+  const [uploadingTabDropdownFont, setUploadingTabDropdownFont] = useState(false);
 
   if (!selection) return <p className="text-xs text-gray-400">캔버스에서 요소를 클릭하면 설정이 여기 표시됩니다.</p>;
   if (selection.kind === "craft") return <FooterCraftControls />;
@@ -1152,6 +1153,28 @@ function ControlsPanel({
       }
       setTopNavRows((prev) => prev.map((t) => (t.key === tabKey ? { ...t, targetTypes: next } : t)));
     }
+    // HOTFIX-141.7(사용자 지시 — "모바일 버전에는 넓이가 좁기 때문에, 상단
+    // 탭의 드롭다운 메뉴와 하위 카테고리들이 안보여... 드롭다운과 하위
+    // 카테고리의 폭을 조절하고, 폰트업로드/크기/색상을 설정할수 있게
+    // 해줘"): 탭 자체 스타일과 별개로 드롭다운/하위 카테고리 플라이아웃의
+    // 폭/서체/크기/색을 여기서 설정 — mainLogo customFonts와 동일한 업로드 패턴.
+    async function handleDropdownFontFile(file: File | null) {
+      if (!file) return;
+      setUploadingTabDropdownFont(true);
+      try {
+        const { url, error: uploadErr } = await uploadImage(file, "custom_fonts");
+        if (url) {
+          const font: CustomFontEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, isActive: true };
+          patchTab({ dropdownCustomFonts: [...(entry.dropdownCustomFonts ?? []), font] });
+        } else {
+          alert(`폰트 파일 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+        }
+      } catch (e) {
+        alert(`폰트 파일 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setUploadingTabDropdownFont(false);
+      }
+    }
     return (
       <div className="space-y-3 text-xs">
         <div className="flex items-center justify-between">
@@ -1205,6 +1228,75 @@ function ControlsPanel({
             <input type="checkbox" checked={!!entry.megaDropdown} onChange={(e) => patchTab({ megaDropdown: e.target.checked })} />
             메가 드롭다운으로 보기(그룹/항목을 한 번에 나란히 펼침)
           </label>
+        )}
+        {hasChildren && !entry.megaDropdown && (
+          <div className="space-y-2 border-t border-gray-200 pt-3">
+            <p className="font-medium text-gray-600">드롭다운 / 하위 카테고리</p>
+            <p className="text-[11px] text-gray-400">모바일처럼 화면이 좁을 때 하위 카테고리가 화면 밖으로 잘려 안 보이면 폭을 줄여보세요(1차 드롭다운과 2차 하위 카테고리 둘 다 이 값을 써요).</p>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">폭(px, 비우면 기본값 256/224)</span>
+              <input
+                type="number"
+                min={80}
+                max={480}
+                value={entry.dropdownWidthPx ?? ""}
+                placeholder="기본값"
+                onChange={(e) => patchTab({ dropdownWidthPx: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
+              <input value={entry.dropdownFontFamily ?? ""} onChange={(e) => patchTab({ dropdownFontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+            </label>
+            <div className="space-y-1.5">
+              <p className="mb-1 block text-gray-600">커스텀 폰트 파일 ({(entry.dropdownCustomFonts ?? []).length}개)</p>
+              {(entry.dropdownCustomFonts ?? []).map((font) => (
+                <div key={font.id} className="rounded border border-gray-200 p-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1 text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={font.isActive}
+                        onChange={(e) =>
+                          patchTab({
+                            dropdownCustomFonts: (entry.dropdownCustomFonts ?? []).map((f) => (f.id === font.id ? { ...f, isActive: e.target.checked } : f)),
+                          })
+                        }
+                      />
+                      사용
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => patchTab({ dropdownCustomFonts: (entry.dropdownCustomFonts ?? []).filter((f) => f.id !== font.id) })}
+                      className="text-[11px] text-red-500 hover:underline"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                  <p className="truncate text-[10px] text-gray-400" title={font.url}>{font.url}</p>
+                </div>
+              ))}
+              <label className="block">
+                <span className="mb-1 block text-gray-600">폰트 파일 추가 {uploadingTabDropdownFont && "(업로드 중...)"}</span>
+                <input type="file" accept=".woff,.woff2,.ttf,.otf" disabled={uploadingTabDropdownFont} onChange={(e) => handleDropdownFontFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">글자 크기(px)</span>
+              <input
+                type="number"
+                value={entry.dropdownFontSizePx ?? ""}
+                placeholder="기본값"
+                onChange={(e) => patchTab({ dropdownFontSizePx: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">색상</span>
+              <input type="color" value={entry.dropdownColor || "#374151"} onChange={(e) => patchTab({ dropdownColor: e.target.value })} className="h-8 w-full rounded border border-gray-300" />
+            </label>
+          </div>
         )}
         <label className="block">
           <span className="mb-1 block text-gray-600">글자 크기(px)</span>
@@ -1668,6 +1760,7 @@ function TopSidebarControls({
   const [uploadingTriggerField, setUploadingTriggerField] = useState<"triggerIconDefaultUrl" | "triggerIconHoverUrl" | null>(null);
   const [uploadingTopSidebarFont, setUploadingTopSidebarFont] = useState(false);
   const [uploadingLoginFont, setUploadingLoginFont] = useState(false);
+  const [draggedLinkId, setDraggedLinkId] = useState<string | null>(null);
   const config = value[deviceTab];
 
   function patch(next: Partial<TopSidebarValue["pc"]>) {
@@ -1731,6 +1824,23 @@ function TopSidebarControls({
     const next = [...config.links];
     [next[idx], next[nextIdx]] = [next[nextIdx], next[idx]];
     patch({ links: next });
+  }
+  // HOTFIX-141.7(사용자 지시 — "'상단 사이드바' 의 요소들도 내가 드래그 &
+  // 드랍으로 자유롭게 움직일수 있게 해달라니까"): ↑/↓ 버튼 대신 실제
+  // 드래그로 순서를 바꾼다 — 네이티브 HTML5 드래그앤드롭(별도 라이브러리
+  // 없이 draggable/onDragStart/onDragOver/onDrop만으로 구현, 하단 메뉴
+  // Craft 블록의 "⠿" 그립 아이콘과 동일한 UX 관례). 세로 목록 재정렬이라
+  // HeaderSlot 같은 자유 XY 드래그(transform)보다 리스트 reorder가 실제
+  // 쓰임에 맞다.
+  function reorderLink(draggedId: string, targetId: string) {
+    if (draggedId === targetId) return;
+    const links = [...config.links];
+    const fromIdx = links.findIndex((l) => l.id === draggedId);
+    const toIdx = links.findIndex((l) => l.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = links.splice(fromIdx, 1);
+    links.splice(toIdx, 0, moved);
+    patch({ links });
   }
   // HOTFIX-141.2(사용자 신고 — "상단 사이드바의 여닫이 트리거 아이콘이
   // 둘다 업로드를 새로 해도 preview 도 오른쪽의 live preview 에도 적용이
@@ -2113,9 +2223,31 @@ function TopSidebarControls({
       <div className="space-y-2 border-t border-gray-200 pt-3">
         <p className="font-medium text-gray-600">링크 목록 ({config.links.length}개)</p>
         {config.links.map((link, idx) => (
-          <div key={link.id} className="space-y-1.5 rounded border border-gray-200 p-2">
+          <div
+            key={link.id}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedLinkId) reorderLink(draggedLinkId, link.id);
+              setDraggedLinkId(null);
+            }}
+            className={`space-y-1.5 rounded border p-2 transition-colors ${draggedLinkId === link.id ? "border-blue-400 bg-blue-50 opacity-60" : "border-gray-200"}`}
+          >
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-gray-400">#{idx + 1}</span>
+              <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                {/* 그립 아이콘만 draggable — 라벨/링크 입력창의 텍스트
+                    선택/드래그를 방해하지 않는다. */}
+                <span
+                  draggable
+                  onDragStart={() => setDraggedLinkId(link.id)}
+                  onDragEnd={() => setDraggedLinkId(null)}
+                  className="cursor-move text-gray-300"
+                  title="드래그해서 순서 바꾸기"
+                >
+                  ⠿
+                </span>
+                #{idx + 1}
+              </span>
               <div className="flex items-center gap-1">
                 <button type="button" disabled={idx === 0} onClick={() => moveLink(link.id, -1)} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30">↑</button>
                 <button type="button" disabled={idx === config.links.length - 1} onClick={() => moveLink(link.id, 1)} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30">↓</button>

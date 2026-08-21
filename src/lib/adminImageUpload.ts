@@ -56,8 +56,16 @@ export async function uploadImage(
 // 합성(flatten)되어 저장됐다 — "여백 배경 이미지가 검정색으로 나온다"는
 // 증상의 원인. 알파를 보존하는 image/webp로 인코딩해 투명 영역이 실제로
 // 투명하게 저장되도록 한다.
+// HOTFIX-141.7(사용자 신고 — "상단 사이드바의 hover 이미지가 gif 파일인데
+// 애니메이션이 작동 안되고 있어. pc와 모바일 둘다야"): HOTFIX-141.4에서
+// 트리거 아이콘 업로드에 이 함수를 추가하면서(대용량 파일 타임아웃 방지
+// 목적) 원인을 만들었다 — canvas에 그려서 재인코딩하는 방식은
+// createImageBitmap이 애니메이션 GIF의 첫 프레임만 캡처하기 때문에
+// 결과물이 항상 정지 이미지가 된다. GIF는 압축해도 얻는 이득보다
+// 애니메이션을 잃는 손해가 훨씬 크므로, 원본 그대로 통과시킨다 — 이
+// 함수를 쓰는 모든 호출부(현재/향후)에 한 번에 적용된다.
 export async function compressImage(file: File, quality: number): Promise<File> {
-  if (quality >= 100) return file;
+  if (quality >= 100 || file.type === "image/gif") return file;
 
   const bitmap = await createImageBitmap(file);
   const canvas = document.createElement("canvas");

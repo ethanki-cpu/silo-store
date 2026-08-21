@@ -53,13 +53,17 @@ import { RENDER_TYPE_OPTIONS, RANK_OPTIONS } from "@/components/admin/BoardForm"
 // 항목을 어떤 모양(메가메뉴 items vs groups)으로 보여줄지 + (사이드바인
 // 경우) 전용 여닫이 패널을 가질지"를 뜻하고, tier1_tab/tier2_tab과는
 // 완전히 독립적인 별개 플래그다(navConfig.ts의 buildNavTree 참고).
+// HOTFIX-141.1(사용자 지시 — "'노출위치'에 '상단 사이드바'도 포함해줘"):
+// user_menu와 같은 성격 — 상단 사이드바(TopSidebarPanel.tsx) column 2
+// 링크 목록에 admin이 수동으로 만든 링크들과 함께 나타난다.
 export type TargetTypeLiteral =
   | "tier1_tab"
   | "tier2_tab"
   | "dropdown"
   | "sidebar_left"
   | "sidebar_right"
-  | "user_menu";
+  | "user_menu"
+  | "top_sidebar";
 
 type CategoryNavRow = {
   id: string;
@@ -1544,6 +1548,7 @@ const TARGET_TYPE_LABELS: Record<TargetTypeLiteral, string> = {
   sidebar_left: "왼쪽 사이드바",
   sidebar_right: "오른쪽 사이드바",
   user_menu: "사용자 메뉴",
+  top_sidebar: "상단 사이드바",
 };
 
 // EPIC-138: 최상위 카테고리의 노출 위치 복수 선택 체크박스 목록 — 모달

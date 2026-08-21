@@ -85,6 +85,7 @@ import {
   type TopSidebarLink,
   type TopSidebarChildLink,
 } from "@/lib/topSidebarSettings";
+import { FIXED_LINKS as TOP_SIDEBAR_FIXED_LINKS } from "@/components/TopSidebarPanel";
 import { TAB_HOVER_MOTIONS, TAB_HOVER_MOTION_LABELS, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
 
 // HOTFIX-137.4(사용자 지시 — "여백 배경 이미지 갯수를 10개가 아닌 100개로"): 10 → 100.
@@ -95,6 +96,10 @@ const MAX_WALLPAPERS = 100;
 // 메뉴"에 만든 것과 동일한 라벨 — 여기서도 바로 편집할 수 있게(다른
 // 화면으로 안내만 하던 것 대신) 탭 Controls 패널에 동일한 체크박스를
 // 노출한다.
+// HOTFIX-141.1(사용자 지시 — "'노출위치'에 '상단 사이드바'도
+// 포함해줘"): user_menu와 동일한 패턴 — 체크하면 navConfig.ts의
+// topSidebarItems를 통해 상단 사이드바(TopSidebarPanel.tsx) column 2에
+// 나타난다(admin이 site_settings.top_sidebar에 만든 링크들 뒤에 이어붙음).
 const TAB_TARGET_TYPE_LABELS: Record<DbTargetType, string> = {
   tier1_tab: "1단 상단탭",
   tier2_tab: "2단 상단탭",
@@ -102,6 +107,7 @@ const TAB_TARGET_TYPE_LABELS: Record<DbTargetType, string> = {
   sidebar_left: "왼쪽 사이드바",
   sidebar_right: "오른쪽 사이드바",
   user_menu: "사용자 메뉴",
+  top_sidebar: "상단 사이드바",
 };
 
 async function upsertSetting(key: string, value: unknown) {
@@ -888,7 +894,19 @@ export default function AdminNavigationSettingsPage() {
           </div>
 
           <div className="flex-1 overflow-auto bg-gray-100 p-4">
-            <div className={deviceTab === "mobile" ? "mx-auto w-[390px] border-x border-gray-300 bg-white shadow-lg" : "bg-white"}>
+            {/* HOTFIX-141(사용자 지시 — "모바일 화면에서, 좌 우 사이드바가
+                활성화 되어있지 않은데 왼쪽으로 밀려나기만해 아예 안보이게
+                해줘"): 이 390px 프레임에 overflow-hidden이 없어서, 닫힌
+                사이드바 패널(-translate-x-full로 자기 너비만큼만 왼쪽으로
+                이동)이나 상단 사이드바(max-w-5xl, 데스크톱 폭 그대로)처럼
+                390px보다 넓은/왼쪽으로 밀린 자식이 프레임 밖으로 그대로
+                삐져나와 보였다 — 진짜 원인은 잘림 없음(clipping 부재)이지
+                레이아웃 자체가 아니었다. */}
+            {/* HOTFIX-141.1(사용자 지시 — "live preview 에 요소를 드래그
+                할때, align guideline 이 보이면 좋겠어 그래서 중앙...
+                맞는지 알수 있게"): HeaderSlot.tsx가 이 마커로 캔버스
+                가로 중앙선을 계산한다. */}
+            <div data-admin-canvas className={deviceTab === "mobile" ? "mx-auto w-[390px] overflow-hidden border-x border-gray-300 bg-white shadow-lg" : "bg-white"}>
               <Navbar
                 editable
                 selectedSlotKey={selection?.kind === "slot" ? selection.key : null}
@@ -1875,6 +1893,22 @@ function TopSidebarControls({
           <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconHoverUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
           <ImageThumb url={config.triggerIconHoverUrl} alt="트리거 호버 아이콘 미리보기" />
         </label>
+        {/* HOTFIX-141.1(사용자 지시 — "상단 사이드바 아이콘 크기를
+            조절할수 있게 해줘" + "'모바일' preview 에 '상단 사이드바
+            열기 버튼'도 크기가 가능하게 해줘"): 이 값 자체가 PC/모바일
+            독립 설정(deviceTab별 config)이라 모바일 탭에서 따로 조절하면
+            모바일에서만 적용된다. */}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">아이콘 크기(px)</span>
+          <input
+            type="number"
+            min={10}
+            max={80}
+            value={config.triggerIconSizePx}
+            onChange={(e) => patch({ triggerIconSizePx: Math.max(10, Number(e.target.value) || 20) })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
       </div>
 
       <div className="space-y-2 border-t border-gray-200 pt-3">
@@ -1892,6 +1926,35 @@ function TopSidebarControls({
           <input type="file" accept="image/*" disabled={uploadingBankImage} onChange={(e) => handleAddBankImage(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
         </label>
       </div>
+
+      {/* HOTFIX-141.1(사용자 지시 — "column 2 에 있는 'mind diary'
+          'studio' 'silo planet' 을 column 2 로 드래그 앤 드랍 옮길수
+          있게 해주고" — column 1의 고정 바로가기를 column 2로 옮기고
+          싶다는 의미로 해석): Mind Diary/Studio/Silo Planet은
+          TopSidebarPanel.tsx에 하드코딩된 값이라 드래그로 옮길 데이터가
+          아니다 — 버튼으로 "옮기기"(column 1에서 숨기고 column 2에
+          동일한 링크 추가)를 제공한다. */}
+      {TOP_SIDEBAR_FIXED_LINKS.filter((f) => !config.hiddenFixedLinkHrefs.includes(f.href)).length > 0 && (
+        <div className="space-y-2 border-t border-gray-200 pt-3">
+          <p className="font-medium text-gray-600">column 1 고정 바로가기</p>
+          <p className="text-[11px] text-gray-400">Mind Diary / Studio / Silo Planet — column 2(아래 링크 목록)로 옮길 수 있어요.</p>
+          {TOP_SIDEBAR_FIXED_LINKS.filter((f) => !config.hiddenFixedLinkHrefs.includes(f.href)).map((f) => (
+            <div key={f.href} className="flex items-center justify-between rounded border border-gray-200 p-1.5">
+              <span className="text-gray-700">{f.label}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const newLink: TopSidebarLink = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, label: f.label, href: f.href, imageUrl: "", children: [] };
+                  patch({ links: [...config.links, newLink], hiddenFixedLinkHrefs: [...config.hiddenFixedLinkHrefs, f.href] });
+                }}
+                className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+              >
+                column 2로 이동
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-2 border-t border-gray-200 pt-3">
         <p className="font-medium text-gray-600">링크 목록 ({config.links.length}개)</p>

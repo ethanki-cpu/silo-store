@@ -45,10 +45,12 @@ type ActivityEntry = { id: string; createdAt: string; label: string; detail?: st
 
 // column 1 하단 고정 바로가기 — 관리자가 편집하는 column 2 링크 목록과는
 // 별개(세션 정보 블록의 일부로 취급, 사용자 지시).
-const FIXED_LINKS = [
+export const FIXED_LINKS = [
   { label: "Mind Diary", href: "/salon/mind-diary" },
   { label: "Studio", href: "/studio" },
-  { label: "Silo Planet", href: "/about-silo" },
+  // HOTFIX-141.1(사용자 지시 — 3D 우주를 About Silo에서 새 /silo-planet
+  // 페이지로 옮김): 이 링크도 함께 옮긴다.
+  { label: "Silo Planet", href: "/silo-planet" },
 ];
 
 const LINK_HOVER_CLASS = "silo-top-sidebar-link";
@@ -90,6 +92,25 @@ export function TopSidebarPanel({
     }
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
+  }, [open, onClose]);
+
+  // HOTFIX-141(사용자 지시 — "상단 사이드바도, 좌, 우 사이드바와
+  // 마찬가지로, 사이드바 이외의 영역을 누르면 사이드바가 해제 될수
+  // 있게 해줘"): LeftSidebar/RightSidebar.tsx의 패턴 그대로(pointerdown은
+  // 패널의 onClickCapture와 다른 이벤트라 안전) — 여기 실제 사이트에는
+  // 지금까지 ✕ 버튼/Escape 말고는 닫는 방법이 아예 없었다(L/R 사이드바와
+  // 달리 backdrop도 없었음). 트리거 버튼은 이 컴포넌트가 직접 렌더링하지
+  // 않으므로(Navbar.tsx) ref 대신 data-top-sidebar-trigger 마커로 식별.
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: PointerEvent) {
+      const target = e.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if ((target as HTMLElement).closest?.("[data-top-sidebar-trigger]")) return;
+      onClose();
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [open, onClose]);
 
   useEffect(() => {
@@ -205,8 +226,14 @@ export function TopSidebarPanel({
       >
         ✕
       </button>
+      {/* HOTFIX-141(사용자 지시 — "'모바일' preview 에 column 3,4는
+          아예 안나오고 있어"): 컬럼 4개 합친 너비(기본 800px+gap)가
+          모바일 프레임(390px)보다 넓어 잘려나가 있었다 — 세로 방향
+          스크롤(overflow-y-auto)만 있고 가로는 그냥 잘렸기 때문. 이제
+          가로도 자체적으로 스크롤(overflow-x-auto)돼 좁은 화면에서도
+          옆으로 밀어서 모든 컬럼에 닿을 수 있다. */}
       <div
-        className="mx-auto flex max-w-5xl gap-10 overflow-y-auto px-8 py-12"
+        className="mx-auto flex max-w-5xl gap-10 overflow-x-auto overflow-y-auto px-8 py-12"
         style={{ maxHeight: "80vh", color: config.textColor || undefined, fontFamily: resolvedFontFamily }}
       >
         {/* HOTFIX-141(사용자 지시 — "상단 사이드바의 컬럼과 컬럼의 영역을
@@ -264,7 +291,10 @@ export function TopSidebarPanel({
             </Link>
           )}
           <div className="space-y-1.5 border-t border-gray-100 pt-2">
-            {FIXED_LINKS.map((f) => (
+            {/* HOTFIX-141.1: column 2로 옮긴(hiddenFixedLinkHrefs에 포함된)
+                항목은 여기서 더 이상 그리지 않는다 — column 2 쪽에 관리자가
+                만든 사본이 대신 나타난다. */}
+            {FIXED_LINKS.filter((f) => !config.hiddenFixedLinkHrefs.includes(f.href)).map((f) => (
               <Link key={f.href} href={f.href} onClick={onClose} className="block hover:underline">
                 {f.label}
               </Link>

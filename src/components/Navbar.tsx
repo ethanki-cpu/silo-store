@@ -48,7 +48,7 @@ import {
 import { HeaderSlot } from "@/components/HeaderSlot";
 import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 import { TopSidebarPanel } from "@/components/TopSidebarPanel";
-import { normalizeTopSidebar, type TopSidebarConfig } from "@/lib/topSidebarSettings";
+import { normalizeTopSidebar, type TopSidebarConfig, type TopSidebarLink } from "@/lib/topSidebarSettings";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -172,12 +172,17 @@ export function Navbar({
   // EPIC-138: "사용자 메뉴"로 태그된 카테고리 — 계정 영역 "마이페이지"
   // 드롭다운(UserMenuDropdown)에 노출된다.
   const [userMenuItems, setUserMenuItems] = useState<NavItem[]>([]);
+  // HOTFIX-141.1(사용자 지시 — "'노출위치'에 '상단 사이드바'도
+  // 포함해줘"): userMenuItems와 동일한 패턴 — "상단 사이드바"로 태그된
+  // 카테고리.
+  const [topSidebarNavItems, setTopSidebarNavItems] = useState<NavItem[]>([]);
   useEffect(() => {
     let cancelled = false;
-    fetchNavTabs().then(({ tabs, userMenuItems }) => {
+    fetchNavTabs().then(({ tabs, userMenuItems, topSidebarItems }) => {
       if (cancelled) return;
       setNavTabs(tabs);
       setUserMenuItems(userMenuItems);
+      setTopSidebarNavItems(topSidebarItems);
     });
     return () => {
       cancelled = true;
@@ -350,6 +355,23 @@ export function Navbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topSidebarOverride, isMobileViewport]);
   const resolvedTopSidebar = topSidebarOverride ?? topSidebarValue ?? undefined;
+  // HOTFIX-141.1(사용자 지시 — "'노출위치'에 '상단 사이드바'도
+  // 포함해줘"): "상단 사이드바"로 태그된 site_navigations 카테고리를
+  // admin이 수동으로 만든 links 뒤에 이어붙인다 — 저장된 topSidebarValue
+  // 자체는 건드리지 않고 렌더링 시점에만 합친다(저장을 누를 때 이
+  // 파생 항목까지 site_settings.top_sidebar에 같이 저장되는 걸 방지).
+  const mergedTopSidebar = useMemo(() => {
+    if (!resolvedTopSidebar) return undefined;
+    if (topSidebarNavItems.length === 0) return resolvedTopSidebar;
+    const derivedLinks: TopSidebarLink[] = topSidebarNavItems.map((item) => ({
+      id: `nav:${item.href}`,
+      label: item.label,
+      href: item.href,
+      imageUrl: "",
+      children: [],
+    }));
+    return { ...resolvedTopSidebar, links: [...resolvedTopSidebar.links, ...derivedLinks] };
+  }, [resolvedTopSidebar, topSidebarNavItems]);
   const [topSidebarOpen, setTopSidebarOpen] = useState(false);
 
   function slotOffset(slotKey: string): HeaderSlotOffset {
@@ -1230,12 +1252,16 @@ export function Navbar({
                       없으면(기본값) 예전처럼 "☰" 텍스트 아이콘 그대로. */}
                   <button
                     type="button"
+                    data-top-sidebar-trigger
                     onClick={() => setTopSidebarOpen((o) => !o)}
                     aria-label="상단 사이드바 열기"
                     className="group/topsb relative flex items-center justify-center text-lg text-gray-600 hover:text-gray-900"
                   >
                     {resolvedTopSidebar?.triggerIconDefaultUrl || resolvedTopSidebar?.triggerIconHoverUrl ? (
-                      <span className="relative block h-6 w-6">
+                      <span
+                        className="relative block"
+                        style={{ width: resolvedTopSidebar?.triggerIconSizePx ?? 20, height: resolvedTopSidebar?.triggerIconSizePx ?? 20 }}
+                      >
                         <SidebarTriggerMedia
                           url={resolvedTopSidebar?.triggerIconDefaultUrl ?? ""}
                           alt="상단 사이드바 열기"
@@ -1248,7 +1274,7 @@ export function Navbar({
                         />
                       </span>
                     ) : (
-                      "☰"
+                      <span style={{ fontSize: resolvedTopSidebar?.triggerIconSizePx ?? 20 }}>☰</span>
                     )}
                   </button>
                 </HeaderSlot>
@@ -1311,9 +1337,9 @@ export function Navbar({
           편집 모드에서는 position:relative — 둘 다 유효한 포지셔닝
           기준(containing block)이라 이 안에 두면 TopSidebarPanel도 같은
           기준을 그대로 물려받는다(별도 앵커를 새로 만들 필요 없음). */}
-      {resolvedTopSidebar && (
+      {mergedTopSidebar && (
         <TopSidebarPanel
-          config={resolvedTopSidebar}
+          config={mergedTopSidebar}
           open={topSidebarOpen}
           onClose={() => setTopSidebarOpen(false)}
           editable={editable}

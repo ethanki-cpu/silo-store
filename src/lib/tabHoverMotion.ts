@@ -11,6 +11,11 @@
 // 절제된 클래식), 자간 확장(타이포그래피 중심), 은은한 부상(입체감),
 // 배경 와이프(면 강조), 확대+글로우(생동감), 금빛 그라디언트 밑줄
 // (브랜드 골드 컬러를 쓴 시그니처 프리미엄 버전 — 기본값).
+// HOTFIX-141.1(사용자 지시 — "hover 모션에 5개 더 추가해 달라니까?"):
+// 기존 6종에 5종을 더 추가 — 마찬가지로 절제~화려 스펙트럼을 이어가되
+// 이번엔 "빈티지 인쇄물/전시 라벨" 쪽 질감(세리프 기울임, 이중 밑줄,
+// 모서리 브래킷)과 "부드러운 움직임/광택" 쪽(페이드 이동, 샤인 스침)을
+// 섞어 겹치지 않게 골랐다.
 export type TabHoverMotion =
   | "none"
   | "underline-sweep"
@@ -18,7 +23,12 @@ export type TabHoverMotion =
   | "elevate-shadow"
   | "background-wipe"
   | "scale-glow"
-  | "underline-glow";
+  | "underline-glow"
+  | "serif-italic"
+  | "double-underline"
+  | "corner-brackets"
+  | "fade-shift"
+  | "shimmer-sweep";
 
 export const TAB_HOVER_MOTION_LABELS: Record<TabHoverMotion, string> = {
   none: "없음",
@@ -28,6 +38,11 @@ export const TAB_HOVER_MOTION_LABELS: Record<TabHoverMotion, string> = {
   "background-wipe": "배경 와이프",
   "scale-glow": "확대 + 글로우",
   "underline-glow": "금빛 그라디언트 밑줄 (추천)",
+  "serif-italic": "기울임 + 자간(빈티지 인쇄체)",
+  "double-underline": "이중 밑줄(전시 라벨풍)",
+  "corner-brackets": "모서리 브래킷(전시 액자풍)",
+  "fade-shift": "은은한 페이드 이동",
+  "shimmer-sweep": "샤인 스침 효과",
 };
 
 export const TAB_HOVER_MOTIONS: TabHoverMotion[] = [
@@ -38,6 +53,11 @@ export const TAB_HOVER_MOTIONS: TabHoverMotion[] = [
   "background-wipe",
   "scale-glow",
   "underline-glow",
+  "serif-italic",
+  "double-underline",
+  "corner-brackets",
+  "fade-shift",
+  "shimmer-sweep",
 ];
 
 // 사이트 전체 기본값 — 관리자가 개별 탭에서 아무것도 고르지 않았을 때도
@@ -73,6 +93,33 @@ export function tabHoverMotionCss(className: string, motion: TabHoverMotion): st
 .${className} { position: relative; }
 .${className}::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 2px; background: linear-gradient(90deg, #c9a24b, #f0dfa8, #c9a24b); background-size: 200% 100%; background-position: 0 0; transform: scaleX(0); transform-origin: left; transition: transform 0.4s cubic-bezier(.4,0,.2,1), background-position 0.6s ease; box-shadow: 0 0 8px rgba(201,162,75,0.6); }
 .${className}:hover::after { transform: scaleX(1); background-position: 100% 0; }`;
+    case "serif-italic":
+      return `
+.${className} { transition: font-style 0.25s ease, letter-spacing 0.25s ease, opacity 0.25s ease; }
+.${className}:hover { font-style: italic; letter-spacing: 0.03em; opacity: 0.85; }`;
+    case "double-underline":
+      return `
+.${className} { position: relative; }
+.${className}::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform 0.35s cubic-bezier(.4,0,.2,1); }
+.${className}::before { content: ""; position: absolute; left: 0; right: 0; bottom: -5px; height: 1px; background: #c9a24b; transform: scaleX(0); transform-origin: right; transition: transform 0.45s cubic-bezier(.4,0,.2,1) 0.05s; }
+.${className}:hover::after { transform: scaleX(1); }
+.${className}:hover::before { transform: scaleX(1); }`;
+    case "corner-brackets":
+      return `
+.${className} { position: relative; padding-left: 0.4em; padding-right: 0.4em; }
+.${className}::before, .${className}::after { content: ""; position: absolute; top: -3px; bottom: -3px; width: 6px; border: 1px solid currentColor; opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; }
+.${className}::before { left: -2px; border-right: none; transform: translateX(4px); }
+.${className}::after { right: -2px; border-left: none; transform: translateX(-4px); }
+.${className}:hover::before, .${className}:hover::after { opacity: 0.7; transform: translateX(0); }`;
+    case "fade-shift":
+      return `
+.${className} { transition: transform 0.3s ease, opacity 0.3s ease, letter-spacing 0.3s ease; }
+.${className}:hover { transform: translateY(-2px); opacity: 0.75; letter-spacing: 0.04em; }`;
+    case "shimmer-sweep":
+      return `
+.${className} { position: relative; overflow: hidden; display: inline-block; }
+.${className}::after { content: ""; position: absolute; top: 0; left: -150%; width: 60%; height: 100%; background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.75) 50%, transparent 80%); transform: skewX(-20deg); transition: left 0.6s ease; }
+.${className}:hover::after { left: 150%; }`;
     default:
       return "";
   }

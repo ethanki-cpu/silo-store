@@ -10,11 +10,40 @@
 // inline으로 정의하면 매 렌더마다 새 컴포넌트 타입이 만들어져 리액트가
 // 매번 마운트/언마운트로 취급해(드래그 중 포인터 캡처가 끊기는 등) 버그가
 // 나므로 모듈 최상위에 독립 컴포넌트로 둔다.
-import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { SelectionOverlay } from "@/components/SelectionOverlay";
 import { DEFAULT_HEADER_SLOT_OFFSET, type HeaderSlotOffset } from "@/lib/headerLayoutPositions";
 
-type DragState = { startX: number; startY: number; startDx: number; startDy: number };
+type DragState = { startX: number; startY: number; startDx: number; startDy: number; baseLeft: number; baseTop: number; width: number; height: number };
+type Guides = { v: number[]; h: number[] };
+
+// HOTFIX-141.1(사용자 지시 — "'홈페이지 설정관리'의 live preview 에
+// 요소를 드래그 할때, align guideline 이 보이면 좋겠어 그래서 중앙,
+// 다른 요소들과 위치가 맞는지 알수 있게"): 드래그 중인 요소의 중심이
+// (1) 캔버스([data-admin-canvas] 마커) 가로/세로 중앙, (2) 다른
+// HeaderSlot([data-header-slot] 마커)들의 중심과 몇 픽셀 이내로
+// 가까워지면 안내선을 그린다. 스냅(자동 보정)까지는 하지 않고 시각적
+// 안내만 — 강제로 위치를 튕기면 "드래그가 먹통"처럼 느껴질 위험이 있어
+// 순수 피드백으로만 범위를 좁혔다.
+const GUIDE_THRESHOLD_PX = 4;
+
+function collectGuideTargets(selfEl: Element): { vCenters: number[]; hCenters: number[] } {
+  const vCenters: number[] = [];
+  const hCenters: number[] = [];
+  const canvas = document.querySelector("[data-admin-canvas]");
+  if (canvas) {
+    const r = canvas.getBoundingClientRect();
+    vCenters.push(r.left + r.width / 2);
+  }
+  document.querySelectorAll("[data-header-slot]").forEach((el) => {
+    if (el === selfEl) return;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return;
+    vCenters.push(r.left + r.width / 2);
+    hCenters.push(r.top + r.height / 2);
+  });
+  return { vCenters, hCenters };
+}
 
 export function HeaderSlot({
   slotKey,
@@ -55,7 +84,9 @@ export function HeaderSlot({
 }) {
   const value = offset ?? DEFAULT_HEADER_SLOT_OFFSET;
   const dragRef = useRef<DragState | null>(null);
+  const wrapperRef = useRef<HTMLElement | null>(null);
   const moved = value.dxPx !== 0 || value.dyPx !== 0;
+  const [guides, setGuides] = useState<Guides>({ v: [], h: [] });
 
   function startDrag(e: ReactPointerEvent<HTMLButtonElement>) {
     e.stopPropagation();
@@ -65,19 +96,42 @@ export function HeaderSlot({
     } catch {
       // no-op — 캡처 실패해도 아래 dragRef는 그대로 세팅
     }
-    dragRef.current = { startX: e.clientX, startY: e.clientY, startDx: value.dxPx, startDy: value.dyPx };
+    // 지금 화면상 rect에서 현재 transform(dx,dy)을 빼서 "변형 전" 기준
+    // 위치를 구해둔다 — 드래그 도중에는 매번 DOM을 재측정하지 않고
+    // 이 기준값 + 실시간 dx/dy만으로 투영 위치를 계산한다(레이아웃
+    // thrashing과, 방금 적용한 transform이 아직 반영 안 된 상태를
+        // 읽어버리는 stale read를 둘 다 피한다).
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startDx: value.dxPx,
+      startDy: value.dyPx,
+      baseLeft: (rect?.left ?? 0) - value.dxPx,
+      baseTop: (rect?.top ?? 0) - value.dyPx,
+      width: rect?.width ?? 0,
+      height: rect?.height ?? 0,
+    };
   }
   function moveDrag(e: ReactPointerEvent<HTMLButtonElement>) {
     const drag = dragRef.current;
     if (!drag) return;
-    onOffsetChange(slotKey, {
-      dxPx: drag.startDx + (e.clientX - drag.startX),
-      dyPx: drag.startDy + (e.clientY - drag.startY),
-      raised: true,
-    });
+    const nextDx = drag.startDx + (e.clientX - drag.startX);
+    const nextDy = drag.startDy + (e.clientY - drag.startY);
+    onOffsetChange(slotKey, { dxPx: nextDx, dyPx: nextDy, raised: true });
+
+    if (wrapperRef.current) {
+      const centerX = drag.baseLeft + drag.width / 2 + nextDx;
+      const centerY = drag.baseTop + drag.height / 2 + nextDy;
+      const { vCenters, hCenters } = collectGuideTargets(wrapperRef.current);
+      const v = vCenters.filter((x) => Math.abs(x - centerX) < GUIDE_THRESHOLD_PX);
+      const h = hCenters.filter((y) => Math.abs(y - centerY) < GUIDE_THRESHOLD_PX);
+      setGuides({ v, h });
+    }
   }
   function endDrag() {
     dragRef.current = null;
+    setGuides({ v: [], h: [] });
   }
 
   const wrapperStyle: CSSProperties = {
@@ -87,7 +141,10 @@ export function HeaderSlot({
   };
 
   return (
+    <>
     <Tag
+      ref={wrapperRef as never}
+      data-header-slot={editable ? slotKey : undefined}
       style={wrapperStyle}
       className={className}
       // HOTFIX-137.1(사용자 지시 — "'로그아웃' 버튼을 조정하려고 클릭하면
@@ -133,5 +190,19 @@ export function HeaderSlot({
         </>
       )}
     </Tag>
+      {/* HOTFIX-141.1: 안내선은 position:fixed라 <Tag>가 이동 중
+          transform을 갖게 되면(그게 새 containing block이 돼) 뷰포트
+          기준이 깨진다 — 그래서 <Tag> 형제(바깥 Fragment)로 렌더링한다. */}
+      {(guides.v.length > 0 || guides.h.length > 0) && (
+        <>
+          {guides.v.map((x) => (
+            <div key={`v-${x}`} className="pointer-events-none fixed inset-y-0 z-[999] w-px bg-pink-500" style={{ left: x }} />
+          ))}
+          {guides.h.map((y) => (
+            <div key={`h-${y}`} className="pointer-events-none fixed inset-x-0 z-[999] h-px bg-pink-500" style={{ top: y }} />
+          ))}
+        </>
+      )}
+    </>
   );
 }

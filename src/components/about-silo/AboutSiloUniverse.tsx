@@ -2477,7 +2477,12 @@ export function AboutSiloUniverse() {
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-6">
         <div className="pointer-events-auto flex items-start justify-between text-white">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-white/60">About Silo</p>
+            {/* HOTFIX-141.1(사용자 지시 — "Silo Planet 이라는 페이지를
+                만들어서, 현재 About Silo 페이지에 뜨는 3d 우주를 옮기길
+                원해. About Silo 페이지는 예전처럼 갤러리 게시판과
+                '페이지 수정'이 뜨는 페이지로 만들어"): 이 3D 씬 자체가
+                이제 /silo-planet으로 옮겨졌으니 표시 이름도 맞춘다. */}
+            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Silo Planet</p>
             <h1 className="mt-1 text-2xl font-light drop-shadow">사일로의 우주</h1>
             <p className="mt-1 max-w-sm text-xs text-white/70">
               떠 있는 마커를 클릭해 가까이 다가가고, 휠을 굴려 자유롭게 둘러보세요. 행성 자체를 클릭하면 그 행성으로 다가가며 전용 설정 창이 열립니다.

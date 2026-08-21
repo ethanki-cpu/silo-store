@@ -64,13 +64,18 @@ export type NavTab = {
 // sidebar_left > sidebar_right > dropdown > 아무것도 없으면 flat link),
 // tier1_tab/tier2_tab/user_menu는 "모양"과 무관한 별개의 노출 위치라
 // NavTab.tiers와 buildNavTree()가 별도로 만드는 userMenuItems로 갈린다.
+// HOTFIX-141.1(사용자 지시 — "'노출위치'에 '상단 사이드바'도 포함해줘"):
+// user_menu와 동일한 성격(탭 모양과 무관한 별개의 노출 위치) — 태그된
+// 최상위 카테고리가 상단 사이드바(TopSidebarPanel.tsx) column 2 링크
+// 목록에 관리자가 수동으로 넣은 링크들과 함께 나타난다.
 export type DbTargetType =
   | "tier1_tab"
   | "tier2_tab"
   | "dropdown"
   | "sidebar_left"
   | "sidebar_right"
-  | "user_menu";
+  | "user_menu"
+  | "top_sidebar";
 
 function mapTargetTypes(types: DbTargetType[]): NavTabType {
   if (types.includes("sidebar_left")) return "sidebar-left";
@@ -677,7 +682,10 @@ function rankFor(href: string | null, slugToRank: Map<string, number>): number |
 // 메뉴"(마이페이지 드롭다운 안)에 노출되는 카테고리는 상단 탭 줄/사이드바와
 // 완전히 다른 자리라 NavTab 모양(link/dropdown/sidebar-left/sidebar-right)
 // 으로 표현할 수 없다 — 평범한 NavItem 목록으로 별도로 반환한다.
-export type NavData = { tabs: NavTab[]; userMenuItems: NavItem[] };
+// HOTFIX-141.1: topSidebarItems는 userMenuItems와 동일한 이유로 별도
+// 목록 — 상단 사이드바 column 2에 admin이 site_settings.top_sidebar에
+// 수동으로 만든 링크와 나란히 합쳐진다(Navbar.tsx가 병합).
+export type NavData = { tabs: NavTab[]; userMenuItems: NavItem[]; topSidebarItems: NavItem[] };
 
 function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavData {
   const byParent = new Map<string | null, SiteNavRow[]>();
@@ -783,7 +791,18 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavD
       minRankToRead: rankFor(top.href, slugToRank),
     }));
 
-  return { tabs, userMenuItems };
+  // HOTFIX-141.1(사용자 지시 — "'노출위치'에 '상단 사이드바'도
+  // 포함해줘"): user_menu와 동일한 패턴 — 상단 사이드바 column 2에
+  // 나타날 카테고리.
+  const topSidebarItems: NavItem[] = topRows
+    .filter((top) => top.target_types.includes("top_sidebar"))
+    .map((top) => ({
+      label: top.title,
+      href: top.href ?? "#",
+      minRankToRead: rankFor(top.href, slugToRank),
+    }));
+
+  return { tabs, userMenuItems, topSidebarItems };
 }
 
 // site_navigations(EPIC-023)에서 활성 상태인 탭/그룹/항목을 조회해 트리로 조립한다.
@@ -803,7 +822,7 @@ export async function fetchNavTabs(): Promise<NavData> {
   const { data, error } = navResult;
 
   if (error || !data || data.length === 0) {
-    return { tabs: FALLBACK_NAV_TABS, userMenuItems: [] };
+    return { tabs: FALLBACK_NAV_TABS, userMenuItems: [], topSidebarItems: [] };
   }
 
   const slugToRank = new Map<string, number>(

@@ -57,6 +57,12 @@ export type TopSidebarConfig = {
   // 동일한 개념. 비어있으면 기존처럼 "☰" 텍스트 아이콘 그대로 보인다.
   triggerIconDefaultUrl: string;
   triggerIconHoverUrl: string;
+  // HOTFIX-141.1(사용자 지시 — "상단 사이드바 아이콘 크기를 조절할수
+  // 있게 해줘" + "'모바일' preview 에 '상단 사이드바 열기 버튼'도 크기가
+  // 가능하게 해줘"): sidebarIconsSettings.ts의 iconSizePx와 동일한
+  // 개념 — 이 값 자체가 이미 pc/mobile 독립 설정(TopSidebarValue)이라
+  // 모바일 크기도 자연히 별도로 잡힌다.
+  triggerIconSizePx: number;
   // HOTFIX-141(사용자 지시 — "상단 사이드바의 컬럼과 컬럼의 영역을 내가
   // 드래그 드랍으로 조절하는 기능을 만들어줘. 그리고... 컬럼을 하나의
   // 묶음으로 드래그 드랍으로 좌우 순서를 변경가능하게 해줘"): 4개 컬럼
@@ -68,6 +74,17 @@ export type TopSidebarConfig = {
   // 이미 쓰는 것과 같은 검증된 패턴(정확한 값+버튼)을 재사용했다.
   columnWidthsPx: [number, number, number, number];
   columnOrder: [number, number, number, number];
+  // HOTFIX-141.1(사용자 지시 — "column 2 에 있는 'mind diary' 'studio'
+  // 'silo planet' 을 column 2 로 드래그 앤 드랍 옮길수 있게 해주고" —
+  // 실제로는 column 1의 고정 바로가기를 column 2의 관리자 편집 링크
+  // 목록으로 옮기고 싶다는 의미로 해석했다): column 1 고정 바로가기는
+  // TopSidebarPanel.tsx에 하드코딩된 FIXED_LINKS라 실제 "드래그"로
+  // 옮길 데이터 항목이 아니다 — 이 실사이트 메가메뉴에 검증 안 된 크로스
+  // 컬럼 드래그를 얹는 대신, href를 키로 "column 1에서 숨김" 표시만
+  // 해두고 관리자가 버튼 한 번으로 column 2(links)에 동일한 라벨/링크의
+  // 새 항목을 만들어 넣는다(TopSidebarControls의 "column 2로 이동"
+  // 버튼) — 결과적으로 "옮긴" 것과 동일한 효과.
+  hiddenFixedLinkHrefs: string[];
 };
 
 export type TopSidebarValue = { pc: TopSidebarConfig; mobile: TopSidebarConfig };
@@ -83,8 +100,10 @@ export function defaultTopSidebarConfig(): TopSidebarConfig {
     imageBankUrls: [],
     triggerIconDefaultUrl: "",
     triggerIconHoverUrl: "",
+    triggerIconSizePx: 20,
     columnWidthsPx: [160, 192, 224, 224],
     columnOrder: [0, 1, 2, 3],
+    hiddenFixedLinkHrefs: [],
   };
 }
 
@@ -121,6 +140,7 @@ function normalizeConfig(raw: unknown): TopSidebarConfig {
     imageBankUrls: Array.isArray(v?.imageBankUrls) ? v!.imageBankUrls : fallback.imageBankUrls,
     triggerIconDefaultUrl: v?.triggerIconDefaultUrl ?? fallback.triggerIconDefaultUrl,
     triggerIconHoverUrl: v?.triggerIconHoverUrl ?? fallback.triggerIconHoverUrl,
+    triggerIconSizePx: v?.triggerIconSizePx || fallback.triggerIconSizePx,
     columnWidthsPx:
       Array.isArray(v?.columnWidthsPx) && v!.columnWidthsPx.length === 4
         ? (v!.columnWidthsPx as [number, number, number, number])
@@ -132,6 +152,7 @@ function normalizeConfig(raw: unknown): TopSidebarConfig {
       }
       return fallback.columnOrder;
     })(),
+    hiddenFixedLinkHrefs: Array.isArray(v?.hiddenFixedLinkHrefs) ? (v!.hiddenFixedLinkHrefs as string[]) : fallback.hiddenFixedLinkHrefs,
   };
 }
 

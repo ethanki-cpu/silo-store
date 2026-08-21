@@ -60,6 +60,10 @@ const DEFAULT_LOGO_TEXT = "사일로 스토어";
 // EPIC-043: main_logo.customFonts의 각 활성 항목에 주입할 @font-face의
 // font-family 이름 접두사 — 항목 id로 구분해 여러 개를 동시에 등록한다.
 const CUSTOM_FONT_FAMILY_PREFIX = "SiloCustomLogoFont";
+// HOTFIX-141.12: 로고 좌/우 텍스트 각각의 독립 커스텀 폰트 @font-face
+// 접두사 — 로고 자체 폰트(CUSTOM_FONT_FAMILY_PREFIX)와 겹치지 않게 분리.
+const LOGO_LEFT_TEXT_FONT_FAMILY_PREFIX = "SiloLogoLeftTextFont";
+const LOGO_RIGHT_TEXT_FONT_FAMILY_PREFIX = "SiloLogoRightTextFont";
 // EPIC-079-PHASE-4: 상단 탭 커스텀 폰트의 @font-face 접두사 — 탭 id도
 // 함께 섞어 탭마다 독립된 font-family 이름을 만든다(다른 탭이 같은 폰트
 // 파일 URL을 써도 이름이 안 겹치게).
@@ -507,13 +511,37 @@ export function Navbar({
           .join(", ")
       : mainLogo?.fontFamily || undefined;
 
-  // EPIC-039: 좌/우 로고 텍스트가 공유하는 서체/굵기/크기/색상 스타일.
-  const logoSideTextStyle: React.CSSProperties = {
-    fontFamily: fontFamilyValue,
-    fontWeight: mainLogo?.bold ? "bold" : "normal",
-    fontSize: `${mainLogo?.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX}px`,
-    color: mainLogo?.textColor || DEFAULT_LOGO_TEXT_COLOR,
-  };
+  // HOTFIX-141.12(사용자 지시 — "모바일 버전에 I'm your, Silo 텍스트의
+  // 요소들도 세부 설정이 가능하게 연결해줘, pc 버전처럼"): 좌/우 텍스트가
+  // 예전엔 이 하나의 공유 스타일(로고 자체 서체/굵기/크기/색상)만 그대로
+  // 물려받았다 — 이제 각자 독립 필드(leftText*/rightText*)가 비어있지
+  // 않으면 그 값으로 덮어쓰고, 비어있으면(기존 데이터) 지금까지와 동일하게
+  // 로고 스타일을 그대로 상속한다.
+  function sideTextStyle(side: "left" | "right"): React.CSSProperties {
+    const custom = side === "left" ? mainLogo?.leftTextCustomFonts : mainLogo?.rightTextCustomFonts;
+    const family = side === "left" ? mainLogo?.leftTextFontFamily : mainLogo?.rightTextFontFamily;
+    const bold = side === "left" ? mainLogo?.leftTextBold : mainLogo?.rightTextBold;
+    const sizePx = side === "left" ? mainLogo?.leftTextFontSizePx : mainLogo?.rightTextFontSizePx;
+    const color = side === "left" ? mainLogo?.leftTextColor : mainLogo?.rightTextColor;
+    const activeSideFonts = (custom ?? []).filter((f) => f.isActive && f.url);
+    const prefix = side === "left" ? LOGO_LEFT_TEXT_FONT_FAMILY_PREFIX : LOGO_RIGHT_TEXT_FONT_FAMILY_PREFIX;
+    const sideFontFamilyValue =
+      activeSideFonts.length > 0
+        ? activeSideFonts
+            .map((f) => `'${prefix}-${f.id}'`)
+            .concat(family ? [family] : ["inherit"])
+            .join(", ")
+        : family || undefined;
+    return {
+      fontFamily: sideFontFamilyValue ?? fontFamilyValue,
+      fontWeight: (bold ?? mainLogo?.bold) ? "bold" : "normal",
+      fontSize: `${sizePx || mainLogo?.fontSizePx || DEFAULT_LOGO_FONT_SIZE_PX}px`,
+      color: color || mainLogo?.textColor || DEFAULT_LOGO_TEXT_COLOR,
+      whiteSpace: "pre-line",
+    };
+  }
+  const leftTextStyle = sideTextStyle("left");
+  const rightTextStyle = sideTextStyle("right");
 
   // EPIC-079-PHASE-4: 상단 탭 개별 디자인 파생값들 — 탭 id(NavTab.key)마다
   // 독립된 className(silo-top-tab-<id>)을 만들고, 그 className에 대한
@@ -712,6 +740,15 @@ export function Navbar({
     // 오버라이드/커스텀 클래스 — 값이 없으면 완전히 기존과 동일.
     const tabStyleEntry = topTabEntries[tab.key];
     const tabLabel = tabStyleEntry?.labelOverride || tab.label;
+    // HOTFIX-141.12(사용자 지시 — "최상위 카테고리와 하위 카테고리의
+    // 텍스트를 각각 수정하게 해달라, 줄바꿈이라던지"): 그룹/항목 하나하나의
+    // 표시 텍스트 오버라이드 — 원본 텍스트를 키로 찾는다(그룹은
+    // groupLabel, 항목은 href). \n을 pre-line으로 실제 줄바꿈으로 렌더링해
+    // 버튼 폭이 좁아도 텍스트에 맞춰 여러 줄로 접히게 한다.
+    function subLabel(originalLabel: string, overrideKey: string): string {
+      return tabStyleEntry?.subLabelOverrides?.[overrideKey] || originalLabel;
+    }
+    const preLineStyle: React.CSSProperties = { whiteSpace: "pre-line" };
     // HOTFIX: hover 모션 CSS는 커스텀 엔트리 여부와 무관하게 모든 탭에
     // 붙으므로(위 topTabStyleCss 참고) 클래스도 항상 적용한다.
     const tabStyleClassName = `silo-top-tab-${topTabClassSuffix(tab.key)}`;
@@ -733,7 +770,7 @@ export function Navbar({
             as="span"
           >
             <GatedNavLink href={tab.href!} minRankToRead={tab.minRankToRead} className={className}>
-              {tabLabel}
+              <span style={preLineStyle}>{tabLabel}</span>
             </GatedNavLink>
           </HeaderSlot>
         </Fragment>
@@ -801,7 +838,7 @@ export function Navbar({
             className={className}
             aria-haspopup={hasChildren ? "true" : undefined}
           >
-            {tabLabel}
+            <span style={preLineStyle}>{tabLabel}</span>
           </GatedNavLink>
         ) : (
           <button
@@ -809,7 +846,7 @@ export function Navbar({
             className={className}
             aria-haspopup={hasChildren ? "true" : undefined}
           >
-            {tabLabel}
+            <span style={preLineStyle}>{tabLabel}</span>
           </button>
         )}
 
@@ -843,10 +880,10 @@ export function Navbar({
                         onClick={(e) => e.currentTarget.blur()}
                         className="mb-2 block text-sm font-semibold text-gray-800 hover:underline"
                       >
-                        {col.label}
+                        <span style={preLineStyle}>{subLabel(col.label, col.label)}</span>
                       </GatedNavLink>
                     ) : (
-                      <p className="mb-2 text-sm font-semibold text-gray-800">{col.label}</p>
+                      <p className="mb-2 text-sm font-semibold text-gray-800" style={preLineStyle}>{subLabel(col.label, col.label)}</p>
                     )}
                     <div className="space-y-1.5">
                       {col.sub.map((item, subIdx) => (
@@ -857,7 +894,7 @@ export function Navbar({
                           onClick={(e) => e.currentTarget.blur()}
                           className="block text-sm text-gray-600 hover:text-gray-900 hover:underline"
                         >
-                          {item.label}
+                          <span style={preLineStyle}>{subLabel(item.label, item.href)}</span>
                         </GatedNavLink>
                       ))}
                     </div>
@@ -912,7 +949,7 @@ export function Navbar({
                           aria-haspopup={hasItems ? "true" : undefined}
                           className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                         >
-                          <span>{group.groupLabel}</span>
+                          <span style={preLineStyle}>{subLabel(group.groupLabel, group.groupLabel)}</span>
                           {hasItems && <span className="text-gray-400 text-xs">›</span>}
                         </GatedNavLink>
                       ) : (
@@ -921,7 +958,7 @@ export function Navbar({
                           aria-haspopup={hasItems ? "true" : undefined}
                           className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 cursor-default hover:bg-gray-50 text-left"
                         >
-                          <span>{group.groupLabel}</span>
+                          <span style={preLineStyle}>{subLabel(group.groupLabel, group.groupLabel)}</span>
                           {hasItems && <span className="text-gray-400 text-xs">›</span>}
                         </button>
                       )}
@@ -947,7 +984,7 @@ export function Navbar({
                                 onClick={(e) => e.currentTarget.blur()}
                                 className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                               >
-                                {item.label}
+                                <span style={preLineStyle}>{subLabel(item.label, item.href)}</span>
                               </GatedNavLink>
                             ))}
                           </div>
@@ -968,7 +1005,7 @@ export function Navbar({
                           aria-haspopup="true"
                           className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                         >
-                          <span>{item.label}</span>
+                          <span style={preLineStyle}>{subLabel(item.label, item.href)}</span>
                           <span className="text-gray-400 text-xs">›</span>
                         </GatedNavLink>
                         <div
@@ -988,7 +1025,7 @@ export function Navbar({
                                 onClick={(e) => e.currentTarget.blur()}
                                 className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                               >
-                                {child.label}
+                                <span style={preLineStyle}>{subLabel(child.label, child.href)}</span>
                               </GatedNavLink>
                             ))}
                           </div>
@@ -1002,7 +1039,7 @@ export function Navbar({
                         onClick={(e) => e.currentTarget.blur()}
                         className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        {item.label}
+                        <span style={preLineStyle}>{subLabel(item.label, item.href)}</span>
                       </GatedNavLink>
                     ),
                   )}
@@ -1170,6 +1207,36 @@ export function Navbar({
             .join("\n")}
         `}</style>
       )}
+      {/* HOTFIX-141.12: 로고 좌/우 텍스트 전용 커스텀 폰트 @font-face —
+          로고 자체 폰트 블록과 동일한 패턴, 좌/우 각각 독립 접두사. */}
+      {(mainLogo?.leftTextCustomFonts ?? []).some((f) => f.isActive && f.url) && (
+        <style>{`
+          ${(mainLogo?.leftTextCustomFonts ?? [])
+            .filter((f) => f.isActive && f.url)
+            .map(
+              (f) => `@font-face {
+            font-family: '${LOGO_LEFT_TEXT_FONT_FAMILY_PREFIX}-${f.id}';
+            src: url('${f.url}');
+            font-display: swap;
+          }`,
+            )
+            .join("\n")}
+        `}</style>
+      )}
+      {(mainLogo?.rightTextCustomFonts ?? []).some((f) => f.isActive && f.url) && (
+        <style>{`
+          ${(mainLogo?.rightTextCustomFonts ?? [])
+            .filter((f) => f.isActive && f.url)
+            .map(
+              (f) => `@font-face {
+            font-family: '${LOGO_RIGHT_TEXT_FONT_FAMILY_PREFIX}-${f.id}';
+            src: url('${f.url}');
+            font-display: swap;
+          }`,
+            )
+            .join("\n")}
+        `}</style>
+      )}
       {/* EPIC-079-PHASE-4: 상단 탭별 커스텀 폰트 @font-face + 탭별 스타일
           규칙(topTabStyleCss) — 로고 폰트 블록과 동일한 패턴, 탭 id별로
           독립된 font-family 이름을 쓴다(다른 탭이 같은 폰트 URL을 등록해도
@@ -1245,7 +1312,7 @@ export function Navbar({
             as="span"
             className="shrink-0 whitespace-nowrap self-center"
           >
-            <span style={logoSideTextStyle}>{mainLogo.leftText}</span>
+            <span style={leftTextStyle}>{mainLogo.leftText}</span>
           </HeaderSlot>
         )}
         <HeaderSlot
@@ -1284,7 +1351,7 @@ export function Navbar({
             as="span"
             className="shrink-0 whitespace-nowrap self-center"
           >
-            <span style={logoSideTextStyle}>{mainLogo.rightText}</span>
+            <span style={rightTextStyle}>{mainLogo.rightText}</span>
           </HeaderSlot>
         )}
 

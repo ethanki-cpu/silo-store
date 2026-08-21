@@ -35,6 +35,25 @@ export type MainLogoConfig = {
   fontFileUrl: string;
   customFonts: CustomFontEntry[];
   rowHeightPx: number | null;
+  // HOTFIX-141.12(사용자 지시 — "모바일 버전에 I'm your, Silo 텍스트의
+  // 요소들도 세부 설정이 가능하게 연결해줘, pc 버전처럼"): 좌/우 텍스트가
+  // 지금까지 로고 자체의 fontFamily/bold/fontSizePx/textColor를 그대로
+  // 물려받기만 했다 — 로고 그래픽과 별개로 각 텍스트를 독립적으로
+  // 커스터마이징할 수 있게 전용 필드를 추가한다. 비어있으면(기본값) 기존
+  // 그대로 로고 스타일을 상속(하위 호환) — Navbar.tsx가 이 값이 있을 때만
+  // 덮어쓴다.
+  leftTextFontFamily: string;
+  leftTextCustomFonts: CustomFontEntry[];
+  /** null = 로고 자체의 bold를 그대로 상속(기본값, 기존 데이터 호환). */
+  leftTextBold: boolean | null;
+  leftTextFontSizePx: number | null;
+  leftTextColor: string;
+  rightTextFontFamily: string;
+  rightTextCustomFonts: CustomFontEntry[];
+  /** null = 로고 자체의 bold를 그대로 상속(기본값, 기존 데이터 호환). */
+  rightTextBold: boolean | null;
+  rightTextFontSizePx: number | null;
+  rightTextColor: string;
 };
 
 export type MainLogoValue = { pc: MainLogoConfig; mobile: MainLogoConfig };
@@ -62,6 +81,16 @@ export function defaultMainLogoConfig(): MainLogoConfig {
     fontFileUrl: "",
     customFonts: [],
     rowHeightPx: null,
+    leftTextFontFamily: "",
+    leftTextCustomFonts: [],
+    leftTextBold: null,
+    leftTextFontSizePx: null,
+    leftTextColor: "",
+    rightTextFontFamily: "",
+    rightTextCustomFonts: [],
+    rightTextBold: null,
+    rightTextFontSizePx: null,
+    rightTextColor: "",
   };
 }
 

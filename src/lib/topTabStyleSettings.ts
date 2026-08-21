@@ -54,6 +54,15 @@ export type TopTabStyleEntry = {
   dropdownCustomFonts?: CustomFontEntry[];
   dropdownFontSizePx?: number | null;
   dropdownColor?: string;
+  // HOTFIX-141.12(사용자 지시 — "최상위 카테고리와 하위 카테고리의 텍스트를
+  // 각각 수정하게 해달라, 줄바꿈이라던지 그래서 폭이 맞춰지게"): 드롭다운
+  // 안 그룹 헤더/항목 하나하나의 표시 텍스트를 원본(site_navigations.title)과
+  // 별개로 오버라이드 — labelOverride(탭 자신)와 동일한 성격이지만 하위
+  // 레벨용. 줄바꿈(\n)을 넣을 수 있게 textarea로 입력받고 pre-line으로
+  // 렌더링해 좁은 폭에도 버튼이 텍스트에 맞춰 잘리지 않게 한다. 키는 그룹은
+  // groupLabel(원본), 항목은 href(고유값) — 원본 제목/링크가 그대로
+  // 식별자이므로 별도 id 발급 없이 재사용한다.
+  subLabelOverrides?: Record<string, string>;
   // HOTFIX-141.10(사용자 신고 — "모바일 preview 에, 'about silo' '사일로
   // 상점', '살롱데상' '온라인 도슨트' 드롭다운이 잘 안보이는 문제"):
   // 폭을 줄여도(dropdownWidthPx) 화면 오른쪽 끝에 가까운 탭은 여전히
@@ -95,6 +104,7 @@ export function defaultTopTabStyleEntry(): TopTabStyleEntry {
     dropdownCustomFonts: [],
     dropdownFontSizePx: null,
     dropdownColor: "",
+    subLabelOverrides: {},
   };
 }
 

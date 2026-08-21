@@ -557,7 +557,14 @@ export default function AdminNavigationSettingsPage() {
         else if (row.setting_key === "header_positions") setHeaderPositionsValue(normalizeHeaderPositions(row.setting_value));
         else if (row.setting_key === "top_sidebar") setTopSidebarValue(normalizeTopSidebar(row.setting_value));
       }
-      setTopNavRows(navTabs.filter((t) => t.type !== "sidebar-left" && t.type !== "sidebar-right"));
+      // HOTFIX-141.12(사용자 지시 — "사일로상점/살롱데상 같은 다른 탭들도
+      // about silo/온라인 도슨트처럼 세부 설정 가능하게 해줘"): 예전엔
+      // sidebar-left/right 탭(사일로상점/살롱데상)을 이 목록에서 통째로
+      // 제외해 아예 선택조차 할 수 없었다 — 실제로는 Navbar.tsx가 tier1/
+      // tier2 노출 위치가 있는 탭이라면 타입과 무관하게 동일한 tab: 스타일
+      // 메커니즘(labelOverride/폰트/크기/색상/드롭다운 스타일)을 이미
+      // 지원하므로, 더 이상 타입으로 걸러낼 이유가 없다.
+      setTopNavRows(navTabs);
       if (footerRow.data) {
         setFooterPageId(footerRow.data.id);
         setFooterCraftState(footerRow.data.craft_state ?? null);
@@ -589,7 +596,7 @@ export default function AdminNavigationSettingsPage() {
   // 데이터가 어긋나지 않게 한다.
   async function refetchNavTabs() {
     const { tabs } = await fetchNavTabs();
-    setTopNavRows(tabs.filter((t) => t.type !== "sidebar-left" && t.type !== "sidebar-right"));
+    setTopNavRows(tabs);
   }
 
   async function addNavItem() {
@@ -1058,6 +1065,7 @@ function ControlsPanel({
   const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<number | null>(null);
   const [uploadingSidebarField, setUploadingSidebarField] = useState<string | null>(null);
   const [uploadingTabDropdownFont, setUploadingTabDropdownFont] = useState(false);
+  const [uploadingSideTextFont, setUploadingSideTextFont] = useState(false);
 
   if (!selection) return <p className="text-xs text-gray-400">캔버스에서 요소를 클릭하면 설정이 여기 표시됩니다.</p>;
   if (selection.kind === "craft") return <FooterCraftControls />;
@@ -1183,6 +1191,52 @@ function ControlsPanel({
 
   if (selectedSlotKey === "logo-left-text" || selectedSlotKey === "logo-right-text") {
     const isLeft = selectedSlotKey === "logo-left-text";
+    // HOTFIX-141.12(사용자 지시 — "모바일 버전에 I'm your, Silo 텍스트의
+    // 요소들도 세부 설정이 가능하게 연결해줘, pc 버전처럼"): 지금까지
+    // 좌/우 텍스트는 "텍스트 내용"만 여기서 바꿀 수 있고 서체/굵기/크기/
+    // 색상은 전부 "로고" 슬롯의 값을 그대로 상속해 독립적으로 커스터마이징할
+    // 수 없었다 — 이제 로고 슬롯과 동일한 필드 세트를 좌/우 각각 따로
+    // 둔다(비워두면/미설정이면 지금까지처럼 로고 스타일을 그대로 상속 —
+    // 기존 데이터와 100% 호환). deviceTab이 이미 pc/mobile을 나누므로
+    // 모바일에서 이 화면을 열면 mainLogoValue.mobile 쪽에 저장돼 PC와
+    // 완전히 독립적으로 동작한다.
+    const customFonts = isLeft ? mainLogo.leftTextCustomFonts : mainLogo.rightTextCustomFonts;
+    const fontFamily = isLeft ? mainLogo.leftTextFontFamily : mainLogo.rightTextFontFamily;
+    const bold = isLeft ? mainLogo.leftTextBold : mainLogo.rightTextBold;
+    const fontSizePx = isLeft ? mainLogo.leftTextFontSizePx : mainLogo.rightTextFontSizePx;
+    const color = isLeft ? mainLogo.leftTextColor : mainLogo.rightTextColor;
+    function patchSide(patch: {
+      fontFamily?: string;
+      customFonts?: CustomFontEntry[];
+      bold?: boolean | null;
+      fontSizePx?: number | null;
+      color?: string;
+    }) {
+      const prefixed: Partial<MainLogoValue["pc"]> = {};
+      if (patch.fontFamily !== undefined) Object.assign(prefixed, isLeft ? { leftTextFontFamily: patch.fontFamily } : { rightTextFontFamily: patch.fontFamily });
+      if (patch.customFonts !== undefined) Object.assign(prefixed, isLeft ? { leftTextCustomFonts: patch.customFonts } : { rightTextCustomFonts: patch.customFonts });
+      if (patch.bold !== undefined) Object.assign(prefixed, isLeft ? { leftTextBold: patch.bold } : { rightTextBold: patch.bold });
+      if (patch.fontSizePx !== undefined) Object.assign(prefixed, isLeft ? { leftTextFontSizePx: patch.fontSizePx } : { rightTextFontSizePx: patch.fontSizePx });
+      if (patch.color !== undefined) Object.assign(prefixed, isLeft ? { leftTextColor: patch.color } : { rightTextColor: patch.color });
+      patchLogo(prefixed);
+    }
+    async function handleSideTextFontFile(file: File | null) {
+      if (!file) return;
+      setUploadingSideTextFont(true);
+      try {
+        const { url, error: uploadErr } = await uploadImage(file, "custom_fonts");
+        if (url) {
+          const font: CustomFontEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, isActive: true };
+          patchSide({ customFonts: [...customFonts, font] });
+        } else {
+          alert(`폰트 파일 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+        }
+      } catch (e) {
+        alert(`폰트 파일 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setUploadingSideTextFont(false);
+      }
+    }
     return (
       <div className="space-y-3 text-xs">
         <p className="text-sm font-semibold text-gray-700">로고 {isLeft ? "왼쪽" : "오른쪽"} 텍스트</p>
@@ -1190,13 +1244,84 @@ function ControlsPanel({
           HOTFIX-141.10: 로고 그래픽과 더 이상 폭을 나눠 쓰지 않는 독립 요소예요 — 다른 헤더 요소처럼 자유롭게 드래그해서 옮기세요(모바일에서 특히 유용해요).
         </p>
         <label className="block">
-          <span className="mb-1 block text-gray-600">텍스트</span>
-          <input
+          <span className="mb-1 block text-gray-600">텍스트(줄바꿈 가능)</span>
+          <textarea
+            rows={2}
             value={isLeft ? mainLogo.leftText : mainLogo.rightText}
             onChange={(e) => patchLogo(isLeft ? { leftText: e.target.value } : { rightText: e.target.value })}
             className="w-full rounded border border-gray-300 px-2 py-1"
           />
         </label>
+        <div className="space-y-2 border-t border-gray-200 pt-3">
+          <p className="font-medium text-gray-600">이 텍스트만의 스타일(비우면 로고와 동일)</p>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
+            <input value={fontFamily} onChange={(e) => patchSide({ fontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <div className="space-y-1.5">
+            <p className="mb-1 block text-gray-600">커스텀 폰트 파일 ({customFonts.length}개)</p>
+            {customFonts.map((font) => (
+              <div key={font.id} className="rounded border border-gray-200 p-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1 text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={font.isActive}
+                      onChange={(e) => patchSide({ customFonts: customFonts.map((f) => (f.id === font.id ? { ...f, isActive: e.target.checked } : f)) })}
+                    />
+                    사용
+                  </label>
+                  <button type="button" onClick={() => patchSide({ customFonts: customFonts.filter((f) => f.id !== font.id) })} className="text-[11px] text-red-500 hover:underline">
+                    삭제
+                  </button>
+                </div>
+                <p className="truncate text-[10px] text-gray-400" title={font.url}>{font.url}</p>
+              </div>
+            ))}
+            <label className="block">
+              <span className="mb-1 block text-gray-600">폰트 파일 추가 {uploadingSideTextFont && "(업로드 중...)"}</span>
+              <input type="file" accept=".woff,.woff2,.ttf,.otf" disabled={uploadingSideTextFont} onChange={(e) => handleSideTextFontFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">글자 크기(px)</span>
+            <input
+              type="number"
+              value={fontSizePx ?? ""}
+              placeholder="로고와 동일"
+              onChange={(e) => patchSide({ fontSizePx: e.target.value ? Number(e.target.value) : null })}
+              className="w-full rounded border border-gray-300 px-2 py-1"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">굵기</span>
+            <select
+              value={bold === null || bold === undefined ? "inherit" : bold ? "bold" : "normal"}
+              onChange={(e) => patchSide({ bold: e.target.value === "inherit" ? null : e.target.value === "bold" })}
+              className="w-full rounded border border-gray-300 px-2 py-1"
+            >
+              <option value="inherit">로고와 동일</option>
+              <option value="normal">보통</option>
+              <option value="bold">굵게</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">색상</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={color || mainLogo.textColor || DEFAULT_LOGO_TEXT_COLOR}
+                onChange={(e) => patchSide({ color: e.target.value })}
+                className="h-8 flex-1 rounded border border-gray-300"
+              />
+              {color && (
+                <button type="button" onClick={() => patchSide({ color: "" })} className="shrink-0 text-[11px] text-blue-600 hover:underline">
+                  로고 색상 상속
+                </button>
+              )}
+            </div>
+          </label>
+        </div>
         {positionSection}
       </div>
     );
@@ -1279,8 +1404,13 @@ function ControlsPanel({
           )}
         </div>
         <label className="block">
-          <span className="mb-1 block text-gray-600">표시 텍스트(비우면 원래 이름)</span>
-          <input value={entry.labelOverride} onChange={(e) => patchTab({ labelOverride: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+          <span className="mb-1 block text-gray-600">표시 텍스트(비우면 원래 이름, 줄바꿈 가능)</span>
+          <textarea
+            rows={2}
+            value={entry.labelOverride}
+            onChange={(e) => patchTab({ labelOverride: e.target.value })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
         </label>
         <div>
           <span className="mb-1 block text-gray-600">노출 위치 (복수 선택 가능)</span>
@@ -1298,7 +1428,7 @@ function ControlsPanel({
               ))}
             </div>
           ) : (
-            <p className="text-[11px] text-gray-400">이 탭은 여기서 편집할 수 없어요(사이드바 전용) — 사이트 구성 관리에서 편집하세요.</p>
+            <p className="text-[11px] text-gray-400">이 탭은 원본 데이터를 찾을 수 없어 노출 위치를 여기서 편집할 수 없어요 — 사이트 구성 관리에서 편집하세요.</p>
           )}
         </div>
         {hasChildren && (
@@ -1307,6 +1437,47 @@ function ControlsPanel({
             메가 드롭다운으로 보기(그룹/항목을 한 번에 나란히 펼침)
           </label>
         )}
+        {hasChildren && (() => {
+          // HOTFIX-141.12(사용자 지시 — "최상위 카테고리와 하위 카테고리의
+          // 텍스트를 각각 수정하게 해달라, 줄바꿈이라던지 그래서 폭이
+          // 맞춰지게"): 그룹 헤더/항목 하나하나의 표시 텍스트를 원본
+          // (site_navigations.title, "사이트 구성 관리"에서 편집)과 별개로
+          // 오버라이드 — 메가/일반 드롭다운 어느 모드든 같은 tab.groups/
+          // tab.items 데이터를 쓰므로 모드와 무관하게 항상 보여준다.
+          type SubLabelRow = { key: string; original: string; depth: number };
+          const rows: SubLabelRow[] = [];
+          if (tab?.groups && tab.groups.length > 0) {
+            for (const g of tab.groups) {
+              rows.push({ key: g.groupLabel, original: g.groupLabel, depth: 0 });
+              for (const it of g.items) rows.push({ key: it.href, original: it.label, depth: 1 });
+            }
+          } else {
+            for (const it of tab?.items ?? []) {
+              rows.push({ key: it.href, original: it.label, depth: 0 });
+              for (const child of it.children ?? []) rows.push({ key: child.href, original: child.label, depth: 1 });
+            }
+          }
+          if (rows.length === 0) return null;
+          const overrides = entry.subLabelOverrides ?? {};
+          return (
+            <div className="space-y-2 border-t border-gray-200 pt-3">
+              <p className="font-medium text-gray-600">하위 카테고리 텍스트(비우면 원래 이름, 줄바꿈 가능)</p>
+              <p className="text-[11px] text-gray-400">최상위 카테고리 텍스트는 위 &ldquo;표시 텍스트&rdquo;에서, 그 아래 하위 카테고리들은 여기서 각각 따로 수정하세요.</p>
+              {rows.map((row) => (
+                <label key={row.key} className="block" style={row.depth > 0 ? { paddingLeft: 12 } : undefined}>
+                  <span className="mb-1 block text-gray-500">{row.depth > 0 ? "› " : ""}{row.original}</span>
+                  <textarea
+                    rows={row.depth > 0 ? 1 : 2}
+                    value={overrides[row.key] ?? ""}
+                    placeholder={row.original}
+                    onChange={(e) => patchTab({ subLabelOverrides: { ...overrides, [row.key]: e.target.value } })}
+                    className="w-full rounded border border-gray-300 px-2 py-1"
+                  />
+                </label>
+              ))}
+            </div>
+          );
+        })()}
         {hasChildren && !entry.megaDropdown && (
           <div className="space-y-2 border-t border-gray-200 pt-3">
             <p className="font-medium text-gray-600">드롭다운 / 하위 카테고리</p>

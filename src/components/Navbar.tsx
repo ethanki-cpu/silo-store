@@ -34,6 +34,8 @@ import { normalizeAccountMenuStyle, type AccountMenuStyleValue } from "@/lib/acc
 import {
   normalizeHeaderLayout,
   headerItemInlineStyle,
+  HEADER_MENU_ITEM_KEYS,
+  HEADER_MENU_ITEM_LABELS,
   type HeaderLayoutValue,
   type HeaderMenuItemKey,
 } from "@/lib/headerLayoutSettings";
@@ -44,6 +46,7 @@ import {
   type HeaderSlotOffset,
 } from "@/lib/headerLayoutPositions";
 import { HeaderSlot } from "@/components/HeaderSlot";
+import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 import { TopSidebarPanel } from "@/components/TopSidebarPanel";
 import { normalizeTopSidebar, type TopSidebarConfig } from "@/lib/topSidebarSettings";
 
@@ -497,8 +500,20 @@ export function Navbar({
       // hover 시엔 기존 배경(green-800)과의 대비를 위해 커스텀 색상 대신
       // 항상 흰 글씨를 유지한다 — 서체/크기/굵기는 hover에서도 그대로.
       const colorRule = rules.length > 0 ? `.${cls} { ${rules.join(" ")} }\n.${cls}:hover { color: #fff !important; }` : "";
+      // HOTFIX-141(사용자 지시 — "상단탭 버튼들에 호버모션이 다른걸로
+      // 바뀌어도 적용이안되고 있어"): TAB_BUTTON_INACTIVE/dropdown 탭의
+      // hover:bg-green-800(또는 group-hover/tab:bg-green-800) 배경 전환이
+      // !important 없이도 색만 안 겹치면 항상 이겨서, 6종 모션 중 뭘 골라도
+      // 초록 배경 전환에 가려 안 보였다(진짜 원인 — 배경색 자체는 어떤
+      // 모션도 건드리지 않으므로 계속 그대로 통과됨). 탭 자신을 직접
+      // hover할 때만큼은(:hover) 이 배경/테두리를 강제로 지워 모션이 실제
+      // 유일한 hover 효과가 되게 한다 — group-hover 브릿지 영역(하위
+      // 드롭다운으로 이어지는 여백)처럼 탭 자체가 아닌 곳을 hover할 때는
+      // 기존 초록 배경이 여전히 뜬다(의도된 범위 밖 — 그 경우는 "이 탭이
+      // 열려있다"는 신호라 남겨둔다).
+      const hoverNeutralizeRule = `.${cls}:hover { background-color: transparent !important; border-color: transparent !important; }`;
       const motionCss = tabHoverMotionCss(cls, entry?.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION);
-      return [colorRule, motionCss].filter(Boolean).join("\n");
+      return [colorRule, hoverNeutralizeRule, motionCss].filter(Boolean).join("\n");
     })
     .filter(Boolean)
     .join("\n");
@@ -508,6 +523,11 @@ export function Navbar({
   // 설정하는 또다른 탭을 만들어줘"): 계정 영역 5개 항목이 전부 공유하는
   // 클래스 하나(silo-account-menu-item) — topTabStyleCss와 동일한
   // 패턴으로 서체/크기/굵기/색상 + hover 모션 규칙을 <style>로 주입한다.
+  // HOTFIX-141: 이 클래스가 붙는 항목들(관리자/등급/마이페이지/이름)이
+  // 전부 hover:underline을 하드코딩으로 갖고 있어 hoverMotion을 뭘
+  // 골라도 항상 똑같은 밑줄만 보였다 — 아래 렌더 코드에서 hover:underline을
+  // 뺐고, 이제 hover 표현은 이 클래스의 motionCss(기본값 underline-glow)가
+  // 전담한다.
   const ACCOUNT_MENU_ITEM_CLASS = "silo-account-menu-item";
   const accountMenuStyleCss = (() => {
     const rules: string[] = [];
@@ -574,15 +594,21 @@ export function Navbar({
     // 안돼"): 다른 탭/계정 메뉴 항목과 달리 이 버튼만 HeaderSlot으로
     // 감싸지 않은 평범한 Link였다 — 편집 모드에서 선택/드래그가 아예
     // 불가능했던 원인. 전용 slotKey("write-button")로 감싼다.
-    const writeButtonEl =
-      tab.key === "mypage" ? (
+    // HOTFIX-141(사용자 지시 — "글쓰기... 같은 '사용자 메뉴' 요소들을
+    // 복제/삭제 하는 기능이 없어"): 계정 영역 5개 항목과 동일한
+    // hidden/extra 모델 — writeButtonHidden으로 숨기고,
+    // extraWriteButtonIds 개수만큼 사본을 더 그린다.
+    const writeButtonHidden = accountMenuStyleValue?.writeButtonHidden ?? false;
+    const extraWriteButtonIds = accountMenuStyleValue?.extraWriteButtonIds ?? [];
+    function writeButtonNode(slotKey: string, label: string) {
+      return (
         <HeaderSlot
-          key="global-write-button"
-          slotKey="write-button"
-          label="글쓰기"
-          offset={slotOffset("write-button")}
+          key={slotKey}
+          slotKey={slotKey}
+          label={label}
+          offset={slotOffset(slotKey)}
           editable={editable}
-          selected={selectedSlotKey === "write-button"}
+          selected={selectedSlotKey === slotKey}
           onSelect={handleSelectSlot}
           onOffsetChange={handleSlotOffsetChange}
           as="span"
@@ -591,6 +617,14 @@ export function Navbar({
             글쓰기
           </Link>
         </HeaderSlot>
+      );
+    }
+    const writeButtonEl =
+      tab.key === "mypage" ? (
+        <>
+          {!writeButtonHidden && writeButtonNode("write-button", "글쓰기")}
+          {extraWriteButtonIds.map((id) => writeButtonNode(`write-button:extra:${id}`, "글쓰기 사본"))}
+        </>
       ) : null;
 
     if (tab.type === "link") {
@@ -885,7 +919,7 @@ export function Navbar({
     switch (key) {
       case "admin":
         return session && member?.is_admin ? (
-          <Link key="admin" href="/admin/payments" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+          <Link key="admin" href="/admin/payments" className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}>
             관리자
           </Link>
         ) : null;
@@ -899,12 +933,12 @@ export function Navbar({
               setPopoverOpen((o) => !o);
               setUserMenuOpen(false);
             }}
-            className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+            className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}
           >
             {member.tier_name}
           </button>
         ) : (
-          <Link key="tier" href="/membership" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
+          <Link key="tier" href="/membership" className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}>
             멤버십 신청
           </Link>
         );
@@ -917,7 +951,7 @@ export function Navbar({
               setUserMenuOpen((o) => !o);
               setPopoverOpen(false);
             }}
-            className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+            className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}
           >
             마이페이지
           </button>
@@ -931,7 +965,7 @@ export function Navbar({
               setPopoverOpen((o) => !o);
               setUserMenuOpen(false);
             }}
-            className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+            className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}
           >
             {member.name}
           </button>
@@ -1122,139 +1156,51 @@ export function Navbar({
         <div className="flex items-center gap-3 shrink-0 relative">
           {!unifiedHeaderItems && (
             <>
-              {mounted && !loading && session && member?.is_admin && (
-                <HeaderSlot
-                  slotKey="account:admin"
-                  label="관리자"
-                  offset={slotOffset("account:admin")}
-                  editable={editable}
-                  selected={selectedSlotKey === "account:admin"}
-                  onSelect={handleSelectSlot}
-                  onOffsetChange={handleSlotOffsetChange}
-                  as="span"
-                >
-                  <Link
-                    href="/admin/payments"
-                    className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+              {/* HOTFIX-141(사용자 지시 — "관리자, lautrec, Ethan Ki, 마이
+                  페이지 같은 '사용자 메뉴' 요소들을 복제/삭제 하는 기능이
+                  없어"): 예전엔 5개 항목이 여기 손으로 하나씩 나열돼 있어
+                  "복제"가 불가능한 구조였다 — renderMenuItem(위에서 이미
+                  headerLayout용으로 정의된 동일 렌더 함수)을 그대로
+                  재사용해 콘텐츠는 한 곳에서만 정의하고, "숨김"(hiddenKinds)
+                  과 "사본"(extraItems)만 데이터로 얹는다. */}
+              {HEADER_MENU_ITEM_KEYS.filter((k) => !(accountMenuStyleValue?.hiddenKinds ?? []).includes(k)).map((k) => {
+                const node = renderMenuItem(k);
+                if (!node) return null;
+                return (
+                  <HeaderSlot
+                    key={k}
+                    slotKey={`account:${k}`}
+                    label={HEADER_MENU_ITEM_LABELS[k]}
+                    offset={slotOffset(`account:${k}`)}
+                    editable={editable}
+                    selected={selectedSlotKey === `account:${k}`}
+                    onSelect={handleSelectSlot}
+                    onOffsetChange={handleSlotOffsetChange}
+                    as="span"
                   >
-                    관리자
-                  </Link>
-                </HeaderSlot>
-              )}
-
-              {/* EPIC-087-PHASE-F: GNB 우측 순서 — [멤버십 신청/등급] |
-                  [마이페이지] | [회원 이름] | [로그아웃]. 이전엔 등급+이름이
-                  "/mypage" 링크 하나로 합쳐져 있었다 — 요구사항대로 3개 항목으로
-                  분리. 등급 항목/이름 항목 모두 클릭하면 같은 멤버십 팝오버가
-                  열린다(요구사항 원문 그대로) — member가 아직 없으면(로딩 중
-                  또는 회원 행 없음) 팝오버를 띄울 데이터가 없어 대신 /membership
-                  으로 보낸다. */}
-              {mounted && !loading && session && (
-                <HeaderSlot
-                  slotKey="account:tier"
-                  label="회원 등급"
-                  offset={slotOffset("account:tier")}
-                  editable={editable}
-                  selected={selectedSlotKey === "account:tier"}
-                  onSelect={handleSelectSlot}
-                  onOffsetChange={handleSlotOffsetChange}
-                  as="span"
-                >
-                  {member ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPopoverOpen((o) => !o);
-                        setUserMenuOpen(false);
-                      }}
-                      className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
-                    >
-                      {member.tier_name}
-                    </button>
-                  ) : (
-                    <Link href="/membership" className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}>
-                      멤버십 신청
-                    </Link>
-                  )}
-                </HeaderSlot>
-              )}
-
-              {mounted && !loading && session && (
-                <HeaderSlot
-                  slotKey="account:mypage"
-                  label="마이페이지"
-                  offset={slotOffset("account:mypage")}
-                  editable={editable}
-                  selected={selectedSlotKey === "account:mypage"}
-                  onSelect={handleSelectSlot}
-                  onOffsetChange={handleSlotOffsetChange}
-                  as="span"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUserMenuOpen((o) => !o);
-                      setPopoverOpen(false);
-                    }}
-                    className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
+                    {node}
+                  </HeaderSlot>
+                );
+              })}
+              {(accountMenuStyleValue?.extraItems ?? []).map((extra) => {
+                const node = renderMenuItem(extra.kind);
+                if (!node) return null;
+                return (
+                  <HeaderSlot
+                    key={extra.id}
+                    slotKey={`account:extra:${extra.id}`}
+                    label={`${HEADER_MENU_ITEM_LABELS[extra.kind]} 사본`}
+                    offset={slotOffset(`account:extra:${extra.id}`)}
+                    editable={editable}
+                    selected={selectedSlotKey === `account:extra:${extra.id}`}
+                    onSelect={handleSelectSlot}
+                    onOffsetChange={handleSlotOffsetChange}
+                    as="span"
                   >
-                    마이페이지
-                  </button>
-                </HeaderSlot>
-              )}
-
-              {mounted && !loading && session && member && (
-                <HeaderSlot
-                  slotKey="account:name"
-                  label="회원 이름"
-                  offset={slotOffset("account:name")}
-                  editable={editable}
-                  selected={selectedSlotKey === "account:name"}
-                  onSelect={handleSelectSlot}
-                  onOffsetChange={handleSlotOffsetChange}
-                  as="span"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPopoverOpen((o) => !o);
-                      setUserMenuOpen(false);
-                    }}
-                    className={`text-sm text-gray-600 hover:underline ${ACCOUNT_MENU_ITEM_CLASS}`}
-                  >
-                    {member.name}
-                  </button>
-                </HeaderSlot>
-              )}
-
-              {mounted && !loading && (
-                <HeaderSlot
-                  slotKey="account:logout"
-                  label={session ? "로그아웃" : "로그인"}
-                  offset={slotOffset("account:logout")}
-                  editable={editable}
-                  selected={selectedSlotKey === "account:logout"}
-                  onSelect={handleSelectSlot}
-                  onOffsetChange={handleSlotOffsetChange}
-                  as="span"
-                >
-                  {session ? (
-                    <button
-                      onClick={handleLogout}
-                      className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
-                    >
-                      로그아웃
-                    </button>
-                  ) : (
-                    <Link
-                      href="/login"
-                      className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}
-                    >
-                      로그인
-                    </Link>
-                  )}
-                </HeaderSlot>
-              )}
+                    {node}
+                  </HeaderSlot>
+                );
+              })}
 
               {/* HOTFIX(사용자 신고 — "상단 사이드바 아이콘이 실제
                   홈페이지에는 안보여"): 처음엔 top_sidebar.enabled가 켜져
@@ -1277,13 +1223,33 @@ export function Navbar({
                   as="span"
                   interactive
                 >
+                  {/* HOTFIX-141(사용자 지시 — "상단 사이드바 아이콘 설정
+                      (이미지), hover 했을때 이미지를 설정하는게 없네
+                      만들어"): LeftSidebar/RightSidebar 트리거와 동일한
+                      기본/hover 크로스페이드 패턴 — 이미지가 하나도
+                      없으면(기본값) 예전처럼 "☰" 텍스트 아이콘 그대로. */}
                   <button
                     type="button"
                     onClick={() => setTopSidebarOpen((o) => !o)}
                     aria-label="상단 사이드바 열기"
-                    className="text-lg text-gray-600 hover:text-gray-900"
+                    className="group/topsb relative flex items-center justify-center text-lg text-gray-600 hover:text-gray-900"
                   >
-                    ☰
+                    {resolvedTopSidebar?.triggerIconDefaultUrl || resolvedTopSidebar?.triggerIconHoverUrl ? (
+                      <span className="relative block h-6 w-6">
+                        <SidebarTriggerMedia
+                          url={resolvedTopSidebar?.triggerIconDefaultUrl ?? ""}
+                          alt="상단 사이드바 열기"
+                          className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 group-hover/topsb:opacity-0"
+                        />
+                        <SidebarTriggerMedia
+                          url={resolvedTopSidebar?.triggerIconHoverUrl || resolvedTopSidebar?.triggerIconDefaultUrl || ""}
+                          alt="상단 사이드바 열기"
+                          className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover/topsb:opacity-100"
+                        />
+                      </span>
+                    ) : (
+                      "☰"
+                    )}
                   </button>
                 </HeaderSlot>
               )}
@@ -1400,6 +1366,19 @@ export function Navbar({
         topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
         editable={editable}
         selected={selectedSlotKey === "sidebar:left"}
+        offset={slotOffset("sidebar:left")}
+        onOffsetChange={(next) => handleSlotOffsetChange("sidebar:left", next)}
+        onSelectSlot={() => handleSelectSlot("sidebar:left")}
+        panelStyle={
+          sidebarIcons
+            ? {
+                backgroundColor: sidebarIcons.leftPanelBackgroundColor,
+                textColor: sidebarIcons.leftPanelTextColor,
+                fontFamily: sidebarIcons.leftPanelFontFamily,
+                hoverMotion: sidebarIcons.leftPanelHoverMotion,
+              }
+            : undefined
+        }
       />
       <RightSidebar
         tab={rightSidebarTab}
@@ -1416,6 +1395,19 @@ export function Navbar({
         topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
         editable={editable}
         selected={selectedSlotKey === "sidebar:right"}
+        offset={slotOffset("sidebar:right")}
+        onOffsetChange={(next) => handleSlotOffsetChange("sidebar:right", next)}
+        onSelectSlot={() => handleSelectSlot("sidebar:right")}
+        panelStyle={
+          sidebarIcons
+            ? {
+                backgroundColor: sidebarIcons.rightPanelBackgroundColor,
+                textColor: sidebarIcons.rightPanelTextColor,
+                fontFamily: sidebarIcons.rightPanelFontFamily,
+                hoverMotion: sidebarIcons.rightPanelHoverMotion,
+              }
+            : undefined
+        }
       />
     </header>
   );

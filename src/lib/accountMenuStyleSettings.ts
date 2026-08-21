@@ -10,6 +10,7 @@
 // fontFamily는 직접 입력(폴백용) 텍스트로만 받는다. 다른 설정들과
 // 동일하게 { pc, mobile } 독립 설정을 지원한다.
 import { DEFAULT_TAB_HOVER_MOTION, type TabHoverMotion } from "./tabHoverMotion";
+import type { HeaderMenuItemKey } from "./headerLayoutSettings";
 
 export type AccountMenuStyleConfig = {
   fontFamily: string;
@@ -19,7 +20,28 @@ export type AccountMenuStyleConfig = {
   hoverMotion: TabHoverMotion;
 };
 
-export type AccountMenuStyleValue = { pc: AccountMenuStyleConfig; mobile: AccountMenuStyleConfig };
+// HOTFIX-141(사용자 지시 — "글쓰기, 관리자, lautrec, Ethan Ki, 마이 페이지
+// 같은 '사용자 메뉴' 요소들을 복제/삭제 하는 기능이 없어"): 이 5개
+// 고정 항목(+글쓰기 버튼)은 로그인 세션에 묶인 조건부 렌더링이라
+// site_navigations처럼 순수 데이터 배열로 취급할 수 없다 — 대신 "이
+// 종류(kind)를 숨긴다"(hiddenKinds) + "이 종류를 하나 더 그린다"
+// (extraItems)라는 additive-only 모델을 쓴다. 원본 5개 항목의 렌더
+// 로직(Navbar.tsx의 renderMenuItem)은 그대로 두고, 그 결과물을 몇 번
+// 더 찍어내거나 아예 안 찍는 것만 여기서 결정한다 — EPIC-134 통합 헤더
+// 레이아웃(headerLayoutValue/unifiedHeaderItems, refId가 HeaderMenuItemKey
+// 하나뿐이라 사본을 못 담음)은 EPIC-135 이후 사실상 쓰이지 않아 건드리지
+// 않았다(그 모드가 활성화된 저장값이 있으면 이 hiddenKinds/extraItems는
+// 적용되지 않는다 — unifiedHeaderItems가 렌더링을 대신 가져가므로).
+export type ExtraAccountItem = { id: string; kind: HeaderMenuItemKey };
+
+export type AccountMenuStyleValue = {
+  pc: AccountMenuStyleConfig;
+  mobile: AccountMenuStyleConfig;
+  hiddenKinds: HeaderMenuItemKey[];
+  extraItems: ExtraAccountItem[];
+  writeButtonHidden: boolean;
+  extraWriteButtonIds: string[];
+};
 
 export function defaultAccountMenuStyleConfig(): AccountMenuStyleConfig {
   return {
@@ -32,7 +54,14 @@ export function defaultAccountMenuStyleConfig(): AccountMenuStyleConfig {
 }
 
 export function defaultAccountMenuStyleValue(): AccountMenuStyleValue {
-  return { pc: defaultAccountMenuStyleConfig(), mobile: defaultAccountMenuStyleConfig() };
+  return {
+    pc: defaultAccountMenuStyleConfig(),
+    mobile: defaultAccountMenuStyleConfig(),
+    hiddenKinds: [],
+    extraItems: [],
+    writeButtonHidden: false,
+    extraWriteButtonIds: [],
+  };
 }
 
 function normalizeConfig(raw: unknown): AccountMenuStyleConfig {
@@ -40,11 +69,18 @@ function normalizeConfig(raw: unknown): AccountMenuStyleConfig {
 }
 
 export function normalizeAccountMenuStyle(raw: unknown): AccountMenuStyleValue {
-  if (!raw || typeof raw !== "object") return defaultAccountMenuStyleValue();
-  const obj = raw as Record<string, unknown>;
+  const fallback = defaultAccountMenuStyleValue();
+  if (!raw || typeof raw !== "object") return fallback;
+  const obj = raw as Partial<AccountMenuStyleValue> & Record<string, unknown>;
+  const extra = {
+    hiddenKinds: Array.isArray(obj.hiddenKinds) ? (obj.hiddenKinds as HeaderMenuItemKey[]) : fallback.hiddenKinds,
+    extraItems: Array.isArray(obj.extraItems) ? (obj.extraItems as ExtraAccountItem[]) : fallback.extraItems,
+    writeButtonHidden: typeof obj.writeButtonHidden === "boolean" ? obj.writeButtonHidden : fallback.writeButtonHidden,
+    extraWriteButtonIds: Array.isArray(obj.extraWriteButtonIds) ? (obj.extraWriteButtonIds as string[]) : fallback.extraWriteButtonIds,
+  };
   if (obj.pc || obj.mobile) {
-    return { pc: normalizeConfig(obj.pc), mobile: normalizeConfig(obj.mobile) };
+    return { pc: normalizeConfig(obj.pc), mobile: normalizeConfig(obj.mobile), ...extra };
   }
   const flat = normalizeConfig(raw);
-  return { pc: flat, mobile: { ...flat } };
+  return { pc: flat, mobile: { ...flat }, ...extra };
 }

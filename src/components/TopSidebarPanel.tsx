@@ -147,6 +147,27 @@ export function TopSidebarPanel({
 
   const motionCss = useMemo(() => tabHoverMotionCss(LINK_HOVER_CLASS, config.hoverMotion), [config.hoverMotion]);
 
+  // HOTFIX-141(사용자 지시 — "이건 다른 모든 상단 사이드바의 서체를
+  // 내가 업로드하는 기능이 없네"): mainLogo/topTabStyle의 customFonts와
+  // 동일한 패턴 — 활성 폰트를 font-family 폴백 체인 맨 앞에 걸고,
+  // 각각을 독립된 font-family 이름으로 @font-face 등록한다(다른 곳의
+  // 커스텀 폰트와 이름이 겹치지 않게 접두사를 둔다).
+  const activeFonts = useMemo(() => config.customFonts.filter((f) => f.isActive && f.url), [config.customFonts]);
+  const resolvedFontFamily = useMemo(() => {
+    if (activeFonts.length === 0) return config.fontFamily || undefined;
+    return activeFonts
+      .map((f) => `'silo-top-sidebar-font-${f.id}'`)
+      .concat(config.fontFamily ? [config.fontFamily] : ["inherit"])
+      .join(", ");
+  }, [activeFonts, config.fontFamily]);
+  const fontFaceCss = useMemo(
+    () =>
+      activeFonts
+        .map((f) => `@font-face { font-family: 'silo-top-sidebar-font-${f.id}'; src: url('${f.url}'); font-display: swap; }`)
+        .join("\n"),
+    [activeFonts],
+  );
+
   return (
     <div
       ref={panelRef}
@@ -174,6 +195,7 @@ export function TopSidebarPanel({
       }
     >
       {motionCss && <style>{motionCss}</style>}
+      {fontFaceCss && <style>{fontFaceCss}</style>}
       <button
         type="button"
         data-panel-close
@@ -185,19 +207,26 @@ export function TopSidebarPanel({
       </button>
       <div
         className="mx-auto flex max-w-5xl gap-10 overflow-y-auto px-8 py-12"
-        style={{ maxHeight: "80vh", color: config.textColor || undefined, fontFamily: config.fontFamily || undefined }}
+        style={{ maxHeight: "80vh", color: config.textColor || undefined, fontFamily: resolvedFontFamily }}
       >
-        {/* column 0: 이미지 뱅크에서 무작위로 고른 이미지(hover/클릭 시마다 갱신). */}
-        <div className="hidden w-40 shrink-0 md:block">
-          {displayImageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={displayImageUrl} alt="" className="h-56 w-40 rounded object-cover" />
-          )}
-        </div>
-
-        {/* column 1: 실제 세션 데이터 + 고정 바로가기(Mind Diary/Studio/Silo Planet) */}
-        <div className="w-48 shrink-0 space-y-3 text-sm">
-          {session && member ? (
+        {/* HOTFIX-141(사용자 지시 — "상단 사이드바의 컬럼과 컬럼의 영역을
+            내가... 조절하는 기능을 만들어줘... 컬럼을... 좌우 순서를
+            변경가능하게 해줘"): 4개 컬럼을 배열로 만들어 config.columnOrder
+            순서대로, config.columnWidthsPx 너비로 그린다 — 기본값은 원래
+            하드코딩이었던 w-40/w-48/w-56/w-56(160/192/224/224px)과
+            동일해 무변화 마이그레이션. */}
+        {(() => {
+          const columnNodes = [
+            // column 0: 이미지 뱅크에서 무작위로 고른 이미지(hover/클릭 시마다 갱신).
+            <div key="col-0" className="hidden shrink-0 md:block" style={{ width: config.columnWidthsPx[0] }}>
+              {displayImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={displayImageUrl} alt="" className="h-56 rounded object-cover" style={{ width: config.columnWidthsPx[0] }} />
+              )}
+            </div>,
+            // column 1: 실제 세션 데이터 + 고정 바로가기.
+            <div key="col-1" className="shrink-0 space-y-3 text-sm" style={{ width: config.columnWidthsPx[1] }}>
+              {session && member ? (
             <>
               <p className="font-medium" style={{ color: config.textColor || "#111827" }}>{member.name}</p>
               <p className="text-gray-500">{member.tier_name}</p>
@@ -241,27 +270,35 @@ export function TopSidebarPanel({
               </Link>
             ))}
           </div>
-        </div>
-
-        {/* column 2: 관리자가 등록한 링크 목록 */}
-        <div className="w-56 shrink-0 space-y-2 text-sm">
-          {config.links.map((link) => (
-            <div key={link.id} onMouseEnter={() => handleLinkHover(link.id)}>
-              <Link href={link.href} onClick={onClose} className={`block hover:underline ${LINK_HOVER_CLASS}`}>
-                {link.label}
-              </Link>
-            </div>
-          ))}
-        </div>
-
-        {/* column 3: hover 중인 column2 링크의 하위 목록 */}
-        <div className="w-56 shrink-0 space-y-2 text-sm">
-          {hoveredLink?.children.map((child) => (
-            <Link key={child.id} href={child.href} onClick={onClose} className={`block hover:underline ${LINK_HOVER_CLASS}`}>
-              {child.label}
-            </Link>
-          ))}
-        </div>
+            </div>,
+            // column 2: 관리자가 등록한 링크 목록.
+            <div key="col-2" className="shrink-0 space-y-2 text-sm" style={{ width: config.columnWidthsPx[2] }}>
+              {config.links.map((link) => (
+                <div key={link.id} onMouseEnter={() => handleLinkHover(link.id)}>
+                  {/* HOTFIX-141(사용자 지시 — "상단 사이드바의 '링크 hover
+                      모션'을 다른걸로 바꿧는데도 적용이 안되고 있어"): 이
+                      hover:underline이 어떤 모션을 골라도 항상 똑같이 밑줄을
+                      그려 실제 모션 CSS(motionCss, 아래 <style>)를 가리고
+                      있었다 — 이 자리의 hover 표현은 이제 전적으로 config.
+                      hoverMotion이 담당한다(기본값 underline-glow가 이미
+                      비슷한 밑줄 효과를 준다). */}
+                  <Link href={link.href} onClick={onClose} className={`block ${LINK_HOVER_CLASS}`}>
+                    {link.label}
+                  </Link>
+                </div>
+              ))}
+            </div>,
+            // column 3: hover 중인 column2 링크의 하위 목록.
+            <div key="col-3" className="shrink-0 space-y-2 text-sm" style={{ width: config.columnWidthsPx[3] }}>
+              {hoveredLink?.children.map((child) => (
+                <Link key={child.id} href={child.href} onClick={onClose} className={`block ${LINK_HOVER_CLASS}`}>
+                  {child.label}
+                </Link>
+              ))}
+            </div>,
+          ];
+          return config.columnOrder.map((idx) => columnNodes[idx]);
+        })()}
       </div>
     </div>
   );

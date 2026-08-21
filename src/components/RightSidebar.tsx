@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { NavTab } from "@/lib/navConfig";
 import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { SelectionOverlay } from "@/components/SelectionOverlay";
+import type { HeaderSlotOffset } from "@/lib/headerLayoutPositions";
+import { tabHoverMotionCss } from "@/lib/tabHoverMotion";
+import type { SidebarPanelStyle } from "@/components/LeftSidebar";
+
+const RIGHT_SIDEBAR_LINK_CLASS = "silo-right-sidebar-link";
 
 // EPIC-039: LeftSidebar.tsx와 대칭 구조 — 자세한 배경은 그쪽 주석 참고.
 //
@@ -32,6 +37,10 @@ export function RightSidebar({
   topOffsetPx,
   editable = false,
   selected = false,
+  offset,
+  onOffsetChange,
+  onSelectSlot,
+  panelStyle,
 }: {
   tab?: NavTab;
   open: boolean;
@@ -54,11 +63,19 @@ export function RightSidebar({
   // HOTFIX-140.2: LeftSidebar.tsx와 동일한 이유/패턴 — 자세한 배경은 그쪽 주석 참고.
   editable?: boolean;
   selected?: boolean;
+  // HOTFIX-141: LeftSidebar.tsx와 동일한 이유/패턴 — 자세한 배경은 그쪽 주석 참고.
+  offset?: HeaderSlotOffset;
+  onOffsetChange?: (next: HeaderSlotOffset) => void;
+  onSelectSlot?: () => void;
+  panelStyle?: SidebarPanelStyle;
 }) {
   // EPIC-054D(접근성 감사 §13): Escape로 닫기 + 닫힐 때 트리거 아이콘으로
   // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(open);
+  const dragStateRef = useRef<{ startX: number; startY: number; startDx: number; startDy: number } | null>(null);
+  const draggedRef = useRef(false);
   // EPIC-058: 그룹별 펼침 상태 — 라벨 클릭(이동)과 완전히 분리된 Chevron
   // 전용 토글. 기본은 전부 접힘(기존 hover 아코디언과 동일한 초기 상태).
   const [expandedOverrides, setExpandedOverrides] = useState<
@@ -90,7 +107,65 @@ export function RightSidebar({
     wasOpenRef.current = open;
   }, [open]);
 
+  // HOTFIX-141: LeftSidebar.tsx와 동일한 이유/패턴 — 자세한 배경은 그쪽 주석 참고.
+  useEffect(() => {
+    if (!open || !editable) return;
+    function handlePointerDown(e: PointerEvent) {
+      const target = e.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target)) return;
+      onClose();
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open, editable, onClose]);
+
+  // HOTFIX-141: 훅은 조건부 return 이전에(Rules of Hooks) — 아래 tab
+  // 체크보다 먼저 호출한다.
+  const motionCss = useMemo(
+    () => (panelStyle ? tabHoverMotionCss(RIGHT_SIDEBAR_LINK_CLASS, panelStyle.hoverMotion) : ""),
+    [panelStyle],
+  );
+
   if (!tab) return null;
+
+  // HOTFIX-141: LeftSidebar.tsx와 동일한 이유/패턴 — 자세한 배경은 그쪽 주석 참고.
+  const dx = offset?.dxPx ?? 0;
+  const dy = offset?.dyPx ?? 0;
+  const centerTransform = topOffsetPx === undefined ? "translateY(-50%)" : "";
+  const dragTransform = dx || dy ? `translate(${dx}px, ${dy}px)` : "";
+  const combinedTransform = [centerTransform, dragTransform].filter(Boolean).join(" ") || undefined;
+  function startDrag(e: ReactPointerEvent<HTMLButtonElement>) {
+    if (!editable) return;
+    onSelectSlot?.();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // no-op
+    }
+    draggedRef.current = false;
+    dragStateRef.current = { startX: e.clientX, startY: e.clientY, startDx: dx, startDy: dy };
+  }
+  function moveDrag(e: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = dragStateRef.current;
+    if (!drag) return;
+    const nextDx = drag.startDx + (e.clientX - drag.startX);
+    const nextDy = drag.startDy + (e.clientY - drag.startY);
+    if (Math.abs(nextDx - drag.startDx) > 2 || Math.abs(nextDy - drag.startDy) > 2) draggedRef.current = true;
+    onOffsetChange?.({ dxPx: nextDx, dyPx: nextDy, raised: true });
+  }
+  function endDrag() {
+    dragStateRef.current = null;
+  }
+  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+    if (draggedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      draggedRef.current = false;
+      return;
+    }
+    onIconClick(e);
+  }
 
   return (
     <>
@@ -98,15 +173,22 @@ export function RightSidebar({
         <button
           ref={triggerRef}
           type="button"
-          onClick={onIconClick}
+          onClick={handleClick}
           onMouseEnter={triggerMode === "hover" ? onIconClick : undefined}
+          onPointerDown={editable ? startDrag : undefined}
+          onPointerMove={editable ? moveDrag : undefined}
+          onPointerUp={editable ? endDrag : undefined}
+          onPointerLeave={editable ? endDrag : undefined}
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="right-sidebar-panel"
-          className={`group ${editable ? "absolute" : "fixed"} right-0 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white ${
-            topOffsetPx === undefined ? "top-1/2 -translate-y-1/2" : ""
+          className={`group ${editable ? "absolute cursor-move" : "fixed"} right-0 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white ${
+            topOffsetPx === undefined ? "top-1/2" : ""
           }`}
-          style={topOffsetPx === undefined ? undefined : { top: topOffsetPx }}
+          style={{
+            ...(topOffsetPx === undefined ? undefined : { top: topOffsetPx }),
+            transform: combinedTransform,
+          }}
         >
           {editable && <SelectionOverlay selected={selected} hovered={false} label="우측 사이드바 아이콘" />}
           {/* EPIC-078: 기본/호버 미디어를 같은 자리에 겹쳐 opacity로
@@ -136,13 +218,19 @@ export function RightSidebar({
       )}
 
       <div
+        ref={panelRef}
         id="right-sidebar-panel"
         aria-hidden={!open}
         inert={!open}
         className={`${editable ? "absolute top-0" : "fixed inset-y-0"} right-0 z-50 w-64 overflow-hidden bg-green-800 text-white transform transition-transform duration-200 ${
           selected ? "ring-2 ring-blue-400 ring-inset" : ""
         } ${open ? "translate-x-0" : "translate-x-full"}`}
-        style={editable ? { height: "80vh" } : undefined}
+        style={{
+          ...(editable ? { height: "80vh" } : undefined),
+          backgroundColor: panelStyle?.backgroundColor || undefined,
+          color: panelStyle?.textColor || undefined,
+          fontFamily: panelStyle?.fontFamily || undefined,
+        }}
         // HOTFIX-140.2: LeftSidebar.tsx와 동일한 이유 — 자세한 배경은 그쪽 주석 참고.
         onClickCapture={
           editable
@@ -154,6 +242,7 @@ export function RightSidebar({
             : undefined
         }
       >
+        {motionCss && <style>{motionCss}</style>}
         <div className="flex items-center justify-between p-4 border-b border-white/20">
           {tab.href ? (
             <GatedNavLink
@@ -218,7 +307,7 @@ export function RightSidebar({
                         href={item.href}
                         minRankToRead={item.minRankToRead}
                         onClick={onClose}
-                        className="block px-3 py-2 rounded-md text-sm text-white hover:bg-white/10"
+                        className={`block px-3 py-2 rounded-md text-sm text-white ${RIGHT_SIDEBAR_LINK_CLASS}`}
                       >
                         {item.label}
                       </GatedNavLink>

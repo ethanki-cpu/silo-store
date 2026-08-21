@@ -1,3 +1,5 @@
+import { DEFAULT_TAB_HOVER_MOTION, type TabHoverMotion } from "./tabHoverMotion";
+
 // HOTFIX(사용자 지시 — "'홈페이지 설정 관리'에서 'pc 설정'과 '모바일
 // 설정'이 따로 구분이 되게 해야지"): 사이드바 여닫이 아이콘 설정
 // (site_settings.sidebar_icons)을 heroSlideshow.ts/mainLogoSettings.ts와
@@ -15,6 +17,22 @@ export type SidebarIconsConfig = {
   backgroundColor: string;
   triggerMode: "click" | "hover";
   topOffsetPx: number;
+  // HOTFIX-141(사용자 지시 — "그 안의 요소들을 내가 설정할수가 없네,
+  // 상단 사이드바처럼 자유롭게 설정하게 해줘"): 좌/우 전체 높이 패널
+  // 자체의 스타일 — TopSidebarConfig(backgroundColor/textColor/
+  // fontFamily/hoverMotion)와 동일한 필드를 좌/우 각각 독립적으로 둔다.
+  // 패널 "안의 항목"(카테고리 그룹/링크) 자체는 여전히 site_navigations가
+  // 담당한다(사이트 구성 관리에서 편집) — 여기서 이원화하면 EPIC-138
+  // 트리 구조와 어긋나므로 그대로 둔 결정(HOTFIX-140.2 주석에서 이미
+  // 내린 판단을 유지).
+  leftPanelBackgroundColor: string;
+  leftPanelTextColor: string;
+  leftPanelFontFamily: string;
+  leftPanelHoverMotion: TabHoverMotion;
+  rightPanelBackgroundColor: string;
+  rightPanelTextColor: string;
+  rightPanelFontFamily: string;
+  rightPanelHoverMotion: TabHoverMotion;
 };
 
 export type SidebarIconsValue = { pc: SidebarIconsConfig; mobile: SidebarIconsConfig };
@@ -35,6 +53,14 @@ export function defaultSidebarIconsConfig(): SidebarIconsConfig {
     backgroundColor: DEFAULT_ICON_BG_COLOR,
     triggerMode: DEFAULT_TRIGGER_MODE,
     topOffsetPx: DEFAULT_TOP_OFFSET_PX,
+    leftPanelBackgroundColor: "",
+    leftPanelTextColor: "",
+    leftPanelFontFamily: "",
+    leftPanelHoverMotion: DEFAULT_TAB_HOVER_MOTION,
+    rightPanelBackgroundColor: "",
+    rightPanelTextColor: "",
+    rightPanelFontFamily: "",
+    rightPanelHoverMotion: DEFAULT_TAB_HOVER_MOTION,
   };
 }
 
@@ -46,7 +72,8 @@ function normalizeConfig(raw: unknown): SidebarIconsConfig {
   // EPIC-078: 구버전 leftIconUrl/rightIconUrl(단일 URL)을
   // leftIconDefaultUrl/rightIconDefaultUrl로 폴백한다.
   const legacy = raw as (Partial<SidebarIconsConfig> & { leftIconUrl?: string; rightIconUrl?: string }) | null;
-  const value = { ...defaultSidebarIconsConfig(), ...(legacy ?? {}) };
+  const fallback = defaultSidebarIconsConfig();
+  const value = { ...fallback, ...(legacy ?? {}) };
   if (!value.leftIconDefaultUrl && legacy?.leftIconUrl) value.leftIconDefaultUrl = legacy.leftIconUrl;
   if (!value.rightIconDefaultUrl && legacy?.rightIconUrl) value.rightIconDefaultUrl = legacy.rightIconUrl;
   return value;

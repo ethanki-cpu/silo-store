@@ -62,7 +62,9 @@ import {
   normalizeAccountMenuStyle,
   defaultAccountMenuStyleValue,
   type AccountMenuStyleValue,
+  type ExtraAccountItem,
 } from "@/lib/accountMenuStyleSettings";
+import { HEADER_MENU_ITEM_KEYS, HEADER_MENU_ITEM_LABELS, type HeaderMenuItemKey } from "@/lib/headerLayoutSettings";
 import {
   normalizeHeroSlideshow,
   defaultHeroSlideshowValue,
@@ -113,6 +115,22 @@ async function upsertSetting(key: string, value: unknown) {
 
 type Selection = { kind: "slot"; key: string } | { kind: "craft" } | null;
 type LeftTab = "elements" | "controls" | "page" | "themes";
+
+// HOTFIX-141(사용자 지시 — "실행취소(ctrl + z)가 작동이 안되고 있어"):
+// CraftBridge의 Ctrl/⌘+Z는 하단 메뉴(Footer) Craft.js 캔버스 안에서
+// "선택된 노드가 있을 때"만 실질적으로 뭔가 되돌린다(HOTFIX-137.7이
+// 만든 것 — Craft 내장 history) — 그 바깥(탭 위치를 드래그로 옮기거나,
+// 색상/폰트/사이드바 스타일을 바꾸는 등 이 페이지의 나머지 거의 모든
+// 편집)에는 애초에 연결된 적이 없어 아무 반응이 없는 게 "실행취소가
+// 안 된다"는 신고의 실제 원인이었다. 여기서 이 페이지의 주요 설정
+// state 7개를 하나의 스냅샷으로 묶어 자체 undo/redo 스택을 만들고,
+// 같은 Ctrl/⌘+Z 단축키에 CraftBridge와 나란히(중복 실행돼도 서로
+// 다른 데이터라 무해) 연결한다.
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
+}
 
 // ── 캔버스 안에서 클릭으로만 선택되는 요소(슬라이드쇼/사이드바 아이콘) —
 // 자유 드래그는 안 준다(줄 전체를 차지하는 블록이라 "옆으로 옮기기"가
@@ -405,6 +423,96 @@ export default function AdminNavigationSettingsPage() {
   const headerPositions = headerPositionsValue[deviceTab];
   const topSidebar = topSidebarValue[deviceTab];
 
+  // HOTFIX-141: 전역 실행취소/다시실행 — 위 7개 설정 state를 하나의
+  // 스냅샷으로 묶어 되돌린다. footer(Craft.js)/topNavRows(site_navigations)는
+  // 각각 이미 자체 history가 있거나(Craft) DB에 즉시 쓰이는 별도
+  // 성격(addNavItem 등)이라 이 스택에는 포함하지 않는다.
+  type SettingsSnapshot = {
+    mainLogo: MainLogoValue;
+    sidebarIcons: SidebarIconsValue;
+    topTabStyle: TopTabStyleValue;
+    accountMenuStyle: AccountMenuStyleValue;
+    heroSlideshow: HeroSlideshowValue;
+    headerPositions: HeaderPositionsValue;
+    topSidebar: TopSidebarValue;
+  };
+  function currentSettingsSnapshot(): SettingsSnapshot {
+    return {
+      mainLogo: mainLogoValue,
+      sidebarIcons: sidebarIconsValue,
+      topTabStyle: topTabStyleValue,
+      accountMenuStyle: accountMenuStyleValue,
+      heroSlideshow: heroSlideshowValue,
+      headerPositions: headerPositionsValue,
+      topSidebar: topSidebarValue,
+    };
+  }
+  const settingsHistoryRef = useRef<{ past: SettingsSnapshot[]; future: SettingsSnapshot[] }>({ past: [], future: [] });
+  const isRestoringSnapshotRef = useRef(false);
+  const lastSnapshotJsonRef = useRef<string | null>(null);
+
+  // 값이 바뀔 때마다(단, 되돌리기/다시실행 자체가 만든 변화는 제외) 직전
+  // 스냅샷을 past 스택에 밀어넣는다 — 최초 DB 로드가 끝나기 전(fetching)엔
+  // "빈 값 → 로드된 값" 전환 자체가 되돌릴 대상이 아니므로 건너뛴다.
+  useEffect(() => {
+    if (fetching) return;
+    const serialized = JSON.stringify(currentSettingsSnapshot());
+    if (isRestoringSnapshotRef.current) {
+      isRestoringSnapshotRef.current = false;
+      lastSnapshotJsonRef.current = serialized;
+      return;
+    }
+    if (lastSnapshotJsonRef.current === null) {
+      lastSnapshotJsonRef.current = serialized;
+      return;
+    }
+    if (serialized === lastSnapshotJsonRef.current) return;
+    settingsHistoryRef.current.past.push(JSON.parse(lastSnapshotJsonRef.current));
+    if (settingsHistoryRef.current.past.length > 50) settingsHistoryRef.current.past.shift();
+    settingsHistoryRef.current.future = [];
+    lastSnapshotJsonRef.current = serialized;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetching, mainLogoValue, sidebarIconsValue, topTabStyleValue, accountMenuStyleValue, heroSlideshowValue, headerPositionsValue, topSidebarValue]);
+
+  function applySettingsSnapshot(snap: SettingsSnapshot) {
+    isRestoringSnapshotRef.current = true;
+    setMainLogoValue(snap.mainLogo);
+    setSidebarIconsValue(snap.sidebarIcons);
+    setTopTabStyleValue(snap.topTabStyle);
+    setAccountMenuStyleValue(snap.accountMenuStyle);
+    setHeroSlideshowValue(snap.heroSlideshow);
+    setHeaderPositionsValue(snap.headerPositions);
+    setTopSidebarValue(snap.topSidebar);
+  }
+  function undoSettings() {
+    const { past } = settingsHistoryRef.current;
+    if (past.length === 0) return;
+    const prev = past.pop()!;
+    settingsHistoryRef.current.future.push(currentSettingsSnapshot());
+    applySettingsSnapshot(prev);
+  }
+  function redoSettings() {
+    const { future } = settingsHistoryRef.current;
+    if (future.length === 0) return;
+    const next = future.pop()!;
+    settingsHistoryRef.current.past.push(currentSettingsSnapshot());
+    applySettingsSnapshot(next);
+  }
+  // 이 페이지 전체(Craft 캔버스 밖 포함)에서 Ctrl/⌘+Z를 감지 — 값이 바뀔
+  // 때마다 재등록해 클로저가 최신 state를 갖게 한다(각 값 변경마다
+  // 리스너를 다시 붙이는 비용은 document 리스너 하나뿐이라 무시할 만함).
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      if (isEditableTarget(e.target)) return;
+      if (e.shiftKey) redoSettings();
+      else undoSettings();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainLogoValue, sidebarIconsValue, topTabStyleValue, accountMenuStyleValue, heroSlideshowValue, headerPositionsValue, topSidebarValue]);
+
   useEffect(() => {
     async function load() {
       const [{ data, error: fetchError }, { tabs: navTabs }, footerRow] = await Promise.all([
@@ -605,15 +713,20 @@ export default function AdminNavigationSettingsPage() {
               📱 모바일
             </button>
           </div>
-          {/* HOTFIX-137.7: Craft.js 내장 undo/redo를 하단 메뉴(Footer)
-              캔버스 범위에서 쓸 수 있게 노출 — ⌘/Ctrl+Z, ⌘/Ctrl+Shift+Z
-              단축키는 CraftBridge가 처리하고, 이 버튼은 클릭으로도 같은
-              동작을 하는 보조 진입점. */}
+          {/* HOTFIX-137.7/HOTFIX-141: Craft.js 내장 undo/redo(하단 메뉴
+              캔버스 전용)와, 이 페이지 나머지 설정(탭 위치/색상/폰트/
+              사이드바 스타일 등)을 되돌리는 자체 스냅샷 undo/redo를
+              같은 버튼·단축키에 함께 연결 — 서로 다른 데이터를 다루므로
+              동시에 호출해도 무해하다(관련 없는 쪽은 그냥 조용히 아무
+              일도 안 함). */}
           <div className="flex items-center gap-1">
             <button
               type="button"
               title="실행 취소 (Ctrl/⌘+Z)"
-              onClick={() => craftBridgeRef.current?.actions.history.undo()}
+              onClick={() => {
+                craftBridgeRef.current?.actions.history.undo();
+                undoSettings();
+              }}
               className="rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
             >
               ↶ 실행 취소
@@ -621,7 +734,10 @@ export default function AdminNavigationSettingsPage() {
             <button
               type="button"
               title="다시 실행 (Ctrl/⌘+Shift+Z)"
-              onClick={() => craftBridgeRef.current?.actions.history.redo()}
+              onClick={() => {
+                craftBridgeRef.current?.actions.history.redo();
+                redoSettings();
+              }}
               className="rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
             >
               ↷ 다시 실행
@@ -872,10 +988,20 @@ function ControlsPanel({
 
   const selectedSlotKey = selection.key;
   const offset = headerPositions.slots[selectedSlotKey];
-  const positionSection = (selectedSlotKey === "slideshow" || selectedSlotKey === "top-sidebar" || selectedSlotKey.startsWith("sidebar:")) ? null : (
+  // HOTFIX-141(사용자 지시 — "좌, 우측, 사이드바 아이콘도 내가 드래그
+  // 드랍으로 위치를 조정할수 있게 해줘"): sidebar:left/right도 이제
+  // 같은 headerPositions.slots 오프셋 시스템을 쓴다(LeftSidebar/
+  // RightSidebar.tsx 참고) — 다만 별도 ✥ 핸들이 아니라 아이콘 자신을
+  // 바로 드래그하는 방식이라 안내 문구만 다르게 보여준다.
+  const isSidebarIconSlot = selectedSlotKey.startsWith("sidebar:");
+  const positionSection = (selectedSlotKey === "slideshow" || selectedSlotKey === "top-sidebar") ? null : (
     <div className="mt-4 space-y-2 border-t border-gray-200 pt-3">
       <p className="text-xs font-semibold text-gray-500">위치</p>
-      <p className="text-[11px] leading-relaxed text-gray-400">선택된 요소 위의 ✥ 핸들을 캔버스에서 직접 드래그해 화면 어디로든 옮기세요.</p>
+      <p className="text-[11px] leading-relaxed text-gray-400">
+        {isSidebarIconSlot
+          ? "닫혀있는 아이콘 자체를 캔버스에서 직접 드래그해 화면 어디로든 옮기세요."
+          : "선택된 요소 위의 ✥ 핸들을 캔버스에서 직접 드래그해 화면 어디로든 옮기세요."}
+      </p>
       {offset && (offset.dxPx !== 0 || offset.dyPx !== 0) && (
         <button type="button" onClick={() => onResetOffset(selectedSlotKey)} className="text-xs text-blue-600 hover:underline">
           원래 위치로 되돌리기
@@ -1100,12 +1226,65 @@ function ControlsPanel({
     function patchAccount(patch: Partial<AccountMenuStyleValue["pc"]>) {
       setAccountMenuStyleValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...patch } }));
     }
+    // HOTFIX-141(사용자 지시 — "관리자, lautrec, Ethan Ki, 마이 페이지
+    // 같은 '사용자 메뉴' 요소들을 복제/삭제 하는 기능이 없어"): 이
+    // 5개는 site_navigations 같은 순수 데이터가 아니라 로그인 세션에
+    // 묶인 조건부 렌더링이라(Navbar.tsx의 renderMenuItem) "복제"는
+    // 그 kind를 한 번 더 그리는 것(extraItems), "삭제"는 그 kind를
+    // 숨기는 것(hiddenKinds)으로 구현했다 — 실제 데이터 행을 지우는 게
+    // 아니라 항상 되돌릴 수 있다(아래 "숨긴 항목" 목록에서 복원).
+    const isExtra = selectedSlotKey.startsWith("account:extra:");
+    const extraId = isExtra ? selectedSlotKey.slice("account:extra:".length) : null;
+    const extraItem = extraId ? (accountMenuStyleValue.extraItems ?? []).find((e) => e.id === extraId) : null;
+    const kind = (isExtra ? extraItem?.kind : (selectedSlotKey.slice("account:".length) as HeaderMenuItemKey)) ?? null;
+    const hiddenKinds = accountMenuStyleValue.hiddenKinds ?? [];
+    function duplicateAccountItem() {
+      if (!kind) return;
+      const newItem: ExtraAccountItem = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, kind };
+      setAccountMenuStyleValue((prev) => ({ ...prev, extraItems: [...(prev.extraItems ?? []), newItem] }));
+    }
+    function deleteAccountItem() {
+      if (isExtra && extraId) {
+        setAccountMenuStyleValue((prev) => ({ ...prev, extraItems: (prev.extraItems ?? []).filter((e) => e.id !== extraId) }));
+      } else if (kind) {
+        setAccountMenuStyleValue((prev) => ({ ...prev, hiddenKinds: [...(prev.hiddenKinds ?? []), kind] }));
+      }
+      // 선택 상태(selectedSlotKey)는 일부러 그대로 둔다 — 삭제 직후에도 이
+      // 패널이 계속 같은 항목을 보여주면서 "숨긴 항목" 목록에 방금 숨긴
+      // 걸 즉시 보여줘 바로 복원할 수 있게 한다(아래 selectSlot 없이도
+      // kind는 slotKey 문자열 자체에서 다시 계산되므로 안전).
+    }
+    function restoreAccountKind(k: HeaderMenuItemKey) {
+      setAccountMenuStyleValue((prev) => ({ ...prev, hiddenKinds: (prev.hiddenKinds ?? []).filter((h) => h !== k) }));
+    }
     return (
       <div className="space-y-3 text-xs">
-        <p className="text-sm font-semibold text-gray-700">계정 영역 (관리자·등급·마이페이지·이름·로그아웃)</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">
+            계정 영역 항목{kind ? ` — ${HEADER_MENU_ITEM_LABELS[kind]}${isExtra ? " 사본" : ""}` : ""}
+          </p>
+          {kind && (
+            <div className="flex shrink-0 items-center gap-1">
+              <button type="button" onClick={duplicateAccountItem} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50">복제</button>
+              <button type="button" onClick={deleteAccountItem} className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50">삭제</button>
+            </div>
+          )}
+        </div>
         <p className="text-[11px] text-gray-400">
-          관리자 / 회원 등급 / 마이페이지 / 회원 이름 / 로그아웃 — 이 5개는 로그인 상태에 따라 자동으로 나타나는 고정 항목이라 여기서 추가/삭제는 안 돼요(위치·스타일만 조정). 스타일은 5개 전체에 함께 적용돼요.
+          관리자 / 회원 등급 / 마이페이지 / 회원 이름 / 로그아웃 — 로그인 상태에 따라 자동으로 나타나는 항목이라 &ldquo;삭제&rdquo;는 데이터를 지우는 게 아니라 숨기는 것이고, &ldquo;복제&rdquo;는 같은 항목을 하나 더 그리는 거예요. 서체/색상/모션 스타일은 전체(원본+사본)에 함께 적용돼요.
         </p>
+        {hiddenKinds.length > 0 && (
+          <div className="rounded border border-gray-200 p-2">
+            <p className="mb-1 text-[11px] font-medium text-gray-500">숨긴 항목</p>
+            <div className="flex flex-wrap gap-1">
+              {hiddenKinds.map((k) => (
+                <button key={k} type="button" onClick={() => restoreAccountKind(k)} className="rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50">
+                  {HEADER_MENU_ITEM_LABELS[k]} 복원
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <p className="text-[11px] text-gray-400">
           &ldquo;마이페이지&rdquo; 클릭 시 뜨는 드롭다운에 항목을 추가하고 싶으면 — Elements 탭의 &ldquo;+ 새 탭/메뉴 항목 추가&rdquo;로 만든 뒤, 그 항목의 Controls에서 노출 위치를 &ldquo;사용자 메뉴&rdquo;로 체크하세요.
         </p>
@@ -1146,11 +1325,39 @@ function ControlsPanel({
     );
   }
 
-  if (selectedSlotKey === "write-button") {
+  if (selectedSlotKey === "write-button" || selectedSlotKey.startsWith("write-button:extra:")) {
+    const isExtraWrite = selectedSlotKey.startsWith("write-button:extra:");
+    const extraWriteId = isExtraWrite ? selectedSlotKey.slice("write-button:extra:".length) : null;
+    function duplicateWriteButton() {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setAccountMenuStyleValue((prev) => ({ ...prev, extraWriteButtonIds: [...(prev.extraWriteButtonIds ?? []), id] }));
+    }
+    function deleteWriteButton() {
+      if (isExtraWrite && extraWriteId) {
+        setAccountMenuStyleValue((prev) => ({ ...prev, extraWriteButtonIds: (prev.extraWriteButtonIds ?? []).filter((id) => id !== extraWriteId) }));
+      } else {
+        setAccountMenuStyleValue((prev) => ({ ...prev, writeButtonHidden: true }));
+      }
+    }
     return (
       <div className="space-y-3 text-xs">
-        <p className="text-sm font-semibold text-gray-700">글쓰기 버튼</p>
-        <p className="text-[11px] text-gray-400">항상 &ldquo;마이 페이지&rdquo; 탭 바로 오른쪽에 붙어있는 전역 버튼이에요. 위치만 자유롭게 옮길 수 있어요.</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">글쓰기 버튼{isExtraWrite ? " 사본" : ""}</p>
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={duplicateWriteButton} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50">복제</button>
+            <button type="button" onClick={deleteWriteButton} className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50">삭제</button>
+          </div>
+        </div>
+        <p className="text-[11px] text-gray-400">항상 &ldquo;마이 페이지&rdquo; 탭 바로 오른쪽에 붙어있는 전역 버튼이에요. 위치는 자유롭게 옮길 수 있어요.</p>
+        {accountMenuStyleValue.writeButtonHidden && !isExtraWrite && (
+          <button
+            type="button"
+            onClick={() => setAccountMenuStyleValue((prev) => ({ ...prev, writeButtonHidden: false }))}
+            className="text-[11px] text-blue-600 hover:underline"
+          >
+            원본 글쓰기 버튼 복원
+          </button>
+        )}
         {positionSection}
       </div>
     );
@@ -1360,12 +1567,65 @@ function ControlsPanel({
             <option value="hover">마우스를 올리면 바로 열림</option>
           </select>
         </label>
+        {/* HOTFIX-141(사용자 지시 — "그 안의 요소들을 내가 설정할수가
+            없네, 상단 사이드바처럼 자유롭게 설정하게 해줘"): 상단
+            사이드바(TopSidebarControls)의 "패널 스타일" 섹션과 동일한
+            4개 필드 — 패널 "안의 항목"(카테고리 그룹/링크) 자체는
+            사이트 구성 관리가 계속 담당하고, 여기선 패널 자체의
+            배경/글자색/서체/hover 모션만 다룬다. */}
+        <div className="space-y-2 border-t border-gray-200 pt-3">
+          <p className="font-medium text-gray-600">패널 스타일 (좌/우 각각 독립)</p>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">배경색</span>
+            <input
+              type="color"
+              value={value[side === "left" ? "leftPanelBackgroundColor" : "rightPanelBackgroundColor"] || "#166534"}
+              onChange={(e) => patch({ [side === "left" ? "leftPanelBackgroundColor" : "rightPanelBackgroundColor"]: e.target.value } as Partial<SidebarIconsValue["pc"]>)}
+              className="h-8 w-full rounded border border-gray-300"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">텍스트 색</span>
+            <input
+              type="color"
+              value={value[side === "left" ? "leftPanelTextColor" : "rightPanelTextColor"] || "#ffffff"}
+              onChange={(e) => patch({ [side === "left" ? "leftPanelTextColor" : "rightPanelTextColor"]: e.target.value } as Partial<SidebarIconsValue["pc"]>)}
+              className="h-8 w-full rounded border border-gray-300"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
+            <input
+              value={value[side === "left" ? "leftPanelFontFamily" : "rightPanelFontFamily"]}
+              onChange={(e) => patch({ [side === "left" ? "leftPanelFontFamily" : "rightPanelFontFamily"]: e.target.value } as Partial<SidebarIconsValue["pc"]>)}
+              className="w-full rounded border border-gray-300 px-2 py-1"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-gray-600">항목 hover 모션</span>
+            <select
+              value={value[side === "left" ? "leftPanelHoverMotion" : "rightPanelHoverMotion"]}
+              onChange={(e) => patch({ [side === "left" ? "leftPanelHoverMotion" : "rightPanelHoverMotion"]: e.target.value } as Partial<SidebarIconsValue["pc"]>)}
+              className="w-full rounded border border-gray-300 px-2 py-1"
+            >
+              {TAB_HOVER_MOTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {TAB_HOVER_MOTION_LABELS[m]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {positionSection}
       </div>
     );
   }
 
   return null;
 }
+
+// HOTFIX-141: TopSidebarPanel.tsx의 columnNodes 배열 인덱스와 1:1 대응.
+const COLUMN_LABELS = ["0: 이미지", "1: 세션 정보", "2: 링크 목록", "3: 하위 목록"];
 
 // ── "상단 사이드바"(Kinfolk형 메가 메뉴, HOTFIX-137.9) 전용 Controls —
 // column 2(링크 목록, 항목마다 hover 이미지)와 그 하위 column 3(children)을
@@ -1382,6 +1642,8 @@ function TopSidebarControls({
 }) {
   const [uploadingLinkId, setUploadingLinkId] = useState<string | null>(null);
   const [uploadingBankImage, setUploadingBankImage] = useState(false);
+  const [uploadingTriggerField, setUploadingTriggerField] = useState<"triggerIconDefaultUrl" | "triggerIconHoverUrl" | null>(null);
+  const [uploadingTopSidebarFont, setUploadingTopSidebarFont] = useState(false);
   const config = value[deviceTab];
 
   function patch(next: Partial<TopSidebarValue["pc"]>) {
@@ -1441,6 +1703,28 @@ function TopSidebarControls({
   function removeBankImage(url: string) {
     patch({ imageBankUrls: config.imageBankUrls.filter((u) => u !== url) });
   }
+  // HOTFIX-141(사용자 지시 — "상단 사이드바 아이콘 설정(이미지), hover
+  // 했을때 이미지를 설정하는게 없네 만들어"): 트리거 아이콘 기본/hover
+  // 이미지 업로드 — sidebarIconsSettings.ts의 handleFile과 동일한 패턴.
+  async function handleTriggerIconFile(field: "triggerIconDefaultUrl" | "triggerIconHoverUrl", file: File | null) {
+    if (!file) return;
+    setUploadingTriggerField(field);
+    const { url } = await uploadImage(file, "top_sidebar_trigger");
+    setUploadingTriggerField(null);
+    if (url) patch({ [field]: url } as Partial<TopSidebarValue["pc"]>);
+  }
+  // HOTFIX-141(사용자 지시 — "이건 다른 모든 상단 사이드바의 서체를
+  // 내가 업로드하는 기능이 없네"): mainLogo customFonts와 동일한 패턴.
+  async function handleTopSidebarFontFile(file: File | null) {
+    if (!file) return;
+    setUploadingTopSidebarFont(true);
+    const { url } = await uploadImage(file, "custom_fonts");
+    setUploadingTopSidebarFont(false);
+    if (url) {
+      const entry: CustomFontEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, isActive: true };
+      patch({ customFonts: [...config.customFonts, entry] });
+    }
+  }
   function addChild(linkId: string) {
     const link = config.links.find((l) => l.id === linkId);
     if (!link) return;
@@ -1479,6 +1763,34 @@ function TopSidebarControls({
           <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
           <input value={config.fontFamily} onChange={(e) => patch({ fontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
         </label>
+        {/* HOTFIX-141: mainLogo/topTabStyle의 customFonts와 동일한 패턴 —
+            폰트 "파일"을 직접 업로드. 위 fontFamily(이름 직접 입력)와는
+            독립적으로, 활성 폰트가 있으면 폴백 체인 맨 앞에 걸린다. */}
+        <div className="space-y-1.5">
+          <p className="mb-1 block text-gray-600">커스텀 폰트 파일 ({config.customFonts.length}개)</p>
+          {config.customFonts.map((font) => (
+            <div key={font.id} className="rounded border border-gray-200 p-1.5">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-1 text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={font.isActive}
+                    onChange={(e) => patch({ customFonts: config.customFonts.map((f) => (f.id === font.id ? { ...f, isActive: e.target.checked } : f)) })}
+                  />
+                  사용
+                </label>
+                <button type="button" onClick={() => patch({ customFonts: config.customFonts.filter((f) => f.id !== font.id) })} className="text-[11px] text-red-500 hover:underline">
+                  삭제
+                </button>
+              </div>
+              <p className="truncate text-[10px] text-gray-400" title={font.url}>{font.url}</p>
+            </div>
+          ))}
+          <label className="block">
+            <span className="mb-1 block text-gray-600">폰트 파일 추가 {uploadingTopSidebarFont && "(업로드 중...)"}</span>
+            <input type="file" accept=".woff,.woff2,.ttf,.otf" disabled={uploadingTopSidebarFont} onChange={(e) => handleTopSidebarFontFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          </label>
+        </div>
         <label className="block">
           <span className="mb-1 block text-gray-600">링크 hover 모션</span>
           <select value={config.hoverMotion} onChange={(e) => patch({ hoverMotion: e.target.value as TopSidebarConfig["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
@@ -1488,6 +1800,80 @@ function TopSidebarControls({
               </option>
             ))}
           </select>
+        </label>
+      </div>
+
+      {/* HOTFIX-141(사용자 지시 — "상단 사이드바의 컬럼과 컬럼의 영역을
+          내가 드래그 드랍으로 조절하는 기능을 만들어줘. 그리고 상단
+          사이드바의 컬럼을 하나의 묶음으로 드래그 드랍으로 좌우 순서를
+          변경가능하게 해줘"): 픽셀 드래그 대신 정확한 숫자 입력(너비)+
+          ↑/↓ 순서 버튼으로 구현 — topSidebarSettings.ts의 타입 주석에
+          이유를 적었다(실사이트 전역에 뜨는 메가메뉴라 이 세션에서
+          검증 못 하는 픽셀 드래그를 얹는 위험을 피함). */}
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <p className="font-medium text-gray-600">컬럼 너비·순서</p>
+        <p className="text-[11px] text-gray-400">0=왼쪽 이미지 / 1=이름·등급·활동 / 2=링크 목록 / 3=hover 하위 목록. 지금 화면상 왼쪽부터의 순서예요.</p>
+        {config.columnOrder.map((colIdx, orderIdx) => (
+          <div key={colIdx} className="flex items-center gap-2 rounded border border-gray-200 p-1.5">
+            <span className="w-24 shrink-0 text-gray-500">{COLUMN_LABELS[colIdx]}</span>
+            <input
+              type="number"
+              min={40}
+              max={480}
+              value={config.columnWidthsPx[colIdx]}
+              onChange={(e) => {
+                const next = [...config.columnWidthsPx] as TopSidebarConfig["columnWidthsPx"];
+                next[colIdx] = Math.max(40, Number(e.target.value) || 40);
+                patch({ columnWidthsPx: next });
+              }}
+              className="w-16 rounded border border-gray-300 px-1.5 py-1"
+            />
+            <span className="text-gray-400">px</span>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                disabled={orderIdx === 0}
+                onClick={() => {
+                  const next = [...config.columnOrder] as TopSidebarConfig["columnOrder"];
+                  [next[orderIdx - 1], next[orderIdx]] = [next[orderIdx], next[orderIdx - 1]];
+                  patch({ columnOrder: next });
+                }}
+                className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                disabled={orderIdx === config.columnOrder.length - 1}
+                onClick={() => {
+                  const next = [...config.columnOrder] as TopSidebarConfig["columnOrder"];
+                  [next[orderIdx], next[orderIdx + 1]] = [next[orderIdx + 1], next[orderIdx]];
+                  patch({ columnOrder: next });
+                }}
+                className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+              >
+                →
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* HOTFIX-141(사용자 지시 — "상단 사이드바 아이콘 설정(이미지),
+          hover 했을때 이미지를 설정하는게 없네 만들어"): 헤더 우측 "☰"
+          여닫이 트리거 자체의 기본/hover 이미지 — sidebarIconsSettings.ts의
+          기존 좌/우 사이드바 아이콘 설정 UI와 동일한 패턴. */}
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <p className="font-medium text-gray-600">여닫이 트리거 아이콘</p>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">기본 이미지 {uploadingTriggerField === "triggerIconDefaultUrl" && "(업로드 중...)"}</span>
+          <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconDefaultUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <ImageThumb url={config.triggerIconDefaultUrl} alt="트리거 기본 아이콘 미리보기" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">호버 이미지 {uploadingTriggerField === "triggerIconHoverUrl" && "(업로드 중...)"}</span>
+          <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconHoverUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <ImageThumb url={config.triggerIconHoverUrl} alt="트리거 호버 아이콘 미리보기" />
         </label>
       </div>
 

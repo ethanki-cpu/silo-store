@@ -398,6 +398,20 @@ export default function AdminNavigationSettingsPage() {
   const [deviceTab, setDeviceTab] = useState<"pc" | "mobile">("pc");
   const [selection, setSelection] = useState<Selection>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>("controls");
+  // HOTFIX-141.9(사용자 지시 — "화면 왼쪽 상단에 '스튜디오' 그아래에
+  // '관리자' 버튼이 있는건데, 거기두니까 아예 사라졌네... 근본적인 문제를
+  // 해결해"): 지금까지 반복된 "live preview가 실제 사이트와 다르다"는
+  // 신고의 진짜 원인 — Elements/Controls 왼쪽 패널(w-80=320px)이 캔버스와
+  // flex로 폭을 나눠 쓰고 있어서, 캔버스가 실제 사이트보다 항상 320px
+  // 좁게 렌더링됐다. 절대 픽셀 드래그 오프셋은 이 좁아진 폭 기준으로
+  // 계산되니, 실제 사이트(전체 폭)에서는 정상 위치인 값이 캔버스
+  // 안에서는 왼쪽 패널(사이트의 일부가 아니라 순수 에디터 UI) 밑에
+  // 깔려 안 보이게 된다 — 값을 아무리 리셋해도 다시 왼쪽으로 드래그하면
+  // 재발할 수밖에 없는 구조적 문제였다. 패널을 flex 형제 대신 캔버스
+  // 위에 뜨는 오버레이로 바꿔 캔버스가 항상 전체 폭을 그대로 쓰게 하고,
+  // 필요하면 패널을 숨겨 진짜 전체 폭(실제 사이트와 동일)을 확인할 수
+  // 있게 한다.
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const craftBridgeRef = useRef<{
     query: ReturnType<typeof useEditor>["query"];
     actions: ReturnType<typeof useEditor>["actions"];
@@ -758,26 +772,51 @@ export default function AdminNavigationSettingsPage() {
 
       <Editor resolver={{ ...PRIMITIVE_RESOLVER, ...craftFooterResolver }} enabled>
         <CraftBridge bridgeRef={craftBridgeRef} onCraftSelect={handleCraftSelect} />
-        <div className="flex overflow-hidden rounded-lg border border-gray-200" style={{ minHeight: 900 }}>
-          <div className="flex w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
-            <div className="flex border-b border-gray-200 text-xs">
-              {([
-                ["elements", "Elements"],
-                ["controls", "Controls"],
-                ["page", "Page"],
-                ["themes", "Themes"],
-              ] as [LeftTab, string][]).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setLeftTab(key)}
-                  className={`flex-1 border-b-2 px-2 py-2.5 font-medium ${
-                    leftTab === key ? "border-gray-800 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+        {/* HOTFIX-141.9: relative(오버레이 기준) — 더 이상 flex로 패널과
+            캔버스가 폭을 나눠 쓰지 않는다. */}
+        <div className="relative overflow-hidden rounded-lg border border-gray-200" style={{ minHeight: 900 }}>
+          {leftPanelCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setLeftPanelCollapsed(false)}
+              className="absolute left-3 top-3 z-50 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-600 shadow-md hover:bg-gray-50"
+              title="Elements/Controls 패널 다시 보기"
+            >
+              ▶ 패널 보기
+            </button>
+          ) : (
+          <div className="absolute inset-y-0 left-0 z-40 flex w-80 flex-col border-r border-gray-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 pl-1">
+              <div className="flex flex-1 text-xs">
+                {([
+                  ["elements", "Elements"],
+                  ["controls", "Controls"],
+                  ["page", "Page"],
+                  ["themes", "Themes"],
+                ] as [LeftTab, string][]).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setLeftTab(key)}
+                    className={`flex-1 border-b-2 px-2 py-2.5 font-medium ${
+                      leftTab === key ? "border-gray-800 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* HOTFIX-141.9: 캔버스가 이제 이 패널 뒤로 전체 폭을 그대로
+                  쓰므로, 패널을 숨기면 실제 사이트와 정확히 같은 폭으로
+                  보인다 — 화면 왼쪽 끝에 드래그한 요소를 확인할 때 쓴다. */}
+              <button
+                type="button"
+                onClick={() => setLeftPanelCollapsed(true)}
+                className="shrink-0 px-2 text-gray-400 hover:text-gray-700"
+                title="패널 숨기기(실제 사이트와 동일한 폭으로 보기)"
+              >
+                ◀
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {leftTab === "elements" && (
@@ -892,8 +931,12 @@ export default function AdminNavigationSettingsPage() {
               )}
             </div>
           </div>
+          )}
 
-          <div className="flex-1 overflow-auto bg-gray-100 p-4">
+          {/* HOTFIX-141.9: 더 이상 flex-1(패널과 폭을 나눠 씀)이 아니라
+              항상 이 컨테이너의 전체 폭 — 패널은 위에서 absolute로 겹쳐
+              뜰 뿐 이 폭 계산에 관여하지 않는다. */}
+          <div className="overflow-auto bg-gray-100 p-4" style={{ minHeight: 900 }}>
             {/* HOTFIX-141(사용자 지시 — "모바일 화면에서, 좌 우 사이드바가
                 활성화 되어있지 않은데 왼쪽으로 밀려나기만해 아예 안보이게
                 해줘"): 이 390px 프레임에 overflow-hidden이 없어서, 닫힌

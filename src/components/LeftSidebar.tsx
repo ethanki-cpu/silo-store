@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { NavTab } from "@/lib/navConfig";
 import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
+import { SelectionOverlay } from "@/components/SelectionOverlay";
 
 // EPIC-039: EPIC-037이 sidebar-left 탭을 다른 상위 탭과 동일한 작은 hover
 // 드롭다운으로 통합했지만, 실사용 결과 화면 전체 높이의 슬라이드인 패널이
@@ -41,6 +42,8 @@ export function LeftSidebar({
   iconSizePx = 32,
   triggerMode = "click",
   topOffsetPx,
+  editable = false,
+  selected = false,
 }: {
   tab?: NavTab;
   open: boolean;
@@ -60,6 +63,16 @@ export function LeftSidebar({
   // EPIC-089: 뷰포트 상단에서부터의 px 거리 — 지정하지 않으면(구버전 호출부)
   // 기존 top-1/2(정중앙) 동작을 그대로 유지한다.
   topOffsetPx?: number;
+  // HOTFIX-140.2(사용자 지시 — "왼쪽 오른쪽 사이드바도, 아이콘이 live
+  // preview 에서 보이고... 클릭하면 사이드바가 열리고, 그 사이드바를
+  // 설정할수 있게 해야해"): EPIC-136이 상단 헤더에 이미 적용한 것과 같은
+  // 패턴 — 편집 캔버스 안에서는 position:fixed 대신 :absolute를 써서
+  // 뷰포트가 아니라 Navbar의 relative 래퍼(<header>) 기준으로 자리잡게
+  // 한다(그래야 캔버스 박스 밖으로 튀어오르지 않음). 패널 안 실제 링크
+  // 클릭도 TopSidebarPanel과 동일하게 가로채 관리자 화면을 벗어나지
+  // 않게 한다.
+  editable?: boolean;
+  selected?: boolean;
 }) {
   // EPIC-054D(접근성 감사 §13): Escape로 닫기 + 닫힐 때 트리거 아이콘으로
   // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
@@ -110,11 +123,12 @@ export function LeftSidebar({
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="left-sidebar-panel"
-          className={`group fixed left-0 z-40 flex items-center justify-center rounded-r-md bg-transparent p-2 text-white ${
+          className={`group ${editable ? "absolute" : "fixed"} left-0 z-40 flex items-center justify-center rounded-r-md bg-transparent p-2 text-white ${
             topOffsetPx === undefined ? "top-1/2 -translate-y-1/2" : ""
           }`}
           style={topOffsetPx === undefined ? undefined : { top: topOffsetPx }}
         >
+          {editable && <SelectionOverlay selected={selected} hovered={false} label="좌측 사이드바 아이콘" />}
           {/* EPIC-078: 기본/호버 미디어를 같은 자리에 겹쳐 opacity로
               크로스페이드 — 미디어 자체(이미지 또는 투명 비디오)의 전환으로
               표현한다. 커서를 올리면 아이콘 전체가 20% 확대된다
@@ -145,9 +159,24 @@ export function LeftSidebar({
         id="left-sidebar-panel"
         aria-hidden={!open}
         inert={!open}
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-green-800 text-white transform transition-transform duration-200 ${
-          open ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`${editable ? "absolute top-0" : "fixed inset-y-0"} left-0 z-50 w-64 overflow-hidden bg-green-800 text-white transform transition-transform duration-200 ${
+          selected ? "ring-2 ring-blue-400 ring-inset" : ""
+        } ${open ? "translate-x-0" : "-translate-x-full"}`}
+        style={editable ? { height: "80vh" } : undefined}
+        // HOTFIX-140.2: TopSidebarPanel.tsx와 동일한 이유 — 편집 모드에서
+        // 패널 안 실제 링크를 클릭해도 관리자 화면을 벗어나지 않게 캡처
+        // 단계에서 가로챈다. 닫기 버튼(data-panel-close)만 예외로 통과시켜
+        // 실제로 닫히게 한다(그렇지 않으면 캡처가 타깃 도달 전에
+        // stopPropagation해 닫기 버튼 자신의 onClick이 아예 안 불림).
+        onClickCapture={
+          editable
+            ? (e) => {
+                if ((e.target as HTMLElement).closest("[data-panel-close]")) return;
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            : undefined
+        }
       >
         <div className="flex items-center justify-between p-4 border-b border-white/20">
           {tab.href ? (
@@ -164,6 +193,7 @@ export function LeftSidebar({
           )}
           <button
             type="button"
+            data-panel-close
             onClick={onClose}
             aria-label="닫기"
             className="text-white/80 hover:text-white"

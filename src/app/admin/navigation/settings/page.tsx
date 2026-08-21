@@ -79,6 +79,7 @@ import {
   normalizeTopSidebar,
   defaultTopSidebarValue,
   type TopSidebarValue,
+  type TopSidebarConfig,
   type TopSidebarLink,
   type TopSidebarChildLink,
 } from "@/lib/topSidebarSettings";
@@ -781,28 +782,6 @@ export default function AdminNavigationSettingsPage() {
                 )}
               </ClickSelectSlot>
 
-              <div className="flex gap-4 border-b border-gray-200 p-4">
-                <ClickSelectSlot
-                  slotKey="sidebar:left"
-                  label="좌측 사이드바 아이콘"
-                  selected={selection?.kind === "slot" && selection.key === "sidebar:left"}
-                  onSelect={selectSlot}
-                  className="flex flex-1 items-center gap-2 rounded border border-dashed border-gray-300 p-3"
-                >
-                  <SidebarIconPreview url={sidebarIcons.leftIconDefaultUrl} />
-                  <span className="text-xs text-gray-500">좌측 사이드바 아이콘(화면 가장자리 고정 — 대표 미리보기)</span>
-                </ClickSelectSlot>
-                <ClickSelectSlot
-                  slotKey="sidebar:right"
-                  label="우측 사이드바 아이콘"
-                  selected={selection?.kind === "slot" && selection.key === "sidebar:right"}
-                  onSelect={selectSlot}
-                  className="flex flex-1 items-center gap-2 rounded border border-dashed border-gray-300 p-3"
-                >
-                  <SidebarIconPreview url={sidebarIcons.rightIconDefaultUrl} />
-                  <span className="text-xs text-gray-500">우측 사이드바 아이콘(화면 가장자리 고정 — 대표 미리보기)</span>
-                </ClickSelectSlot>
-              </div>
 
               <div className="border-b border-t-4 border-dashed border-gray-300 bg-gray-50 px-4 py-1.5 text-center text-[10px] uppercase tracking-wide text-gray-400">
                 하단 메뉴
@@ -814,20 +793,6 @@ export default function AdminNavigationSettingsPage() {
       </Editor>
     </main>
   );
-}
-
-function SidebarIconPreview({ url }: { url: string }) {
-  if (!url) return <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-lg">🔑</div>;
-  return <SidebarTriggerMediaPreview url={url} />;
-}
-
-function SidebarTriggerMediaPreview({ url }: { url: string }) {
-  const isVideo = /\.(webm|mp4)$/i.test(url);
-  if (isVideo) {
-    return <video src={url} className="h-10 w-10 shrink-0 rounded object-contain" muted loop autoPlay playsInline />;
-  }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="" className="h-10 w-10 shrink-0 rounded object-contain" />;
 }
 
 // ── Controls 탭 본문 — selection 종류별로 실제 필드를 보여준다.
@@ -1394,6 +1359,7 @@ function TopSidebarControls({
   deviceTab: "pc" | "mobile";
 }) {
   const [uploadingLinkId, setUploadingLinkId] = useState<string | null>(null);
+  const [uploadingBankImage, setUploadingBankImage] = useState(false);
   const config = value[deviceTab];
 
   function patch(next: Partial<TopSidebarValue["pc"]>) {
@@ -1405,6 +1371,24 @@ function TopSidebarControls({
   function addLink() {
     const newLink: TopSidebarLink = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, label: "새 링크", href: "#", imageUrl: "", children: [] };
     patch({ links: [...config.links, newLink] });
+  }
+  // HOTFIX-140.2(사용자 지시 — "모든 요소 추가, 제거, 복제 가능하게해"):
+  // 이 목록은 Craft.js 노드 트리가 아니라 평범한 React 배열이라(EPIC-139의
+  // "복제" 위험 회피 사유였던 Craft 내부 id 재사용 문제가 여기엔 없음)
+  // 그냥 새 id로 깊은 복사하면 안전하다.
+  function duplicateLink(id: string) {
+    const link = config.links.find((l) => l.id === id);
+    if (!link) return;
+    const copy: TopSidebarLink = {
+      ...link,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      label: `${link.label} 사본`,
+      children: link.children.map((c) => ({ ...c, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })),
+    };
+    const idx = config.links.findIndex((l) => l.id === id);
+    const next = [...config.links];
+    next.splice(idx + 1, 0, copy);
+    patch({ links: next });
   }
   function removeLink(id: string) {
     patch({ links: config.links.filter((l) => l.id !== id) });
@@ -1423,6 +1407,17 @@ function TopSidebarControls({
     const { url } = await uploadImage(file, "top_sidebar");
     setUploadingLinkId(null);
     if (url) updateLink(id, { imageUrl: url });
+  }
+  // HOTFIX-140.2: column 0에 무작위로 보여줄 이미지 풀 — 여러 장 추가/삭제.
+  async function handleAddBankImage(file: File | null) {
+    if (!file) return;
+    setUploadingBankImage(true);
+    const { url } = await uploadImage(file, "top_sidebar_bank");
+    setUploadingBankImage(false);
+    if (url) patch({ imageBankUrls: [...config.imageBankUrls, url] });
+  }
+  function removeBankImage(url: string) {
+    patch({ imageBankUrls: config.imageBankUrls.filter((u) => u !== url) });
   }
   function addChild(linkId: string) {
     const link = config.links.find((l) => l.id === linkId);
@@ -1445,8 +1440,50 @@ function TopSidebarControls({
     <div className="space-y-3 text-xs">
       <p className="text-sm font-semibold text-gray-700">상단 사이드바</p>
       <p className="text-[11px] text-gray-400">
-        헤더 우측의 &ldquo;상단 사이드바 열기 버튼&rdquo;은 다른 헤더 요소처럼 항상 표시돼요(따로 켜고 끄지 않아요). 클릭하면 화면 위에서 아래로 슬라이드해 열려요. 왼쪽 이름/등급/팔로워 등은 실제 로그인 정보라 여기서 편집할 수 없어요 — 아래 목록만 관리자가 정하는 링크예요.
+        헤더 우측의 &ldquo;상단 사이드바 열기 버튼&rdquo;은 다른 헤더 요소처럼 항상 표시돼요(따로 켜고 끄지 않아요). 클릭하면 화면 위에서 아래로 슬라이드해 열려요(캔버스에서 직접 클릭해 열고 닫아 미리볼 수 있어요). 왼쪽 이름/등급/팔로워/최근 활동/Mind Diary·Studio·Silo Planet은 실제 로그인 정보 + 고정 바로가기라 여기서 편집할 수 없어요 — 아래는 그 옆(column 2) 링크 목록과 패널 전체 스타일이에요.
       </p>
+
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <p className="font-medium text-gray-600">패널 스타일</p>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">배경색</span>
+          <input type="color" value={config.backgroundColor || "#ffffff"} onChange={(e) => patch({ backgroundColor: e.target.value })} className="h-8 w-full rounded border border-gray-300" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">텍스트 색</span>
+          <input type="color" value={config.textColor || "#374151"} onChange={(e) => patch({ textColor: e.target.value })} className="h-8 w-full rounded border border-gray-300" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
+          <input value={config.fontFamily} onChange={(e) => patch({ fontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">링크 hover 모션</span>
+          <select value={config.hoverMotion} onChange={(e) => patch({ hoverMotion: e.target.value as TopSidebarConfig["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
+            {TAB_HOVER_MOTIONS.map((m) => (
+              <option key={m} value={m}>
+                {TAB_HOVER_MOTION_LABELS[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <p className="font-medium text-gray-600">이미지 뱅크 ({config.imageBankUrls.length}장) — column 2에 마우스를 올리면 이 중 무작위로 하나가 왼쪽에 떠요</p>
+        <div className="grid grid-cols-4 gap-2">
+          {config.imageBankUrls.map((url) => (
+            <div key={url} className="relative">
+              <ImageThumb url={url} alt="뱅크 이미지" />
+              <button type="button" onClick={() => removeBankImage(url)} className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-[10px] text-white">✕</button>
+            </div>
+          ))}
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">이미지 추가 {uploadingBankImage && "(업로드 중...)"}</span>
+          <input type="file" accept="image/*" disabled={uploadingBankImage} onChange={(e) => handleAddBankImage(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+        </label>
+      </div>
 
       <div className="space-y-2 border-t border-gray-200 pt-3">
         <p className="font-medium text-gray-600">링크 목록 ({config.links.length}개)</p>
@@ -1457,6 +1494,7 @@ function TopSidebarControls({
               <div className="flex items-center gap-1">
                 <button type="button" disabled={idx === 0} onClick={() => moveLink(link.id, -1)} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30">↑</button>
                 <button type="button" disabled={idx === config.links.length - 1} onClick={() => moveLink(link.id, 1)} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-30">↓</button>
+                <button type="button" onClick={() => duplicateLink(link.id)} className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50">복제</button>
                 <button type="button" onClick={() => removeLink(link.id)} className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50">삭제</button>
               </div>
             </div>
@@ -1465,7 +1503,7 @@ function TopSidebarControls({
             <div className="flex items-start gap-2">
               <ImageThumb url={link.imageUrl} alt={`${link.label} 미리보기`} />
               <label className="block min-w-0 flex-1">
-                <span className="mb-1 block text-gray-600">hover 이미지 {uploadingLinkId === link.id && "(업로드 중...)"}</span>
+                <span className="mb-1 block text-gray-600">hover 이미지(이미지 뱅크가 비어있을 때만 사용) {uploadingLinkId === link.id && "(업로드 중...)"}</span>
                 <input type="file" accept="image/*" disabled={uploadingLinkId === link.id} onChange={(e) => handleLinkImage(link.id, e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
               </label>
             </div>

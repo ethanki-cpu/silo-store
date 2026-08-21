@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { NavTab } from "@/lib/navConfig";
 import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
+import { SelectionOverlay } from "@/components/SelectionOverlay";
 
 // EPIC-039: LeftSidebar.tsx와 대칭 구조 — 자세한 배경은 그쪽 주석 참고.
 //
@@ -29,6 +30,8 @@ export function RightSidebar({
   iconSizePx = 32,
   triggerMode = "click",
   topOffsetPx,
+  editable = false,
+  selected = false,
 }: {
   tab?: NavTab;
   open: boolean;
@@ -48,6 +51,9 @@ export function RightSidebar({
   // EPIC-089: 뷰포트 상단에서부터의 px 거리 — 지정하지 않으면(구버전 호출부)
   // 기존 top-1/2(정중앙) 동작을 그대로 유지한다.
   topOffsetPx?: number;
+  // HOTFIX-140.2: LeftSidebar.tsx와 동일한 이유/패턴 — 자세한 배경은 그쪽 주석 참고.
+  editable?: boolean;
+  selected?: boolean;
 }) {
   // EPIC-054D(접근성 감사 §13): Escape로 닫기 + 닫힐 때 트리거 아이콘으로
   // 포커스 복귀 + 패널이 닫혀 있을 때 포커스/스크린리더 접근 차단(inert).
@@ -97,11 +103,12 @@ export function RightSidebar({
           aria-label={`${tab.label} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="right-sidebar-panel"
-          className={`group fixed right-0 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white ${
+          className={`group ${editable ? "absolute" : "fixed"} right-0 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white ${
             topOffsetPx === undefined ? "top-1/2 -translate-y-1/2" : ""
           }`}
           style={topOffsetPx === undefined ? undefined : { top: topOffsetPx }}
         >
+          {editable && <SelectionOverlay selected={selected} hovered={false} label="우측 사이드바 아이콘" />}
           {/* EPIC-078: 기본/호버 미디어를 같은 자리에 겹쳐 opacity로
               크로스페이드 — 미디어 자체(이미지 또는 투명 비디오)의 전환으로
               표현한다. 커서를 올리면 아이콘 전체가 20% 확대된다
@@ -132,9 +139,20 @@ export function RightSidebar({
         id="right-sidebar-panel"
         aria-hidden={!open}
         inert={!open}
-        className={`fixed inset-y-0 right-0 z-50 w-64 bg-green-800 text-white transform transition-transform duration-200 ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`${editable ? "absolute top-0" : "fixed inset-y-0"} right-0 z-50 w-64 overflow-hidden bg-green-800 text-white transform transition-transform duration-200 ${
+          selected ? "ring-2 ring-blue-400 ring-inset" : ""
+        } ${open ? "translate-x-0" : "translate-x-full"}`}
+        style={editable ? { height: "80vh" } : undefined}
+        // HOTFIX-140.2: LeftSidebar.tsx와 동일한 이유 — 자세한 배경은 그쪽 주석 참고.
+        onClickCapture={
+          editable
+            ? (e) => {
+                if ((e.target as HTMLElement).closest("[data-panel-close]")) return;
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            : undefined
+        }
       >
         <div className="flex items-center justify-between p-4 border-b border-white/20">
           {tab.href ? (
@@ -151,6 +169,7 @@ export function RightSidebar({
           )}
           <button
             type="button"
+            data-panel-close
             onClick={onClose}
             aria-label="닫기"
             className="text-white/80 hover:text-white"

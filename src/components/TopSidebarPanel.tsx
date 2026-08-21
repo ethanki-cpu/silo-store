@@ -8,19 +8,60 @@
 // site_settings.top_sidebar에 저장한 링크 목록, column 3은 그중 마우스를
 // 올린 링크의 하위 목록(hover cascade). "column 1/2/3"이라는 텍스트
 // 라벨 자체는 화면에 표시하지 않는다(사용자 지시대로).
-import { useEffect, useRef, useState } from "react";
+//
+// HOTFIX-140.2(사용자 지시 — 스크린샷 2장 첨부, "column 1: 사용자 이름,
+// 사용자 등급, 팔로우 & 팔로워, 최근 활동(아래에 최근 활동 3개 & 전체보기),
+// 메시지, 그 아래에 Mind Diary/Studio/Silo Planet" + "오른쪽칼럼에 hover
+// 하거나 클릭하면 랜덤으로 이미지 뱅크의 이미지가 나오는것" + "배경색,
+// 텍스트 색 & 폰트, 모션여러개, hover 모션옵션"): column 1에 팔로잉 수·
+// 실제 최근 활동 3개·Mind Diary/Studio/Silo Planet 고정 링크를 추가하고,
+// column 0 이미지를 "그 링크의 지정 이미지" 대신 관리자가 올린 이미지
+// 풀(imageBankUrls)에서 무작위로 고르도록 바꿨다(풀이 비어있으면 기존
+// 링크별 imageUrl로 폴백). 패널 배경/텍스트색/서체/hover 모션도 새로
+// 설정 가능해졌다. editable일 때 패널 내부 클릭은(닫기 버튼 제외) 실제
+// 링크 이동 대신 "top-sidebar" 설정 선택으로 가로챈다(HeaderSlot의
+// HOTFIX-137.1/HOTFIX-140.2와 같은 이유 — 관리자 화면에서 실수로 페이지를
+// 벗어나지 않게).
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
-import type { TopSidebarLink } from "@/lib/topSidebarSettings";
+import type { TopSidebarConfig } from "@/lib/topSidebarSettings";
+import { tabHoverMotionCss } from "@/lib/tabHoverMotion";
+
+const REASON_LABELS: Record<string, string> = {
+  post: "글 작성",
+  comment: "댓글 작성",
+  like_received: "좋아요 받음",
+  best_post: "개념글 승격",
+  shop_purchase: "상점 구매",
+  shop_rental: "상점 대여",
+  venue_rental: "공간 대관",
+  club_participation: "클럽 참여",
+  attendance: "출석체크",
+};
+
+type ActivityEntry = { id: string; createdAt: string; label: string; detail?: string };
+
+// column 1 하단 고정 바로가기 — 관리자가 편집하는 column 2 링크 목록과는
+// 별개(세션 정보 블록의 일부로 취급, 사용자 지시).
+const FIXED_LINKS = [
+  { label: "Mind Diary", href: "/salon/mind-diary" },
+  { label: "Studio", href: "/studio" },
+  { label: "Silo Planet", href: "/about-silo" },
+];
+
+const LINK_HOVER_CLASS = "silo-top-sidebar-link";
 
 export function TopSidebarPanel({
-  links,
+  config,
   open,
   onClose,
   editable = false,
+  selected = false,
+  onSelect,
 }: {
-  links: TopSidebarLink[];
+  config: TopSidebarConfig;
   open: boolean;
   onClose: () => void;
   /** HOTFIX-137.9: Navbar.tsx의 topBarRef와 동일한 이유 — 관리자 편집
@@ -29,10 +70,17 @@ export function TopSidebarPanel({
       원인). editable일 때는 absolute로 바꿔 캔버스 안에 자연스럽게
       자리잡게 한다. */
   editable?: boolean;
+  /** HOTFIX-140.2: 편집 모드에서 패널 안을 클릭하면 왼쪽 Controls를
+      "top-sidebar"로 전환하기 위한 선택 상태 표시(테두리). */
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const { session, member } = useAuth();
   const [followerCount, setFollowerCount] = useState<number | null>(null);
+  const [followingCount, setFollowingCount] = useState<number | null>(null);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [hoveredLinkId, setHoveredLinkId] = useState<string | null>(null);
+  const [bankImageUrl, setBankImageUrl] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,72 +95,159 @@ export function TopSidebarPanel({
   useEffect(() => {
     if (!open || !member) return;
     let cancelled = false;
-    supabase
-      .from("member_follows")
-      .select("id", { count: "exact", head: true })
-      .eq("following_id", member.id)
-      .then(({ count }) => {
-        if (!cancelled) setFollowerCount(count ?? 0);
-      });
+    Promise.all([
+      supabase.from("member_follows").select("id", { count: "exact", head: true }).eq("following_id", member.id),
+      supabase.from("member_follows").select("id", { count: "exact", head: true }).eq("follower_id", member.id),
+      supabase
+        .from("points_ledger")
+        .select("id, reason, points, created_at")
+        .eq("member_id", member.id)
+        .order("created_at", { ascending: false })
+        .limit(3),
+    ]).then(([followerRes, followingRes, ledgerRes]) => {
+      if (cancelled) return;
+      setFollowerCount(followerRes.count ?? 0);
+      setFollowingCount(followingRes.count ?? 0);
+      setActivity(
+        ((ledgerRes.data ?? []) as { id: string; reason: string; points: number; created_at: string }[]).map((row) => ({
+          id: row.id,
+          createdAt: row.created_at,
+          label: REASON_LABELS[row.reason] ?? row.reason,
+          detail: `+${row.points}P`,
+        })),
+      );
+    });
     return () => {
       cancelled = true;
     };
   }, [open, member]);
 
-  const hoveredLink = links.find((l) => l.id === hoveredLinkId) ?? null;
+  // HOTFIX-140.2: column 2 항목에 마우스를 올릴 때마다 이미지 풀에서
+  // 무작위로 하나 골라 column 0에 보여준다 — 풀이 비어있으면 그 링크
+  // 자신의 imageUrl로 폴백(구버전 동작 유지).
+  // react-hooks/purity(React Compiler)가 컴포넌트 함수 스코프 안의
+  // Math.random() 호출을 정적으로 다 걸러낸다 — 이 함수는 실제로는 렌더
+  // 도중이 아니라 오직 handleLinkHover(마우스 이벤트 핸들러)에서만
+  // 호출되므로 안전하다(EPIC-115가 같은 이유로 시드 PRNG로 우회한 것과
+  // 달리, 여기는 매 hover마다 진짜 무작위값이 필요해 시드 방식을 쓸 수 없다).
+  function pickBankImage() {
+    if (config.imageBankUrls.length === 0) return null;
+    const pool = config.imageBankUrls;
+    // eslint-disable-next-line react-hooks/purity
+    const idx = Math.floor(Math.random() * pool.length);
+    return pool[idx];
+  }
+  function handleLinkHover(linkId: string) {
+    setHoveredLinkId(linkId);
+    setBankImageUrl(pickBankImage());
+  }
+
+  const hoveredLink = config.links.find((l) => l.id === hoveredLinkId) ?? null;
+  const displayImageUrl = bankImageUrl ?? hoveredLink?.imageUrl ?? null;
+
+  const motionCss = useMemo(() => tabHoverMotionCss(LINK_HOVER_CLASS, config.hoverMotion), [config.hoverMotion]);
 
   return (
     <div
       ref={panelRef}
-      className={`${editable ? "absolute" : "fixed"} inset-x-0 top-0 z-50 transform border-b border-gray-200 bg-white shadow-xl transition-transform duration-300 ${
-        open ? "translate-y-0" : "-translate-y-full"
-      }`}
-      style={{ maxHeight: "80vh" }}
+      className={`${editable ? "absolute" : "fixed"} inset-x-0 top-0 z-50 transform border-b transition-transform duration-300 ${
+        selected ? "border-blue-400 ring-2 ring-blue-400 ring-inset" : "border-gray-200"
+      } shadow-xl ${open ? "translate-y-0" : "-translate-y-full"}`}
+      style={{ maxHeight: "80vh", backgroundColor: config.backgroundColor || "#ffffff" }}
       onMouseLeave={() => setHoveredLinkId(null)}
+      // HOTFIX-140.2: 편집 모드에서 패널 내부 클릭은 실제 링크 이동 대신
+      // "top-sidebar" 선택으로 가로챈다 — 단, 캡처 단계는 target에 도달하기
+      // "전에" 먼저 실행되므로 여기서 무조건 stopPropagation하면 닫기
+      // 버튼 자신의 onClick(타깃/버블 단계)까지 아예 도달하지 못해 닫기가
+      // 완전히 죽어버린다(처음 구현에서 실제로 이 버그를 만들었다가 발견해
+      // 수정) — data-panel-close 마커로 닫기 버튼 클릭만 가로채지 않고
+      // 그대로 통과시킨다.
+      onClickCapture={
+        editable
+          ? (e) => {
+              if ((e.target as HTMLElement).closest("[data-panel-close]")) return;
+              e.preventDefault();
+              e.stopPropagation();
+              onSelect?.();
+            }
+          : undefined
+      }
     >
+      {motionCss && <style>{motionCss}</style>}
       <button
         type="button"
+        data-panel-close
         onClick={onClose}
         aria-label="닫기"
         className="absolute right-4 top-4 text-xl text-gray-400 hover:text-gray-700"
       >
         ✕
       </button>
-      <div className="mx-auto flex max-w-5xl gap-10 overflow-y-auto px-8 py-12" style={{ maxHeight: "80vh" }}>
-        {/* 왼쪽 이미지 자리 — column2 링크에 마우스를 올렸을 때만 그 링크의 이미지가 보인다. */}
+      <div
+        className="mx-auto flex max-w-5xl gap-10 overflow-y-auto px-8 py-12"
+        style={{ maxHeight: "80vh", color: config.textColor || undefined, fontFamily: config.fontFamily || undefined }}
+      >
+        {/* column 0: 이미지 뱅크에서 무작위로 고른 이미지(hover/클릭 시마다 갱신). */}
         <div className="hidden w-40 shrink-0 md:block">
-          {hoveredLink?.imageUrl && (
+          {displayImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={hoveredLink.imageUrl} alt="" className="h-56 w-40 rounded object-cover" />
+            <img src={displayImageUrl} alt="" className="h-56 w-40 rounded object-cover" />
           )}
         </div>
 
-        {/* column 1: 실제 세션 데이터 */}
-        <div className="w-48 shrink-0 space-y-3 text-sm text-gray-700">
+        {/* column 1: 실제 세션 데이터 + 고정 바로가기(Mind Diary/Studio/Silo Planet) */}
+        <div className="w-48 shrink-0 space-y-3 text-sm">
           {session && member ? (
             <>
-              <p className="font-medium text-gray-900">{member.name}</p>
+              <p className="font-medium" style={{ color: config.textColor || "#111827" }}>{member.name}</p>
               <p className="text-gray-500">{member.tier_name}</p>
-              <Link href="/mypage/follow" onClick={onClose} className="block hover:underline">
-                팔로워 {followerCount ?? "-"}
-              </Link>
-              <Link href="/mypage/timeline" onClick={onClose} className="block hover:underline">
-                최근 활동
-              </Link>
+              <div className="flex gap-3">
+                <Link href="/mypage/follow" onClick={onClose} className="hover:underline">
+                  팔로잉 {followingCount ?? "-"}
+                </Link>
+                <Link href="/mypage/follow" onClick={onClose} className="hover:underline">
+                  팔로워 {followerCount ?? "-"}
+                </Link>
+              </div>
+              <div className="space-y-1 border-t border-gray-100 pt-2">
+                <p className="text-xs text-gray-400">최근 활동</p>
+                {activity.length === 0 ? (
+                  <p className="text-xs text-gray-300">아직 활동이 없어요.</p>
+                ) : (
+                  <ul className="space-y-0.5">
+                    {activity.map((a) => (
+                      <li key={a.id} className="flex items-center justify-between text-xs">
+                        <span>{a.label}</span>
+                        <span className="text-gray-400">{a.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Link href="/mypage/timeline" onClick={onClose} className="inline-block text-xs text-blue-600 hover:underline">
+                  전체보기
+                </Link>
+              </div>
               <p className="text-gray-400">메시지 (준비 중)</p>
             </>
           ) : (
-            <Link href="/login" onClick={onClose} className="block font-medium text-gray-900 hover:underline">
+            <Link href="/login" onClick={onClose} className="block font-medium hover:underline" style={{ color: config.textColor || "#111827" }}>
               로그인
             </Link>
           )}
+          <div className="space-y-1.5 border-t border-gray-100 pt-2">
+            {FIXED_LINKS.map((f) => (
+              <Link key={f.href} href={f.href} onClick={onClose} className="block hover:underline">
+                {f.label}
+              </Link>
+            ))}
+          </div>
         </div>
 
         {/* column 2: 관리자가 등록한 링크 목록 */}
         <div className="w-56 shrink-0 space-y-2 text-sm">
-          {links.map((link) => (
-            <div key={link.id} onMouseEnter={() => setHoveredLinkId(link.id)}>
-              <Link href={link.href} onClick={onClose} className="block text-gray-700 hover:text-gray-950 hover:underline">
+          {config.links.map((link) => (
+            <div key={link.id} onMouseEnter={() => handleLinkHover(link.id)}>
+              <Link href={link.href} onClick={onClose} className={`block hover:underline ${LINK_HOVER_CLASS}`}>
                 {link.label}
               </Link>
             </div>
@@ -122,7 +257,7 @@ export function TopSidebarPanel({
         {/* column 3: hover 중인 column2 링크의 하위 목록 */}
         <div className="w-56 shrink-0 space-y-2 text-sm">
           {hoveredLink?.children.map((child) => (
-            <Link key={child.id} href={child.href} onClick={onClose} className="block text-gray-700 hover:text-gray-950 hover:underline">
+            <Link key={child.id} href={child.href} onClick={onClose} className={`block hover:underline ${LINK_HOVER_CLASS}`}>
               {child.label}
             </Link>
           ))}

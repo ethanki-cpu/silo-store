@@ -983,7 +983,10 @@ export function Navbar({
   // 이벤트의 기본 동작만 막는다(전파는 막지 않으므로 HeaderSlot 자신의
   // onClick(선택)은 그대로 이어서 동작한다).
   return (
-    <header onClickCapture={editable ? (e) => e.preventDefault() : undefined}>
+    <header
+      className={editable ? "relative" : undefined}
+      onClickCapture={editable ? (e) => e.preventDefault() : undefined}
+    >
       {/* EPIC-104: 로고 줄+탭 줄만 fixed+transform으로 띄워 스크롤 방향에
           따라 숨김/노출한다 — LeftSidebar/RightSidebar(자체적으로 이미
           position:fixed)는 이 wrapper 밖(형제)에 둔다. transform이 걸린
@@ -1272,6 +1275,7 @@ export function Navbar({
                   onSelect={handleSelectSlot}
                   onOffsetChange={handleSlotOffsetChange}
                   as="span"
+                  interactive
                 >
                   <button
                     type="button"
@@ -1342,7 +1346,14 @@ export function Navbar({
           기준(containing block)이라 이 안에 두면 TopSidebarPanel도 같은
           기준을 그대로 물려받는다(별도 앵커를 새로 만들 필요 없음). */}
       {resolvedTopSidebar && (
-        <TopSidebarPanel links={resolvedTopSidebar.links} open={topSidebarOpen} onClose={() => setTopSidebarOpen(false)} editable={editable} />
+        <TopSidebarPanel
+          config={resolvedTopSidebar}
+          open={topSidebarOpen}
+          onClose={() => setTopSidebarOpen(false)}
+          editable={editable}
+          selected={selectedSlotKey === "top-sidebar"}
+          onSelect={() => handleSelectSlot("top-sidebar")}
+        />
       )}
       </div>
       {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이
@@ -1357,44 +1368,55 @@ export function Navbar({
       {/* EPIC-104: topBarRef가 이제 fixed z-40이라, 원래 z-30이던 이 backdrop
           을 z-45로 올려야 사이드바가 열렸을 때 헤더도 함께 어둡게 덮인다
           (전에는 헤더가 static이라 backdrop보다 항상 아래였음). */}
-      {/* EPIC-136: 사이드바 여닫이 아이콘/전체 사이드바 자체는 "홈페이지
-          설정 관리"의 별도 "사이드바 아이콘" 섹션이 담당한다(화면 가장자리
-          fixed 트리거라 이 헤더 캔버스의 자유 드래그 대상이 아님) — 편집
-          모드에서는 아예 렌더링하지 않아 관리자 UI 위에 실제 사이트의
-          고정 트리거 아이콘이 겹쳐 보이는 걸 막는다. */}
-      {!editable && (leftOpen || rightOpen) && (
+      {/* HOTFIX-140.2(사용자 지시 — "왼쪽 오른쪽 사이드바도, 아이콘이 live
+          preview 에서 보이고... 클릭하면 사이드바가 열리고, 그 사이드바를
+          설정할수 있게 해야해"): EPIC-136 시점엔 "화면 가장자리 fixed
+          트리거라 캔버스 대상이 아님"이라 편집 모드에서 아예 렌더링을
+          껐었는데, 그게 정확히 이 요청으로 뒤집혔다 — LeftSidebar/
+          RightSidebar에 새로 추가한 editable prop(내부에서 fixed↔absolute
+          전환)으로 실제 컴포넌트를 그대로 캔버스 안에 그린다(TopSidebarPanel/
+          top-sidebar-trigger와 동일한 패턴). 어두운 backdrop만은 편집
+          모드에서 계속 끈다 — 전체 화면을 덮으면 왼쪽 Controls 패널까지
+          가려 편집을 막아버리므로. */}
+      {(leftOpen || rightOpen) && !editable && (
         <div
           onClick={closeSidebars}
           className="fixed inset-0 z-[45] bg-black/30"
         />
       )}
 
-      {!editable && (
-        <LeftSidebar
-          tab={leftSidebarTab}
-          open={leftOpen}
-          onIconClick={() => setLeftOpen(true)}
-          onClose={() => setLeftOpen(false)}
-          iconDefaultUrl={sidebarIcons?.leftIconDefaultUrl || undefined}
-          iconHoverUrl={sidebarIcons?.leftIconHoverUrl || undefined}
-          iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
-          triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
-          topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
-        />
-      )}
-      {!editable && (
-        <RightSidebar
-          tab={rightSidebarTab}
-          open={rightOpen}
-          onIconClick={() => setRightOpen(true)}
-          onClose={() => setRightOpen(false)}
-          iconDefaultUrl={sidebarIcons?.rightIconDefaultUrl || undefined}
-          iconHoverUrl={sidebarIcons?.rightIconHoverUrl || undefined}
-          iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
-          triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
-          topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
-        />
-      )}
+      <LeftSidebar
+        tab={leftSidebarTab}
+        open={leftOpen}
+        onIconClick={() => {
+          setLeftOpen(true);
+          if (editable) handleSelectSlot("sidebar:left");
+        }}
+        onClose={() => setLeftOpen(false)}
+        iconDefaultUrl={sidebarIcons?.leftIconDefaultUrl || undefined}
+        iconHoverUrl={sidebarIcons?.leftIconHoverUrl || undefined}
+        iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
+        triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
+        topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
+        editable={editable}
+        selected={selectedSlotKey === "sidebar:left"}
+      />
+      <RightSidebar
+        tab={rightSidebarTab}
+        open={rightOpen}
+        onIconClick={() => {
+          setRightOpen(true);
+          if (editable) handleSelectSlot("sidebar:right");
+        }}
+        onClose={() => setRightOpen(false)}
+        iconDefaultUrl={sidebarIcons?.rightIconDefaultUrl || undefined}
+        iconHoverUrl={sidebarIcons?.rightIconHoverUrl || undefined}
+        iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
+        triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
+        topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
+        editable={editable}
+        selected={selectedSlotKey === "sidebar:right"}
+      />
     </header>
   );
 }

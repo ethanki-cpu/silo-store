@@ -28,6 +28,7 @@ export function HeaderSlot({
   className,
   style,
   children,
+  interactive = false,
 }: {
   slotKey: string;
   label: string;
@@ -40,6 +41,17 @@ export function HeaderSlot({
   className?: string;
   style?: CSSProperties;
   children: ReactNode;
+  // HOTFIX-140.2(사용자 지시 — "상단 사이드바를 여는 아이콘을 클릭하면...
+  // 실제 상단 사이드 바가 열리고"): HOTFIX-137.1이 편집 모드에서 모든
+  // children의 실제 동작(로그아웃 실행, 링크 네비게이션)을 캡처 단계에서
+  // 막았는데, 이건 "화면을 벗어나거나 세션에 부작용을 주는" 위험한
+  // 동작에는 맞지만, "이 페이지 안에서 패널을 열고 닫는" 안전한 토글
+  // 동작(상단/좌우 사이드바 열기 버튼 등)까지 똑같이 막아버려 "클릭해도
+  // 캔버스에서 미리보기가 안 열린다"는 새 버그가 됐다. interactive=true인
+  // 슬롯은 선택 처리(onSelect)는 그대로 하되 preventDefault/stopPropagation을
+  // 걸지 않아 children 자신의 onClick(토글)도 정상적으로 함께 실행된다 —
+  // 네비게이션이나 세션 변경이 없는, 로컬 state 토글 트리거에만 사용할 것.
+  interactive?: boolean;
 }) {
   const value = offset ?? DEFAULT_HEADER_SLOT_OFFSET;
   const dragRef = useRef<DragState | null>(null);
@@ -92,8 +104,10 @@ export function HeaderSlot({
       onClickCapture={
         editable
           ? (e) => {
-              e.preventDefault();
-              e.stopPropagation();
+              if (!interactive) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
               onSelect(slotKey);
             }
           : undefined

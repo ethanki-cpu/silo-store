@@ -1703,20 +1703,54 @@ function TopSidebarControls({
     [next[idx], next[nextIdx]] = [next[nextIdx], next[idx]];
     patch({ links: next });
   }
+  // HOTFIX-141.2(사용자 신고 — "상단 사이드바의 여닫이 트리거 아이콘이
+  // 둘다 업로드를 새로 해도 preview 도 오른쪽의 live preview 에도 적용이
+  // 안돼고 있어"): 실제 원인은 업로드 실패를 조용히 무시하던 HOTFIX-134.2/
+  // 137.3 이전의 옛 버그가 이 3개 핸들러(handleLinkImage/handleAddBankImage/
+  // handleTriggerIconFile)에는 애초에 적용된 적이 없었던 것 — `if (url)`만
+  // 확인하고 실패 시(uploadError) 아무 피드백 없이 그냥 끝났다. 실제로
+  // DB(storage.objects)를 직접 조회해 확인해보니: 사용자가 올린 1.6MB
+  // PNG는 스토리지에는 실제로 저장됐지만(서버는 성공) site_settings.
+  // top_sidebar에는 전혀 반영되지 않았다(패치가 한 번도 안 불림) — 반면
+  // 훨씬 작은(184KB) 이전 테스트 이미지는 정상적으로 저장까지 됐다. 즉
+  // 클라이언트 쪽에서만 업로드가 실패(타임아웃 등)로 보이는 전형적인
+  // "큰 파일 → 조용한 실패" 패턴. 트리거 아이콘은 헤더에 작게 뜨는
+  // 여닫이 버튼이라 원본 해상도가 필요 없으므로, 여백 배경 이미지
+  // (handleWallpaperFile)와 동일하게 업로드 전 compressImage로 재인코딩해
+  // 애초에 타임아웃 위험을 줄이고, 3개 핸들러 모두에 실패 시 alert로
+  // 사유를 보여주는 로직을 추가한다.
   async function handleLinkImage(id: string, file: File | null) {
     if (!file) return;
     setUploadingLinkId(id);
-    const { url } = await uploadImage(file, "top_sidebar");
-    setUploadingLinkId(null);
-    if (url) updateLink(id, { imageUrl: url });
+    try {
+      const { url, error: uploadErr } = await uploadImage(file, "top_sidebar");
+      if (url) {
+        updateLink(id, { imageUrl: url });
+      } else {
+        alert(`이미지 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+      }
+    } catch (e) {
+      alert(`이미지 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploadingLinkId(null);
+    }
   }
   // HOTFIX-140.2: column 0에 무작위로 보여줄 이미지 풀 — 여러 장 추가/삭제.
   async function handleAddBankImage(file: File | null) {
     if (!file) return;
     setUploadingBankImage(true);
-    const { url } = await uploadImage(file, "top_sidebar_bank");
-    setUploadingBankImage(false);
-    if (url) patch({ imageBankUrls: [...config.imageBankUrls, url] });
+    try {
+      const { url, error: uploadErr } = await uploadImage(file, "top_sidebar_bank");
+      if (url) {
+        patch({ imageBankUrls: [...config.imageBankUrls, url] });
+      } else {
+        alert(`이미지 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+      }
+    } catch (e) {
+      alert(`이미지 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploadingBankImage(false);
+    }
   }
   function removeBankImage(url: string) {
     patch({ imageBankUrls: config.imageBankUrls.filter((u) => u !== url) });
@@ -1727,9 +1761,19 @@ function TopSidebarControls({
   async function handleTriggerIconFile(field: "triggerIconDefaultUrl" | "triggerIconHoverUrl", file: File | null) {
     if (!file) return;
     setUploadingTriggerField(field);
-    const { url } = await uploadImage(file, "top_sidebar_trigger");
-    setUploadingTriggerField(null);
-    if (url) patch({ [field]: url } as Partial<TopSidebarValue["pc"]>);
+    try {
+      const compressed = await compressImage(file, 85);
+      const { url, error: uploadErr } = await uploadImage(compressed, "top_sidebar_trigger");
+      if (url) {
+        patch({ [field]: url } as Partial<TopSidebarValue["pc"]>);
+      } else {
+        alert(`아이콘 이미지 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
+      }
+    } catch (e) {
+      alert(`아이콘 이미지 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploadingTriggerField(null);
+    }
   }
   // HOTFIX-141(사용자 지시 — "이건 다른 모든 상단 사이드바의 서체를
   // 내가 업로드하는 기능이 없네"): mainLogo customFonts와 동일한 패턴.

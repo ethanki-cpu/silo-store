@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-21 (HOTFIX-141.2 — 상단 사이드바 여닫이 트리거 아이콘 업로드가 preview에 반영 안 되던 버그 수정)
+- **배경**: 사용자가 "상단 사이드바의 '여닫이 트리거 아이콘' 이 둘다 업로드를 새로 해도 preview 왼쪽 설정창의 preview 도 오른쪽의 live preview 에도 적용이 안돼고 있어"로 신고.
+- **원인 진단**: 코드 리뷰만으로는 재현이 안 돼(로그인 세션이 없는 세션이라 직접 클릭 검증 불가) DB를 직접 조회해 근거를 확보했다 — `storage.objects`를 조회해보니 사용자가 방금 올린 1.6MB PNG는 실제로 스토리지에 저장까지 됐는데(서버는 성공), `site_settings.top_sidebar`의 `triggerIconDefaultUrl`/`triggerIconHoverUrl`은 훨씬 이전(184KB 테스트 이미지)에서 전혀 갱신되지 않은 채였다 — 즉 **업로드는 성공했는데 화면에 반영하는 `patch()`가 한 번도 안 불렸다**는 뜻. 사용자에게 "선택 직후부터 안 보였는지"/"콘솔에 에러가 떴는지" 확인 요청 → "그 순간부터 안 보임" + "에러 없음" 답변으로, 큰 파일 업로드가 클라이언트 쪽에서만 조용히 실패(타임아웃 등, 서버는 이미 받은 뒤)하는 전형적 패턴임을 확정. `handleTriggerIconFile`(그리고 같은 컴포넌트의 `handleLinkImage`/`handleAddBankImage`)이 `uploadImage()`의 `error`를 한 번도 확인하지 않고 `if (url)`만 봐서 실패 시 아무 피드백 없이 조용히 끝나던 게 근본 원인 — HOTFIX-134.2/137.3이 슬라이드쇼·여백 배경 업로드에 적용했던 "실패 시 alert" 원칙이 HOTFIX-141에서 새로 추가된 이 3개 핸들러에는 애초에 적용된 적이 없었다.
+- **수정**: `handleTriggerIconFile`은 업로드 전 `compressImage(file, 85)`로 재인코딩(트리거 아이콘은 헤더에 작게 뜨는 여닫이 버튼이라 원본 해상도가 필요 없음 — 여백 배경 이미지 업로드와 동일한 패턴, 큰 파일의 타임아웃 위험 자체를 줄인다), 3개 핸들러(`handleTriggerIconFile`/`handleLinkImage`/`handleAddBankImage`) 전부 `try/catch` + 실패 시 `alert`로 사유를 보여주도록 통일.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(경고 73개 그대로, 무관한 파일). **이 세션도 로그인 세션이 없어 실제 업로드 재현 클릭 검증은 못 했다** — 대신 (1) Management API로 스토리지·DB 상태를 직접 대조해 원인을 실증적으로 확정, (2) 사용자의 실시간 답변(콘솔 무에러 + 즉시 미반영)으로 "조용한 업로드 실패" 가설을 좁혔다. **다음에 확인 필요(로그인 세션 필수)**: 실제로 다시 업로드해 (a) 압축 후 정상적으로 preview에 반영되는지, (b) 만약 여전히 실패한다면 이제는 alert로 뜨는 실제 에러 메시지가 무엇인지(타임아웃이 아닌 다른 원인일 가능성 포함) 확인.
+- **변경 파일**: `src/app/admin/navigation/settings/page.tsx`.
+
 ## 2026-08-21 (HOTFIX-141.1 — 상단 사이드바 아이콘 크기/컬럼1→2 이동, '노출위치'에 상단 사이드바 추가, hover 모션 5종 추가, 모바일 프레임 클리핑 버그, 드래그 정렬 안내선, site_navigations target_type NOT NULL 버그, About Silo/Silo Planet 페이지 분리)
 - **배경**: EPIC-141 직후 사용자가 이어서 다수의 버그/기능을 지적 — 상단 사이드바 아이콘 크기, column 1(Mind Diary 등) → column 2 이동, hover 모션 라이브 프리뷰/모션 5종 추가, '노출위치'에 '상단 사이드바' 추가 + '드롭다운' 의미 질문, 모바일에서 좌우 사이드바/상단 사이드바 컬럼이 잘려 안 보임, 캔버스 드래그 정렬 안내선, 사이트 메뉴 "미분류 페이지" 추가 시 DB 오류, About Silo의 3D 우주를 새 Silo Planet 페이지로 분리, 상단 사이드바도 바깥 클릭 시 닫히게.
 - **DB 버그 수정(즉시 적용) — 사이트 메뉴에 새 카테고리 추가 시 `"null value in column "target_type"... violates not-null constraint"`**: `site_navigations.target_type`(EPIC-138 이전 구버전 단일값 컬럼)이 `target_types`(배열)로 완전히 대체된 뒤에도 NOT NULL 제약이 남아있어, 이제 아무도 안 쓰는 이 컬럼에 값을 안 채우는 모든 INSERT가 실패하고 있었다 — `alter table site_navigations alter column target_type drop not null` 한 줄로 해결(CHECK 제약은 NULL을 자동 통과시켜 그대로 둬도 안전).

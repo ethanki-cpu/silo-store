@@ -84,6 +84,10 @@ export function Navbar({
   onOffsetChange,
   deviceOverride,
   topSidebarOverride,
+  mainLogoOverride,
+  sidebarIconsOverride,
+  topTabStyleOverride,
+  accountMenuStyleOverride,
 }: {
   editable?: boolean;
   selectedSlotKey?: string | null;
@@ -95,6 +99,20 @@ export function Navbar({
   deviceOverride?: "pc" | "mobile";
   /** positionsOverride와 동일한 이유 — 상단 사이드바(TopSidebarPanel) 편집 중인 값을 즉시 반영. */
   topSidebarOverride?: TopSidebarConfig;
+  // HOTFIX-141.11(사용자 신고로 발견 — dropdownAlign 등 탭 스타일 필드를
+  // Controls에서 바꿔도 캔버스에 전혀 반영되지 않음): positionsOverride/
+  // topSidebarOverride와 동일한 override-우선 패턴이 로고/사이드바 아이콘/
+  // 상단 탭 스타일/계정 영역 스타일에는 애초에 없었다 — 이 네 설정은
+  // EPIC-136 이전 iframe+postMessage 시절의 흔적(아래 handleMessage
+  // effect, 지금 캔버스는 iframe이 아니라 no-op)만 남아있었고, "저장하기"
+  // 눌러 DB에 실제로 쓴 뒤 새로고침해야만 캔버스에 반영됐다 — "live
+  // preview가 실제 사이트와 다르다"는 반복 신고의 상당 부분이 실은 이
+  // 네 설정에 한해 "아직 저장 안 한 편집 내용"이었던 것. 나머지 두
+  // override와 동일한 패턴으로 맞춘다.
+  mainLogoOverride?: MainLogoValue;
+  sidebarIconsOverride?: SidebarIconsValue;
+  topTabStyleOverride?: TopTabStyleValue;
+  accountMenuStyleOverride?: AccountMenuStyleValue;
 } = {}) {
   const { session, member, loading } = useAuth();
   const router = useRouter();
@@ -207,6 +225,7 @@ export function Navbar({
   // 기존 하드코딩 텍스트로 대체되어 로고가 아예 비는 일은 없다.
   const [mainLogoValue, setMainLogoValue] = useState<MainLogoValue | null>(null);
   useEffect(() => {
+    if (mainLogoOverride) return;
     let cancelled = false;
     supabase
       .from("site_settings")
@@ -219,14 +238,17 @@ export function Navbar({
     return () => {
       cancelled = true;
     };
-  }, []);
-  const mainLogo: MainLogoConfig | null = mainLogoValue ? (isMobileViewport ? mainLogoValue.mobile : mainLogoValue.pc) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainLogoOverride]);
+  const resolvedMainLogoValue = mainLogoOverride ?? mainLogoValue;
+  const mainLogo: MainLogoConfig | null = resolvedMainLogoValue ? (isMobileViewport ? resolvedMainLogoValue.mobile : resolvedMainLogoValue.pc) : null;
 
   // EPIC-039: 좌/우 사이드바 여닫이 버튼에 쓰이는 커스텀 아이콘.
   // 값이 없으면(테이블 미적용 포함) LeftSidebar/RightSidebar가 기존
   // 🔑/🚪 이모지로 자동 대체하므로 아이콘이 아예 비는 일은 없다.
   const [sidebarIconsValue, setSidebarIconsValue] = useState<SidebarIconsValue | null>(null);
   useEffect(() => {
+    if (sidebarIconsOverride) return;
     let cancelled = false;
     supabase
       .from("site_settings")
@@ -239,8 +261,10 @@ export function Navbar({
     return () => {
       cancelled = true;
     };
-  }, []);
-  const sidebarIcons = sidebarIconsValue ? (isMobileViewport ? sidebarIconsValue.mobile : sidebarIconsValue.pc) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidebarIconsOverride]);
+  const resolvedSidebarIconsValue = sidebarIconsOverride ?? sidebarIconsValue;
+  const sidebarIcons = resolvedSidebarIconsValue ? (isMobileViewport ? resolvedSidebarIconsValue.mobile : resolvedSidebarIconsValue.pc) : null;
 
   // EPIC-079-PHASE-4: 상단 탭 개별 디자인(표시 텍스트/서체/크기/색상) —
   // /admin/navigation/settings의 "상단 탭 디자인" 섹션이 저장한다. 값이
@@ -248,6 +272,7 @@ export function Navbar({
   // 스타일 그대로 렌더링된다(완전히 optional한 오버레이).
   const [topTabStyleValue, setTopTabStyleValue] = useState<TopTabStyleValue | null>(null);
   useEffect(() => {
+    if (topTabStyleOverride) return;
     let cancelled = false;
     supabase
       .from("site_settings")
@@ -260,8 +285,10 @@ export function Navbar({
     return () => {
       cancelled = true;
     };
-  }, []);
-  const topTabStyle = topTabStyleValue ? (isMobileViewport ? topTabStyleValue.mobile : topTabStyleValue.pc) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topTabStyleOverride]);
+  const resolvedTopTabStyleValue = topTabStyleOverride ?? topTabStyleValue;
+  const topTabStyle = resolvedTopTabStyleValue ? (isMobileViewport ? resolvedTopTabStyleValue.mobile : resolvedTopTabStyleValue.pc) : null;
 
   // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 맨 위의 '관리자, (회원
   // 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의 디자인을
@@ -270,6 +297,7 @@ export function Navbar({
   // 동일하게 렌더링된다(optional한 오버레이, topTabStyle과 동일한 패턴).
   const [accountMenuStyleValue, setAccountMenuStyleValue] = useState<AccountMenuStyleValue | null>(null);
   useEffect(() => {
+    if (accountMenuStyleOverride) return;
     let cancelled = false;
     supabase
       .from("site_settings")
@@ -282,8 +310,10 @@ export function Navbar({
     return () => {
       cancelled = true;
     };
-  }, []);
-  const accountMenuStyle = accountMenuStyleValue ? (isMobileViewport ? accountMenuStyleValue.mobile : accountMenuStyleValue.pc) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountMenuStyleOverride]);
+  const resolvedAccountMenuStyleValue = accountMenuStyleOverride ?? accountMenuStyleValue;
+  const accountMenuStyle = resolvedAccountMenuStyleValue ? (isMobileViewport ? resolvedAccountMenuStyleValue.mobile : resolvedAccountMenuStyleValue.pc) : null;
 
   // EPIC-134(사용자 지시 — "GrapesJS로... 로그아웃 버튼 옆에 스튜디오 탭을
   // 끌어다 놓을 수 있어야 함"): /admin/navigation/settings의 새 "헤더"
@@ -646,8 +676,8 @@ export function Navbar({
   // 원하는 자리로 옮길 수 있다 — 탭 렌더링과 완전히 분리해 항상 한 번만
   // 그린다(tier1Tabs가 아니라 tier2Tabs 뒤에 — 지금까지 "마이 페이지"가
   // 주로 tier2였던 것과 가장 비슷한 자리).
-  const writeButtonHidden = accountMenuStyleValue?.writeButtonHidden ?? false;
-  const extraWriteButtonIds = accountMenuStyleValue?.extraWriteButtonIds ?? [];
+  const writeButtonHidden = resolvedAccountMenuStyleValue?.writeButtonHidden ?? false;
+  const extraWriteButtonIds = resolvedAccountMenuStyleValue?.extraWriteButtonIds ?? [];
   function writeButtonNode(slotKey: string, label: string) {
     return (
       <HeaderSlot
@@ -1296,7 +1326,7 @@ export function Navbar({
                   headerLayout용으로 정의된 동일 렌더 함수)을 그대로
                   재사용해 콘텐츠는 한 곳에서만 정의하고, "숨김"(hiddenKinds)
                   과 "사본"(extraItems)만 데이터로 얹는다. */}
-              {HEADER_MENU_ITEM_KEYS.filter((k) => !(accountMenuStyleValue?.hiddenKinds ?? []).includes(k)).map((k) => {
+              {HEADER_MENU_ITEM_KEYS.filter((k) => !(resolvedAccountMenuStyleValue?.hiddenKinds ?? []).includes(k)).map((k) => {
                 const node = renderMenuItem(k);
                 if (!node) return null;
                 return (
@@ -1315,7 +1345,7 @@ export function Navbar({
                   </HeaderSlot>
                 );
               })}
-              {(accountMenuStyleValue?.extraItems ?? []).map((extra) => {
+              {(resolvedAccountMenuStyleValue?.extraItems ?? []).map((extra) => {
                 const node = renderMenuItem(extra.kind);
                 if (!node) return null;
                 return (

@@ -64,7 +64,7 @@ import {
   type AccountMenuStyleValue,
   type ExtraAccountItem,
 } from "@/lib/accountMenuStyleSettings";
-import { HEADER_MENU_ITEM_KEYS, HEADER_MENU_ITEM_LABELS, type HeaderMenuItemKey } from "@/lib/headerLayoutSettings";
+import { HEADER_MENU_ITEM_LABELS, type HeaderMenuItemKey } from "@/lib/headerLayoutSettings";
 import {
   normalizeHeroSlideshow,
   defaultHeroSlideshowValue,
@@ -438,7 +438,6 @@ export default function AdminNavigationSettingsPage() {
   const [footerPageId, setFooterPageId] = useState<string | null>(null);
   const [footerCraftState, setFooterCraftState] = useState<string | null>(null);
 
-  const sidebarIcons = sidebarIconsValue[deviceTab];
   const heroSlideshow = heroSlideshowValue[deviceTab];
   const headerPositions = headerPositionsValue[deviceTab];
   const topSidebar = topSidebarValue[deviceTab];
@@ -969,6 +968,10 @@ export default function AdminNavigationSettingsPage() {
                 onOffsetChange={handleOffsetChange}
                 deviceOverride={deviceTab}
                 topSidebarOverride={topSidebar}
+                mainLogoOverride={mainLogoValue}
+                sidebarIconsOverride={sidebarIconsValue}
+                topTabStyleOverride={topTabStyleValue}
+                accountMenuStyleOverride={accountMenuStyleValue}
               />
 
               <ClickSelectSlot slotKey="slideshow" label="슬라이드쇼" selected={selection?.kind === "slot" && selection.key === "slideshow"} onSelect={selectSlot}>

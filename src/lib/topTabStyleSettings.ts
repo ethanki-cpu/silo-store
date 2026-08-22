@@ -72,6 +72,13 @@ export type TopTabStyleEntry = {
   // 트리거 오른쪽 끝에 맞춰 왼쪽으로 펼쳐(`right-0`) 화면 오른쪽 가장자리
   // 탭에 쓸 수 있다. 없으면 기존 왼쪽 정렬 그대로.
   dropdownAlign?: "left" | "right";
+  // HOTFIX-141.14(사용자 지시 — "'온라인 도슨트' 하위 드랍다운 카테고리의
+  // '폭'은 정할수 있지만, 그 하위 카테고리의 하위 카테고리의 '폭'도 따로
+  // 정할수 있게 해줘"): 지금까지 dropdownWidthPx 하나가 1차(w-64)/2차
+  // (w-56) 플라이아웃 둘 다에 똑같이 적용됐다 — 2차(하위 카테고리의
+  // 하위 카테고리) 폭을 따로 지정할 수 있게 분리한다. 비어있으면(기본값)
+  // 기존처럼 dropdownWidthPx를 그대로 상속(하위 호환).
+  subDropdownWidthPx?: number | null;
 };
 
 export type TopTabStyleConfig = {
@@ -105,6 +112,7 @@ export function defaultTopTabStyleEntry(): TopTabStyleEntry {
     dropdownFontSizePx: null,
     dropdownColor: "",
     subLabelOverrides: {},
+    subDropdownWidthPx: null,
   };
 }
 

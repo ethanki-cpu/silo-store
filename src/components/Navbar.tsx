@@ -907,7 +907,14 @@ export function Navbar({
               style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
             >
               {tab.groups && tab.groups.length > 0
-                ? tab.groups.map((group) => {
+                ? tab.groups.map((group, groupIdx) => {
+                    // HOTFIX-141.14(사용자 신고 — "'사일로의 취향' 하위
+                    // 카테고리를 보려고 hover 하면 잘려서 안보여, 화살표처럼
+                    // 위쪽으로 올라갈수 있게 해줘"): 목록 맨 아래쪽 그룹의
+                    // 2차 플라이아웃이 화면 아래로 펼쳐지면 뷰포트 바닥에
+                    // 잘리기 쉽다 — 마지막 그룹만 트리거 기준 아래(top-0)
+                    // 대신 위(bottom-0)로 펼쳐 항상 화면 안쪽으로 열리게 한다.
+                    const isLastGroup = groupIdx === tab.groups!.length - 1;
                     // HOTFIX-096(사용자 지시): group.items가 비어있는
                     // 그룹(예: "Silo's old Story", DB 자식 노드 0개)도
                     // 이 chevron(›)과 2차 플라이아웃을 무조건 렌더링해,
@@ -968,13 +975,13 @@ export function Navbar({
                           hasItems일 때만 렌더링(위 HOTFIX-096 참고). */}
                       {hasItems && (
                         <div
-                          className={`hidden group-hover/row:block group-focus-within/row:block absolute top-0 z-50 ${
+                          className={`hidden group-hover/row:block group-focus-within/row:block absolute z-50 ${isLastGroup ? "bottom-0" : "top-0"} ${
                             tabStyleEntry?.dropdownAlign === "right" ? "right-full pr-2" : "left-full pl-2"
                           }`}
                         >
                           <div
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
-                            style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
+                            style={(tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined}
                           >
                             {group.items.map((item, idx) => (
                               <GatedNavLink
@@ -993,8 +1000,9 @@ export function Navbar({
                     </div>
                     );
                   })
-                : (tab.items ?? []).map((item) =>
-                    item.children && item.children.length > 0 ? (
+                : (tab.items ?? []).map((item, itemIdx) => {
+                    const isLastItem = itemIdx === (tab.items?.length ?? 0) - 1;
+                    return item.children && item.children.length > 0 ? (
                       // EPIC-079-PHASE-2: 드롭다운 항목도 서브카테고리(손자)가
                       // 있으면 group과 동일한 2차 플라이아웃 패턴으로 렌더링.
                       <div key={item.href} className="relative group/row">
@@ -1009,13 +1017,13 @@ export function Navbar({
                           <span className="text-gray-400 text-xs">›</span>
                         </GatedNavLink>
                         <div
-                          className={`hidden group-hover/row:block group-focus-within/row:block absolute top-0 z-50 ${
+                          className={`hidden group-hover/row:block group-focus-within/row:block absolute z-50 ${isLastItem ? "bottom-0" : "top-0"} ${
                             tabStyleEntry?.dropdownAlign === "right" ? "right-full pr-2" : "left-full pl-2"
                           }`}
                         >
                           <div
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
-                            style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
+                            style={(tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined}
                           >
                             {item.children.map((child, idx) => (
                               <GatedNavLink
@@ -1041,8 +1049,8 @@ export function Navbar({
                       >
                         <span style={preLineStyle}>{subLabel(item.label, item.href)}</span>
                       </GatedNavLink>
-                    ),
-                  )}
+                    );
+                  })}
             </div>
             )}
           </div>

@@ -93,7 +93,7 @@ export function HeaderSlot({
   const moved = value.dxPx !== 0 || value.dyPx !== 0;
   const [guides, setGuides] = useState<Guides>({ v: [], h: [] });
 
-  function startDrag(e: ReactPointerEvent<HTMLButtonElement>) {
+  function startDrag(e: ReactPointerEvent<HTMLElement>) {
     e.stopPropagation();
     e.preventDefault();
     try {
@@ -118,7 +118,7 @@ export function HeaderSlot({
       height: rect?.height ?? 0,
     };
   }
-  function moveDrag(e: ReactPointerEvent<HTMLButtonElement>) {
+  function moveDrag(e: ReactPointerEvent<HTMLElement>) {
     const drag = dragRef.current;
     if (!drag) return;
     let nextDx = drag.startDx + (e.clientX - drag.startX);
@@ -178,10 +178,20 @@ export function HeaderSlot({
   // raised:true만 남아있으면 재발). 이제 "실제로 옮겨진 상태"(moved) 또는
   // "지금 선택된 상태"(selected)일 때만 격상한다 — 과거에 한 번 드래그됐던
   // 이력 자체는 더 이상 격상 이유가 아니다.
+  // HOTFIX-141.14(사용자 지시 — "pc 와 모바일 모두, 요소의 어디를
+  // 일부분을 클릭하든 드래그를 할수 있게 해줘"): 예전엔 요소 위에 뜨는
+  // 작은 ✥ 핸들(20x20px)만 드래그를 시작할 수 있어 손가락/마우스로
+  // 정확히 그 지점을 집어야 했다 — 이미 선택된 상태라면 요소 어디를
+  // 눌러도(포인터다운이 이 wrapper까지 버블링) 바로 드래그가 시작되게
+  // 한다. 아직 선택 전(첫 클릭)에는 이 핸들러를 걸지 않아 기존처럼
+  // "먼저 클릭해서 선택 → 그다음 드래그"가 그대로 유지된다. 잠겨있으면
+  // (locked) 걸지 않아 실수로 다시 끌리지 않는다는 원칙도 동일하게 지킨다.
+  const wholeElementDraggable = editable && selected && !value.locked;
   const wrapperStyle: CSSProperties = {
     ...style,
     ...(moved || (selected && editable) ? { position: "relative", zIndex: 30 } : undefined),
     ...(moved ? { transform: `translate(${value.dxPx}px, ${value.dyPx}px)` } : undefined),
+    ...(wholeElementDraggable ? { cursor: "move" } : undefined),
   };
 
   return (
@@ -191,6 +201,10 @@ export function HeaderSlot({
       data-header-slot={editable ? slotKey : undefined}
       style={wrapperStyle}
       className={className}
+      onPointerDown={wholeElementDraggable ? startDrag : undefined}
+      onPointerMove={wholeElementDraggable ? moveDrag : undefined}
+      onPointerUp={wholeElementDraggable ? endDrag : undefined}
+      onPointerLeave={wholeElementDraggable ? endDrag : undefined}
       // HOTFIX-137.1(사용자 지시 — "'로그아웃' 버튼을 조정하려고 클릭하면
       // 진짜 로그아웃이 되버려"): 예전엔 onClick(버블 단계)에서 선택만
       // 처리하고 stopPropagation만 했는데, 그건 "위로 전파되는 것"만 막지

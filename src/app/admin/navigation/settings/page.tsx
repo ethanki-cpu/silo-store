@@ -1513,7 +1513,7 @@ function ControlsPanel({
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-gray-600">폭(px, 비우면 기본값 256/224)</span>
+              <span className="mb-1 block text-gray-600">1차 폭(px, 비우면 기본값 256)</span>
               <input
                 type="number"
                 min={80}
@@ -1521,6 +1521,18 @@ function ControlsPanel({
                 value={entry.dropdownWidthPx ?? ""}
                 placeholder="기본값"
                 onChange={(e) => patchTab({ dropdownWidthPx: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">2차 폭(하위 카테고리의 하위 카테고리, px — 비우면 1차 폭과 동일)</span>
+              <input
+                type="number"
+                min={80}
+                max={480}
+                value={entry.subDropdownWidthPx ?? ""}
+                placeholder="1차와 동일"
+                onChange={(e) => patchTab({ subDropdownWidthPx: e.target.value ? Number(e.target.value) : null })}
                 className="w-full rounded border border-gray-300 px-2 py-1"
               />
             </label>

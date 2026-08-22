@@ -160,6 +160,12 @@ export function HeaderSlot({
     dragRef.current = null;
     setGuides({ v: [], h: [] });
   }
+  // HOTFIX-141.13(사용자 지시 — "드래그로 움직이고, 수정이 끝나면
+  // 고정되도록, pc와 mobile 둘 다"): 잠금 토글 — dx/dy는 그대로 두고
+  // locked만 뒤집는다.
+  function toggleLock() {
+    onOffsetChange(slotKey, { ...value, locked: !value.locked });
+  }
 
   // HOTFIX-141.8(사용자 신고 — "'관리자' 랑 '스튜디오' 가 클릭이 안되잖아":
   // 실제로 재현해보니 dxPx/dyPx가 전부 0이어도 여전히 막혀 있었다 — 예전엔
@@ -213,17 +219,35 @@ export function HeaderSlot({
         <>
           <SelectionOverlay selected={selected} hovered={false} label={label} />
           {selected && (
-            <button
-              type="button"
-              onPointerDown={startDrag}
-              onPointerMove={moveDrag}
-              onPointerUp={endDrag}
-              onPointerLeave={endDrag}
-              title="드래그해서 이동"
-              className="absolute -top-3 left-1/2 z-30 flex h-5 w-5 -translate-x-1/2 cursor-move items-center justify-center rounded bg-blue-500 text-[10px] text-white shadow"
-            >
-              ✥
-            </button>
+            <div className="absolute -top-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1">
+              {/* HOTFIX-141.13: 잠겨있으면 드래그 핸들 자체를 렌더링하지
+                  않는다 — 핸들이 없으면 startDrag를 걸 방법이 없어 실수로
+                  다시 끌리는 게 구조적으로 불가능해진다(잠금 버튼만 눌러
+                  풀어야 다시 나타남). */}
+              {!value.locked && (
+                <button
+                  type="button"
+                  onPointerDown={startDrag}
+                  onPointerMove={moveDrag}
+                  onPointerUp={endDrag}
+                  onPointerLeave={endDrag}
+                  title="드래그해서 이동"
+                  className="flex h-5 w-5 cursor-move items-center justify-center rounded bg-blue-500 text-[10px] text-white shadow"
+                >
+                  ✥
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={toggleLock}
+                title={value.locked ? "잠금 해제(다시 드래그 가능)" : "지금 위치에 고정(실수로 다시 끌리지 않게)"}
+                className={`flex h-5 w-5 items-center justify-center rounded text-[10px] text-white shadow ${
+                  value.locked ? "bg-amber-500" : "bg-gray-400 hover:bg-gray-500"
+                }`}
+              >
+                {value.locked ? "🔒" : "🔓"}
+              </button>
+            </div>
           )}
         </>
       )}

@@ -22,9 +22,15 @@ export type HeaderSlotOffset = {
   dyPx: number;
   /** 한 번이라도 옮긴 적이 있으면 true — z-index를 올려 원래 자리의 다른 요소 위로 보이게 한다. */
   raised: boolean;
+  // HOTFIX-141.13(사용자 지시 — "드래그로 움직이고, 수정이 끝나면 고정되도록,
+  // pc와 mobile 둘 다"): true면 드래그 핸들 자체가 렌더링되지 않아 실수로
+  // 다시 끌리는 일을 막는다(로고+양옆 텍스트 간격이 자꾸 흐트러지던 문제의
+  // 재발 방지) — 위치 값은 그대로 두고 "더 이상 움직이지 않게" 잠그기만
+  // 한다. Controls 패널이나 캔버스의 🔓/🔒 버튼으로 언제든 다시 풀 수 있다.
+  locked?: boolean;
 };
 
-export const DEFAULT_HEADER_SLOT_OFFSET: HeaderSlotOffset = { dxPx: 0, dyPx: 0, raised: false };
+export const DEFAULT_HEADER_SLOT_OFFSET: HeaderSlotOffset = { dxPx: 0, dyPx: 0, raised: false, locked: false };
 
 export type HeaderPositionsConfig = {
   slots: Record<string, HeaderSlotOffset>;

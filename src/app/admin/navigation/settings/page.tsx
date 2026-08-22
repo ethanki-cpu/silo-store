@@ -919,6 +919,7 @@ export default function AdminNavigationSettingsPage() {
                   setSidebarIconsValue={setSidebarIconsValue}
                   headerPositions={headerPositions}
                   onResetOffset={resetSlotOffset}
+                  onOffsetChange={handleOffsetChange}
                   topSidebarValue={topSidebarValue}
                   setTopSidebarValue={setTopSidebarValue}
                 />
@@ -1035,6 +1036,7 @@ function ControlsPanel({
   setSidebarIconsValue,
   headerPositions,
   onResetOffset,
+  onOffsetChange,
   topSidebarValue,
   setTopSidebarValue,
 }: {
@@ -1056,6 +1058,7 @@ function ControlsPanel({
   setSidebarIconsValue: React.Dispatch<React.SetStateAction<SidebarIconsValue>>;
   headerPositions: { slots: Record<string, HeaderSlotOffset> };
   onResetOffset: (slotKey: string) => void;
+  onOffsetChange: (slotKey: string, next: HeaderSlotOffset) => void;
   topSidebarValue: TopSidebarValue;
   setTopSidebarValue: React.Dispatch<React.SetStateAction<TopSidebarValue>>;
 }) {
@@ -1078,14 +1081,30 @@ function ControlsPanel({
   // RightSidebar.tsx 참고) — 다만 별도 ✥ 핸들이 아니라 아이콘 자신을
   // 바로 드래그하는 방식이라 안내 문구만 다르게 보여준다.
   const isSidebarIconSlot = selectedSlotKey.startsWith("sidebar:");
+  // HOTFIX-141.13(사용자 지시 — "드래그로 움직이고, 수정이 끝나면
+  // 고정되도록, pc와 mobile 둘 다"): 로고 양옆 텍스트(logo-left-text/
+  // logo-right-text)가 자꾸 실수로 다시 끌려 간격이 흐트러지던 문제 —
+  // 위치를 다 잡은 뒤 여기서 "고정"하면 이후로는 드래그 핸들 자체가
+  // 사라져(HeaderSlot.tsx) 실수로 다시 끌리지 않는다. 필요하면 언제든
+  // "잠금 해제"로 되돌려 다시 조정할 수 있다.
+  const isLocked = !!offset?.locked;
+  function toggleLocked() {
+    onOffsetChange(selectedSlotKey, { dxPx: offset?.dxPx ?? 0, dyPx: offset?.dyPx ?? 0, raised: offset?.raised ?? false, locked: !isLocked });
+  }
   const positionSection = (selectedSlotKey === "slideshow" || selectedSlotKey === "top-sidebar") ? null : (
     <div className="mt-4 space-y-2 border-t border-gray-200 pt-3">
       <p className="text-xs font-semibold text-gray-500">위치</p>
       <p className="text-[11px] leading-relaxed text-gray-400">
-        {isSidebarIconSlot
-          ? "닫혀있는 아이콘 자체를 캔버스에서 직접 드래그해 화면 어디로든 옮기세요."
-          : "선택된 요소 위의 ✥ 핸들을 캔버스에서 직접 드래그해 화면 어디로든 옮기세요."}
+        {isLocked
+          ? "지금 위치에 고정돼 있어요 — 캔버스에서 드래그 핸들이 보이지 않아요. 다시 옮기려면 아래에서 잠금을 해제하세요."
+          : isSidebarIconSlot
+            ? "닫혀있는 아이콘 자체를 캔버스에서 직접 드래그해 화면 어디로든 옮기세요."
+            : "선택된 요소 위의 ✥ 핸들을 캔버스에서 직접 드래그해 화면 어디로든 옮기세요."}
       </p>
+      <label className="flex items-center gap-2 text-gray-600">
+        <input type="checkbox" checked={isLocked} onChange={toggleLocked} />
+        이 위치에 고정(실수로 다시 끌리지 않게)
+      </label>
       {offset && (offset.dxPx !== 0 || offset.dyPx !== 0) && (
         <button type="button" onClick={() => onResetOffset(selectedSlotKey)} className="text-xs text-blue-600 hover:underline">
           원래 위치로 되돌리기

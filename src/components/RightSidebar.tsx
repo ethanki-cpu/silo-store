@@ -136,7 +136,10 @@ export function RightSidebar({
   const dragTransform = dx || dy ? `translate(${dx}px, ${dy}px)` : "";
   const combinedTransform = [centerTransform, dragTransform].filter(Boolean).join(" ") || undefined;
   function startDrag(e: ReactPointerEvent<HTMLButtonElement>) {
-    if (!editable) return;
+    // HOTFIX-141.13(사용자 지시 — "드래그로 움직이고, 수정이 끝나면
+    // 고정되도록"): 잠겨있으면 클릭-선택은 여전히 되지만 드래그 시작
+    // 자체를 막는다.
+    if (!editable || offset?.locked) return;
     onSelectSlot?.();
     try {
       e.currentTarget.setPointerCapture(e.pointerId);

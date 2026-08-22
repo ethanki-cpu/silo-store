@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-22 (HOTFIX-141.13 — 로고 양옆 텍스트 간격 불일치 원인 규명 + 헤더 요소 "위치 고정" 기능 신설)
+- **신고**: "I'm your [로고] Silo 이 텍스트 + 로고 + 텍스트 간격은 일정했으면 좋겠어 pc 버전은".
+- **원인**: `site_settings.header_positions`(PC)를 직접 조회해보니 세 요소의 드래그 오프셋(dxPx)이 `logo: +95.8px`, `logo-left-text("I'm your"): +390.4px`, `logo-right-text("Silo"): -186.4px`로 서로 크게 달랐다 — `HeaderSlot.tsx`는 순수 `transform: translate(dx, dy)`만 얹는 구조라 오프셋이 0이면 원래 flex 레이아웃(`gap-4` + 로고의 `justify-center`)이 자동으로 좌우 대칭 간격을 만들어주는데, 과거 드래그로 세 값이 서로 어긋나면서 시각적으로 간격이 들쭉날쭉해졌다.
+- **DB로 한 번 고쳤는데 되돌아간 문제**: `dxPx`를 0으로 되돌리는 UPDATE를 실행했더니 몇 초 안에 원래 값(95.8/390.4/-186.4)으로 정확히 되돌아갔다 — 마커 값(1234)으로 재현 테스트해 확인. 사용자에게 확인한 결과 다른 탭에서 "홈페이지 설정 관리" 화면을 이미 열어둔 상태였고, 그 세션이 메모리에 든 예전 위치를 계속 다시 저장하고 있었던 것 — DB만 고쳐서는 열린 세션이 새로고침되기 전까지 근본적으로 못 이긴다.
+- **수정(사용자 지시 — "드래그로 움직이고, 수정이 끝나면 고정되도록, pc와 mobile 둘 다")**: 일회성 되돌리기 대신, 모든 헤더 요소(HeaderSlot 기반 전체 + 좌/우 사이드바 아이콘)에 재사용 가능한 "위치 고정" 기능을 신설했다. `HeaderSlotOffset`에 `locked?: boolean` 추가 — 잠그면 캔버스의 ✥ 드래그 핸들 자체가 렌더링되지 않아(`HeaderSlot.tsx`) 실수로 다시 끌리는 게 구조적으로 불가능해진다. 캔버스 위 작은 🔓/🔒 토글 버튼과, Controls 패널 "위치" 섹션의 체크박스 둘 다에서 잠금/해제 가능. `LeftSidebar.tsx`/`RightSidebar.tsx`(독자적인 드래그 로직을 쓰는 사이드바 아이콘)도 `offset?.locked`를 `startDrag` 가드에 추가해 동일하게 동작. 로고/로고 왼쪽 텍스트/로고 오른쪽 텍스트(PC) 세 슬롯의 `dxPx`를 0으로 되돌리고 `locked: true`로 설정 — 이제 간격이 대칭이고, 다시 실수로 끌려도 핸들이 없어 벌어지지 않는다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. Management API로 DB 값이 `{dxPx:0, locked:true}`로 정확히 반영됨을 재조회로 확인. 실제 캔버스 클릭 재현은 이전 HOTFIX들과 동일한 이유(이 세션의 브라우저 프리뷰가 Supabase REST 호출을 못 함)로 못 함 — 다음 세션에서 로그인 후 확인 필요.
+- **변경 파일**: `src/lib/headerLayoutPositions.ts`, `src/components/HeaderSlot.tsx`, `src/components/LeftSidebar.tsx`, `src/components/RightSidebar.tsx`, `src/app/admin/navigation/settings/page.tsx`. (+ `site_settings.header_positions` 데이터 직접 수정)
+
 ## 2026-08-22 (HOTFIX-141.12 — 상단 탭 최상위/하위 카테고리 텍스트 개별 커스터마이징을 모든 탭으로 확장 + 로고 좌/우 텍스트 독립 스타일)
 - **요청**: "상단 탭의 최상위 카테고리와 그다음 하위 카테고리의 텍스트를 각각 수정하게 해달라(줄바꿈 등으로 폭이 맞춰지게), 지금은 about silo/온라인 도슨트 탭만 세부 설정이 가능한데 모든 요소가 그렇게 돼야 한다" + "모바일의 I'm your,/Silo 텍스트도 PC처럼 세부 설정 가능하게 연결해달라".
 - **실제 원인(사일로상점/살롱데상)**: 라이브 DB(`site_navigations`)를 직접 조회해보니 About Silo/온라인 도슨트/스튜디오는 이미 `dropdown` 타입이라 `/admin/navigation/settings`의 탭 스타일 편집(표시 텍스트/서체/크기/색상 등)이 원래부터 동작했다 — 진짜로 안 됐던 건 `사일로 상점`(`sidebar_left`)/`살롱데상`(`sidebar_right`) 두 개뿐이었다. `Navbar.tsx`는 타입과 무관하게 tier1/tier2 노출 위치가 있으면 `tab:` 스타일 메커니즘을 이미 지원하는데, `/admin/navigation/settings`의 Elements 목록(`topNavRows`)만 `sidebar-left`/`sidebar-right` 타입을 통째로 걸러내고 있어 이 두 탭은 애초에 선택조차 할 수 없었다.

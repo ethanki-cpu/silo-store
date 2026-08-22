@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-22 (HOTFIX-141.18 — Elements/Controls 패널이 캔버스 안 사이드바 패널에 가려 통째로 안 보이던 문제)
+- **신고**: "element와 control 패널을 어떻게 선택하지? 안보이는데" — 첨부 스크린샷엔 Elements/Controls 패널도, 그걸 다시 켜는 "▶ 패널 보기" 토글도 전혀 안 보였다(1차 답변에서 "◀ 버튼을 찾아보라"고 한 건 틀린 진단이었음 — 스크린샷 재확인 요청으로 바로잡음).
+- **진짜 원인**: 캔버스가 실제 `Navbar`를 그대로 렌더링하는 구조라, 사일로상점/살롱데상 좌우 사이드바 패널이나 "상단 사이드바" 메가메뉴를 캔버스 안에서 열어두면 그 패널들(`LeftSidebar.tsx`/`RightSidebar.tsx`/`TopSidebarPanel.tsx` — 열렸을 때 전부 `z-50`, `editable`이면 `absolute`라 이 관리자 패널과 같은 containing block까지 올라옴)이 Elements/Controls 패널(`z-40`)과 "▶ 패널 보기" 토글(기존 `z-50`, 동률에선 나중에 그려지는 캔버스 쪽이 이김)을 통째로 덮어버렸다.
+- **수정**: Elements/Controls 패널과 그 토글 버튼만 `z-[100]`으로 올려 캔버스 안에서 나올 수 있는 어떤 z-index(최대 `z-50`)보다 항상 위에 그려지게 함 — 사이트 콘텐츠를 시뮬레이션하는 캔버스 요소가 관리자 자신의 UI를 가리는 일이 구조적으로 불가능해진다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors.
+- **변경 파일**: `src/app/admin/navigation/settings/page.tsx`.
+
 ## 2026-08-22 (HOTFIX-141.17 — 로고 좌/우 텍스트를 로고와 하나로 묶어 함께 고정하는 "그룹화" 기능)
 - **요청**: "그냥 차라리, 로고 좌 텍스트 + 메인 로고 + 우 텍스트를 하나로 그룹화 하는 기능을 줘 고정되게" — 셋을 독립적으로 드래그/잠금/폭-비례-스케일링(HOTFIX-141.10~141.15)까지 다 손봐도 "따로 움직이는 3개"라는 구조 자체가 계속 어긋날 여지를 남긴다는 지적.
 - **구현**: `MainLogoConfig`에 `groupSideTexts`(boolean)/`groupGapPx`(px) 신설. 켜면 `Navbar.tsx`가 셋을 하나의 `HeaderSlot`(slotKey `logo-group`)으로 묶어 `flex` + 고정 간격(`groupGapPx`, 기본 16px)으로 렌더링 — 위치(드래그/잠금/폭 비례 스케일링)가 이제 이 그룹 하나에만 존재해 서로 어긋날 수가 없다. 끄면(기본값) 기존처럼 셋이 완전히 독립된 3개 요소로 남아 100% 하위 호환.

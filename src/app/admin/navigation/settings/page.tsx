@@ -782,17 +782,29 @@ export default function AdminNavigationSettingsPage() {
         {/* HOTFIX-141.9: relative(오버레이 기준) — 더 이상 flex로 패널과
             캔버스가 폭을 나눠 쓰지 않는다. */}
         <div className="relative overflow-hidden rounded-lg border border-gray-200" style={{ minHeight: 900 }}>
+          {/* HOTFIX-141.18(사용자 신고 — "element와 control 패널이 안
+              보이는데?"): 캔버스가 실제 Navbar를 그대로 렌더링하다 보니,
+              좌/우 사이드바 패널이나 "상단 사이드바" 메가메뉴를 캔버스
+              안에서 열어둔 채로 두면 그 패널들(LeftSidebar.tsx/
+              RightSidebar.tsx/TopSidebarPanel.tsx 전부 열렸을 때
+              z-50, editable이면 absolute — 이 관리자 패널과 같은
+              containing block까지 올라옴)이 이 Elements/Controls 패널
+              (z-40)과 "▶ 패널 보기" 토글(기존 z-50, DOM 순서상 캔버스가
+              나중에 그려져 동률에서도 짐)을 통째로 덮어버렸다 — 사이트
+              콘텐츠를 시뮬레이션하는 캔버스 안 요소가 관리자 자신의 UI
+              크롬을 가리면 안 되므로, 이 둘만 z-[100]으로 확실히 위에
+              둔다(캔버스 안에서 나올 수 있는 어떤 z-index보다 높게). */}
           {leftPanelCollapsed ? (
             <button
               type="button"
               onClick={() => setLeftPanelCollapsed(false)}
-              className="absolute left-3 top-3 z-50 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-600 shadow-md hover:bg-gray-50"
+              className="absolute left-3 top-3 z-[100] rounded border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-600 shadow-md hover:bg-gray-50"
               title="Elements/Controls 패널 다시 보기"
             >
               ▶ 패널 보기
             </button>
           ) : (
-          <div className="absolute inset-y-0 left-0 z-40 flex w-80 flex-col border-r border-gray-200 bg-white shadow-xl">
+          <div className="absolute inset-y-0 left-0 z-[100] flex w-80 flex-col border-r border-gray-200 bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-200 pl-1">
               <div className="flex flex-1 text-xs">
                 {([

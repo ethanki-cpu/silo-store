@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-22 (HOTFIX-141.19 — 1차/2차 드롭다운 좌우 위치가 "오른쪽 기준" 정렬일 때 적용 안 되던 CSS 버그)
+- **신고**: "'살롱데상' 상단 탭 메뉴의 '1차 좌우 위치', '2차 좌우 위치'가 설정이 적용이 안돼".
+- **확인**: DB(`top_tab_style.mobile.tabs.salon`)를 직접 조회해 `dropdownOffsetXPx: 50`이 정확히 저장돼 있음을 확인 — 저장은 정상, 렌더링만 반영 안 됨.
+- **원인**: HOTFIX-141.16에서 이 값을 `marginLeft`로 적용했는데, 살롱데상의 모바일 설정은 `dropdownAlign: "right"`(오른쪽 기준 정렬)다 — 오른쪽 기준(`right-0`)으로 고정된 auto-width(shrink-to-fit) 부모 박스에 자식의 `marginLeft`를 더하면, 그 여백만큼 박스 자체가 왼쪽으로 넓어지면서 자식의 화면상 위치가 원래 자리로 정확히 되돌아가 버려(margin이 shrink-to-fit 너비 계산에 흡수됨) 시각적으로 아무 효과가 없었다 — "왼쪽 기준" 정렬에서는 우연히 정상 동작했기 때문에 처음 테스트(온라인 도슨트 등, 왼쪽 기준 기본값)에서는 문제가 드러나지 않았다.
+- **수정**: `marginLeft` 대신 `transform: translateX(px)`로 적용 방식을 바꿨다 — transform은 레이아웃 계산(shrink-to-fit) 이후 페인트 단계에서만 적용되므로 앵커 방향(왼쪽/오른쪽 기준)과 무관하게 항상 지정한 px만큼 정확히 이동한다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors.
+- **변경 파일**: `src/components/Navbar.tsx`.
+
 ## 2026-08-22 (HOTFIX-141.18 — Elements/Controls 패널이 캔버스 안 사이드바 패널에 가려 통째로 안 보이던 문제)
 - **신고**: "element와 control 패널을 어떻게 선택하지? 안보이는데" — 첨부 스크린샷엔 Elements/Controls 패널도, 그걸 다시 켜는 "▶ 패널 보기" 토글도 전혀 안 보였다(1차 답변에서 "◀ 버튼을 찾아보라"고 한 건 틀린 진단이었음 — 스크린샷 재확인 요청으로 바로잡음).
 - **진짜 원인**: 캔버스가 실제 `Navbar`를 그대로 렌더링하는 구조라, 사일로상점/살롱데상 좌우 사이드바 패널이나 "상단 사이드바" 메가메뉴를 캔버스 안에서 열어두면 그 패널들(`LeftSidebar.tsx`/`RightSidebar.tsx`/`TopSidebarPanel.tsx` — 열렸을 때 전부 `z-50`, `editable`이면 `absolute`라 이 관리자 패널과 같은 containing block까지 올라옴)이 Elements/Controls 패널(`z-40`)과 "▶ 패널 보기" 토글(기존 `z-50`, 동률에선 나중에 그려지는 캔버스 쪽이 이김)을 통째로 덮어버렸다.

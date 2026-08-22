@@ -909,7 +909,7 @@ export function Navbar({
               className={`w-64 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
               style={{
                 ...(tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined),
-                ...(tabStyleEntry?.dropdownOffsetXPx ? { marginLeft: tabStyleEntry.dropdownOffsetXPx } : undefined),
+                ...(tabStyleEntry?.dropdownOffsetXPx ? { transform: `translateX(${tabStyleEntry.dropdownOffsetXPx}px)` } : undefined),
               }}
             >
               {tab.groups && tab.groups.length > 0
@@ -989,7 +989,7 @@ export function Navbar({
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
                             style={{
                               ...((tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined),
-                              ...(tabStyleEntry?.subDropdownOffsetXPx ? { marginLeft: tabStyleEntry.subDropdownOffsetXPx } : undefined),
+                              ...(tabStyleEntry?.subDropdownOffsetXPx ? { transform: `translateX(${tabStyleEntry.subDropdownOffsetXPx}px)` } : undefined),
                             }}
                           >
                             {group.items.map((item, idx) => (
@@ -1034,7 +1034,7 @@ export function Navbar({
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
                             style={{
                               ...((tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined),
-                              ...(tabStyleEntry?.subDropdownOffsetXPx ? { marginLeft: tabStyleEntry.subDropdownOffsetXPx } : undefined),
+                              ...(tabStyleEntry?.subDropdownOffsetXPx ? { transform: `translateX(${tabStyleEntry.subDropdownOffsetXPx}px)` } : undefined),
                             }}
                           >
                             {item.children.map((child, idx) => (

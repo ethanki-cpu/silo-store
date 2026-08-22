@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-22 (HOTFIX-141.17 — 로고 좌/우 텍스트를 로고와 하나로 묶어 함께 고정하는 "그룹화" 기능)
+- **요청**: "그냥 차라리, 로고 좌 텍스트 + 메인 로고 + 우 텍스트를 하나로 그룹화 하는 기능을 줘 고정되게" — 셋을 독립적으로 드래그/잠금/폭-비례-스케일링(HOTFIX-141.10~141.15)까지 다 손봐도 "따로 움직이는 3개"라는 구조 자체가 계속 어긋날 여지를 남긴다는 지적.
+- **구현**: `MainLogoConfig`에 `groupSideTexts`(boolean)/`groupGapPx`(px) 신설. 켜면 `Navbar.tsx`가 셋을 하나의 `HeaderSlot`(slotKey `logo-group`)으로 묶어 `flex` + 고정 간격(`groupGapPx`, 기본 16px)으로 렌더링 — 위치(드래그/잠금/폭 비례 스케일링)가 이제 이 그룹 하나에만 존재해 서로 어긋날 수가 없다. 끄면(기본값) 기존처럼 셋이 완전히 독립된 3개 요소로 남아 100% 하위 호환.
+- **텍스트 내용/서체는 그대로 개별 편집**: 그룹화는 위치만 합칠 뿐, "로고"/"로고 왼쪽 텍스트"/"로고 오른쪽 텍스트" 각각의 텍스트 내용·서체·크기·색상 편집은 그대로 따로 가능 — 다만 그룹 안에서는 캔버스에 개별 HeaderSlot이 없어 왼쪽 Elements 패널에서 선택해야 한다(Controls에 안내 문구 추가). "로고" Controls에 그룹화 켜기/끄기 체크박스 + 간격(px) 입력을 두었고, Elements 패널에 그룹이 켜져 있을 때만 "로고 그룹(위치)" 버튼이 나타난다.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors.
+- **변경 파일**: `src/lib/mainLogoSettings.ts`, `src/components/Navbar.tsx`, `src/app/admin/navigation/settings/page.tsx`.
+
 ## 2026-08-22 (HOTFIX-141.16 — 1차/2차 드롭다운에 좌우 위치(px) 지정 추가)
 - **신고**: "아니 1차/2차 드롭다운의 방향말고, 위치를 정하게 해달라고 좌우" — HOTFIX-141.15에서 넣은 dropdownAlign/subDropdownAlign(왼쪽·오른쪽 기준 중 택1)은 "방향"만 바꿀 뿐 세밀한 "위치" 조정이 아니었다.
 - **수정**: `TopTabStyleEntry`에 `dropdownOffsetXPx`(1차)/`subDropdownOffsetXPx`(2차) 신설 — 기존 정렬 기준선(dropdownAlign/subDropdownAlign이 정한 왼쪽·오른쪽 기준)에서 px 단위로 추가로 밀 수 있다(양수=오른쪽, 음수=왼쪽), `marginLeft`로 적용. Controls 패널에 "1차 좌우 위치(px)"/"2차 좌우 위치(px)" 입력 추가 — 폭(width) 필드 바로 아래, 방향(align) 필드 아래에 배치. `deviceTab`별로 저장되므로 PC/모바일 각각 독립.

@@ -844,6 +844,11 @@ export default function AdminNavigationSettingsPage() {
                           로고 오른쪽 텍스트
                         </button>
                       )}
+                      {mainLogoForDevice.groupSideTexts && (
+                        <button type="button" onClick={() => selectSlot("logo-group")} className="block w-full rounded border border-blue-200 bg-blue-50 px-2 py-1.5 text-left hover:bg-blue-100">
+                          로고 그룹(위치 — 셋이 함께 움직여요)
+                        </button>
+                      )}
                       {topNavRows.map((tab) => (
                         <button
                           key={tab.key}
@@ -1203,6 +1208,48 @@ function ControlsPanel({
             <input type="file" accept=".woff,.woff2,.ttf,.otf" disabled={uploadingFont} onChange={(e) => handleFontFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
           </label>
         </div>
+        <div className="space-y-2 border-t border-gray-200 pt-3">
+          <label className="flex items-center gap-2 text-gray-600">
+            <input type="checkbox" checked={mainLogo.groupSideTexts} onChange={(e) => patchLogo({ groupSideTexts: e.target.checked })} />
+            왼쪽/오른쪽 텍스트를 로고와 하나로 묶어 함께 이동·고정
+          </label>
+          <p className="text-[11px] text-gray-400">
+            켜면 셋이 하나의 요소(&ldquo;로고 그룹&rdquo;)로 합쳐져 위치가 항상 같은 간격으로 함께 움직여요 — 각자 따로 드래그하다 간격이 어긋나는 문제를 근본적으로 막아줘요. 텍스트 내용/서체는 여전히 각각 따로 편집할 수 있어요(왼쪽 패널의 &ldquo;로고 왼쪽/오른쪽 텍스트&rdquo;).
+          </p>
+          {mainLogo.groupSideTexts && (
+            <label className="block">
+              <span className="mb-1 block text-gray-600">그룹 안 간격(px, 비우면 기본값 16)</span>
+              <input
+                type="number"
+                value={mainLogo.groupGapPx ?? ""}
+                placeholder="16"
+                onChange={(e) => patchLogo({ groupGapPx: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+          )}
+        </div>
+        {mainLogo.groupSideTexts ? (
+          <div className="mt-4 space-y-2 border-t border-gray-200 pt-3">
+            <p className="text-xs font-semibold text-gray-500">위치</p>
+            <p className="text-[11px] leading-relaxed text-gray-400">
+              그룹으로 묶여 있어요 — 위치는 왼쪽 패널의 &ldquo;로고 그룹(위치)&rdquo;을 선택해서 한 번에 조정하세요.
+            </p>
+          </div>
+        ) : (
+          positionSection
+        )}
+      </div>
+    );
+  }
+
+  if (selectedSlotKey === "logo-group") {
+    return (
+      <div className="space-y-3 text-xs">
+        <p className="text-sm font-semibold text-gray-700">로고 그룹</p>
+        <p className="text-[11px] leading-relaxed text-gray-400">
+          왼쪽 텍스트 + 로고 + 오른쪽 텍스트가 하나로 묶여 있어요 — 여기서 위치를 옮기면 셋이 항상 같은 간격을 유지한 채 함께 움직여요. 텍스트 내용/서체/그룹 간격은 &ldquo;로고&rdquo;/&ldquo;로고 왼쪽 텍스트&rdquo;/&ldquo;로고 오른쪽 텍스트&rdquo;에서 각각 편집하세요.
+        </p>
         {positionSection}
       </div>
     );
@@ -1341,7 +1388,16 @@ function ControlsPanel({
             </div>
           </label>
         </div>
-        {positionSection}
+        {mainLogo.groupSideTexts ? (
+          <div className="mt-4 space-y-2 border-t border-gray-200 pt-3">
+            <p className="text-xs font-semibold text-gray-500">위치</p>
+            <p className="text-[11px] leading-relaxed text-gray-400">
+              &ldquo;로고&rdquo;와 그룹으로 묶여 있어요 — 위치는 왼쪽 패널의 &ldquo;로고 그룹(위치)&rdquo;을 선택해서 한 번에 조정하세요.
+            </p>
+          </div>
+        ) : (
+          positionSection
+        )}
       </div>
     );
   }

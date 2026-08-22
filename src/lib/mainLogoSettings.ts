@@ -54,6 +54,17 @@ export type MainLogoConfig = {
   rightTextBold: boolean | null;
   rightTextFontSizePx: number | null;
   rightTextColor: string;
+  // HOTFIX-141.17(사용자 지시 — "로고 좌 텍스트 + 메인 로고 + 우 텍스트를
+  // 하나로 그룹화 하는 기능을 줘 고정되게"): 셋을 각각 독립적으로
+  // 드래그하다 보니(HOTFIX-141.10) 서로 간격이 어긋나는 문제가 반복됐다
+  // (HOTFIX-141.13~141.15로 잠금/폭 비례 스케일링까지 더했지만 근본적으로
+  // "따로 움직이는 3개"라는 구조 자체가 계속 어긋날 여지를 남긴다) —
+  // true면 셋을 하나의 flex 그룹(간격 groupGapPx)으로 묶어 위치(드래그/
+  // 잠금)를 단 하나로만 관리한다. false(기본값)면 기존처럼 셋이 완전히
+  // 독립된 HeaderSlot으로 남아 하위 호환.
+  groupSideTexts: boolean;
+  /** 그룹 안 간격(px) — groupSideTexts가 true일 때만 쓰임. null이면 기본값 16px. */
+  groupGapPx: number | null;
 };
 
 export type MainLogoValue = { pc: MainLogoConfig; mobile: MainLogoConfig };
@@ -91,6 +102,8 @@ export function defaultMainLogoConfig(): MainLogoConfig {
     rightTextBold: null,
     rightTextFontSizePx: null,
     rightTextColor: "",
+    groupSideTexts: false,
+    groupGapPx: null,
   };
 }
 

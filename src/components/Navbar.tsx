@@ -1320,59 +1320,108 @@ export function Navbar({
             HeaderSlot(다른 헤더 요소와 동일한 자유 드래그)으로 만들었다
             — 더 이상 flex-1 형제에 눌려 찌그러지지 않고, PC/모바일 각각
             원하는 자리로 직접 옮길 수 있다. */}
-        {mainLogo?.leftText && (
+        {/* HOTFIX-141.17(사용자 지시 — "로고 좌 텍스트 + 메인 로고 + 우
+            텍스트를 하나로 그룹화 하는 기능을 줘 고정되게"): 셋을 각각
+            독립적으로 드래그하면서 반복적으로 간격이 어긋났다(HOTFIX-
+            141.13~141.15) — groupSideTexts가 켜져 있으면 셋을 하나의
+            HeaderSlot(위치/드래그/잠금이 단 하나)으로 묶어 렌더링한다.
+            텍스트 내용/서체 등은 여전히 "로고 왼쪽 텍스트"/"로고"/"로고
+            오른쪽 텍스트" 각각의 Controls에서 따로 편집하되(Elements
+            패널에서 선택), 위치만 그룹 하나로 합쳐 항상 같은 간격을
+            유지한다. */}
+        {mainLogo?.groupSideTexts ? (
           <HeaderSlot
-            slotKey="logo-left-text"
-            label="로고 왼쪽 텍스트"
-            offset={slotOffset("logo-left-text")}
+            slotKey="logo-group"
+            label="로고 그룹(왼쪽 텍스트+로고+오른쪽 텍스트)"
+            offset={slotOffset("logo-group")}
             editable={editable}
-            selected={selectedSlotKey === "logo-left-text"}
+            selected={selectedSlotKey === "logo-group"}
             onSelect={handleSelectSlot}
             onOffsetChange={handleSlotOffsetChange}
-            as="span"
-            className="shrink-0 whitespace-nowrap self-center"
+            className="flex items-center justify-center flex-1 min-w-0"
+            style={{ gap: mainLogo.groupGapPx ?? 16 }}
           >
-            <span style={leftTextStyle}>{mainLogo.leftText}</span>
-          </HeaderSlot>
-        )}
-        <HeaderSlot
-          slotKey="logo"
-          label="로고"
-          offset={slotOffset("logo")}
-          editable={editable}
-          selected={selectedSlotKey === "logo"}
-          onSelect={handleSelectSlot}
-          onOffsetChange={handleSlotOffsetChange}
-          className="flex items-center justify-center flex-1 min-w-0"
-        >
-          <Link href="/" className="font-bold shrink-0">
-            {mainLogo?.type === "image" && mainLogo.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={mainLogo.imageUrl}
-                alt={mainLogo.text || DEFAULT_LOGO_TEXT}
-                className="w-auto"
-                style={{ height: mainLogo.heightPx || DEFAULT_LOGO_HEIGHT_PX }}
-              />
-            ) : (
-              mainLogo?.text || DEFAULT_LOGO_TEXT
+            {mainLogo.leftText && (
+              <span className="shrink-0 whitespace-nowrap" style={leftTextStyle}>
+                {mainLogo.leftText}
+              </span>
             )}
-          </Link>
-        </HeaderSlot>
-        {mainLogo?.rightText && (
-          <HeaderSlot
-            slotKey="logo-right-text"
-            label="로고 오른쪽 텍스트"
-            offset={slotOffset("logo-right-text")}
-            editable={editable}
-            selected={selectedSlotKey === "logo-right-text"}
-            onSelect={handleSelectSlot}
-            onOffsetChange={handleSlotOffsetChange}
-            as="span"
-            className="shrink-0 whitespace-nowrap self-center"
-          >
-            <span style={rightTextStyle}>{mainLogo.rightText}</span>
+            <Link href="/" className="font-bold shrink-0">
+              {mainLogo?.type === "image" && mainLogo.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={mainLogo.imageUrl}
+                  alt={mainLogo.text || DEFAULT_LOGO_TEXT}
+                  className="w-auto"
+                  style={{ height: mainLogo.heightPx || DEFAULT_LOGO_HEIGHT_PX }}
+                />
+              ) : (
+                mainLogo?.text || DEFAULT_LOGO_TEXT
+              )}
+            </Link>
+            {mainLogo.rightText && (
+              <span className="shrink-0 whitespace-nowrap" style={rightTextStyle}>
+                {mainLogo.rightText}
+              </span>
+            )}
           </HeaderSlot>
+        ) : (
+          <>
+            {mainLogo?.leftText && (
+              <HeaderSlot
+                slotKey="logo-left-text"
+                label="로고 왼쪽 텍스트"
+                offset={slotOffset("logo-left-text")}
+                editable={editable}
+                selected={selectedSlotKey === "logo-left-text"}
+                onSelect={handleSelectSlot}
+                onOffsetChange={handleSlotOffsetChange}
+                as="span"
+                className="shrink-0 whitespace-nowrap self-center"
+              >
+                <span style={leftTextStyle}>{mainLogo.leftText}</span>
+              </HeaderSlot>
+            )}
+            <HeaderSlot
+              slotKey="logo"
+              label="로고"
+              offset={slotOffset("logo")}
+              editable={editable}
+              selected={selectedSlotKey === "logo"}
+              onSelect={handleSelectSlot}
+              onOffsetChange={handleSlotOffsetChange}
+              className="flex items-center justify-center flex-1 min-w-0"
+            >
+              <Link href="/" className="font-bold shrink-0">
+                {mainLogo?.type === "image" && mainLogo.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={mainLogo.imageUrl}
+                    alt={mainLogo.text || DEFAULT_LOGO_TEXT}
+                    className="w-auto"
+                    style={{ height: mainLogo.heightPx || DEFAULT_LOGO_HEIGHT_PX }}
+                  />
+                ) : (
+                  mainLogo?.text || DEFAULT_LOGO_TEXT
+                )}
+              </Link>
+            </HeaderSlot>
+            {mainLogo?.rightText && (
+              <HeaderSlot
+                slotKey="logo-right-text"
+                label="로고 오른쪽 텍스트"
+                offset={slotOffset("logo-right-text")}
+                editable={editable}
+                selected={selectedSlotKey === "logo-right-text"}
+                onSelect={handleSelectSlot}
+                onOffsetChange={handleSlotOffsetChange}
+                as="span"
+                className="shrink-0 whitespace-nowrap self-center"
+              >
+                <span style={rightTextStyle}>{mainLogo.rightText}</span>
+              </HeaderSlot>
+            )}
+          </>
         )}
 
         {/* EPIC-118(사용자 지시): 이전엔 이 자리를 absolute+right-4로 페이지

@@ -13,8 +13,9 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { SelectionOverlay } from "@/components/SelectionOverlay";
 import { DEFAULT_HEADER_SLOT_OFFSET, type HeaderSlotOffset } from "@/lib/headerLayoutPositions";
+import { measureReferenceWidth, useReferenceWidth } from "@/lib/useReferenceWidth";
 
-type DragState = { startX: number; startY: number; startDx: number; startDy: number; baseLeft: number; baseTop: number; width: number; height: number };
+type DragState = { startX: number; startY: number; startDx: number; startDy: number; baseLeft: number; baseTop: number; width: number; height: number; refWidthPx: number };
 type Guides = { v: number[]; h: number[] };
 
 // HOTFIX-141.1(사용자 지시 — "'홈페이지 설정관리'의 live preview 에
@@ -93,6 +94,14 @@ export function HeaderSlot({
   const moved = value.dxPx !== 0 || value.dyPx !== 0;
   const [guides, setGuides] = useState<Guides>({ v: [], h: [] });
 
+  // HOTFIX-141.15: 저장된 dxPx는 refWidthPx(드래그 당시 기준 폭) 기준이다
+  // — 지금 기준 폭과 비율만큼 스케일링해 실제로 적용한다(가로만 — 세로는
+  // 폭 변화와 무관하므로 그대로). refWidthPx가 없으면(옛 데이터, 혹은
+  // dxPx=0) 배율 1로 취급해 기존과 동일하게 동작한다.
+  const referenceWidth = useReferenceWidth();
+  const scaleFactor = value.refWidthPx && value.refWidthPx > 0 && referenceWidth > 0 ? referenceWidth / value.refWidthPx : 1;
+  const effectiveDx = value.dxPx * scaleFactor;
+
   function startDrag(e: ReactPointerEvent<HTMLElement>) {
     e.stopPropagation();
     e.preventDefault();
@@ -106,16 +115,21 @@ export function HeaderSlot({
     // 이 기준값 + 실시간 dx/dy만으로 투영 위치를 계산한다(레이아웃
     // thrashing과, 방금 적용한 transform이 아직 반영 안 된 상태를
         // 읽어버리는 stale read를 둘 다 피한다).
+    // HOTFIX-141.15: startDx는 "지금 화면에 실제로 보이는" 오프셋
+    // (effectiveDx, 오늘 폭 기준)에서 시작 — 그래야 드래그를 마칠 때
+    // 새로 저장하는 dxPx/refWidthPx가 지금 이 순간의 폭에 다시 맞춰
+    // 재보정된다(이전에 다른 폭에서 저장된 값을 그대로 이어받지 않음).
     const rect = wrapperRef.current?.getBoundingClientRect();
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      startDx: value.dxPx,
+      startDx: effectiveDx,
       startDy: value.dyPx,
-      baseLeft: (rect?.left ?? 0) - value.dxPx,
+      baseLeft: (rect?.left ?? 0) - effectiveDx,
       baseTop: (rect?.top ?? 0) - value.dyPx,
       width: rect?.width ?? 0,
       height: rect?.height ?? 0,
+      refWidthPx: measureReferenceWidth(),
     };
   }
   function moveDrag(e: ReactPointerEvent<HTMLElement>) {
@@ -154,7 +168,7 @@ export function HeaderSlot({
       setGuides({ v: bestV !== null ? [bestV] : [], h: bestH !== null ? [bestH] : [] });
     }
 
-    onOffsetChange(slotKey, { dxPx: nextDx, dyPx: nextDy, raised: true });
+    onOffsetChange(slotKey, { dxPx: nextDx, dyPx: nextDy, raised: true, refWidthPx: drag.refWidthPx });
   }
   function endDrag() {
     dragRef.current = null;
@@ -190,7 +204,7 @@ export function HeaderSlot({
   const wrapperStyle: CSSProperties = {
     ...style,
     ...(moved || (selected && editable) ? { position: "relative", zIndex: 30 } : undefined),
-    ...(moved ? { transform: `translate(${value.dxPx}px, ${value.dyPx}px)` } : undefined),
+    ...(moved ? { transform: `translate(${effectiveDx}px, ${value.dyPx}px)` } : undefined),
     ...(wholeElementDraggable ? { cursor: "move" } : undefined),
   };
 

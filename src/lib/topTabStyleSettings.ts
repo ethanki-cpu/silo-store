@@ -72,6 +72,12 @@ export type TopTabStyleEntry = {
   // 트리거 오른쪽 끝에 맞춰 왼쪽으로 펼쳐(`right-0`) 화면 오른쪽 가장자리
   // 탭에 쓸 수 있다. 없으면 기존 왼쪽 정렬 그대로.
   dropdownAlign?: "left" | "right";
+  // HOTFIX-141.15(사용자 지시 — "1차와 2차 드롭다운의 좌 우 위치를 설정할수
+  // 있게 해줘, pc와 모바일 둘다"): dropdownAlign이 1차/2차 플라이아웃
+  // 둘 다에 똑같이 적용돼 독립적으로 방향을 못 골랐다 — subDropdownWidthPx와
+  // 동일한 패턴으로 2차 전용 값을 분리한다. 비어있으면(기본값) 기존처럼
+  // dropdownAlign을 그대로 상속.
+  subDropdownAlign?: "left" | "right";
   // HOTFIX-141.14(사용자 지시 — "'온라인 도슨트' 하위 드랍다운 카테고리의
   // '폭'은 정할수 있지만, 그 하위 카테고리의 하위 카테고리의 '폭'도 따로
   // 정할수 있게 해줘"): 지금까지 dropdownWidthPx 하나가 1차(w-64)/2차

@@ -28,6 +28,17 @@ export type HeaderSlotOffset = {
   // 재발 방지) — 위치 값은 그대로 두고 "더 이상 움직이지 않게" 잠그기만
   // 한다. Controls 패널이나 캔버스의 🔓/🔒 버튼으로 언제든 다시 풀 수 있다.
   locked?: boolean;
+  // HOTFIX-141.15(사용자 신고 — "pc 버전의 좌우 폭을 줄이니까, '로고 좌 우
+  // 텍스트'가 고정이 안되고... 겹쳐지잖아... '스튜디오', '관리자', '상단
+  // 사이드바 아이콘' 버튼도 좌우 폭과 함께 움직이고 있어"): dxPx가 지금까지
+  // 고정 px transform이라, 드래그한 순간의 화면 폭에서만 정확했다 —
+  // 브라우저 창 폭이 달라지면(반응형 로고 flex-1 박스 크기 등도 같이
+  // 바뀌므로) 같은 px만큼 밀어도 실제로는 어긋나 보였다. 드래그를 시작한
+  // 순간의 기준 폭(HeaderSlot.tsx의 [data-admin-canvas] 폭, 없으면
+  // window.innerWidth)을 함께 저장해두고, 렌더링 시 "지금 폭 / 기준 폭"
+  // 비율만큼 dxPx를 스케일링해 적용한다 — 창 폭이 바뀌어도 상대적 위치가
+  // 유지된다. dyPx는 세로는 폭 변화와 무관하므로 스케일링하지 않는다.
+  refWidthPx?: number;
 };
 
 export const DEFAULT_HEADER_SLOT_OFFSET: HeaderSlotOffset = { dxPx: 0, dyPx: 0, raised: false, locked: false };

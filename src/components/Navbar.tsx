@@ -787,6 +787,9 @@ export function Navbar({
     // 나란히 펼쳐 한 번에 다 보여주는 그리드로 렌더링한다(기존 중첩
     // 리스트는 항목에 마우스를 올려야 2차 플라이아웃이 열림).
     const isMega = !!topTabEntries[tab.key]?.megaDropdown;
+    // HOTFIX-141.15: 2차(하위 카테고리의 하위 카테고리) 플라이아웃 펼치는
+    // 방향 — 비어있으면 1차(dropdownAlign)를 그대로 상속.
+    const subAlign = tabStyleEntry?.subDropdownAlign ?? tabStyleEntry?.dropdownAlign;
     const megaColumns = isMega
       ? tab.groups && tab.groups.length > 0
         ? tab.groups.map((g) => ({
@@ -976,7 +979,7 @@ export function Navbar({
                       {hasItems && (
                         <div
                           className={`hidden group-hover/row:block group-focus-within/row:block absolute z-50 ${isLastGroup ? "bottom-0" : "top-0"} ${
-                            tabStyleEntry?.dropdownAlign === "right" ? "right-full pr-2" : "left-full pl-2"
+                            subAlign === "right" ? "right-full pr-2" : "left-full pl-2"
                           }`}
                         >
                           <div
@@ -1018,7 +1021,7 @@ export function Navbar({
                         </GatedNavLink>
                         <div
                           className={`hidden group-hover/row:block group-focus-within/row:block absolute z-50 ${isLastItem ? "bottom-0" : "top-0"} ${
-                            tabStyleEntry?.dropdownAlign === "right" ? "right-full pr-2" : "left-full pl-2"
+                            subAlign === "right" ? "right-full pr-2" : "left-full pl-2"
                           }`}
                         >
                           <div

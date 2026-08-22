@@ -1500,15 +1500,27 @@ function ControlsPanel({
         {hasChildren && !entry.megaDropdown && (
           <div className="space-y-2 border-t border-gray-200 pt-3">
             <p className="font-medium text-gray-600">드롭다운 / 하위 카테고리</p>
-            <p className="text-[11px] text-gray-400">모바일처럼 화면이 좁을 때 하위 카테고리가 화면 밖으로 잘려 안 보이면 폭을 줄여보세요(1차 드롭다운과 2차 하위 카테고리 둘 다 이 값을 써요).</p>
+            <p className="text-[11px] text-gray-400">모바일처럼 화면이 좁을 때 하위 카테고리가 화면 밖으로 잘려 안 보이면 폭을 줄이거나 방향을 바꿔보세요 — 1차/2차 방향과 폭을 각각 따로 정할 수 있어요.</p>
             <label className="block">
-              <span className="mb-1 block text-gray-600">펼치는 방향(화면 오른쪽 끝에 가까운 탭은 &ldquo;오른쪽 기준&rdquo;으로 바꾸면 왼쪽으로 펼쳐져 안 잘려요)</span>
+              <span className="mb-1 block text-gray-600">1차 펼치는 방향(화면 오른쪽 끝에 가까운 탭은 &ldquo;오른쪽 기준&rdquo;으로 바꾸면 왼쪽으로 펼쳐져 안 잘려요)</span>
               <select
                 value={entry.dropdownAlign ?? "left"}
                 onChange={(e) => patchTab({ dropdownAlign: e.target.value as TopTabStyleEntry["dropdownAlign"] })}
                 className="w-full rounded border border-gray-300 px-2 py-1"
               >
                 <option value="left">왼쪽 기준(오른쪽으로 펼침) — 기본값</option>
+                <option value="right">오른쪽 기준(왼쪽으로 펼침)</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">2차 펼치는 방향(하위 카테고리의 하위 카테고리, 비우면 1차와 동일)</span>
+              <select
+                value={entry.subDropdownAlign ?? ""}
+                onChange={(e) => patchTab({ subDropdownAlign: e.target.value ? (e.target.value as TopTabStyleEntry["subDropdownAlign"]) : undefined })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              >
+                <option value="">1차와 동일</option>
+                <option value="left">왼쪽 기준(오른쪽으로 펼침)</option>
                 <option value="right">오른쪽 기준(왼쪽으로 펼침)</option>
               </select>
             </label>

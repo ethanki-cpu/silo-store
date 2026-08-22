@@ -7,6 +7,7 @@ import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { SelectionOverlay } from "@/components/SelectionOverlay";
 import type { HeaderSlotOffset } from "@/lib/headerLayoutPositions";
 import { tabHoverMotionCss, type TabHoverMotion } from "@/lib/tabHoverMotion";
+import { measureReferenceWidth, useReferenceWidth } from "@/lib/useReferenceWidth";
 
 // HOTFIX-141: 패널(항목이 아니라 패널 자체) 스타일 — TopSidebarConfig와
 // 동일한 4개 필드를 좌/우 각각 독립적으로 받는다(값은 sidebarIconsSettings.ts에
@@ -108,7 +109,7 @@ export function LeftSidebar({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(open);
-  const dragStateRef = useRef<{ startX: number; startY: number; startDx: number; startDy: number } | null>(null);
+  const dragStateRef = useRef<{ startX: number; startY: number; startDx: number; startDy: number; refWidthPx: number } | null>(null);
   const draggedRef = useRef(false);
   // EPIC-058: 그룹별 펼침 상태 — 라벨 클릭(이동)과 완전히 분리된 Chevron
   // 전용 토글. 아직 명시적으로 토글한 적 없는 그룹은 defaultExpanded로
@@ -168,6 +169,8 @@ export function LeftSidebar({
     () => (panelStyle ? tabHoverMotionCss(LEFT_SIDEBAR_LINK_CLASS, panelStyle.hoverMotion) : ""),
     [panelStyle],
   );
+  // HOTFIX-141.15: 같은 이유로 이 훅도 조건부 return 이전에 호출한다.
+  const referenceWidth = useReferenceWidth();
 
   if (!tab) return null;
 
@@ -177,8 +180,13 @@ export function LeftSidebar({
   // 직접 합성해야 한다 — 인라인 style.transform은 같은 요소의 클래스
   // transform을 완전히 덮어써서, 드래그 offset만 인라인으로 주면 중앙
   // 정렬이 사라져버리기 때문.
-  const dx = offset?.dxPx ?? 0;
+  // HOTFIX-141.15(사용자 신고 — "좌우 폭을 줄이니까... 겹쳐지잖아"): 저장된
+  // dxPx는 refWidthPx(드래그 당시 기준 폭) 기준 — 지금 기준 폭과 비율만큼
+  // 스케일링해 적용한다. 세로(dy)는 폭 변화와 무관하므로 그대로.
+  const rawDx = offset?.dxPx ?? 0;
   const dy = offset?.dyPx ?? 0;
+  const scaleFactor = offset?.refWidthPx && offset.refWidthPx > 0 && referenceWidth > 0 ? referenceWidth / offset.refWidthPx : 1;
+  const dx = rawDx * scaleFactor;
   const centerTransform = topOffsetPx === undefined ? "translateY(-50%)" : "";
   const dragTransform = dx || dy ? `translate(${dx}px, ${dy}px)` : "";
   const combinedTransform = [centerTransform, dragTransform].filter(Boolean).join(" ") || undefined;
@@ -194,7 +202,7 @@ export function LeftSidebar({
       // no-op
     }
     draggedRef.current = false;
-    dragStateRef.current = { startX: e.clientX, startY: e.clientY, startDx: dx, startDy: dy };
+    dragStateRef.current = { startX: e.clientX, startY: e.clientY, startDx: dx, startDy: dy, refWidthPx: measureReferenceWidth() };
   }
   function moveDrag(e: ReactPointerEvent<HTMLButtonElement>) {
     const drag = dragStateRef.current;
@@ -202,7 +210,7 @@ export function LeftSidebar({
     const nextDx = drag.startDx + (e.clientX - drag.startX);
     const nextDy = drag.startDy + (e.clientY - drag.startY);
     if (Math.abs(nextDx - drag.startDx) > 2 || Math.abs(nextDy - drag.startDy) > 2) draggedRef.current = true;
-    onOffsetChange?.({ dxPx: nextDx, dyPx: nextDy, raised: true });
+    onOffsetChange?.({ dxPx: nextDx, dyPx: nextDy, raised: true, refWidthPx: drag.refWidthPx });
   }
   function endDrag() {
     dragStateRef.current = null;

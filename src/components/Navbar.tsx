@@ -1625,6 +1625,7 @@ export function Navbar({
           editable={editable}
           selected={selectedSlotKey === "top-sidebar"}
           onSelect={() => handleSelectSlot("top-sidebar")}
+          isMobileViewport={isMobileViewport}
         />
       )}
       </div>

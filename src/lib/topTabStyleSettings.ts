@@ -78,6 +78,12 @@ export type TopTabStyleEntry = {
   // 동일한 패턴으로 2차 전용 값을 분리한다. 비어있으면(기본값) 기존처럼
   // dropdownAlign을 그대로 상속.
   subDropdownAlign?: "left" | "right";
+  // HOTFIX-141.16(사용자 지시 — "1차/2차 드롭다운의 방향말고, 위치를
+  // 정하게 해달라고 좌우"): dropdownAlign(왼쪽/오른쪽 기준 중 택1)과
+  // 별개로, 그 기준점에서 좌우로 미세하게 얼마나 밀지 px로 직접 지정.
+  // 양수면 오른쪽으로, 음수면 왼쪽으로 이동. 0/미설정이면 기존과 동일.
+  dropdownOffsetXPx?: number | null;
+  subDropdownOffsetXPx?: number | null;
   // HOTFIX-141.14(사용자 지시 — "'온라인 도슨트' 하위 드랍다운 카테고리의
   // '폭'은 정할수 있지만, 그 하위 카테고리의 하위 카테고리의 '폭'도 따로
   // 정할수 있게 해줘"): 지금까지 dropdownWidthPx 하나가 1차(w-64)/2차

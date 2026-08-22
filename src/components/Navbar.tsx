@@ -907,7 +907,10 @@ export function Navbar({
             ) : (
             <div
               className={`w-64 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
-              style={tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined}
+              style={{
+                ...(tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined),
+                ...(tabStyleEntry?.dropdownOffsetXPx ? { marginLeft: tabStyleEntry.dropdownOffsetXPx } : undefined),
+              }}
             >
               {tab.groups && tab.groups.length > 0
                 ? tab.groups.map((group, groupIdx) => {
@@ -984,7 +987,10 @@ export function Navbar({
                         >
                           <div
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
-                            style={(tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined}
+                            style={{
+                              ...((tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined),
+                              ...(tabStyleEntry?.subDropdownOffsetXPx ? { marginLeft: tabStyleEntry.subDropdownOffsetXPx } : undefined),
+                            }}
                           >
                             {group.items.map((item, idx) => (
                               <GatedNavLink
@@ -1026,7 +1032,10 @@ export function Navbar({
                         >
                           <div
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
-                            style={(tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined}
+                            style={{
+                              ...((tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined),
+                              ...(tabStyleEntry?.subDropdownOffsetXPx ? { marginLeft: tabStyleEntry.subDropdownOffsetXPx } : undefined),
+                            }}
                           >
                             {item.children.map((child, idx) => (
                               <GatedNavLink

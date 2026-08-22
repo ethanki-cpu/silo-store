@@ -1549,6 +1549,26 @@ function ControlsPanel({
               />
             </label>
             <label className="block">
+              <span className="mb-1 block text-gray-600">1차 좌우 위치(px, 오른쪽 기준선에서 더 밀기 — 양수면 오른쪽, 음수면 왼쪽)</span>
+              <input
+                type="number"
+                value={entry.dropdownOffsetXPx ?? ""}
+                placeholder="0"
+                onChange={(e) => patchTab({ dropdownOffsetXPx: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">2차 좌우 위치(하위 카테고리의 하위 카테고리, px — 양수면 오른쪽, 음수면 왼쪽)</span>
+              <input
+                type="number"
+                value={entry.subDropdownOffsetXPx ?? ""}
+                placeholder="0"
+                onChange={(e) => patchTab({ subDropdownOffsetXPx: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+            <label className="block">
               <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
               <input value={entry.dropdownFontFamily ?? ""} onChange={(e) => patchTab({ dropdownFontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
             </label>

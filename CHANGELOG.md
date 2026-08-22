@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-22 (HOTFIX-141.16 — 1차/2차 드롭다운에 좌우 위치(px) 지정 추가)
+- **신고**: "아니 1차/2차 드롭다운의 방향말고, 위치를 정하게 해달라고 좌우" — HOTFIX-141.15에서 넣은 dropdownAlign/subDropdownAlign(왼쪽·오른쪽 기준 중 택1)은 "방향"만 바꿀 뿐 세밀한 "위치" 조정이 아니었다.
+- **수정**: `TopTabStyleEntry`에 `dropdownOffsetXPx`(1차)/`subDropdownOffsetXPx`(2차) 신설 — 기존 정렬 기준선(dropdownAlign/subDropdownAlign이 정한 왼쪽·오른쪽 기준)에서 px 단위로 추가로 밀 수 있다(양수=오른쪽, 음수=왼쪽), `marginLeft`로 적용. Controls 패널에 "1차 좌우 위치(px)"/"2차 좌우 위치(px)" 입력 추가 — 폭(width) 필드 바로 아래, 방향(align) 필드 아래에 배치. `deviceTab`별로 저장되므로 PC/모바일 각각 독립.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors.
+- **변경 파일**: `src/lib/topTabStyleSettings.ts`, `src/components/Navbar.tsx`, `src/app/admin/navigation/settings/page.tsx`.
+
 ## 2026-08-22 (HOTFIX-141.15 — 헤더 드래그 오프셋이 창 폭에 비례해 스케일링되도록 수정 + 2차 드롭다운 방향 개별 설정)
 - **신고**: "pc 버전의 좌우 폭을 줄이니까, '로고 좌 우 텍스트'가 고정이 안되고... 겹쳐지잖아... '스튜디오', '관리자', '상단 사이드바 아이콘' 버튼도 좌우 폭과 함께 움직이고 있어 고정이 안되고" + "1차와 2차 드롭다운의 좌 우 위치를 설정할수 있게 해줘. pc 와 모바일 둘다".
 - **원인**: `HeaderSlot.tsx`(로고/탭/계정메뉴/상단 사이드바 아이콘 등 대부분의 헤더 요소)와 `LeftSidebar.tsx`/`RightSidebar.tsx`(좌우 여닫이 아이콘, 별도 드래그 로직)가 지금까지 `transform: translate(dxPx, dyPx)`의 dxPx를 **고정 px 값**으로 저장했다 — 드래그한 순간의 브라우저 창 폭에서만 정확한 값이라, 창 폭이 바뀌면(로고의 `flex-1` 박스 크기 등 반응형 레이아웃 자체가 다시 계산되므로) 같은 px만큼 밀어도 실제 목표 위치와 어긋나 겹쳐 보였다. "잠금"(HOTFIX-141.13)을 걸어도 이 근본 원인은 그대로라 폭을 줄이면 여전히 깨졌다.

@@ -87,6 +87,7 @@ import {
 } from "@/lib/topSidebarSettings";
 import { FIXED_LINKS as TOP_SIDEBAR_FIXED_LINKS } from "@/components/TopSidebarPanel";
 import { TAB_HOVER_MOTIONS, TAB_HOVER_MOTION_LABELS, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
+import { measureReferenceWidth } from "@/lib/useReferenceWidth";
 
 // HOTFIX-137.4(사용자 지시 — "여백 배경 이미지 갯수를 10개가 아닌 100개로"): 10 → 100.
 const MAX_WALLPAPERS = 100;
@@ -1108,6 +1109,21 @@ function ControlsPanel({
   function toggleLocked() {
     onOffsetChange(selectedSlotKey, { dxPx: offset?.dxPx ?? 0, dyPx: offset?.dyPx ?? 0, raised: offset?.raised ?? false, locked: !isLocked });
   }
+  // HOTFIX-141.20(사용자 신고 — "안보이는데 어떻게 드래그를 하냐고":
+  // 요소가 화면 밖으로 밀려나 0픽셀만 보이면 캔버스에서 잡고 끌 대상
+  // 자체가 없다 — 드래그는 "보이는 걸 옮기는" 수단일 뿐이라 애초에
+  // 안 보이는 요소를 화면 안으로 데려오는 용도로는 못 쓴다. 좌표를 직접
+  // 입력하는 숫자 필드를 둬서, 보이지도 잡히지도 않는 요소도 0,0(원래
+  // 자리)이나 임의의 값으로 확실하게 옮길 수 있게 한다.
+  function patchOffset(patch: { dxPx?: number; dyPx?: number }) {
+    onOffsetChange(selectedSlotKey, {
+      dxPx: patch.dxPx ?? offset?.dxPx ?? 0,
+      dyPx: patch.dyPx ?? offset?.dyPx ?? 0,
+      raised: true,
+      locked: offset?.locked,
+      refWidthPx: measureReferenceWidth(),
+    });
+  }
   const positionSection = (selectedSlotKey === "slideshow" || selectedSlotKey === "top-sidebar") ? null : (
     <div className="mt-4 space-y-2 border-t border-gray-200 pt-3">
       <p className="text-xs font-semibold text-gray-500">위치</p>
@@ -1115,8 +1131,31 @@ function ControlsPanel({
         {isLocked
           ? "지금 위치에 고정돼 있어요 — 캔버스에서 드래그 핸들이 보이지 않아요. 다시 옮기려면 아래에서 잠금을 해제하세요."
           : isSidebarIconSlot
-            ? "닫혀있는 아이콘 자체를 캔버스에서 직접 드래그해 화면 어디로든 옮기세요."
-            : "선택된 요소 위의 ✥ 핸들을 캔버스에서 직접 드래그해 화면 어디로든 옮기세요."}
+            ? "닫혀있는 아이콘 자체를 캔버스에서 직접 드래그해 화면 어디로든 옮기거나, 아래에 좌표를 직접 입력하세요."
+            : "선택된 요소 위의 ✥ 핸들(또는 요소 어디든)을 캔버스에서 직접 드래그해 옮기거나, 아래에 좌표를 직접 입력하세요."}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="mb-1 block text-gray-600">가로(px, 음수=왼쪽)</span>
+          <input
+            type="number"
+            value={Math.round(offset?.dxPx ?? 0)}
+            onChange={(e) => patchOffset({ dxPx: e.target.value ? Number(e.target.value) : 0 })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">세로(px, 음수=위쪽)</span>
+          <input
+            type="number"
+            value={Math.round(offset?.dyPx ?? 0)}
+            onChange={(e) => patchOffset({ dyPx: e.target.value ? Number(e.target.value) : 0 })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+      </div>
+      <p className="text-[11px] text-gray-400">
+        요소가 화면 밖에 있어 안 보이면, 가로/세로를 0으로 바꾸거나(원래 자리) 값을 조금씩 줄여가며 화면 안으로 들어오는지 확인하세요.
       </p>
       <label className="flex items-center gap-2 text-gray-600">
         <input type="checkbox" checked={isLocked} onChange={toggleLocked} />

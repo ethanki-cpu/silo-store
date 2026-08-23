@@ -16,7 +16,11 @@ import type { JSONContent } from "@/lib/blockEditorCore";
 // 타임아웃 위험이 커서 /api/instagram/fetch와 동일하게 커서 기반으로
 // 나눈다 — 관리자 페이지가 nextCursor가 null이 될 때까지 반복 호출한다.
 const PAGE_LIMIT = 10;
-const BROKEN_THUMBNAIL_PATTERNS = ["cdninstagram.com", "fbcdn.net"];
+// HOTFIX-143.4(실사용 재현): cdninstagram.com/fbcdn.net 직링크만 "깨짐"으로
+// 보고 있었는데, 이미 R2로 재호스팅된 캐러셀 게시물 중 첫 항목이 영상인
+// 경우 featured_image_url이 .mp4로 저장돼(<img src>가 영상을 못 그림) 역시
+// 깨져 보이는 걸 놓쳤다 — 이것도 "깨짐" 패턴에 포함시킨다.
+const BROKEN_THUMBNAIL_PATTERNS = ["cdninstagram.com", "fbcdn.net", ".mp4"];
 
 export async function POST(request: NextRequest) {
   const requester = await getRequestMember(request);

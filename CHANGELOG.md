@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-24 (HOTFIX-143.4 — 백필 후에도 남아있던 깨진 썸네일 4개(About Silo) + 사이트 전체 76개: 캐러셀 첫 항목이 영상이면 .mp4가 대표 이미지로 저장되던 버그)
+- **신고**: "복구했는데 about silo 페이지에 4개가 아직도 안 됨, 직접 대표 이미지 재설정해도 안 됨" → 이어서 "silo daily에도 상당수 안 됨".
+- **원인**: HOTFIX-143.3에서 `instagram_feeds`에 `thumbnail_url`이 없는 캐러셀 게시물의 경우 `media_urls[0]`을 무조건 썸네일로 썼는데, **캐러셀의 첫 항목이 영상인 경우**(Graph API 원본 순서 그대로 저장) `media_urls[0]`이 `.mp4` 파일이라 `<img src>`로는 렌더링될 수 없어 깨져 보였다 — DB 값 자체는 R2 URL이라 "정상"처럼 보이지만 실제로는 이미지가 아닌 영상 파일을 가리킴. About Silo 4개 + `silo-daily`(17개) 포함 전체 사이트 약 76개 게시글이 이 패턴이었다. 사용자가 직접 "대표 이미지" 재지정을 시도해도 똑같은(고쳐지지 않은) 로직을 타므로 계속 같은 결과였음.
+- **수정 1**: `embedThumbnail.ts` — `media_item_types`와 `media_urls`를 짝지어 **실제 타입이 IMAGE인 첫 항목**만 대표 이미지 후보로 쓴다. 캐러셀 전체가 영상뿐이면(이미지가 하나도 없으면) 억지로 아무거나 쓰지 않고 `null`(대표 이미지 없음 — 깨진 표시보다 낫다는 기존 원칙 유지).
+- **수정 2**: `backfill-thumbnails/route.ts`의 "깨짐" 판정 패턴에 `.mp4`를 추가(기존엔 `cdninstagram.com`/`fbcdn.net` 직링크만 찾았음 — 이미 R2로 재호스팅됐지만 잘못된 파일(영상)을 가리키는 케이스는 이 패턴에 안 걸려 재백필 대상에서 빠졌었다).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. DB로 실제 깨진 4개(About Silo)의 `instagram_feeds` 원본 데이터를 대조해 캐러셀 순서상 영상이 먼저 오는 게 원인임을 직접 확인.
+- **사용자 액션 필요**: HOTFIX-143.3 때와 동일하게 `/admin/instagram`에서 "깨진 썸네일 일괄 복구" 버튼을 다시 클릭해야 함(DB 트리거가 실제 로그인 세션만 허용해 스크립트로 대신 못 함) — 이번엔 `.mp4` 패턴도 걸리므로 About Silo 4개 + Silo Daily 17개 등 전체 ~76개가 이번엔 잡힐 것으로 예상.
+- **변경 파일**: `src/lib/embedThumbnail.ts`, `src/app/api/admin/instagram/backfill-thumbnails/route.ts`.
+
 ## 2026-08-24 (HOTFIX-143.3 — Instagram이 og:image 자체를 더 이상 안 줘서 폐기 직전이던 스크래핑 폴백을 instagram_feeds 캐시로 대체 + 자사 계정 히스토리 전체 동기화)
 - **배경**: HOTFIX-143.2로 "로딩 멈춤"은 해결됐지만, 여전히 실제 미디어 대신 "Instagram에서 게시물 보기 ↗" 폴백 링크만 뜬다는 후속 확인("still not working") — `/api/instagram-post`가 이제 401 없이 정상 호출은 되지만 404("미디어를 찾지 못했어요")를 돌려주고 있었다.
 - **원인 재확인**: Node로 직접 `fetch()`해본 결과, Instagram이 페이지 렌더링 방식을 Comet 프레임워크로 완전히 바꿔 **서버가 받는 최초 HTML에 `og:image`/`og:video` 메타 태그 자체가 아예 없다**(UA를 바꿔도, `/embed/captioned/` 경로를 써도 동일 — 실측 확인). `src/lib/instagramScraper.ts`(EPIC-133)와 `src/lib/embedThumbnail.ts`(썸네일)가 둘 다 이 메타 태그에 의존하고 있어 사실상 항상 실패하는 상태였다 — 코드 버그가 아니라 Instagram 쪽 플랫폼 변경.

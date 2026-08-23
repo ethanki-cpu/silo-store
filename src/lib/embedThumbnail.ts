@@ -50,10 +50,20 @@ export async function resolveEmbedThumbnailUrl(
     if (shortcode) {
       const { data } = await supabase
         .from("instagram_feeds")
-        .select("thumbnail_url, media_urls")
+        .select("thumbnail_url, media_urls, media_item_types")
         .ilike("permalink", `%${shortcode}%`)
         .maybeSingle();
-      const cached = data?.thumbnail_url ?? data?.media_urls?.[0] ?? null;
+      // HOTFIX-143.4(실사용 재현 — "일부 썸네일이 여전히 안 나온다"):
+      // thumbnail_url이 없는 캐러셀 게시물에서 media_urls[0]을 무조건
+      // 썸네일로 썼더니, 캐러셀 첫 항목이 영상(.mp4)인 경우 <img src>가
+      // 영상 파일을 가리켜 깨져 보였다(브라우저가 mp4를 이미지로 못 그림).
+      // media_item_types와 짝지어 실제 IMAGE인 첫 항목만 쓴다 — 캐러셀
+      // 전체가 영상뿐이면(이미지가 하나도 없음) 억지로 아무거나 쓰지 않고
+      // null로 남겨(대표 이미지 없음) 깨진 표시보다 낫다는 기존 원칙 유지.
+      const mediaUrls: string[] = data?.media_urls ?? [];
+      const mediaItemTypes: string[] = data?.media_item_types ?? [];
+      const firstImageUrl = mediaUrls.find((_, i) => mediaItemTypes[i] === "IMAGE");
+      const cached = data?.thumbnail_url ?? firstImageUrl ?? null;
       if (cached) return cached;
     }
 

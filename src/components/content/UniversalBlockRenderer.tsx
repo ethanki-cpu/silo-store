@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
 import { processNativeInstagramEmbeds } from "@/lib/nativeInstagramEmbed";
@@ -45,6 +45,7 @@ export function UniversalBlockRenderer({
   const { session } = useAuth();
   const looksLikeHtml = /<[a-z][\s\S]*>/i.test(body);
   const [lightbox, setLightbox] = useState<{ images: LightboxImage[]; index: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // dangerouslySetInnerHTML로 넣은 정적 마크업(Instagram blockquote, raw HTML
   // 임베드 placeholder, 갤러리 캐러셀)은 그 자체로는 아무 동작도 하지
@@ -60,8 +61,12 @@ export function UniversalBlockRenderer({
     // instagramEmbed.ts) — 이제 그 자리를 R2 네이티브 렌더러가 대신한다.
     // 과거에 이미 작성된 게시글도 저장된 마크업 자체는 그대로고 렌더링
     // 시점에만 교체하는 것이라, 이 한 줄만 바꾸면 기존 글도 즉시 소급 적용된다.
-    if (body.includes("instagram-media")) {
-      processNativeInstagramEmbeds();
+    // 실사용 테스트로 확인된 재도색 현상(원인 특정은 못했지만 재현됨) 때문에
+    // 1회성 스캔이 아니라 MutationObserver로 계속 감시한다 — 반환된 정리
+    // 함수를 언마운트/재실행 시 반드시 해제한다.
+    let stopWatchingInstagramEmbeds: (() => void) | undefined;
+    if (body.includes("instagram-media") && containerRef.current) {
+      stopWatchingInstagramEmbeds = processNativeInstagramEmbeds(containerRef.current);
     }
     if (body.includes("gallery-carousel")) {
       processGalleryCarousels();
@@ -74,6 +79,7 @@ export function UniversalBlockRenderer({
     if (body.includes("poll-embed")) {
       processPollEmbeds(session?.access_token ?? null);
     }
+    return () => stopWatchingInstagramEmbeds?.();
   }, [body, looksLikeHtml, session?.access_token]);
 
   function handleClick(e: MouseEvent<HTMLDivElement>) {
@@ -98,6 +104,7 @@ export function UniversalBlockRenderer({
     return (
       <>
         <div
+          ref={containerRef}
           className={className}
           onClick={handleClick}
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }}

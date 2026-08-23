@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getRequestMember } from "@/lib/serverAuth";
+import { downloadBuffer, uploadBufferToR2 } from "@/lib/r2Server";
 
 // EPIC-143(사용자 지시 — "Instagram Graph API 기반 네이티브 피드 렌더링"):
 // 사일로 스토어 소유 Instagram 비즈니스 계정(_silo_store)의 게시물을 공식
@@ -23,8 +23,6 @@ const GRAPH_API_VERSION = "v21.0";
 const MEDIA_FIELDS =
   "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,children{id,media_type,media_url,thumbnail_url}";
 const PAGE_LIMIT = 12;
-const FETCH_TIMEOUT_MS = 20_000;
-const MAX_MEDIA_BYTES = 60 * 1024 * 1024; // 60MB — 릴스 영상 대비 여유 있게.
 
 type IgChild = { id: string; media_type: "IMAGE" | "VIDEO"; media_url?: string; thumbnail_url?: string };
 type IgMediaNode = {
@@ -42,69 +40,6 @@ type IgMediaListResponse = {
   paging?: { cursors?: { after?: string }; next?: string };
   error?: { message: string };
 };
-
-function getR2Client(): S3Client {
-  const accountId = process.env.R2_ACCOUNT_ID;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-  if (!accountId || !accessKeyId || !secretAccessKey) {
-    throw new Error("R2 환경 변수가 설정되지 않았어요.");
-  }
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId, secretAccessKey },
-  });
-}
-
-function extFromContentType(ct: string, isVideo: boolean): string {
-  const map: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/heic": "heic",
-    "video/mp4": "mp4",
-  };
-  return map[ct] ?? (isVideo ? "mp4" : "jpg");
-}
-
-async function downloadBuffer(url: string): Promise<{ buffer: Buffer; contentType: string } | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type")?.split(";")[0]?.trim() || "application/octet-stream";
-    const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.byteLength === 0 || buffer.byteLength > MAX_MEDIA_BYTES) return null;
-    return { buffer, contentType };
-  } catch {
-    return null;
-  }
-}
-
-async function uploadBufferToR2(
-  client: S3Client,
-  bucket: string,
-  publicUrlBase: string,
-  buffer: Buffer,
-  contentType: string,
-  isVideo: boolean,
-  keyHint: string,
-): Promise<string | null> {
-  try {
-    const ext = extFromContentType(contentType, isVideo);
-    const key = `instagram/${keyHint}-${crypto.randomUUID()}.${ext}`;
-    await client.send(
-      new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: contentType }),
-    );
-    return `${publicUrlBase.replace(/\/$/, "")}/${key}`;
-  } catch (err) {
-    console.error("R2 업로드 실패(instagram sync):", err);
-    return null;
-  }
-}
 
 export async function POST(request: NextRequest) {
   const requester = await getRequestMember(request);
@@ -158,7 +93,6 @@ export async function POST(request: NextRequest) {
   }
 
   const mediaList = payload.data ?? [];
-  const client = getR2Client();
   let synced = 0;
   let skipped = 0;
   const errors: string[] = [];
@@ -184,13 +118,10 @@ export async function POST(request: NextRequest) {
       const downloaded = await downloadBuffer(src.media_url);
       if (!downloaded) continue;
       const uploaded = await uploadBufferToR2(
-        client,
-        bucketName,
-        publicUrlBase,
         downloaded.buffer,
         downloaded.contentType,
         src.media_type === "VIDEO",
-        node.id,
+        `instagram/${node.id}`,
       );
       if (!uploaded) continue;
       mediaUrls.push(uploaded);
@@ -202,13 +133,10 @@ export async function POST(request: NextRequest) {
       const thumbDownload = await downloadBuffer(node.thumbnail_url);
       if (thumbDownload) {
         thumbnailR2Url = await uploadBufferToR2(
-          client,
-          bucketName,
-          publicUrlBase,
           thumbDownload.buffer,
           thumbDownload.contentType,
           false,
-          `${node.id}-thumb`,
+          `instagram/${node.id}-thumb`,
         );
       }
     }

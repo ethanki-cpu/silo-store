@@ -1,6 +1,10 @@
 # NEXT_TASK
 
 ## 진행 중
+- **EPIC-143-후속-2(구현 완료, 2026-08-24)**: "about silo 썸네일 안 나옴 + 게시판 전체(silo daily 등) 썸네일 다 깨짐" 신고 대응. (1) Instagram 임베드 치환이 잠깐 됐다가 원래 blockquote로 되돌아가는 재도색 버그 — 원인은 특정 못했지만(RSC 재도색 추정) `nativeInstagramEmbed.ts`를 1회성 스캔에서 MutationObserver 상시 감시로 바꿔 몇 번을 다시 그려도 즉시 재처리하게 함(`UniversalBlockRenderer.tsx`가 정리 함수 관리). (2) 사이트 전체 285개 글 중 248개의 `featured_image_url`이 서명 만료/핫링크 보호가 걸린 `scontent-*.cdninstagram.com` 직링크였던 게 진짜 썸네일 근본 원인 — `src/lib/r2Server.ts`(신규, 공용 다운로드+R2 업로드 헬퍼)를 뽑아 `embedThumbnail.ts`의 Instagram og:image 처리가 이제 R2에 재호스팅한 사본 URL을 저장(앞으로 저장되는 글부터 적용, `/api/instagram/fetch/route.ts`도 이 공용 헬퍼로 리팩터). (3) 이미 깨져있는 기존 248개 글은 저장 로직만 고쳐선 소급 안 되므로, `/api/admin/instagram/backfill-thumbnails`(신규, 관리자 전용, 커서 페이지네이션)를 만들어 `/admin/instagram` 페이지에 "깨진 썸네일 일괄 복구" 버튼으로 노출 — `body_json`에서 첫 임베드를 다시 찾아(`resolveFallbackEmbedThumbnail`) R2로 재계산. `tsc`/`lint` 0 errors. **다음에 확인 필요**:
+  1. 브라우저에서 "about silo"/"silo daily" 등 여러 게시판을 새로고침해 임베드 치환이 더 이상 원상복구되지 않고 유지되는지 직접 확인(재도색 트리거 자체는 아직 root-cause 특정 못 함 — 워크어라운드만 검증된 상태).
+  2. `/admin/instagram`에서 "깨진 썸네일 일괄 복구" 버튼을 실제로 눌러 248개 게시글이 처리되는지, 복구 후 각 게시판(특히 사용자가 직접 지목한 Silo Daily) 목록에서 썸네일이 실제로 보이는지 확인.
+  3. `resolveFallbackEmbedThumbnail`은 본문의 "첫 번째" 임베드만 본다 — 한 게시글에 임베드가 여러 개면 원래 지정됐던 것과 다른 임베드의 썸네일로 바뀔 수 있음(깨진 것보다는 낫다는 절충, 완벽한 재현은 아님). 복구 후 육안 확인 시 참고.
 - **EPIC-143-후속(구현 완료, 2026-08-23)**: 게시글 본문의 Instagram 임베드(iframe/blockquote)를 실시간으로 사일로 네이티브 UI로 치환 — 기존/향후 게시글 전부 소급 적용됨. 상세는 CHANGELOG.md 동명 항목 참고. `tsc`/`lint` 0 errors, permalink 매칭 실데이터로 검증. **다음에 확인 필요**:
   1. 실제 게시판 글(Instagram 임베드가 포함된 기존 글)을 브라우저로 열어 네이티브 UI로 정상 치환되는지 직접 확인(이 세션은 dev 서버 브라우저에서 Supabase REST가 막혀 직접 클릭 재현을 못 함).
   2. 사일로 스토어 소유가 아닌 타 계정 Instagram 링크를 본문에 넣었을 때 `InstagramMediaSlider` 폴백이 실제로 동작하는지(EPIC-133 스크래핑이 이 배포 환경에서 성공하는지는 그 EPIC 자체가 "미확인"으로 남아있었음 — 별도 확인 필요).

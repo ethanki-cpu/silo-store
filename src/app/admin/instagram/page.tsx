@@ -12,8 +12,17 @@ const primaryButtonClass = "rounded-md bg-gray-800 text-white px-4 py-2 text-sm 
 // nextCursor가 없어질 때까지 자동으로 반복 호출해 "전체 동기화" 버튼
 // 하나로 보이게 만든다.
 type SyncResult = { synced: number; skipped: number; errors: string[]; fetched: number; nextCursor: string | null; hasMore: boolean };
+type BackfillResult = {
+  processed: number;
+  updated: number;
+  unresolved: number;
+  errors: string[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
 
 const MAX_PAGES_PER_RUN = 20; // 안전장치 — 12*20=240개 정도면 한 번에 충분.
+const MAX_BACKFILL_PAGES_PER_RUN = 40; // 10개씩 40페이지 = 최대 400개 게시글까지.
 
 export default function AdminInstagramSyncPage() {
   const { session } = useAuth();
@@ -23,6 +32,12 @@ export default function AdminInstagramSyncPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [statusText, setStatusText] = useState<string | null>(null);
   const [feedCount, setFeedCount] = useState<number | null>(null);
+
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillUpdated, setBackfillUpdated] = useState(0);
+  const [backfillUnresolved, setBackfillUnresolved] = useState(0);
+  const [backfillErrors, setBackfillErrors] = useState<string[]>([]);
+  const [backfillStatusText, setBackfillStatusText] = useState<string | null>(null);
 
   async function loadFeedCount() {
     const { count } = await supabase.from("instagram_feeds").select("id", { count: "exact", head: true });
@@ -80,6 +95,49 @@ export default function AdminInstagramSyncPage() {
     }
   }
 
+  async function runBackfill() {
+    if (!session) {
+      setBackfillStatusText("로그인이 필요해요.");
+      return;
+    }
+    setBackfillRunning(true);
+    setBackfillErrors([]);
+    setBackfillUpdated(0);
+    setBackfillUnresolved(0);
+    setBackfillStatusText("깨진 썸네일을 찾는 중...");
+
+    let cursor: string | undefined;
+    let page = 0;
+    try {
+      while (page < MAX_BACKFILL_PAGES_PER_RUN) {
+        page += 1;
+        setBackfillStatusText(`${page}번째 묶음 처리 중...`);
+        const res = await fetch("/api/admin/instagram/backfill-thumbnails", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify(cursor ? { after: cursor } : {}),
+        });
+        const data: BackfillResult & { error?: string } = await res.json();
+        if (!res.ok) {
+          setBackfillErrors((prev) => [...prev, data.error ?? "알 수 없는 오류"]);
+          break;
+        }
+        setBackfillUpdated((prev) => prev + data.updated);
+        setBackfillUnresolved((prev) => prev + data.unresolved);
+        if (data.errors.length > 0) setBackfillErrors((prev) => [...prev, ...data.errors]);
+
+        if (!data.hasMore || !data.nextCursor) break;
+        cursor = data.nextCursor;
+      }
+      setBackfillStatusText("복구 완료");
+    } catch (e) {
+      setBackfillErrors((prev) => [...prev, e instanceof Error ? e.message : "알 수 없는 오류"]);
+      setBackfillStatusText("복구 중 오류가 발생했어요");
+    } finally {
+      setBackfillRunning(false);
+    }
+  }
+
   return (
     <main className="flex-1 px-8 pb-8 max-w-2xl mx-auto w-full">
       <h1 className="mb-1 mt-6 text-2xl font-bold">Instagram 동기화</h1>
@@ -112,6 +170,36 @@ export default function AdminInstagramSyncPage() {
           <p className="mb-1 font-semibold">일부 게시물을 처리하지 못했어요:</p>
           <ul className="list-disc space-y-0.5 pl-4">
             {errors.slice(0, 20).map((e, i) => (
+              <li key={i}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <hr className="my-8 border-gray-200" />
+
+      <h2 className="mb-1 text-lg font-bold">깨진 게시글 썸네일 복구</h2>
+      <p className="mb-6 text-xs text-gray-400">
+        게시판 글 본문에 Instagram 임베드가 있어 대표 이미지로 자동 지정된 썸네일 중, Instagram CDN 직링크라서
+        시간이 지나면 깨지는 것들을 찾아 R2 사본으로 다시 계산해요. 전체 게시판 공통이에요.
+      </p>
+
+      <button type="button" onClick={runBackfill} disabled={backfillRunning} className={primaryButtonClass}>
+        {backfillRunning ? "복구 중..." : "깨진 썸네일 일괄 복구"}
+      </button>
+
+      {backfillStatusText && <p className="mt-4 text-sm text-gray-600">{backfillStatusText}</p>}
+      {(backfillUpdated > 0 || backfillUnresolved > 0) && (
+        <p className="mt-1 text-sm text-gray-600">
+          복구됨 {backfillUpdated}개 · 다시 계산 못함 {backfillUnresolved}개
+        </p>
+      )}
+
+      {backfillErrors.length > 0 && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          <p className="mb-1 font-semibold">일부 게시물을 복구하지 못했어요:</p>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {backfillErrors.slice(0, 20).map((e, i) => (
               <li key={i}>{e}</li>
             ))}
           </ul>

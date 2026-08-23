@@ -10,8 +10,18 @@ import type { InstagramFeedItem } from "@/lib/instagramFeed";
 // iframe/embed.js는 전혀 쓰지 않는다. media_urls가 이미 R2 공개 URL이라
 // 브라우저가 Instagram CDN에 직접 요청하지 않는다(원본 URL은 서버가 다운로드
 // 시점에만 접근, 클라이언트에 노출되지 않음).
-export function InstagramFeedPost({ item }: { item: InstagramFeedItem }) {
+export function InstagramFeedPost({
+  item,
+  variant = "grid",
+}: {
+  item: InstagramFeedItem;
+  /** "grid"(기본) — 피드 그리드 카드용, 정사각형으로 크롭. "embed" — 게시글
+   * 본문에 삽입된 임베드용(NativeInstagramEmbed.tsx), 원본 비율을 살려
+   * 크롭 없이 자연스러운 높이로 보여준다. */
+  variant?: "grid" | "embed";
+}) {
   const isCarousel = item.media_type === "CAROUSEL_ALBUM" && item.media_urls.length > 1;
+  const isEmbed = variant === "embed";
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: "center" });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
@@ -35,12 +45,14 @@ export function InstagramFeedPost({ item }: { item: InstagramFeedItem }) {
     };
   }, [emblaApi, onSelect]);
 
+  const mediaFit = isEmbed ? "object-contain" : "object-cover";
+
   function renderMedia(url: string, type: string, idx: number) {
     if (type === "VIDEO") {
       return (
         <video
           key={`${url}-${idx}`}
-          className="h-full w-full object-cover"
+          className={`h-full w-full ${mediaFit}`}
           src={url}
           poster={item.thumbnail_url ?? undefined}
           autoPlay
@@ -52,12 +64,16 @@ export function InstagramFeedPost({ item }: { item: InstagramFeedItem }) {
     }
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img key={`${url}-${idx}`} className="h-full w-full object-cover" src={url} alt="" loading="lazy" />
+      <img key={`${url}-${idx}`} className={`h-full w-full ${mediaFit}`} src={url} alt="" loading="lazy" />
     );
   }
 
   return (
-    <div className="group relative aspect-square overflow-hidden rounded-lg bg-gray-100 shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md">
+    <div
+      className={`group relative overflow-hidden rounded-lg bg-gray-100 shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md ${
+        isEmbed ? "h-[420px]" : "aspect-square"
+      }`}
+    >
       {isCarousel ? (
         <>
           <div className="h-full w-full overflow-hidden" ref={emblaRef}>

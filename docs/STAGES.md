@@ -214,8 +214,12 @@ fetch`가 IMAGE/VIDEO/CAROUSEL_ALBUM을 조회해 서버가 직접 R2에 재호�
 `instagram_feeds`(public read + admin write RLS)에 캐싱 — 프론트엔드는 이
 캐시만 읽음. `InstagramFeedPost.tsx`(embla-carousel-react)가 iframe 없이
 네이티브 렌더링. `tsc`/`lint` 0 errors, 실제 8개 게시물 라이브 동기화로 전체
-파이프라인 검증 완료. 피드 컴포넌트를 아직 특정 페이지에 배치하지 않음(사용자
-선택 대기). 브랜치 `feature/EPIC-141`.
+파이프라인 검증 완료. **정정(같은 날, EPIC-143-후속)**: 실제 소비처는 별도
+피드 페이지가 아니라 게시글 본문 내 기존 인스타그램 임베드를 실시간으로
+네이티브 UI로 치환하는 것 — `UniversalBlockRenderer.tsx`를
+`processNativeInstagramEmbeds()`로 교체, 미매칭 시 EPIC-133
+`InstagramMediaSlider`로 폴백, 과거 게시글도 즉시 소급 적용. 상세는
+CHANGELOG.md 참고. 브랜치 `feature/EPIC-141`.
 
 직전 EPIC-140
 상단 탭/사용자 메뉴 추가·복제·삭제 + 드롭다운 z-index 버그 수정 + 신규

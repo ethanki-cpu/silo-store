@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-23 (EPIC-143-후속 — 게시글 본문 내 인스타그램 임베드를 사일로 네이티브 UI로 실시간 치환)
+- **정정 요청**: 방금 만든 EPIC-143(신규 피드 그리드)이 요구사항을 오해했다는 지적 — "인스타그램 피드를 새 게시글로 만드는 게 아니라, 기존/향후 게시글 **본문**에 이미 삽입된 인스타그램 임베드(iframe/blockquote)를 사일로 네이티브 UI로 바꿔치기하라"는 게 핵심이었다.
+- **기존 구조 확인**: 게시글 본문의 Instagram 임베드는 `<blockquote class="instagram-media" data-instgrm-permalink="...">`(EPIC-079, Instagram 공식 embed.js 위젯 마크업)로 저장돼 있고, 지금까지 `UniversalBlockRenderer.tsx`(게시글 읽기 전용 렌더러)가 `processInstagramEmbeds()`(`src/lib/instagramEmbed.ts`)로 Instagram의 공식 embed.js를 로드해 이 blockquote를 iframe으로 부풀려왔다.
+- **수정**: `processNativeInstagramEmbeds()`(`src/lib/nativeInstagramEmbed.ts`, 신규)가 그 자리를 대신한다 — 같은 blockquote를 찾아 `data-instgrm-permalink`를 읽고, DOM에서 들어낸 뒤 `react-dom/client`의 `createRoot`로 그 자리에 `NativeInstagramEmbed` React 컴포넌트를 새로 마운트한다(이 저장소 다른 임베드 처리기는 순수 문자열 innerHTML 치환이지만, embla 훅이 필요해 이번만 실제 React 루트를 얹는 표준 패턴을 썼다). `UniversalBlockRenderer.tsx`는 이 한 줄만 바뀌었으므로, **과거에 이미 작성된 게시글도 저장된 마크업은 그대로 두고 렌더링 시점에만 교체되어 즉시 소급 적용**된다(요구사항 3 그대로).
+- **`NativeInstagramEmbed.tsx`(신규)의 판단 로직과, 사용자에게 짚어야 할 기술적 한계**: Instagram Graph API는 "우리 소유 계정(_silo_store)의 미디어 목록"만 조회 가능하고, **임의의 permalink URL로 다른 계정의 게시물을 즉석 조회하는 공식 API는 존재하지 않는다** — "본문에서 감지된 URL을 즉시 Graph API로 가져오라"는 원 요청을 문자 그대로는 구현할 수 없는 이유. 그래서: (1) permalink에서 shortcode를 추출해 `instagram_feeds`(R2 캐시, EPIC-143이 미리 동기화해둔 사일로 스토어 자사 게시물)에서 일치하는 행을 찾으면 → 완전히 네이티브로(R2 URL, Instagram 요청 0회) 렌더링. (2) 못 찾으면(아직 동기화 전인 자사 게시물이거나, 애초에 타 계정 게시물) → 이미 이 저장소에 있었지만 한 번도 실제로 연결된 적 없던 EPIC-133의 `InstagramMediaSlider`(공개 og:meta 가벼운 스크래핑+실시간 프록시, 영구 저장 없음)로 폴백 — **새로운 비공식 스크래핑을 추가한 게 아니라 기존에 미완성으로 남아있던 걸 여기서 처음 실제로 배선한 것**.
+- **`InstagramFeedPost.tsx`에 `variant` prop 추가**: 그리드 카드(`"grid"`, 기존 정사각형 크롭)와 본문 임베드(`"embed"`, 신규 — 크롭 없이 `object-contain`, 420px 고정 높이로 레터박스) 두 컨텍스트를 하나의 컴포넌트로 공유 — 로직 중복 없음.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 실제 REST API 호출로 shortcode 기반 permalink 매칭(`ilike`)이 방금 동기화한 실데이터(`https://www.instagram.com/p/DcS2mrpN8y6/`)에 대해 정확히 매치됨을 확인.
+- **의도적으로 손대지 않은 곳**: `BlockEditor.tsx`(글쓰기 화면의 라이브 미리보기)는 여전히 기존 `processInstagramEmbeds()`(공식 embed.js)를 쓴다 — 이번 요청은 "게시글 렌더러"(독자가 보는 화면)에 관한 것이라 편집 중 미리보기까지 바꾸는 건 별도 확인 없이 범위를 넓히지 않았다(에디터 쪽은 더 복잡하고 회귀 위험이 커 신중하게 접근). 필요하면 다음에 별도로 통일 가능.
+- **변경 파일**: `src/components/content/UniversalBlockRenderer.tsx`, `src/components/content/InstagramFeedPost.tsx`, `src/components/content/NativeInstagramEmbed.tsx`(신규), `src/lib/nativeInstagramEmbed.ts`(신규).
+
 ## 2026-08-23 (EPIC-143 — Instagram Graph API 기반 네이티브 피드 렌더링)
 - **배경**: EPIC-142에서 "인스타그램 비공식 스크래핑 + User-Agent 위장으로 rate limit 우회 + R2 영구 재호스팅" 파이프라인을 요청받았으나, 명시적 탐지 회피(UA 위장)와 저작권 재배포 우려로 그 형태의 구현을 거부하고 대신 **공식 Instagram Graph API** 경로를 제안했다. 사용자가 Meta Business 설정에서 사일로 스토어 소유 계정(`_silo_store`, IG User ID 확인 완료) System User 장기 액세스 토큰을 직접 발급받아 진행을 확정 — EPIC-143으로 착수.
 - **DB**: `instagram_feeds` 테이블 신설 — `ig_media_id`(unique), `media_type`(IMAGE/VIDEO/CAROUSEL_ALBUM, CHECK 제약), `caption`, `permalink`, `posted_at`, `media_urls`/`media_item_types`(text[], 캐러셀은 순서대로 여러 개), `thumbnail_url`. RLS: public read(마케팅성 공개 콘텐츠) + `is_current_user_admin()`(EPIC-071 패턴 재사용) 기반 admin-only write.

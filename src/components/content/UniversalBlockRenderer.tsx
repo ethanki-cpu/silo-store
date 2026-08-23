@@ -3,7 +3,7 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { Lightbox, type LightboxImage } from "@/components/editor/Lightbox";
-import { processInstagramEmbeds } from "@/lib/instagramEmbed";
+import { processNativeInstagramEmbeds } from "@/lib/nativeInstagramEmbed";
 import { processRawHtmlEmbeds } from "@/lib/rawHtmlEmbed";
 import { processGalleryCarousels } from "@/lib/galleryCarousel";
 import { processPollEmbeds } from "@/lib/pollEmbed";
@@ -54,8 +54,14 @@ export function UniversalBlockRenderer({
     if (body.includes('data-provider="customHtml"')) {
       processRawHtmlEmbeds();
     }
+    // EPIC-143-후속(사용자 지시 — "옛 iframe이 렌더링되는 게 아니라, 실시간
+    // 파싱되어 사일로 네이티브 UI로 교체돼야 한다"): 이전엔 Instagram 공식
+    // embed.js가 이 blockquote를 iframe으로 부풀렸다(processInstagramEmbeds,
+    // instagramEmbed.ts) — 이제 그 자리를 R2 네이티브 렌더러가 대신한다.
+    // 과거에 이미 작성된 게시글도 저장된 마크업 자체는 그대로고 렌더링
+    // 시점에만 교체하는 것이라, 이 한 줄만 바꾸면 기존 글도 즉시 소급 적용된다.
     if (body.includes("instagram-media")) {
-      processInstagramEmbeds();
+      processNativeInstagramEmbeds();
     }
     if (body.includes("gallery-carousel")) {
       processGalleryCarousels();

@@ -1,6 +1,10 @@
 # NEXT_TASK
 
 ## 진행 중
+- **HOTFIX-143.2(구현 완료, 2026-08-24)**: HOTFIX-143.1 배포 후에도 사용자가 "로딩에서 멈춘다"고 재신고 — 로컬 dev 서버 + Claude Browser 툴 라이브 디버깅으로 진짜 원인 특정: `nativeInstagramEmbed.ts`의 `createRoot()`가 앱 메인 트리와 분리된 별도 React 트리라 `useAuth()`가 실제 `<AuthProvider>`를 못 만나고 Context 기본값(`loading: true` 고정)만 봤다 — HOTFIX-143.1의 "로그인 세션 확인 전 요청" 진단은 틀렸음(정정). `nativeInstagramEmbed.ts`가 `<AuthProvider>`로 한 번 더 감싸도록 수정. 상세는 CHANGELOG.md 동명 항목 참고. 로컬에서 직접 재현+수정 확인(로딩 멈춤 해소, "Instagram에서 보기" 폴백으로 정상 전환). `tsc`/`lint` 0 errors. **다음에 확인 필요**:
+  1. `dev.silostore.net`이 이 커밋까지 반영된 빌드를 서빙할 때까지 기다린 뒤(이전에도 배포 반영이 예상보다 오래 걸림 — Vercel 대시보드에서 `develop` 배포 상태 확인 권장), 실제로 로딩이 멈추지 않고 최종 상태(네이티브 렌더링 또는 폴백 링크)로 넘어가는지 확인.
+  2. 로그인 상태에서 `/api/instagram-post`가 이제 401 없이 정상 호출되는지(스크래핑 자체 성공 여부는 별개 — EPIC-133 스크래핑이 이 특정 게시물에 대해 성공하는지는 Instagram 차단 여부에 달림, 이번 수정 범위 밖).
+  3. 이 Context-격리 패턴(`createRoot()`로 앱 트리 밖에 마운트)은 향후 이 안에서 다른 Provider 기반 훅(useAuth 외에)을 새로 쓸 때도 똑같이 재발할 수 있는 구조적 함정 — 비슷한 코드를 추가할 때 이 케이스를 참고할 것.
 - **HOTFIX-143.1(구현 완료, 2026-08-24)**: dev.silostore.net에서 직접 브라우저로 재현 디버깅 — (1) 배포가 이전 디버그 커밋(`0a2387d`)에 멈춰있었음(코드 문제 아님, Vercel 배포 지연으로 판단, 재확인 필요), (2) `InstagramMediaSlider.tsx`가 세션 확인 끝나기 전에 요청을 보내 로그인 사용자도 401 나던 레이스 컨디션 수정. 상세는 CHANGELOG.md 동명 항목 참고. `tsc`/`lint` 0 errors. **다음에 확인 필요**:
   1. `dev.silostore.net`이 이 커밋까지 반영된 새 빌드를 서빙하는지(배포 후 실제 콘솔에 `[nativeIgDebug]` 로그가 더 이상 안 뜨는지) 재확인.
   2. 인증 수정 후에도 `/api/instagram-post`가 실제로 200을 내려주는지, 아니면 여전히 스크래핑 자체가 404로 실패하는지 — 후자라면 이건 EPIC-133의 기존 한계이고 이번 수정 범위 밖(근본 해결은 `/admin/instagram` R2 동기화 커버리지 확대뿐, 단 사일로 스토어 자사 계정 게시물에만 적용 가능).

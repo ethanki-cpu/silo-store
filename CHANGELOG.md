@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-24 (HOTFIX-143.2 — 인스타그램 임베드가 로딩에서 영원히 멈추던 진짜 원인: createRoot()의 Context 단절)
+- **배경**: HOTFIX-143.1로 배포한 뒤 사용자가 실제 브라우저에서 재확인 — "로딩에서 멈춘다"고 재신고. Claude Browser 툴로 라이브 디버깅 재개, 로컬 dev 서버에서 `AuthProvider`/`InstagramMediaSlider`에 임시 디버그 로그를 심어 추적.
+- **진짜 원인(HOTFIX-143.1의 진단은 틀렸음— 정정)**: `nativeInstagramEmbed.ts`가 `react-dom/client`의 `createRoot()`로 만드는 트리는 앱의 메인 React 트리와 **완전히 분리된 별도 트리**다 — React Context는 트리 경계를 넘어 전달되지 않으므로, 그 안에서 `useAuth()`를 부르는 `NativeInstagramEmbed`/`InstagramMediaSlider`는 실제 `<AuthProvider>`를 조상으로 만난 적이 없고 `createContext()`에 지정된 **기본값**(`session: null`, `loading: true`)만 영원히 본다. 이게 두 가지 다른 증상의 공통 원인이었다: HOTFIX-143.1 이전엔 `loading`을 안 기다려서 매번 세션 없이 요청 → 401(진짜 로그인 여부와 무관하게 항상), HOTFIX-143.1 이후엔 `loading`이 기본값 그대로 `true`라 요청 자체가 영원히 안 나감(로딩 멈춤). 디버그 로그로 실측 확인: 앱 최상단 `AuthProvider`는 `loading: false`로 정상 전환됐는데, 같은 순간 `InstagramMediaSlider`가 받는 `authLoading`은 계속 `true`로 고정.
+- **수정**: `nativeInstagramEmbed.ts`의 `createRoot(mount).render(...)`가 `<NativeInstagramEmbed>`를 자체 `<AuthProvider>`로 한 번 더 감싸도록 변경 — 이 분리된 트리 전용으로 세션을 다시 확인한다(같은 supabase 세션을 다시 읽으므로 사용자에게 재로그인 요구 없음; 게시글당 임베드가 여러 개면 그만큼 중복 확인이 일어나지만 보통 많지 않아 감수 가능한 트레이드오프). HOTFIX-143.1의 `authLoading` 가드와 `AuthProvider`의 `getSession()` 타임아웃 폴백(5초)은 그대로 유지 — 이번 수정으로 `authLoading`이 실제로 의미 있는 값이 되면서 그 가드가 비로소 제대로 작동하게 됐다.
+- **로컬 검증**: `npm run dev` + Claude Browser 툴로 동일 게시글(`/boards/ethan-s-bluenotes/2e3d9b55`)을 재현 — 수정 전엔 6초+ 대기해도 로딩 스켈레톤에 멈춰 있었고, 수정 후엔 즉시 "Instagram에서 게시물 보기 ↗" 폴백 링크로 확정 상태 전환됨(로그인/스크래핑 성공 여부와 무관하게 "영원히 로딩"은 해소됨).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 경고 없음).
+- **변경 파일**: `src/lib/nativeInstagramEmbed.ts`, `src/components/content/InstagramMediaSlider.tsx`(주석 정리), `src/lib/AuthProvider.tsx`(디버그 로그 제거, 타임아웃 폴백 유지).
+
 ## 2026-08-24 (HOTFIX-143.1 — dev.silostore.net 실사용 디버깅 중 발견한 인증 레이스 컨디션)
 - **배경**: 사용자가 "dev.silostore.net에서 인스타그램 임베드 치환이 여전히 안 된다"고 신고 — 직접 브라우저(Claude Browser 툴)로 재현 조사. 두 가지가 확인됨: (1) `develop`/`dev.silostore.net`이 아직 이전 임시 디버그 커밋(`0a2387d`, `[nativeIgDebug]` 콘솔 로그가 찍히는 구버전)을 서빙 중이었다 — `git push origin 0580ad0:develop`은 정상적으로 반영됐음을 `git merge-base`로 재확인했으므로 Vercel 빌드/배포가 아직 못 따라온 것으로 판단, 별도 코드 수정 불필요(배포가 따라잡을 때까지 대기). (2) 그 과정에서 진짜 코드 버그를 하나 더 발견 — `InstagramMediaSlider.tsx`(EPIC-133 폴백)가 `/api/instagram-post`를 호출할 때 `useAuth()`의 `session`이 아직 초기값(`null`, 비동기 세션 확인 전)인 상태에서 요청을 보내 로그인한 사용자에게도 401("로그인이 필요해요")이 발생하는 레이스 컨디션을 네트워크 로그로 실측 확인.
 - **수정**: `InstagramMediaSlider.tsx`가 `useAuth()`에서 `loading`(세션 확인 자체가 끝났는지, EPIC-079에서 이미 확립된 패턴)도 함께 받아, 세션 확인이 끝나기 전에는 요청을 보내지 않도록(`if (authLoading) return`) 가드 추가 — effect 의존성 배열에도 `authLoading` 반영.

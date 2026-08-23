@@ -3,6 +3,7 @@
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { NativeInstagramEmbed } from "@/components/content/NativeInstagramEmbed";
+import { AuthProvider } from "@/lib/AuthProvider";
 
 // EPIC-143-후속: posts.body(raw HTML, dangerouslySetInnerHTML로 삽입)에 저장된
 // 정적 Instagram blockquote 마크업은 그 자체로 아무 동작도 하지 않는다
@@ -39,7 +40,23 @@ function scan(root: ParentNode): void {
     mount.className = "native-instagram-embed-mount";
     el.replaceWith(mount);
 
-    createRoot(mount).render(createElement(NativeInstagramEmbed, { permalink }));
+    // HOTFIX(실사용 재현 — "로딩에서 영원히 멈춘다"/"로그인해도 401"):
+    // createRoot()는 앱의 메인 React 트리와 완전히 분리된 새 트리를 만든다
+    // — Context는 트리를 넘어 전달되지 않으므로, 이 안에서 useAuth()를
+    // 부르는 InstagramMediaSlider는 실제 <AuthProvider>를 조상으로 만나지
+    // 못하고 항상 createContext()의 기본값(loading:true, session:null)만
+    // 본다. 이 기본값 때문에 로그인 여부와 무관하게 매번 401이 나거나
+    // (loading을 기다리지 않던 이전 버전), loading이 영원히 true라 요청 자체가
+    // 안 나가거나(loading을 기다리게 고친 버전) 했다 — 두 증상 다 같은
+    // "이 트리엔 진짜 AuthProvider가 없다"는 원인의 다른 얼굴이었다. 이
+    // 트리 전용으로 AuthProvider를 다시 한번 감싸 자체적으로 세션을
+    // 확인하게 한다(같은 supabase 세션을 다시 읽으므로 별도 로그인 없이도
+    // 정확한 로그인 상태를 얻는다 — 페이지에 임베드가 여러 개면 그만큼
+    // 중복 확인이 발생하지만, 보통 게시글당 임베드가 많지 않아 감수할
+    // 만하다).
+    createRoot(mount).render(
+      createElement(AuthProvider, null, createElement(NativeInstagramEmbed, { permalink })),
+    );
   });
 }
 

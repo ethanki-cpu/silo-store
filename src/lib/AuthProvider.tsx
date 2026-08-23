@@ -33,10 +33,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [memberLoading, setMemberLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    // HOTFIX(실사용 재현 — "인스타그램 임베드가 로딩에서 멈춘다"): getSession()이
+    // reject되거나(에러 핸들러 없었음) 멈춰버리면(supabase-js 내부 세션 락 등)
+    // loading이 영원히 true로 남아, loading을 기다리는 화면(예:
+    // InstagramMediaSlider)이 영원히 로딩 상태에 갇힌다 — 실사용자 브라우저에서
+    // 실제로 재현 확인됨(사일로 샌드박스 한정 문제가 아니었음). 5초 안에
+    // 응답이 없으면 일단 loading=false로 넘어가 화면이 멈추지 않게 하고,
+    // getSession()이 늦게라도 응답하면 그 결과로 session은 갱신된다.
+    let settled = false;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        settled = true;
+        setSession(data.session);
+        setLoading(false);
+      })
+      .catch(() => {
+        settled = true;
+        setLoading(false);
+      });
+
+    const timeout = setTimeout(() => {
+      if (!settled) setLoading(false);
+    }, 5000);
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
@@ -44,7 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     );
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

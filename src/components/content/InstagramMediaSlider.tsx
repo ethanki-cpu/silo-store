@@ -27,7 +27,10 @@ export function InstagramMediaSlider({ permalink }: { permalink: string }) {
     // AuthProvider의 세션 확인(authLoading)이 끝나기 전에 요청을 보내면
     // 로그인 상태여도 Authorization 헤더 없이 나가 /api/instagram-post가
     // 401(로그인 필요)을 돌려준다 — 실사용 테스트로 재현됨. authLoading이
-    // 끝날 때까지 기다렸다가 한 번만 정확한 토큰으로 요청한다.
+    // 끝날 때까지 기다렸다가 한 번만 정확한 토큰으로 요청한다. (이 가드가
+    // 실효를 가지려면 이 컴포넌트를 렌더링하는 트리에 실제
+    // AuthContext.Provider 조상이 있어야 한다 — nativeInstagramEmbed.ts의
+    // createRoot() 참고.)
     if (authLoading) return;
 
     let cancelled = false;

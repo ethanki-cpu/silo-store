@@ -15,17 +15,30 @@ import { NativeInstagramEmbed } from "@/components/content/NativeInstagramEmbed"
 // createRoot를 쓴다 — React 18+ 공식 API로, 외부에서 관리되는 DOM 서브트리에
 // React 트리를 얹는 표준적인 방법이다.
 export function processNativeInstagramEmbeds(root: ParentNode = document): void {
-  root.querySelectorAll<HTMLElement>(".instagram-media[data-instgrm-permalink]").forEach((el) => {
-    if (el.dataset.nativeIgInit === "true") return;
+  const matches = root.querySelectorAll<HTMLElement>(".instagram-media[data-instgrm-permalink]");
+  // TEMP-DEBUG(사용자 신고 — "임베드가 안 바뀐다" 원인 규명용, 확인 후 제거 예정).
+  console.log("[nativeIgDebug] processNativeInstagramEmbeds called, matches=", matches.length);
+  matches.forEach((el) => {
+    if (el.dataset.nativeIgInit === "true") {
+      console.log("[nativeIgDebug] already init, skipping");
+      return;
+    }
     el.dataset.nativeIgInit = "true";
 
     const permalink = el.getAttribute("data-instgrm-permalink");
+    console.log("[nativeIgDebug] permalink=", permalink);
     if (!permalink) return;
 
     const mount = document.createElement("div");
     mount.className = "native-instagram-embed-mount";
     el.replaceWith(mount);
+    console.log("[nativeIgDebug] replaced blockquote with mount div");
 
-    createRoot(mount).render(createElement(NativeInstagramEmbed, { permalink }));
+    try {
+      createRoot(mount).render(createElement(NativeInstagramEmbed, { permalink }));
+      console.log("[nativeIgDebug] createRoot().render() called without throwing");
+    } catch (e) {
+      console.error("[nativeIgDebug] createRoot/render threw:", e);
+    }
   });
 }

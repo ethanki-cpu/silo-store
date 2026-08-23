@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-24 (HOTFIX-143.1 — dev.silostore.net 실사용 디버깅 중 발견한 인증 레이스 컨디션)
+- **배경**: 사용자가 "dev.silostore.net에서 인스타그램 임베드 치환이 여전히 안 된다"고 신고 — 직접 브라우저(Claude Browser 툴)로 재현 조사. 두 가지가 확인됨: (1) `develop`/`dev.silostore.net`이 아직 이전 임시 디버그 커밋(`0a2387d`, `[nativeIgDebug]` 콘솔 로그가 찍히는 구버전)을 서빙 중이었다 — `git push origin 0580ad0:develop`은 정상적으로 반영됐음을 `git merge-base`로 재확인했으므로 Vercel 빌드/배포가 아직 못 따라온 것으로 판단, 별도 코드 수정 불필요(배포가 따라잡을 때까지 대기). (2) 그 과정에서 진짜 코드 버그를 하나 더 발견 — `InstagramMediaSlider.tsx`(EPIC-133 폴백)가 `/api/instagram-post`를 호출할 때 `useAuth()`의 `session`이 아직 초기값(`null`, 비동기 세션 확인 전)인 상태에서 요청을 보내 로그인한 사용자에게도 401("로그인이 필요해요")이 발생하는 레이스 컨디션을 네트워크 로그로 실측 확인.
+- **수정**: `InstagramMediaSlider.tsx`가 `useAuth()`에서 `loading`(세션 확인 자체가 끝났는지, EPIC-079에서 이미 확립된 패턴)도 함께 받아, 세션 확인이 끝나기 전에는 요청을 보내지 않도록(`if (authLoading) return`) 가드 추가 — effect 의존성 배열에도 `authLoading` 반영.
+- **별도로 확인(수정 아님, 기존에 알려진 제약)**: 인증 문제를 우회해 수동으로 직접 호출해보니 `scrapeInstagramPost()`(EPIC-133, 비공식 스크래핑)가 실제 게시물에 대해 404("미디어를 찾지 못했어요")를 반환 — Instagram이 스크래핑을 차단했을 가능성이 높고, 이건 EPIC-133 자체가 애초에 "best-effort, 성공 여부 미확인"으로 설계된 제약이지 이번에 새로 생긴 회귀가 아니다. `instagram_feeds`(R2 캐시, `/admin/instagram`으로 동기화)에 아직 없는 게시물은 이 폴백에 의존하는데, 폴백 자체가 이 환경에서 안정적으로 동작하지 않을 수 있음 — 근본적으로는 R2 캐시 커버리지를 늘리는 것만이 신뢰할 수 있는 해결책(단, Graph API는 `_silo_store` 자사 계정 게시물만 조회 가능하다는 한계는 여전함).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 경고 없음, 기존에도 있던 setState-in-effect 패턴 경고만 유지).
+- **변경 파일**: `src/components/content/InstagramMediaSlider.tsx`.
+
 ## 2026-08-24 (EPIC-143-후속-2 — 인스타그램 임베드 재도색 버그 + 사이트 전체 게시글 썸네일 근본 수정 + 기존 글 백필)
 - **신고 1**: "about silo 페이지인데 썸네일이 안나오고, 게시글을 확인해도 인스타그램 embed의 영상/사진/carousel 안나오고 있어" → 실사용 테스트로 재현: `processNativeInstagramEmbeds()`(EPIC-143-후속)가 최초 1회는 정상적으로 blockquote를 네이티브 UI로 치환하지만, 잠시 뒤 원래 blockquote로 되돌아가고 마운트한 div가 통째로 사라지는 현상을 콘솔 로그로 확인. `dangerouslySetInnerHTML`의 `__html` 문자열 값 자체는 안 바뀌어 React 리렌더 경로로는 감지 안 되는 재도색이라(정확한 트리거는 특정 못함 — RSC 스트리밍/라우터 캐시 관련으로 추정) 근본 차단 대신 `src/lib/nativeInstagramEmbed.ts`를 1회성 스캔에서 **MutationObserver 상시 감시**로 바꿔, 컨테이너가 몇 번을 다시 그려지든 처리 안 된 blockquote가 나타날 때마다 즉시 재처리하도록 했다. `UniversalBlockRenderer.tsx`는 `containerRef`를 새로 붙이고 감시 해제 함수를 effect cleanup에서 호출하도록 갱신.
 - **신고 2**: "게시판이 존재하는 모든 페이지의 글들도 다 확인해. 지금 'silo daily' 페이지 확인해보니 여기 thumbnail 다 작동안돼" → DB 확인 결과 전체 285개 게시글 중 248개의 `posts.featured_image_url`이 `scontent-*.cdninstagram.com` 직링크였다(About Silo에 국한된 문제가 아니라 게시판 전체 공통). 원인: Instagram og:image URL은 서명(`oe=` 만료 파라미터)이 걸려 있고 다른 도메인 `<img src>`에서 직접 불러오면 핫링크 보호에도 걸려, 저장 시점엔 보이다가 시간이 지나면 전부 깨진다.

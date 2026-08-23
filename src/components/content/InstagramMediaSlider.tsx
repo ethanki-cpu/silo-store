@@ -15,7 +15,7 @@ import type { InstagramMediaItem } from "@/lib/instagramScraper";
 // galleryCarousel.ts가 후처리하는 방식이지만, 여긴 실제 React 컴포넌트라
 // 같은 인터랙션(화살표/점/스와이프)을 React state로 직접 구현한다.
 export function InstagramMediaSlider({ permalink }: { permalink: string }) {
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const [items, setItems] = useState<InstagramMediaItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -23,6 +23,13 @@ export function InstagramMediaSlider({ permalink }: { permalink: string }) {
   const slideRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   useEffect(() => {
+    // HOTFIX: session 초기값은 항상 null이라(EPIC-079와 동일한 패턴),
+    // AuthProvider의 세션 확인(authLoading)이 끝나기 전에 요청을 보내면
+    // 로그인 상태여도 Authorization 헤더 없이 나가 /api/instagram-post가
+    // 401(로그인 필요)을 돌려준다 — 실사용 테스트로 재현됨. authLoading이
+    // 끝날 때까지 기다렸다가 한 번만 정확한 토큰으로 요청한다.
+    if (authLoading) return;
+
     let cancelled = false;
     setItems(null);
     setError(null);
@@ -49,7 +56,7 @@ export function InstagramMediaSlider({ permalink }: { permalink: string }) {
     return () => {
       cancelled = true;
     };
-  }, [permalink, session]);
+  }, [permalink, session, authLoading]);
 
   function scrollToIndex(i: number) {
     if (!items) return;

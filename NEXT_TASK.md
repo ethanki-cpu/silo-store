@@ -1,6 +1,10 @@
 # NEXT_TASK
 
 ## 진행 중
+- **HOTFIX-143.1(구현 완료, 2026-08-24)**: dev.silostore.net에서 직접 브라우저로 재현 디버깅 — (1) 배포가 이전 디버그 커밋(`0a2387d`)에 멈춰있었음(코드 문제 아님, Vercel 배포 지연으로 판단, 재확인 필요), (2) `InstagramMediaSlider.tsx`가 세션 확인 끝나기 전에 요청을 보내 로그인 사용자도 401 나던 레이스 컨디션 수정. 상세는 CHANGELOG.md 동명 항목 참고. `tsc`/`lint` 0 errors. **다음에 확인 필요**:
+  1. `dev.silostore.net`이 이 커밋까지 반영된 새 빌드를 서빙하는지(배포 후 실제 콘솔에 `[nativeIgDebug]` 로그가 더 이상 안 뜨는지) 재확인.
+  2. 인증 수정 후에도 `/api/instagram-post`가 실제로 200을 내려주는지, 아니면 여전히 스크래핑 자체가 404로 실패하는지 — 후자라면 이건 EPIC-133의 기존 한계이고 이번 수정 범위 밖(근본 해결은 `/admin/instagram` R2 동기화 커버리지 확대뿐, 단 사일로 스토어 자사 계정 게시물에만 적용 가능).
+  3. `instagram_feeds`에 없는(=폴백 경로를 타는) 다른 계정 게시물 임베드는 스크래핑이 막히면 "Instagram에서 게시물 보기 ↗" 외부 링크로만 보일 수 있음 — 이게 사용자가 기대하는 최소 허용선인지 확인 필요(완전한 네이티브 렌더링을 모든 임베드에 보장할 수는 없다는 구조적 한계를 사용자에게 명확히 전달할 것).
 - **EPIC-143-후속-2(구현 완료, 2026-08-24)**: "about silo 썸네일 안 나옴 + 게시판 전체(silo daily 등) 썸네일 다 깨짐" 신고 대응. (1) Instagram 임베드 치환이 잠깐 됐다가 원래 blockquote로 되돌아가는 재도색 버그 — 원인은 특정 못했지만(RSC 재도색 추정) `nativeInstagramEmbed.ts`를 1회성 스캔에서 MutationObserver 상시 감시로 바꿔 몇 번을 다시 그려도 즉시 재처리하게 함(`UniversalBlockRenderer.tsx`가 정리 함수 관리). (2) 사이트 전체 285개 글 중 248개의 `featured_image_url`이 서명 만료/핫링크 보호가 걸린 `scontent-*.cdninstagram.com` 직링크였던 게 진짜 썸네일 근본 원인 — `src/lib/r2Server.ts`(신규, 공용 다운로드+R2 업로드 헬퍼)를 뽑아 `embedThumbnail.ts`의 Instagram og:image 처리가 이제 R2에 재호스팅한 사본 URL을 저장(앞으로 저장되는 글부터 적용, `/api/instagram/fetch/route.ts`도 이 공용 헬퍼로 리팩터). (3) 이미 깨져있는 기존 248개 글은 저장 로직만 고쳐선 소급 안 되므로, `/api/admin/instagram/backfill-thumbnails`(신규, 관리자 전용, 커서 페이지네이션)를 만들어 `/admin/instagram` 페이지에 "깨진 썸네일 일괄 복구" 버튼으로 노출 — `body_json`에서 첫 임베드를 다시 찾아(`resolveFallbackEmbedThumbnail`) R2로 재계산. `tsc`/`lint` 0 errors. **다음에 확인 필요**:
   1. 브라우저에서 "about silo"/"silo daily" 등 여러 게시판을 새로고침해 임베드 치환이 더 이상 원상복구되지 않고 유지되는지 직접 확인(재도색 트리거 자체는 아직 root-cause 특정 못 함 — 워크어라운드만 검증된 상태).
   2. `/admin/instagram`에서 "깨진 썸네일 일괄 복구" 버튼을 실제로 눌러 248개 게시글이 처리되는지, 복구 후 각 게시판(특히 사용자가 직접 지목한 Silo Daily) 목록에서 썸네일이 실제로 보이는지 확인.

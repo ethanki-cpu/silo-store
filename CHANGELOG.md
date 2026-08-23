@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-23 (EPIC-143 — Instagram Graph API 기반 네이티브 피드 렌더링)
+- **배경**: EPIC-142에서 "인스타그램 비공식 스크래핑 + User-Agent 위장으로 rate limit 우회 + R2 영구 재호스팅" 파이프라인을 요청받았으나, 명시적 탐지 회피(UA 위장)와 저작권 재배포 우려로 그 형태의 구현을 거부하고 대신 **공식 Instagram Graph API** 경로를 제안했다. 사용자가 Meta Business 설정에서 사일로 스토어 소유 계정(`_silo_store`, IG User ID 확인 완료) System User 장기 액세스 토큰을 직접 발급받아 진행을 확정 — EPIC-143으로 착수.
+- **DB**: `instagram_feeds` 테이블 신설 — `ig_media_id`(unique), `media_type`(IMAGE/VIDEO/CAROUSEL_ALBUM, CHECK 제약), `caption`, `permalink`, `posted_at`, `media_urls`/`media_item_types`(text[], 캐러셀은 순서대로 여러 개), `thumbnail_url`. RLS: public read(마케팅성 공개 콘텐츠) + `is_current_user_admin()`(EPIC-071 패턴 재사용) 기반 admin-only write.
+- **동기화 API**: `POST /api/instagram/fetch`(관리자 전용) — Graph API `/{ig-user-id}/media`(fields에 `children{media_type,media_url}` 포함해 캐러셀 하위 미디어까지 조회) 호출 → 원본 CDN URL을 클라이언트에 절대 노출하지 않고 서버가 버퍼로 직접 다운로드 → `@aws-sdk/client-s3`로 R2에 업로드 → 결과 R2 URL을 `instagram_feeds`에 upsert. 서버리스 타임아웃을 피하려 한 번에 한 페이지(12개)만 처리하고 `nextCursor`를 반환 — 이미 동기화된 `ig_media_id`는 건너뛴다. **실사용 테스트로 발견한 엣지케이스**: 일부 VIDEO/릴스 게시물은 `media_url` 필드 자체가 안 내려오고 `thumbnail_url`만 있다 — 그 경우도 조용히 실패시키지 않고 썸네일만이라도 저장.
+- **관리자 UI**: `/admin/instagram`(신규, `AdminLayout` 메뉴에 "Instagram 동기화" 추가) — "최근 게시물 동기화" 버튼이 `nextCursor`가 없어질 때까지 `/api/instagram/fetch`를 자동 반복 호출해 진행 상황(새로 저장/건너뜀 개수, 오류 목록)을 보여준다.
+- **네이티브 프론트엔드**: `InstagramFeedPost.tsx`(embla-carousel-react 신규 도입) — IMAGE는 `<img>`, VIDEO는 `autoPlay muted loop playsInline`, CAROUSEL_ALBUM은 화살표+점 인디케이터가 있는 자체 슬라이더로 렌더링. Instagram 로고/좋아요/댓글 등 원본 UI는 애초에 응답 데이터에 없어 렌더링 대상 자체가 아니다(iframe/embed.js 전혀 미사용). `InstagramNativeFeed.tsx`(서버 컴포넌트, `instagram_feeds`를 직접 읽어 Instagram API 호출 없이 즉시 렌더링) + 빈 상태(동기화 전) fallback UI.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors. 격리 스크립트로 (1) Graph API 호출→R2 업로드→공개 URL 접근 파이프라인 개별 검증, (2) DB INSERT/제약조건 검증(테스트 행은 삭제) 이후, **실제로 8개 게시물(IMAGE 1/VIDEO 5/CAROUSEL_ALBUM 2, 캐러셀 최대 10장, media_url 없는 릴스의 썸네일 폴백까지 포함)을 라이브로 동기화**해 DB에 실데이터가 정상 저장됨을 확인.
+- **아직 안 한 것**: `InstagramNativeFeed`를 특정 페이지(홈페이지 등)에 아직 배치하지 않음 — 어디에 넣을지는 사용자 결정 대기, 컴포넌트 자체는 어디든 바로 끼워 넣을 수 있게 준비 완료.
+- **변경 파일**: `src/app/api/instagram/fetch/route.ts`(신규), `src/app/admin/instagram/page.tsx`(신규), `src/app/admin/layout.tsx`, `src/lib/instagramFeed.ts`(신규), `src/components/content/InstagramFeedPost.tsx`(신규), `src/components/content/InstagramNativeFeed.tsx`(신규), `package.json`(embla-carousel-react 추가). + `instagram_feeds` 테이블/RLS, `.env.local`(IG_ACCESS_TOKEN/IG_USER_ID/IG_APP_ID/IG_APP_SECRET — 커밋 안 됨).
+
 ## 2026-08-22 (HOTFIX-141.21 — "상단 사이드바" 모바일 프리뷰에 세션정보 컬럼만 보이던 문제)
 - **신고**: "'홈페이지 설정' -> '모바일' 버전에서 상단 사이드바에 4가지 컬럼들중 '세션정보' 컬럼만 나오고 있어. 모든 컬럼이 나오게 해줘".
 - **원인**: `TopSidebarPanel.tsx`의 column 0(이미지 뱅크)이 `hidden md:block`으로 **실제 브라우저 창 폭**만 보고 판단하고 있었다 — "홈페이지 설정 관리"의 모바일 프리뷰는 390px짜리 프레임 `<div>`로 좁아 보이게 흉내만 낼 뿐, 그 프레임을 담은 실제 브라우저 창 자체는 그보다 넓을 수 있어 `md:`(768px 이상) 판정이 시뮬레이션과 무관하게 어긋났다(HOTFIX-141.9~141.11에서 반복됐던 "실제 폭 vs 시뮬레이션 폭 불일치" 계열의 같은 근본 원인). column 2/3(관리자 링크 목록/hover 하위 목록)은 숨겨진 건 아니었지만 가로 스크롤(HOTFIX-141)로만 닿을 수 있어 세션정보 컬럼 하나만 있는 것처럼 보였다.

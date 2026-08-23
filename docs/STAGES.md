@@ -204,7 +204,20 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-140
+EPIC-143(2026-08-23 갱신, EPIC-141/142는 아래 목록에 개별 정리되지 않음 —
+CHANGELOG.md/docs/EPIC.md 참고)
+Instagram Graph API 기반 네이티브 피드 렌더링 — EPIC-142가 요청한 비공식
+스크래핑+영구 재호스팅(User-Agent 위장으로 rate limit 우회 포함)은 이용약관
+위반·저작권 재배포 우려로 거부, 사일로 스토어 소유 계정의 공식 Graph API로
+대체(사용자가 System User 장기 토큰 직접 발급). 관리자 전용 `/api/instagram/
+fetch`가 IMAGE/VIDEO/CAROUSEL_ALBUM을 조회해 서버가 직접 R2에 재호스팅,
+`instagram_feeds`(public read + admin write RLS)에 캐싱 — 프론트엔드는 이
+캐시만 읽음. `InstagramFeedPost.tsx`(embla-carousel-react)가 iframe 없이
+네이티브 렌더링. `tsc`/`lint` 0 errors, 실제 8개 게시물 라이브 동기화로 전체
+파이프라인 검증 완료. 피드 컴포넌트를 아직 특정 페이지에 배치하지 않음(사용자
+선택 대기). 브랜치 `feature/EPIC-141`.
+
+직전 EPIC-140
 상단 탭/사용자 메뉴 추가·복제·삭제 + 드롭다운 z-index 버그 수정 + 신규
 "상단 사이드바"(Kinfolk형 메가 메뉴) — z-index 버그는 EPIC-136이 헤더
 wrapper의 position:fixed를 편집 모드에서 걷어낼 때 z-40까지 함께 지워

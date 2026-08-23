@@ -23,6 +23,7 @@ const ADMIN_NAV = [
   // 직접 접근은 계속 가능) 최상위 탭에서는 뺀다.
   { href: "/admin/rentals", label: "스튜디오 대관/물품대여 신청 관리" },
   { href: "/admin/fonts", label: "커스텀 폰트 관리" },
+  { href: "/admin/instagram", label: "Instagram 동기화" },
   // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 '하단메뉴관리'를
   // 병합해줘"): 최상위 탭에서는 빼고 "홈페이지 설정 관리" 안의 다섯 번째
   // 섹션으로 흡수했다(admin/navigation/settings/page.tsx) — 라우트

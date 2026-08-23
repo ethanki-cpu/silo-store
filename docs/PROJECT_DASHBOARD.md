@@ -4,8 +4,9 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-08-13 (EPIC-102 기준). EPIC-090~101 구간은 CHANGELOG.md/docs/EPIC.md에는
-> 기록돼 있으나 이 대시보드 최상단 블록 갱신이 밀려 있었음(다음에 시간 날 때 소급 정리 권장).
+> 최종 확인: 2026-08-23 (EPIC-143 기준, Current EPIC 블록만 갱신). EPIC-090~101,
+> EPIC-141~142 구간은 CHANGELOG.md/docs/EPIC.md에는 기록돼 있으나 이 대시보드
+> 최상단 블록 갱신이 밀려 있었음(다음에 시간 날 때 소급 정리 권장).
 
 =====================================
 
@@ -55,7 +56,21 @@ Stage 2부터는
 
 ## Current EPIC
 
-EPIC-140(상단 탭/사용자 메뉴 추가·복제·삭제 + 드롭다운 z-index 버그 수정 +
+**(2026-08-23 갱신, 이 블록만 부분 갱신 — EPIC-141/142는 아래 목록에 개별 정리되지 않음, 상세는 docs/EPIC.md 상단 안내와 CHANGELOG.md 참고)**
+
+EPIC-143(Instagram Graph API 기반 네이티브 피드 렌더링) — EPIC-142의 비공식
+스크래핑+영구 재호스팅 요청을 이용약관/저작권 우려로 거부하고, 사일로 스토어
+소유 계정(`_silo_store`)의 공식 Graph API(사용자가 직접 발급한 System User
+장기 토큰)로 대체. 관리자 전용 `/api/instagram/fetch`가 게시물(IMAGE/VIDEO/
+CAROUSEL_ALBUM)을 조회해 원본 CDN URL을 클라이언트에 노출하지 않고 서버가
+직접 R2에 재호스팅, `instagram_feeds`(public read + admin write RLS)에
+캐싱 — 프론트엔드는 이 캐시만 읽어 Instagram API 호출이 없다.
+`InstagramFeedPost.tsx`(embla-carousel-react)가 iframe/embed 없이 네이티브로
+렌더링. `tsc`/`lint` 0 errors, 실제 8개 게시물 라이브 동기화로 파이프라인
+전체 검증 완료 — 다만 피드 컴포넌트를 아직 특정 페이지에 배치하지 않음(사용자
+선택 대기). 브랜치 `feature/EPIC-141`.
+
+직전 EPIC-140(상단 탭/사용자 메뉴 추가·복제·삭제 + 드롭다운 z-index 버그 수정 +
 신규 "상단 사이드바" Kinfolk형 메가 메뉴) — 헤더 드롭다운이 슬라이드쇼에
 가려지던 z-index 버그 수정(EPIC-136이 position:fixed 제거하며 z-40도
 같이 지웠던 게 원인), EPIC-138의 user_menu target_type을 활용해 상단

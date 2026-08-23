@@ -1,6 +1,7 @@
 # NEXT_TASK
 
 ## 진행 중
+- **HOTFIX-143.3(구현 완료, 2026-08-24) — 사용자 액션 1개 남음**: Instagram이 og:image 메타 태그를 아예 안 주게 바뀌어 스크래핑 폴백이 죽어있던 것 확인, `embedThumbnail.ts`가 `instagram_feeds` 캐시를 먼저 보도록 수정 + `_silo_store` 계정 히스토리 전체(381개 신규, 총 389개) 동기화 완료. 상세는 CHANGELOG.md 동명 항목 참고. `tsc`/`lint` 0 errors, 브라우저로 실제 R2 이미지 렌더링 확인. **사용자가 직접 해야 하는 것**: `/admin/instagram` 페이지에서 "깨진 썸네일 일괄 복구" 버튼 클릭 — 나머지 247개 게시글의 `featured_image_url`을 고치는 이 작업은 DB 트리거(`posts_protect_content_columns()`)가 실제 로그인 세션만 허용해서 스크립트로 대신할 수 없었음(의도된 보호 장치). 이 클릭 한 번이면 게시판 목록 썸네일도 전부 정상화될 것으로 예상.
 - **HOTFIX-143.2(구현 완료, 2026-08-24)**: HOTFIX-143.1 배포 후에도 사용자가 "로딩에서 멈춘다"고 재신고 — 로컬 dev 서버 + Claude Browser 툴 라이브 디버깅으로 진짜 원인 특정: `nativeInstagramEmbed.ts`의 `createRoot()`가 앱 메인 트리와 분리된 별도 React 트리라 `useAuth()`가 실제 `<AuthProvider>`를 못 만나고 Context 기본값(`loading: true` 고정)만 봤다 — HOTFIX-143.1의 "로그인 세션 확인 전 요청" 진단은 틀렸음(정정). `nativeInstagramEmbed.ts`가 `<AuthProvider>`로 한 번 더 감싸도록 수정. 상세는 CHANGELOG.md 동명 항목 참고. 로컬에서 직접 재현+수정 확인(로딩 멈춤 해소, "Instagram에서 보기" 폴백으로 정상 전환). `tsc`/`lint` 0 errors. **다음에 확인 필요**:
   1. `dev.silostore.net`이 이 커밋까지 반영된 빌드를 서빙할 때까지 기다린 뒤(이전에도 배포 반영이 예상보다 오래 걸림 — Vercel 대시보드에서 `develop` 배포 상태 확인 권장), 실제로 로딩이 멈추지 않고 최종 상태(네이티브 렌더링 또는 폴백 링크)로 넘어가는지 확인.
   2. 로그인 상태에서 `/api/instagram-post`가 이제 401 없이 정상 호출되는지(스크래핑 자체 성공 여부는 별개 — EPIC-133 스크래핑이 이 특정 게시물에 대해 성공하는지는 Instagram 차단 여부에 달림, 이번 수정 범위 밖).

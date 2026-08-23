@@ -1,5 +1,11 @@
 import { extractYoutubeId, findFirstEmbedRef, type JSONContent } from "./blockEditorCore";
 import { rehostUrlToR2 } from "./r2Server";
+import { supabase } from "./supabaseClient";
+
+function extractInstagramShortcode(url: string): string | null {
+  const m = url.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/);
+  return m ? m[1] : null;
+}
 
 // EPIC-079-HOTFIX-3: "대표 이미지를 지정하지 않고 임베드만 넣어도 썸네일로
 // 쓸 수 있게 감지해달라"는 요청 — provider별 실제 썸네일 URL은 예측 가능한
@@ -32,25 +38,30 @@ export async function resolveEmbedThumbnailUrl(
   }
 
   if (provider === "instagram") {
-    // Instagram 공식 oEmbed(graph.facebook.com)는 앱 액세스 토큰이 필요해
-    // 이 리포에서는 쓸 수 없다(EPIC-079-TIPTAP-FIX-V2/PHASE-5 조사 결과와
-    // 동일한 제약) — 대신 게시물 permalink 자체(공개 HTML 페이지)의
-    // og:image 메타 태그를 읽는다. Instagram이 봇 트래픽을 차단하거나
-    // 로그인 월을 띄우는 게시물/환경에서는 실패할 수 있어(이미 이 코드베이스
-    // 곳곳에서 확인된 한계) best-effort로만 취급한다 — 실패하면 조용히
-    // null(호출부가 "대표 이미지 없음"으로 자연히 처리).
-    //
-    // HOTFIX(실사용 신고 — "게시글 목록 썸네일이 다 안 나온다", 실제로 전체
-    // 285개 글 중 248개의 featured_image_url이 scontent-*.cdninstagram.com
-    // 직링크였다): Instagram og:image URL은 서명(`oe=` 만료 파라미터)이
-    // 걸려 있고 다른 도메인에서 <img src>로 직접 불러오면 핫링크 보호에도
-    // 걸린다 — 저장 시점엔 한동안 보이다가 시간이 지나면 전부 깨진다. 이제
-        // og:image를 찾자마자 그 자리에서 다운로드해 R2에 우리 소유 사본으로
-    // 올리고, 그 R2 URL을 돌려준다 — instagram_feeds(EPIC-143 네이티브
-    // 피드)와 동일한 "원본을 직접 링크하지 않고 우리가 영구 보관" 원칙.
-    // R2 업로드가 실패하면(환경변수 누락 등) 최후 수단으로 원본 URL이라도
-    // 돌려준다(당장은 보이다가 나중에 깨지더라도, 완전히 썸네일이 없는
-    // 것보다는 낫다는 기존 동작 유지).
+    // HOTFIX-143.3(실사용 재확인, 2026-08-24): Instagram이 페이지 렌더링
+    // 방식을 통째로 바꿔서(Comet 프레임워크로 완전 이전) 서버가 fetch()로
+    // 받는 최초 HTML에 이제 og:image 메타 태그 자체가 아예 없다(실측
+    // 확인 — UA를 아무리 바꿔도 마찬가지, 임베드 페이지도 동일) — 아래
+    // og:image 스크래핑은 더 이상 사실상 항상 실패한다. 대신 EPIC-143
+    // Graph API 파이프라인(`/admin/instagram` 동기화, 공식 API라 이 제약과
+    // 무관)이 이미 채워둔 `instagram_feeds`를 먼저 확인한다 — 사일로 스토어
+    // 자사 계정(_silo_store) 게시물이면 여기서 100% 안정적으로 찾는다.
+    const shortcode = extractInstagramShortcode(url);
+    if (shortcode) {
+      const { data } = await supabase
+        .from("instagram_feeds")
+        .select("thumbnail_url, media_urls")
+        .ilike("permalink", `%${shortcode}%`)
+        .maybeSingle();
+      const cached = data?.thumbnail_url ?? data?.media_urls?.[0] ?? null;
+      if (cached) return cached;
+    }
+
+    // 폴백: 사일로 스토어 소유가 아닌 게시물이거나 아직 동기화 전인
+    // 경우 — 예전 방식대로 og:image 스크래핑을 시도한다(위 이유로 현재는
+    // 거의 항상 실패하지만, Instagram이 향후 이 응답을 다시 바꿀 수도
+    // 있어 완전히 제거하지 않고 best-effort 폴백으로 남겨둔다). 성공하면
+    // R2에 재호스팅해 서명 만료/핫링크 문제를 피한다.
     try {
       const res = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; SiloStoreBot/1.0)" },

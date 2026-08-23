@@ -29,11 +29,25 @@ type BoardOption = { slug: string; name: string };
 // 그 모션 효과를 여러가지 오브제마다 설정할수 있게 해줘"): 3D 오브젝트
 // 유휴 모션 프리셋 — 스케일은 카메라 줌 거리 계산과 얽혀 있어 일부러
 // 빠졌다(aboutSiloUniverseConfig.ts의 ObjectMotion 주석 참고).
+// EPIC-144(사용자 지시 — "10가지 모션이 더 있으면좋겠어"): 기존 4개에
+// 10개를 더했다 — 전부 position/rotation/opacity만 쓰고 scale은 안
+// 건드린다(위 주석 참고). "제자리 회전"은 이미지(별/은하수 등)에서도
+// 이제 실제로 보인다(aboutSiloUniverseConfig.ts EPIC-144 주석 참고).
 const MOTION_OPTIONS: { value: ObjectMotion; label: string }[] = [
   { value: "none", label: "없음" },
   { value: "twinkle", label: "반짝임(투명도)" },
   { value: "bob", label: "위아래 부유" },
   { value: "spin", label: "제자리 회전" },
+  { value: "sway", label: "좌우 살랑임" },
+  { value: "pendulum", label: "시계추처럼 흔들림" },
+  { value: "tumble", label: "굴러가듯 텀블링" },
+  { value: "drift", label: "느리게 원 그리며 떠다님" },
+  { value: "orbitSelf", label: "제자리에서 작게 맴돔" },
+  { value: "figure8", label: "8자 모양으로 떠다님" },
+  { value: "flicker", label: "촛불처럼 불규칙하게 깜빡임" },
+  { value: "shimmer", label: "미세하게 반짝이며 떨림" },
+  { value: "fadeInOut", label: "천천히 밝아졌다 어두워짐" },
+  { value: "nod", label: "위아래로 끄덕임" },
 ];
 
 export function ObjectInspectorPanel({
@@ -58,7 +72,9 @@ export function ObjectInspectorPanel({
 }) {
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const [boards, setBoards] = useState<BoardOption[]>([]);
-  const { offset, dragHandleProps } = useDraggablePanel();
+  // EPIC-144(사용자 지시 — "어떤 설정창이든 그 설정창 외부를 누르면
+  // 설정창이 해제될수 있게 해줘").
+  const { offset, dragHandleProps, panelRef } = useDraggablePanel({ onClickOutside: onClose });
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +104,7 @@ export function ObjectInspectorPanel({
 
   return (
     <div
+      ref={panelRef}
       className="pointer-events-auto fixed right-6 top-24 z-40 w-[260px] max-h-[80vh] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md"
       style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
     >
@@ -111,13 +128,19 @@ export function ObjectInspectorPanel({
           <input
             type="range"
             min={0.05}
-            max={2}
+            max={12}
             step={0.05}
             className="mt-1 w-full"
             value={object.scale}
             onChange={(e) => onChange({ scale: Number(e.target.value) || 0.3 })}
           />
           <span className="text-white/50">{object.scale.toFixed(2)}</span>
+          {/* EPIC-144(사용자 지시 — "먼곳에... 크기 설정할수 있게해"):
+              최대값을 2→12로 넓혔다 — 우주 공간 오브젝트를 "먼 우주 배경"
+              (UniverseSettingsPanel)으로 두면 행성에서 40~85 단위나
+              떨어진 곳에 배치돼, 기존 최대값(2)으로는 은하수/네뷸러/
+              블랙홀처럼 화면을 채우는 배경 이미지를 만들기엔 너무
+              작았다. */}
         </label>
         <label className="block text-[10px] text-white/60">
           모션 효과

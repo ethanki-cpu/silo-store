@@ -46,7 +46,12 @@ export function UniverseSettingsPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [uploadingSpaceField, setUploadingSpaceField] = useState<"model" | "sprite" | null>(null);
-  const { offset, dragHandleProps } = useDraggablePanel();
+  const [uploadingShootingStarField, setUploadingShootingStarField] = useState<"model" | "sprite" | null>(null);
+  // EPIC-144(사용자 지시 — "어떤 설정창이든 그 설정창 외부를 누르면
+  // 설정창이 해제될수 있게 해줘"): open이 false인 동안(패널이 접혀 열기
+  // 버튼만 보이는 상태)은 리스너를 아예 안 달아야, 열기 버튼을 누르는
+  // 바로 그 클릭 이후 다음 바깥 클릭에 곧바로 닫히는 걸 막을 수 있다.
+  const { offset, dragHandleProps, panelRef } = useDraggablePanel({ onClickOutside: () => setOpen(false), enabled: open });
 
   function addSpaceObject(kind: SpaceObject["kind"], url: string) {
     const obj: SpaceObject = {
@@ -63,6 +68,7 @@ export function UniverseSettingsPanel({
       focusDistanceMultiplier: null,
       count: kind === "sprite" ? 8 : 1,
       scatterSeed: 0,
+      placement: "between",
     };
     onChange({ spaceObjects: [...config.spaceObjects, obj] });
   }
@@ -79,6 +85,15 @@ export function UniverseSettingsPanel({
       spaceObjects: config.spaceObjects.map((o) => (o.id === id ? { ...o, scatterSeed: o.scatterSeed + 1 } : o)),
     });
   }
+  // EPIC-144(사용자 지시 — "먼곳에 은하수, 블랙홀, nebula... 우주의
+  // 먼곳에 보일수 있게"): "먼 우주 배경"으로 바꾸면 훨씬 먼 반지름에
+  // 배치된다(spaceObjectDefaultPosition 참고) — 위치를 바꾸는 값이라
+  // 바뀌자마자 다시 배치(scatterSeed 갱신)해야 즉시 반영된다.
+  function updateSpaceObjectPlacement(id: string, placement: SpaceObject["placement"]) {
+    onChange({
+      spaceObjects: config.spaceObjects.map((o) => (o.id === id ? { ...o, placement, scatterSeed: o.scatterSeed + 1 } : o)),
+    });
+  }
   async function handleSpaceUpload(kind: SpaceObject["kind"], file: File | null) {
     if (!file) return;
     setUploadingSpaceField(kind);
@@ -90,6 +105,18 @@ export function UniverseSettingsPanel({
       return;
     }
     addSpaceObject(kind, url);
+  }
+  async function handleShootingStarUpload(kind: "model" | "sprite", file: File | null) {
+    if (!file) return;
+    setUploadingShootingStarField(kind);
+    const bucket = kind === "sprite" ? "gallery" : "attachments";
+    const { url, error } = await uploadFile(file, bucket, "about-silo-universe-shooting-star");
+    setUploadingShootingStarField(null);
+    if (error || !url) {
+      alert(`업로드에 실패했어요.\n\n${error ?? "알 수 없는 오류"}`);
+      return;
+    }
+    onChange({ shootingStars: { ...config.shootingStars, objectUrl: url, objectKind: kind } });
   }
 
   function updateYoutubeUrl(index: number, value: string) {
@@ -118,6 +145,7 @@ export function UniverseSettingsPanel({
 
   return (
     <div
+      ref={panelRef}
       className="pointer-events-auto fixed bottom-6 left-6 z-40 max-h-[85vh] w-[320px] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md"
       style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
     >
@@ -181,6 +209,23 @@ export function UniverseSettingsPanel({
               </button>
             </div>
           )}
+        </section>
+
+        {/* EPIC-144(사용자 지시 — "줌인 줌아웃이 너무 조금씩 되니까
+            답답해 그거도 설정할수 있게"): CameraControls의 dollySpeed —
+            예전엔 0.55로 하드코딩. 클수록 휠 한 번에 더 크게 줌된다. */}
+        <section>
+          <p className={SECTION_TITLE}>줌 감도(휠 한 번에 얼마나 크게 줌 되는지)</p>
+          <input
+            type="range"
+            min={0.2}
+            max={3}
+            step={0.05}
+            className="mt-1 w-full"
+            value={config.zoomSpeed}
+            onChange={(e) => onChange({ zoomSpeed: Number(e.target.value) })}
+          />
+          <span className="text-white/40">{config.zoomSpeed.toFixed(2)}배</span>
         </section>
 
         <section>
@@ -270,6 +315,81 @@ export function UniverseSettingsPanel({
                   onChange={(e) => onChange({ shootingStars: { ...config.shootingStars, color: e.target.value } })}
                 />
               </div>
+              {/* EPIC-144(사용자 지시 — "진짜같은 별똥별 효과(내가
+                  설정한 오브제가 orbit 하고 tail 이 있음 반짝이는
+                  tail)"): 궤적은 이제 항상 곡선(호)이고 반짝이는 꼬리가
+                  자동으로 따라붙는다 — 여기서는 꼬리 길이와, 기본 막대
+                  대신 쓸 모델/이미지를 설정한다. */}
+              <label className={FIELD_LABEL}>
+                꼬리 길이(반짝이는 잔상 점 개수)
+                <input
+                  type="range"
+                  min={0}
+                  max={30}
+                  step={1}
+                  className="mt-1 w-full"
+                  value={config.shootingStars.tailLength}
+                  onChange={(e) => onChange({ shootingStars: { ...config.shootingStars, tailLength: Number(e.target.value) } })}
+                />
+                <span className="text-white/40">{config.shootingStars.tailLength}개</span>
+              </label>
+              <label className={FIELD_LABEL}>
+                별똥별 머리 모양(비우면 기본 막대)
+                <div className={`mt-1 ${ROW}`}>
+                  <input
+                    className={INPUT}
+                    value={config.shootingStars.objectUrl}
+                    placeholder="이미지/모델 업로드 또는 URL"
+                    onChange={(e) => onChange({ shootingStars: { ...config.shootingStars, objectUrl: e.target.value } })}
+                  />
+                  {config.shootingStars.objectUrl && (
+                    <button
+                      type="button"
+                      className={BTN}
+                      onClick={() => onChange({ shootingStars: { ...config.shootingStars, objectUrl: "" } })}
+                    >
+                      초기화
+                    </button>
+                  )}
+                </div>
+              </label>
+              {config.shootingStars.objectUrl && (
+                <label className={FIELD_LABEL}>
+                  머리 종류
+                  <select
+                    className={`mt-1 ${SELECT}`}
+                    value={config.shootingStars.objectKind}
+                    onChange={(e) =>
+                      onChange({ shootingStars: { ...config.shootingStars, objectKind: e.target.value as "model" | "sprite" } })
+                    }
+                  >
+                    <option value="model">3D 모델(.glb)</option>
+                    <option value="sprite">이미지(카메라를 향하는 빌보드)</option>
+                  </select>
+                </label>
+              )}
+              <div className="grid grid-cols-2 gap-1.5">
+                <label className={`${BTN} block cursor-pointer text-center`}>
+                  {uploadingShootingStarField === "model" ? "업로드 중..." : "🪐 모델(.glb) 업로드"}
+                  <input
+                    type="file"
+                    accept=".glb,.gltf"
+                    className="hidden"
+                    disabled={uploadingShootingStarField !== null}
+                    onChange={(e) => handleShootingStarUpload("model", e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <label className={`${BTN} block cursor-pointer text-center`}>
+                  {uploadingShootingStarField === "sprite" ? "업로드 중..." : "✨ 이미지 업로드"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingShootingStarField !== null}
+                    onChange={(e) => handleShootingStarUpload("sprite", e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              </div>
             </div>
           )}
         </section>
@@ -334,6 +454,24 @@ export function UniverseSettingsPanel({
                     🎲 다시 배치
                   </button>
                 </div>
+                {/* EPIC-144(사용자 지시 — "먼곳에 은하수, 블랙홀,
+                    nebula... 우주의 먼곳에 보일수 있게"): 기본("행성
+                    사이")은 두 행성 사이에 가깝게 흩뿌려지고, "먼 우주
+                    배경"은 훨씬 먼 반지름(40~85)에 배치돼 은하수/블랙홀/
+                    네뷸러 같은 깊은 배경으로 쓸 수 있다 — 크기(스케일)도
+                    ObjectInspectorPanel에서 함께 키워야 멀리서도 잘
+                    보인다. */}
+                <label className={`${ROW} mt-1 text-[10px] text-white/50`}>
+                  배치
+                  <select
+                    className={`${SELECT} py-0.5`}
+                    value={obj.placement}
+                    onChange={(e) => updateSpaceObjectPlacement(obj.id, e.target.value as SpaceObject["placement"])}
+                  >
+                    <option value="between">행성 사이(기본)</option>
+                    <option value="distant">먼 우주 배경(은하수/블랙홀/네뷸러 등)</option>
+                  </select>
+                </label>
                 {failedSpaceObjectIds.has(obj.id) && (
                   <p className="mt-0.5 text-[10px] text-red-300">⚠ 로드 실패 — URL이 올바른 공개 링크인지 확인하세요.</p>
                 )}

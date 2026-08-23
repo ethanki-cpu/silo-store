@@ -4,7 +4,7 @@
 > 확인하고, 상세 근거가 필요하면 [docs/STAGES.md](STAGES.md) / [docs/EPIC.md](EPIC.md) /
 > [NEXT_TASK.md](../NEXT_TASK.md)를 따라간다(이 문서 자체에 상세를 복제하지 않는다).
 >
-> 최종 확인: 2026-08-23 (EPIC-143 기준, Current EPIC 블록만 갱신). EPIC-090~101,
+> 최종 확인: 2026-08-24 (EPIC-144 기준, Current EPIC 블록만 갱신). EPIC-090~101,
 > EPIC-141~142 구간은 CHANGELOG.md/docs/EPIC.md에는 기록돼 있으나 이 대시보드
 > 최상단 블록 갱신이 밀려 있었음(다음에 시간 날 때 소급 정리 권장).
 
@@ -56,9 +56,23 @@ Stage 2부터는
 
 ## Current EPIC
 
-**(2026-08-23 갱신, 이 블록만 부분 갱신 — EPIC-141/142는 아래 목록에 개별 정리되지 않음, 상세는 docs/EPIC.md 상단 안내와 CHANGELOG.md 참고)**
+**(2026-08-24 갱신, 이 블록만 부분 갱신 — EPIC-141/142는 아래 목록에 개별 정리되지 않음, 상세는 docs/EPIC.md 상단 안내와 CHANGELOG.md 참고)**
 
-EPIC-143(Instagram Graph API 기반 네이티브 피드 렌더링) — EPIC-142의 비공식
+EPIC-144(Silo Planet 3D 우주 — 오브젝트 모션 10종 추가 + 별똥별 orbit/tail
+강화 + 먼 우주 배경 배치 모드 + 줌 감도/행성 크기 설정 + 설정창 바깥 클릭
+닫기) — "spin" 모션이 이미지 빌보드(SpaceObjectSprite)에서 Three.js
+Sprite의 billboarding 때문에 안 보이던 버그를 SpriteMaterial.rotation
+사용으로 수정, 기존 4개 모션에 10개 추가(전부 position/rotation/opacity만
+사용). 별똥별을 직선에서 2차 베지어 곡선(orbit 느낌)+반짝이는 꼬리+커스텀
+오브젝트(.glb/이미지)로 강화. 우주 공간 오브젝트에 "먼 우주 배경"
+배치(반지름 7~16 → 40~85)로 은하수/블랙홀/네뷸러 배경 지원. 줌 감도
+(CameraControls dollySpeed)와 행성 크기(PlanetConfig.sizeScale, 표면
+오브젝트/캐릭터/위성 궤도까지 비례 확대)를 설정 가능하게 노출. 설정창 3개
+전부 바깥 클릭 시 닫히되 3D 캔버스 클릭은 예외 처리. `tsc`/`lint` 0
+errors, 로컬 dev 서버+Claude Browser 툴로 실데이터 렌더링/모션 14종
+순회/바깥 클릭 동작 검증. 상세는 CHANGELOG.md 참고. 브랜치 `feature/EPIC-141`.
+
+직전 EPIC-143(Instagram Graph API 기반 네이티브 피드 렌더링) — EPIC-142의 비공식
 스크래핑+영구 재호스팅 요청을 이용약관/저작권 우려로 거부하고, 사일로 스토어
 소유 계정(`_silo_store`)의 공식 Graph API(사용자가 직접 발급한 System User
 장기 토큰)로 대체. 관리자 전용 `/api/instagram/fetch`가 게시물(IMAGE/VIDEO/

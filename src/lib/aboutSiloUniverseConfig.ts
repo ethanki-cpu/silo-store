@@ -23,7 +23,31 @@
 // 스케일을 주기적으로 바꾸면 그 계산이 매 프레임 어긋나 줌 거리가
 // 흔들린다. 그래서 이 4개는 전부 위치/회전/불투명도만 바꾼다(스케일은
 // 절대 안 건드림) — 카메라 로직과 완전히 독립적으로 안전하게 얹을 수 있다.
-export type ObjectMotion = "none" | "twinkle" | "bob" | "spin";
+// EPIC-144(사용자 지시 — "모션효과가 위아래 부유 말고 작동이 안돼,
+// 10가지 모션이 더 있으면좋겠어"): "spin"이 이미지 빌보드(SpaceObjectSprite)
+// 에서 시각적으로 아예 안 보이던 버그가 있었다 — Three.js의 Sprite는
+// 항상 카메라를 향해 스스로 방향을 재계산해서(billboarding) 부모 group의
+// rotation을 무시한다. AboutSiloUniverse.tsx가 스프라이트에는 group
+// 회전 대신 SpriteMaterial.rotation(2D 평면 회전, sprite 고유 속성이라
+// billboarding과 무관하게 실제로 보인다)을 대신 쓰도록 고쳤다 — 이 타입
+// 자체는 그대로다. 아래 10개가 신규 프리셋 — 전부 기존 규칙 그대로
+// position/rotation/opacity만 쓰고 scale은 절대 안 건드린다(카메라 줌
+// 거리가 바운딩 반지름에 비례해 계산되므로).
+export type ObjectMotion =
+  | "none"
+  | "twinkle"
+  | "bob"
+  | "spin"
+  | "sway"
+  | "pendulum"
+  | "tumble"
+  | "drift"
+  | "orbitSelf"
+  | "figure8"
+  | "flicker"
+  | "shimmer"
+  | "fadeInOut"
+  | "nod";
 
 export type UniverseObject = {
   id: string;
@@ -84,7 +108,20 @@ export type UniverseObject = {
 // 드래그 위치)은 무시되고 전부 무작위 배치로만 렌더링된다(여러 사본을
 // 각각 따로 드래그해 옮기는 개념 자체가 없음 — 순수 배경 장식이라는
 // 전제).
-export type SpaceObject = UniverseObject & { kind: "model" | "sprite"; count: number; scatterSeed: number };
+// EPIC-144(사용자 지시 — "먼곳에 은하수, 블랙홀, nebula... 내가 glb
+// 파일 넣을수 있게 우주의 먼곳에 보일수 있게 하고 크기 설정할수 있게해"):
+// 기존엔 흩뿌림 범위가 "두 행성 사이"(반지름 7~16 정도) 고정이라 은하수/
+// 블랙홀/네뷸러처럼 아주 멀리 떨어진 배경으로는 못 썼다 — "distant"를
+// 고르면 훨씬 먼 반지름(scatterInSpace 참고)에 배치돼 깊은 우주 배경처럼
+// 보인다. "between"(기본값)은 기존 동작 그대로 하위 호환.
+export type SpacePlacement = "between" | "distant";
+
+export type SpaceObject = UniverseObject & {
+  kind: "model" | "sprite";
+  count: number;
+  scatterSeed: number;
+  placement: SpacePlacement;
+};
 
 // HOTFIX-123: 행성 하나가 갖는 설정 묶음 — SILO/유저 행성이 동일한 구조를
 // 공유한다(사용자 지시 — "그냥 SILO 행성 설정과 똑같이").
@@ -107,6 +144,12 @@ export type PlanetConfig = {
   // HOTFIX-123(사용자 지시 — "위성의 디자인을 업로드할 수 있게 해줘"):
   // 업로드하면 기본 별(팔면체) 모양 대신 이 이미지를 위성 마커로 쓴다.
   satelliteDesignUrl: string;
+  // EPIC-144(사용자 지시 — "각 행성의 크기도 설정할수 있게해줘"): 행성
+  // 반지름 배율 — 1이 기존 기본 크기. 표면 오브젝트 배치 반지름/캐릭터
+  // 위치/라벨 위치/위성 궤도 반지름/카메라 포커스 거리가 전부 이 배율에
+  // 비례해 함께 커지거나 작아진다(AboutSiloUniverse.tsx 참고) — 행성만
+  // 커지고 그 위 오브젝트/위성이 파묻히거나 등등 뜨는 일이 없도록.
+  sizeScale: number;
 };
 
 export type UniverseConfig = {
@@ -130,6 +173,11 @@ export type UniverseConfig = {
   // — AboutSiloUniverse.tsx의 SelectionOutline 참고.
   selectionGlowOpacity: number;
 
+  // EPIC-144(사용자 지시 — "줌인 줌아웃이 너무 조금씩 되니까 답답해"):
+  // CameraControls의 dollySpeed를 그대로 노출 — 예전엔 0.55로 하드코딩돼
+  // 있었다. 값이 클수록 휠 한 번에 더 크게 줌된다.
+  zoomSpeed: number;
+
   // HOTFIX-123: 행성별 설정(이름/색/텍스처/캐릭터/오브젝트/위성 소스+디자인).
   planets: {
     silo: PlanetConfig;
@@ -141,12 +189,22 @@ export type UniverseConfig = {
   // 이전부터 코드에 있었지만(ShootingStars, AboutSiloUniverse.tsx)
   // 개수 4개 고정 + on/off·색상·속도 설정이 전혀 없었다 — 이제 관리자가
   // 직접 조절한다.
+  // EPIC-144(사용자 지시 — "진짜같은 별똥별 효과(내가 설정한 오브제가
+  // orbit 하고 tail 이 있음 반짝이는 tail)"): objectUrl/objectKind를
+  // 설정하면 기본 막대 대신 업로드한 모델/이미지가 별똥별 머리로
+  // 쓰인다(비우면 기존 막대 그대로, 하위 호환). tailLength는 반짝이는
+  // 잔상 꼬리를 이루는 점의 개수 — 늘릴수록 꼬리가 길고 진해진다.
+  // 궤적 자체도 직선에서 완만한 호(포물선)로 바꿔 "orbit"처럼 곡선을
+  // 그리며 지나가게 했다(ShootingStars 참고).
   shootingStars: {
     enabled: boolean;
     count: number;
     color: string;
     /** 배속 — 1이면 기존 기본 속도 그대로. */
     speedMultiplier: number;
+    objectUrl: string;
+    objectKind: "model" | "sprite";
+    tailLength: number;
   };
 
   // HOTFIX(사용자 지시 — "별, 은하수, 별똥별, asteroid 등등 우주에
@@ -170,6 +228,7 @@ function defaultPlanetConfig(name: string, color: string): PlanetConfig {
     objects: [],
     boardSlug: "",
     satelliteDesignUrl: "",
+    sizeScale: 1,
   };
 }
 
@@ -191,19 +250,36 @@ export function defaultUniverseConfig(): UniverseConfig {
     orbitSpeed: 0.15,
     lineColor: "#f2e2b8",
     selectionGlowOpacity: 0.5,
+    // 기존에 CameraControls에 하드코딩돼 있던 값(0.55) 그대로 기본값으로.
+    zoomSpeed: 0.55,
     planets: {
       silo: defaultPlanetConfig("SILO", "#e3a874"),
       user: defaultPlanetConfig("My Page", "#c3d8b8"),
     },
     // 기존에 하드코딩돼 있던 값(SHOOTING_STAR_COUNT=4, #fff8e0) 그대로
     // 기본값으로 삼아 — 저장된 적 없는 사이트는 지금까지와 똑같이 보인다.
-    shootingStars: { enabled: true, count: 4, color: "#fff8e0", speedMultiplier: 1 },
+    shootingStars: { enabled: true, count: 4, color: "#fff8e0", speedMultiplier: 1, objectUrl: "", objectKind: "model", tailLength: 10 },
     spaceObjects: [],
     autoSaveEnabled: true,
   };
 }
 
-const VALID_OBJECT_MOTIONS: ObjectMotion[] = ["none", "twinkle", "bob", "spin"];
+const VALID_OBJECT_MOTIONS: ObjectMotion[] = [
+  "none",
+  "twinkle",
+  "bob",
+  "spin",
+  "sway",
+  "pendulum",
+  "tumble",
+  "drift",
+  "orbitSelf",
+  "figure8",
+  "flicker",
+  "shimmer",
+  "fadeInOut",
+  "nod",
+];
 
 function normalizeObject(raw: unknown): UniverseObject {
   const o = (raw ?? {}) as Partial<UniverseObject>;
@@ -265,12 +341,14 @@ export function normalizeUniverseConfig(raw: unknown): UniverseConfig {
       silo: normalizePlanetConfig(legacySilo ?? planetsRaw.silo, defaults.planets.silo),
       user: normalizePlanetConfig(planetsRaw.user, defaults.planets.user),
     },
+    zoomSpeed: typeof value.zoomSpeed === "number" && value.zoomSpeed > 0 ? value.zoomSpeed : defaults.zoomSpeed,
     spaceObjects: Array.isArray(value.spaceObjects)
       ? value.spaceObjects.map((o: unknown) => ({
           ...normalizeObject(o),
           kind: (o as Partial<SpaceObject>)?.kind === "sprite" ? "sprite" : "model",
           count: typeof (o as Partial<SpaceObject>)?.count === "number" && (o as Partial<SpaceObject>).count! >= 1 ? (o as Partial<SpaceObject>).count! : 1,
           scatterSeed: typeof (o as Partial<SpaceObject>)?.scatterSeed === "number" ? (o as Partial<SpaceObject>).scatterSeed! : 0,
+          placement: (o as Partial<SpaceObject>)?.placement === "distant" ? "distant" : "between",
         }))
       : defaults.spaceObjects,
     shootingStars: {
@@ -279,6 +357,10 @@ export function normalizeUniverseConfig(raw: unknown): UniverseConfig {
       color: typeof value.shootingStars?.color === "string" && value.shootingStars.color ? value.shootingStars.color : defaults.shootingStars.color,
       speedMultiplier:
         typeof value.shootingStars?.speedMultiplier === "number" ? value.shootingStars.speedMultiplier : defaults.shootingStars.speedMultiplier,
+      objectUrl: typeof value.shootingStars?.objectUrl === "string" ? value.shootingStars.objectUrl : defaults.shootingStars.objectUrl,
+      objectKind: value.shootingStars?.objectKind === "sprite" ? "sprite" : "model",
+      tailLength:
+        typeof value.shootingStars?.tailLength === "number" ? value.shootingStars.tailLength : defaults.shootingStars.tailLength,
     },
   };
 }

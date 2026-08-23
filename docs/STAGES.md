@@ -204,8 +204,20 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-143(2026-08-23 갱신, EPIC-141/142는 아래 목록에 개별 정리되지 않음 —
+EPIC-144(2026-08-24 갱신, EPIC-141/142는 아래 목록에 개별 정리되지 않음 —
 CHANGELOG.md/docs/EPIC.md 참고)
+Silo Planet 3D 우주 — 오브젝트 모션 10종 추가("spin"이 이미지 빌보드에서
+Sprite billboarding 때문에 안 보이던 버그 수정 포함), 별똥별을 곡선 궤적
+(orbit 느낌)+반짝이는 꼬리+커스텀 오브젝트로 강화, 우주 공간 오브젝트에
+"먼 우주 배경" 배치 모드(은하수/블랙홀/네뷸러용)로 원거리 배치+확대
+스케일 지원, 줌 감도/행성 크기 설정 노출(행성 크기는 표면 오브젝트/캐릭터/
+위성 궤도까지 비례 확대), 설정창 3개(UniverseSettingsPanel/
+PlanetSettingsPanel/ObjectInspectorPanel) 전부 바깥 클릭 시 닫히되 3D
+캔버스 클릭은 예외 처리. `tsc`/`lint` 0 errors, 로컬 dev 서버+Claude
+Browser 툴로 실데이터 렌더링/모션 14종 순회/바깥 클릭 동작 검증. 상세는
+CHANGELOG.md 참고. 브랜치 `feature/EPIC-141`.
+
+직전 EPIC-143
 Instagram Graph API 기반 네이티브 피드 렌더링 — EPIC-142가 요청한 비공식
 스크래핑+영구 재호스팅(User-Agent 위장으로 rate limit 우회 포함)은 이용약관
 위반·저작권 재배포 우려로 거부, 사일로 스토어 소유 계정의 공식 Graph API로

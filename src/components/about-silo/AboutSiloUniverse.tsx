@@ -68,6 +68,7 @@ import {
   type UniverseConfig,
   type UniverseObject,
   type SpaceObject,
+  type SpacePlacement,
 } from "@/lib/aboutSiloUniverseConfig";
 import { YoutubeBackground } from "./YoutubeBackground";
 import { PresetBackground } from "./PresetBackground";
@@ -801,27 +802,116 @@ function ModelSelectionOutline({
 // HOTFIX-140.4(사용자 지시 — "오브제들이 반짝이는 효과가 없는거 같은데,
 // 그 모션 효과를 여러가지 오브제마다 설정할수 있게 해줘"): 스케일은
 // 절대 건드리지 않는다 — ObjectMotion 타입 주석 참고(카메라 줌 거리가
-// 바운딩 반지름에 비례해 계산되므로). twinkle은 materialsRef에 채워진
-// 실제 재질들의 opacity를, bob/spin은 innerRef(원본을 감싸는 내부
-// group, 바깥쪽 registerRef/드래그용 group과는 별개)의 position.y/
-// rotation.y만 매 프레임 갱신한다.
-function useObjectMotion(motion: string | undefined, seedKey: string) {
+// 바운딩 반지름에 비례해 계산되므로). twinkle 계열은 materialsRef에
+// 채워진 실제 재질들의 opacity를, position 계열은 innerRef(원본을
+// 감싸는 내부 group, 바깥쪽 registerRef/드래그용 group과는 별개)의
+// position만, rotation 계열은 그 innerRef의 rotation만 매 프레임
+// 갱신한다.
+//
+// EPIC-144(사용자 지시 — "모션효과가 위아래 부유 말고 작동이 안돼"):
+// 실사용 재현 결과 "제자리 회전"(spin)이 이미지 빌보드(별/은하수 등
+// SpaceObjectSprite)에서만 시각적으로 완전히 안 보이는 버그였다 —
+// Three.js Sprite는 항상 카메라를 향해 스스로 방향을 재계산해서
+// (billboarding) 부모 group의 rotation을 완전히 무시하기 때문이다.
+// 회전 계열 모션은 이제 spriteMaterialRef가 주어지면(스프라이트 호출부만
+// 넘김) group 회전 대신 SpriteMaterial.rotation(2D 평면 자체 회전 —
+// billboarding과 무관하게 실제로 화면에 보임)을 대신 돌린다.
+function useObjectMotion(
+  motion: string | undefined,
+  seedKey: string,
+  spriteMaterialRef?: RefObject<THREE.SpriteMaterial | null>,
+) {
   const seed = useMemo(() => hashSeedFromKey(seedKey), [seedKey]);
   const innerRef = useRef<THREE.Group>(null);
   const materialsRef = useRef<THREE.Material[]>([]);
   useFrame(({ clock }) => {
     const m = motion ?? "none";
+    const isOpacityMotion = m === "twinkle" || m === "flicker" || m === "fadeInOut";
+    // 관리자가 설정 패널에서 실시간으로 모션을 바꿔볼 때, 이전에
+    // twinkle/flicker/fadeInOut이 낮춰둔 opacity가 다른 모션으로 바꾼 뒤에도
+    // 그대로 남아 계속 흐리게 보이는 걸 막는다(리마운트 없이 같은
+    // spriteMaterial 인스턴스를 계속 재사용하므로).
+    if (!isOpacityMotion && spriteMaterialRef?.current && spriteMaterialRef.current.opacity !== 1) {
+      spriteMaterialRef.current.opacity = 1;
+    }
     if (m === "none") return;
     const t = clock.getElapsedTime();
-    if (m === "twinkle") {
-      const op = THREE.MathUtils.clamp(0.5 + Math.sin(t * 1.4 + seed * 10) * 0.5, 0.08, 1);
+    const s = seed * 10;
+
+    // 불투명도 계열.
+    if (isOpacityMotion) {
+      let op: number;
+      if (m === "twinkle") {
+        op = THREE.MathUtils.clamp(0.5 + Math.sin(t * 1.4 + s) * 0.5, 0.08, 1);
+      } else if (m === "flicker") {
+        // 여러 주파수를 섞어 규칙적인 사인파가 아니라 촛불처럼 불규칙하게
+        // 깜빡이는 느낌을 낸다.
+        op = THREE.MathUtils.clamp(
+          0.55 + Math.sin(t * 6 + s) * 0.25 + Math.sin(t * 13.7 + s * 2) * 0.15,
+          0.05,
+          1,
+        );
+      } else {
+        // fadeInOut: twinkle보다 훨씬 느린 주기로 천천히 밝아졌다 어두워짐.
+        op = THREE.MathUtils.clamp(0.5 + Math.sin(t * 0.35 + s) * 0.45, 0.05, 1);
+      }
       materialsRef.current.forEach((mat) => {
         (mat as THREE.MeshBasicMaterial).opacity = op;
       });
-    } else if (m === "bob" && innerRef.current) {
-      innerRef.current.position.y = Math.sin(t * 0.9 + seed * 10) * 0.12;
-    } else if (m === "spin" && innerRef.current) {
-      innerRef.current.rotation.y += 0.012 + seed * 0.01;
+      if (spriteMaterialRef?.current) spriteMaterialRef.current.opacity = op;
+      return;
+    }
+
+    // 회전 계열 — 모델은 group.rotation, 스프라이트는 material.rotation.
+    if (m === "spin" || m === "tumble" || m === "pendulum" || m === "nod") {
+      let rx = 0;
+      let ry = 0;
+      let rz = 0;
+      if (m === "spin") {
+        ry = t * (0.7 + seed * 0.6);
+      } else if (m === "tumble") {
+        rx = t * (0.4 + seed * 0.3);
+        rz = t * (0.25 + seed * 0.2);
+      } else if (m === "pendulum") {
+        rz = Math.sin(t * 1.1 + s) * 0.35;
+      } else {
+        rx = Math.sin(t * 0.9 + s) * 0.3;
+      }
+      if (spriteMaterialRef?.current) {
+        // 스프라이트는 2D 평면이라 회전축 하나만 의미 있다 — y(spin)를
+        // 기본으로 쓰고, 나머지 축을 쓰는 프리셋은 그 축의 각도를 그대로
+        // 평면 회전에 대입한다(시각적으로 "빙글빙글/살랑거림"이 남는다).
+        spriteMaterialRef.current.rotation = ry || rz || rx;
+      } else if (innerRef.current) {
+        innerRef.current.rotation.set(rx, ry, rz);
+      }
+      return;
+    }
+
+    // 위치 계열 — group.position만 바꾸므로 스프라이트에도 그대로 먹힌다
+    // (billboarding은 방향에만 적용되고 위치 이동은 정상 반영됨).
+    if (innerRef.current) {
+      const p = innerRef.current.position;
+      if (m === "bob") {
+        p.set(0, Math.sin(t * 0.9 + s) * 0.12, 0);
+      } else if (m === "sway") {
+        p.set(Math.sin(t * 0.7 + s) * 0.15, 0, 0);
+      } else if (m === "drift") {
+        const r = 0.35 + seed * 0.15;
+        p.set(Math.cos(t * 0.25 + s) * r, Math.sin(t * 0.18 + s) * 0.08, Math.sin(t * 0.25 + s) * r);
+      } else if (m === "orbitSelf") {
+        const r = 0.15 + seed * 0.08;
+        p.set(Math.cos(t * 0.8 + s) * r, 0, Math.sin(t * 0.8 + s) * r);
+      } else if (m === "figure8") {
+        const a = t * 0.6 + s;
+        p.set(Math.sin(a) * 0.22, Math.sin(a * 2) * 0.08, Math.sin(a) * Math.cos(a) * 0.22);
+      } else if (m === "shimmer") {
+        p.set(
+          Math.sin(t * 5 + s) * 0.03,
+          Math.sin(t * 6.3 + s * 1.7) * 0.03,
+          Math.sin(t * 4.5 + s * 2.3) * 0.03,
+        );
+      }
     }
   });
   return { innerRef, materialsRef };
@@ -852,17 +942,30 @@ function collectTransparentMaterials(root: THREE.Object3D): THREE.Material[] {
 // 위치를 뽑고 "다시 배치" 버튼(scatterSeed 증가)을 누르면 전부 새로운
 // 무작위 패턴으로 바뀐다 — 그 외엔 기존 배치 범위(두 행성 중간 지점
 // 주변 구면 분포)를 그대로 유지.
-function spaceObjectDefaultPosition(id: string, index = 0, scatterSeed = 0): [number, number, number] {
+// EPIC-144(사용자 지시 — "먼곳에 은하수, 블랙홀, nebula... 우주의
+// 먼곳에 보일수 있게"): placement가 "distant"면 훨씬 먼 반지름(40~85)에
+// 배치해 은하수/블랙홀/네뷸러 같은 깊은 우주 배경으로 쓸 수 있게 한다 —
+// 시드/해시 로직은 동일, 반지름 범위와 y축 눌림 정도만 다르다("between"은
+// 두 행성 사이 낮은 궤도 느낌이라 y를 0.4로 눌렀지만, "distant"는 사방을
+// 감싸는 배경이라 구형에 가깝게 0.85로 완만하게만 눌렀다).
+function spaceObjectDefaultPosition(
+  id: string,
+  index = 0,
+  scatterSeed = 0,
+  placement: SpacePlacement = "between",
+): [number, number, number] {
   let seed = 0;
   const key = `${id}#${index}#${scatterSeed}`;
   for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) % 100000;
   const theta = hashRandom01(seed) * Math.PI * 2;
   const phi = Math.acos(2 * hashRandom01(seed + 1) - 1);
-  const radius = 7 + hashRandom01(seed + 2) * 9;
+  const isDistant = placement === "distant";
+  const radius = isDistant ? 40 + hashRandom01(seed + 2) * 45 : 7 + hashRandom01(seed + 2) * 9;
+  const yFlatten = isDistant ? 0.85 : 0.4;
   const center = SILO_CENTER.clone().add(USER_CENTER).multiplyScalar(0.5);
   return [
     center.x + radius * Math.sin(phi) * Math.cos(theta),
-    center.y + radius * Math.cos(phi) * 0.4,
+    center.y + radius * Math.cos(phi) * yFlatten,
     center.z + radius * Math.sin(phi) * Math.sin(theta),
   ];
 }
@@ -981,21 +1084,16 @@ function SpaceObjectSprite({
   }, [obj.id, index]);
   const scaleJitter = 0.7 + hashRandom01(seed + 500) * 0.6;
   // HOTFIX-140.4(사용자 지시 — "그 모션 효과를 여러가지 오브제마다
-  // 설정할수 있게 해줘"): 예전엔 트윙클이 하드코딩이라 끌 수도, 다른
-  // 모션으로 바꿀 수도 없었다 — obj.motion이 없으면(관리자가 아직
-  // 안 고름) 기존과 동일하게 "twinkle"을 기본값으로 써서 지금까지
-  // 보이던 모습이 그대로 유지된다.
+  // 설정할수 있게 해줘"): obj.motion이 없으면(관리자가 아직 안 고름)
+  // 기존과 동일하게 "twinkle"을 기본값으로 써서 지금까지 보이던 모습이
+  // 그대로 유지된다.
+  // EPIC-144: 트윙클 전용 로컬 useFrame을 없애고 useObjectMotion 하나로
+  // 통일했다 — materialRef를 spriteMaterialRef로 넘기면 불투명도(twinkle/
+  // flicker/fadeInOut) + 회전(spin 등, material.rotation) 계열 모션이
+  // 스프라이트에도 전부 정확히 반영된다(그전엔 twinkle만 별도 하드코딩,
+  // 회전 계열은 billboarding 때문에 안 보이던 버그가 있었다).
   const motion = obj.motion ?? "twinkle";
-  useFrame(({ clock }) => {
-    if (!materialRef.current) return;
-    if (motion !== "twinkle") {
-      if (materialRef.current.opacity !== 1) materialRef.current.opacity = 1;
-      return;
-    }
-    const t = clock.getElapsedTime();
-    materialRef.current.opacity = 0.7 + Math.sin(t * 1.4 + seed) * 0.3;
-  });
-  const { innerRef } = useObjectMotion(motion === "twinkle" ? undefined : motion, `${obj.id}#${index}`);
+  const { innerRef } = useObjectMotion(motion, `${obj.id}#${index}`, materialRef);
 
   const baseScale = obj.scale * 3 * scaleJitter;
   return (
@@ -1052,7 +1150,10 @@ function SpaceObjectsLayer({
         // 둔다.
         const count = Math.max(1, obj.count ?? 1);
         return Array.from({ length: count }, (_, i) => {
-          const position = count === 1 && obj.position ? obj.position : spaceObjectDefaultPosition(obj.id, i, obj.scatterSeed ?? 0);
+          const position =
+            count === 1 && obj.position
+              ? obj.position
+              : spaceObjectDefaultPosition(obj.id, i, obj.scatterSeed ?? 0, obj.placement);
           const shared = {
             obj,
             position,
@@ -1113,6 +1214,12 @@ function CentralPlanet({
     onFocus();
     onOpenSettings();
   });
+  // EPIC-144(사용자 지시 — "각 행성의 크기도 설정할수 있게해줘"): 행성
+  // 반지름 배율 — 표면 오브젝트 배치 반지름/캐릭터 위치/라벨 위치가 전부
+  // 함께 커지거나 작아지도록 로컬로 다시 계산한다(모듈 상수 PLANET_RADIUS
+  // 대신 이 값을 쓴다).
+  const radius = PLANET_RADIUS * (planetConfig.sizeScale || 1);
+  const surfaceRadius = radius * 0.97;
   return (
     <group position={SILO_CENTER}>
       <group
@@ -1121,13 +1228,13 @@ function CentralPlanet({
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
-        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={PLANET_RADIUS} selected={selected} />
+        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={radius} selected={selected} />
         {/* HOTFIX-123(사용자 지시 — "오브제가 행성과 함께 돌아가도록"):
             장식 오브젝트를 행성 자전 그룹 안에 로컬 좌표로 중첩시켜 행성이
             자전하면 표면에 붙은 채 함께 돈다. */}
         <UniverseObjectsLayer
           objects={planetConfig.objects}
-          radius={SILO_SURFACE_RADIUS}
+          radius={surfaceRadius}
           onObjectError={onObjectError}
           selectedObjectId={selectedObjectId}
           onSelectObject={onSelectObject}
@@ -1137,7 +1244,7 @@ function CentralPlanet({
       <CharacterRenderer
         modelUrl={planetConfig.characterModelUrl}
         animationClip={planetConfig.characterAnimationClip}
-        position={[0.3, PLANET_RADIUS - 0.05, 0.55]}
+        position={[0.3, radius - 0.05, 0.55]}
         rotationY={-0.4}
         scale={1.3}
         variant={planetConfig.characterType}
@@ -1145,7 +1252,7 @@ function CentralPlanet({
         onClipsLoaded={onClipsLoaded}
       />
       {planetConfig.name && (
-        <Html position={[0, PLANET_RADIUS + 0.5, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
+        <Html position={[0, radius + 0.5, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-center text-white backdrop-blur-sm">
             <div className="text-xs font-medium">{planetConfig.name}</div>
           </div>
@@ -1191,6 +1298,9 @@ function UserPlanet({
     onFocus();
     onOpenSettings();
   });
+  // EPIC-144(사용자 지시 — "각 행성의 크기도 설정할수 있게해줘").
+  const radius = USER_PLANET_RADIUS * (planetConfig.sizeScale || 1);
+  const surfaceRadius = radius * 0.97;
 
   return (
     <group ref={groupRef}>
@@ -1200,10 +1310,10 @@ function UserPlanet({
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
-        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={USER_PLANET_RADIUS} selected={selected} />
+        <PlanetMaterial baseColor={planetConfig.color} customTextureUrl={planetConfig.textureUrl} textureOpacity={planetConfig.textureOpacity} radius={radius} selected={selected} />
         <UniverseObjectsLayer
           objects={planetConfig.objects}
-          radius={USER_SURFACE_RADIUS}
+          radius={surfaceRadius}
           onObjectError={onObjectError}
           selectedObjectId={selectedObjectId}
           onSelectObject={onSelectObject}
@@ -1213,14 +1323,14 @@ function UserPlanet({
       <CharacterRenderer
         modelUrl={planetConfig.characterModelUrl}
         animationClip={planetConfig.characterAnimationClip}
-        position={[-0.15, USER_PLANET_RADIUS - 0.02, 0.4]}
+        position={[-0.15, radius - 0.02, 0.4]}
         rotationY={0.5}
         scale={0.9}
         variant={planetConfig.characterType}
         seed={2}
         onClipsLoaded={onClipsLoaded}
       />
-      <Html position={[0, -USER_PLANET_RADIUS - 0.35, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
+      <Html position={[0, -radius - 0.35, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
         <div className="whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-center text-white backdrop-blur-sm">
           <div className="text-xs font-medium">{planetConfig.name || "My Page"}</div>
         </div>
@@ -1330,67 +1440,229 @@ function ConnectingThread({ color }: { color: string }) {
 // HOTFIX-140.4(사용자 지시 — "'우주'인데 별똥별 효과... 옵션도 추가해줘
 // 랜덤으로 보이게 그리고 내가 설정할수 있게"): 별똥별 자체는 이미 있었지만
 // 개수 4개 고정 + on/off·색상·속도 조절이 전혀 없었다 — config로 받는다.
-function ShootingStars({ count, color, speedMultiplier }: { count: number; color: string; speedMultiplier: number }) {
-  const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
-  const stateRef = useRef(
-    Array.from({ length: count }, (_, i) => ({
-      t: 1 + i * 1.7,
-      active: false,
-      start: new THREE.Vector3(),
-      dir: new THREE.Vector3(),
-    })),
-  );
+// EPIC-144(사용자 지시 — "진짜같은 별똥별 효과(내가 설정한 오브제가
+// orbit 하고 tail 이 있음 반짝이는 tail)"): 예전엔 직선으로 한 번 죽
+// 날아가는 막대 하나뿐이었다 — 이제 (1) 궤적을 직선이 아니라 완만한
+// 호(2차 베지어 곡선)로 바꿔 "orbit"하듯 곡선을 그리며 지나가고, (2) 그
+// 궤적을 따라 잔상 여러 개를 흩뿌려 반짝이는 꼬리를 만들고, (3)
+// objectUrl을 설정하면 기본 막대 대신 업로드한 모델/이미지가 머리가
+// 된다(비우면 기존 막대 그대로 — 하위 호환).
+const SHOOTING_STAR_HEAD_SIZE = 0.6;
 
-  function spawn(s: (typeof stateRef.current)[number]) {
+function bezierPoint(p0: THREE.Vector3, pc: THREE.Vector3, p2: THREE.Vector3, u: number, out: THREE.Vector3) {
+  const inv = 1 - u;
+  out.set(
+    inv * inv * p0.x + 2 * inv * u * pc.x + u * u * p2.x,
+    inv * inv * p0.y + 2 * inv * u * pc.y + u * u * p2.y,
+    inv * inv * p0.z + 2 * inv * u * pc.z + u * u * p2.z,
+  );
+  return out;
+}
+
+function ShootingStarModelHead({ url, materialsRef }: { url: string; materialsRef: RefObject<THREE.Material[]> }) {
+  const { scene } = useGLTF(url);
+  const normalized = useMemo(() => {
+    const clone = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(clone);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
+    clone.scale.setScalar((SHOOTING_STAR_HEAD_SIZE * 1.6) / maxDim);
+    return clone;
+  }, [scene]);
+  useEffect(() => {
+    materialsRef.current = collectTransparentMaterials(normalized);
+  }, [normalized, materialsRef]);
+  return <primitive object={normalized} />;
+}
+
+function ShootingStarSpriteHead({ url, color, materialRef }: { url: string; color: string; materialRef: RefObject<THREE.SpriteMaterial | null> }) {
+  const texture = useTexture(url);
+  return (
+    <sprite scale={[SHOOTING_STAR_HEAD_SIZE * 2.2, SHOOTING_STAR_HEAD_SIZE * 2.2, 1]}>
+      <spriteMaterial ref={materialRef} map={texture} color={color} transparent toneMapped={false} depthWrite={false} />
+    </sprite>
+  );
+}
+
+type ShootingStarState = {
+  t: number;
+  active: boolean;
+  duration: number;
+  p0: THREE.Vector3;
+  pc: THREE.Vector3;
+  p2: THREE.Vector3;
+};
+
+function ShootingStarInstance({
+  delayOffset,
+  color,
+  speedMultiplier,
+  objectUrl,
+  objectKind,
+  tailLength,
+}: {
+  delayOffset: number;
+  color: string;
+  speedMultiplier: number;
+  objectUrl: string;
+  objectKind: "model" | "sprite";
+  tailLength: number;
+}) {
+  const headRef = useRef<THREE.Group>(null);
+  const boxMeshRef = useRef<THREE.Mesh>(null);
+  const modelMaterialsRef = useRef<THREE.Material[]>([]);
+  const spriteMaterialRef = useRef<THREE.SpriteMaterial>(null);
+  const tailRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const stateRef = useRef<ShootingStarState>({
+    t: 1 + delayOffset,
+    active: false,
+    duration: 1.2,
+    p0: new THREE.Vector3(),
+    pc: new THREE.Vector3(),
+    p2: new THREE.Vector3(),
+  });
+  const tmpPos = useMemo(() => new THREE.Vector3(), []);
+  const tmpAhead = useMemo(() => new THREE.Vector3(), []);
+  const up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+
+  function spawn(s: ShootingStarState) {
     const radius = 26 + Math.random() * 10;
     const theta = Math.random() * Math.PI * 2;
     const height = Math.random() * 14 - 2;
-    s.start.set(Math.cos(theta) * radius, height, Math.sin(theta) * radius - 8);
-    s.dir.set(-1 - Math.random(), -0.35 - Math.random() * 0.4, 0.2 + Math.random() * 0.3).normalize();
+    s.p0.set(Math.cos(theta) * radius, height, Math.sin(theta) * radius - 8);
+    const dir = new THREE.Vector3(-1 - Math.random(), -0.35 - Math.random() * 0.4, 0.2 + Math.random() * 0.3).normalize();
+    const travel = 16 + Math.random() * 8;
+    s.p2.copy(s.p0).addScaledVector(dir, travel);
+    // 궤적 중앙을 진행 방향에 수직으로 밀어내 "orbit"처럼 완만한 호를
+    // 그리게 한다 — 순수 직선이었던 예전과 가장 크게 달라진 부분.
+    const mid = s.p0.clone().lerp(s.p2, 0.5);
+    const perp = new THREE.Vector3().crossVectors(dir, up).normalize();
+    const bow = (Math.random() < 0.5 ? -1 : 1) * (2.5 + Math.random() * 3.5);
+    s.pc.copy(mid).addScaledVector(perp, bow).addScaledVector(up, 1 + Math.random() * 1.5);
     s.t = 0;
+    s.duration = travel / (16 * Math.max(0.05, speedMultiplier));
     s.active = true;
   }
 
   useFrame((_, delta) => {
-    stateRef.current.forEach((s, i) => {
-      const mesh = meshRefs.current[i];
+    const s = stateRef.current;
+    const spacing = 0.045;
+    if (!s.active) {
+      s.t -= delta;
+      if (headRef.current) headRef.current.visible = false;
+      tailRefs.current.forEach((m) => m && (m.visible = false));
+      if (s.t <= 0) spawn(s);
+      return;
+    }
+    s.t += delta;
+    const u = THREE.MathUtils.clamp(s.t / s.duration, 0, 1);
+    bezierPoint(s.p0, s.pc, s.p2, u, tmpPos);
+    const fadeIn = THREE.MathUtils.clamp(u / 0.06, 0, 1);
+    const fadeOut = THREE.MathUtils.clamp((1 - u) / 0.25, 0, 1);
+    const opacity = Math.min(fadeIn, fadeOut);
+
+    if (headRef.current) {
+      headRef.current.visible = true;
+      headRef.current.position.copy(tmpPos);
+      bezierPoint(s.p0, s.pc, s.p2, Math.min(1, u + 0.01), tmpAhead);
+      headRef.current.lookAt(tmpAhead);
+    }
+    if (boxMeshRef.current) {
+      (boxMeshRef.current.material as THREE.MeshBasicMaterial).opacity = opacity;
+    }
+    modelMaterialsRef.current.forEach((mat) => {
+      (mat as THREE.MeshBasicMaterial).opacity = opacity;
+    });
+    if (spriteMaterialRef.current) spriteMaterialRef.current.opacity = opacity;
+
+    tailRefs.current.forEach((mesh, i) => {
       if (!mesh) return;
-      if (!s.active) {
-        s.t -= delta;
+      const tu = u - (i + 1) * spacing;
+      if (tu <= 0) {
         mesh.visible = false;
-        if (s.t <= 0) spawn(s);
         return;
       }
-      s.t += delta;
-      const speed = 16 * speedMultiplier;
-      mesh.position.copy(s.start).addScaledVector(s.dir, s.t * speed);
-      mesh.lookAt(mesh.position.clone().add(s.dir));
+      bezierPoint(s.p0, s.pc, s.p2, tu, tmpPos);
+      mesh.position.copy(tmpPos);
       mesh.visible = true;
-      const mat = mesh.material as THREE.MeshBasicMaterial;
-      mat.opacity = THREE.MathUtils.clamp(1 - s.t / 1.1, 0, 1);
-      if (s.t > 1.1) {
-        s.active = false;
-        s.t = 3 + Math.random() * 8;
-      }
+      const fade = (1 - i / tailLength) * opacity;
+      mesh.scale.setScalar(1 - (i / tailLength) * 0.7);
+      (mesh.material as THREE.MeshBasicMaterial).opacity = fade * 0.85;
     });
+
+    if (u >= 1) {
+      s.active = false;
+      s.t = 3 + Math.random() * 8;
+    }
   });
+
+  const hasCustomHead = objectUrl.trim().length > 0;
 
   return (
     <>
-      {/* react-hooks/refs: 렌더 중엔 count(그리고 관리자가 저장한 값이라
-          바뀔 수 있음)만 읽고, 실제 상태는 stateRef(ref)에 두되 렌더
-          출력에 영향을 주지 않는다. */}
-      {Array.from({ length: count }, (_, i) => i).map((i) => (
+      <group ref={headRef} visible={false}>
+        {hasCustomHead && objectKind === "model" ? (
+          <AssetLoadErrorBoundary fallback={null} onError={() => {}}>
+            <Suspense fallback={null}>
+              <ShootingStarModelHead url={objectUrl} materialsRef={modelMaterialsRef} />
+            </Suspense>
+          </AssetLoadErrorBoundary>
+        ) : hasCustomHead && objectKind === "sprite" ? (
+          <AssetLoadErrorBoundary fallback={null} onError={() => {}}>
+            <Suspense fallback={null}>
+              <ShootingStarSpriteHead url={objectUrl} color={color} materialRef={spriteMaterialRef} />
+            </Suspense>
+          </AssetLoadErrorBoundary>
+        ) : (
+          <mesh ref={boxMeshRef}>
+            <boxGeometry args={[SHOOTING_STAR_HEAD_SIZE, 0.015, 0.015]} />
+            <meshBasicMaterial color={color} transparent opacity={1} toneMapped={false} />
+          </mesh>
+        )}
+      </group>
+      {Array.from({ length: tailLength }, (_, i) => (
         <mesh
           key={i}
           ref={(el) => {
-            meshRefs.current[i] = el;
+            tailRefs.current[i] = el;
           }}
           visible={false}
         >
-          <boxGeometry args={[0.6, 0.015, 0.015]} />
-          <meshBasicMaterial color={color} transparent opacity={1} toneMapped={false} />
+          <sphereGeometry args={[0.055, 6, 6]} />
+          <meshBasicMaterial color={color} transparent toneMapped={false} depthWrite={false} />
         </mesh>
+      ))}
+    </>
+  );
+}
+
+function ShootingStars({
+  count,
+  color,
+  speedMultiplier,
+  objectUrl,
+  objectKind,
+  tailLength,
+}: {
+  count: number;
+  color: string;
+  speedMultiplier: number;
+  objectUrl: string;
+  objectKind: "model" | "sprite";
+  tailLength: number;
+}) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <ShootingStarInstance
+          key={i}
+          delayOffset={i * 1.7}
+          color={color}
+          speedMultiplier={speedMultiplier}
+          objectUrl={objectUrl}
+          objectKind={objectKind}
+          tailLength={Math.max(0, Math.min(30, tailLength))}
+        />
       ))}
     </>
   );
@@ -1423,7 +1695,15 @@ function UniverseParticles({
         // 새 개수가 반영되지 않는다 — 컴포넌트를 통째로 리마운트해
         // 새 count로 다시 초기화한다(별똥별은 상태가 없는 순수 장식이라
         // 리마운트해도 아무 부작용 없음).
-        <ShootingStars key={shootingStars.count} count={shootingStars.count} color={shootingStars.color} speedMultiplier={shootingStars.speedMultiplier} />
+        <ShootingStars
+          key={`${shootingStars.count}-${shootingStars.objectUrl}-${shootingStars.objectKind}-${shootingStars.tailLength}`}
+          count={shootingStars.count}
+          color={shootingStars.color}
+          speedMultiplier={shootingStars.speedMultiplier}
+          objectUrl={shootingStars.objectUrl}
+          objectKind={shootingStars.objectKind}
+          tailLength={shootingStars.tailLength}
+        />
       )}
     </>
   );
@@ -1725,7 +2005,12 @@ function Scene({
   onSpaceObjectError: (id: string) => void;
   onSpaceObjectMoved: (id: string, position: [number, number, number]) => void;
 }) {
-  const selectedRadius = selectedPlanetId === "user" ? USER_SURFACE_RADIUS : SILO_SURFACE_RADIUS;
+  // EPIC-144(사용자 지시 — "각 행성의 크기도 설정할수 있게해줘"): 드래그로
+  // 옮긴 오브젝트를 표면에 다시 투영할 때도 CentralPlanet/UserPlanet
+  // 안에서 계산한 것과 똑같은 실제 반지름(배율 적용)을 써야 한다.
+  const siloRadius = SILO_SURFACE_RADIUS * (config.planets.silo.sizeScale || 1);
+  const userRadius = USER_SURFACE_RADIUS * (config.planets.user.sizeScale || 1);
+  const selectedRadius = selectedPlanetId === "user" ? userRadius : siloRadius;
   const selectedKey = selectedObjectId && selectedPlanetId
     ? `${selectedPlanetId}:${selectedObjectId}`
     : selectedSpaceObjectId
@@ -1751,7 +2036,7 @@ function Scene({
       <CentralPlanet
         planetConfig={config.planets.silo}
         rotationSpeed={config.orbitSpeed}
-        onFocus={() => onFocusPlanet(SILO_CENTER, PLANET_RADIUS)}
+        onFocus={() => onFocusPlanet(SILO_CENTER, PLANET_RADIUS * (config.planets.silo.sizeScale || 1))}
         onOpenSettings={() => onOpenPlanetSettings("silo")}
         onClipsLoaded={onSiloClipsLoaded}
         selected={openPlanetSettings === "silo"}
@@ -1767,7 +2052,7 @@ function Scene({
       <UserPlanet
         planetConfig={config.planets.user}
         rotationSpeed={config.orbitSpeed}
-        onFocus={() => onFocusPlanet(USER_CENTER, USER_PLANET_RADIUS)}
+        onFocus={() => onFocusPlanet(USER_CENTER, USER_PLANET_RADIUS * (config.planets.user.sizeScale || 1))}
         onOpenSettings={() => onOpenPlanetSettings("user")}
         onClipsLoaded={onUserClipsLoaded}
         selected={openPlanetSettings === "user"}
@@ -1829,10 +2114,13 @@ function Scene({
         }}
       />
 
+      {/* EPIC-144: 위성 궤도도 행성 크기 배율에 비례해 함께 늘어나거나
+          줄어든다 — 안 그러면 행성을 키웠을 때 위성이 표면 안쪽에
+          파묻히거나, 줄였을 때 위성만 멀리 둥둥 떠 보인다. */}
       <PlanetSatellites
         posts={siloPosts}
         center={SILO_CENTER}
-        radius={IMAGE_ORBIT_RADIUS}
+        radius={IMAGE_ORBIT_RADIUS * (config.planets.silo.sizeScale || 1)}
         orbitSpeed={config.orbitSpeed}
         designUrl={config.planets.silo.satelliteDesignUrl}
         selectedId={selectedPostId}
@@ -1841,7 +2129,7 @@ function Scene({
       <PlanetSatellites
         posts={userPosts}
         center={USER_CENTER}
-        radius={USER_ORBIT_RADIUS}
+        radius={USER_ORBIT_RADIUS * (config.planets.user.sizeScale || 1)}
         orbitSpeed={config.orbitSpeed}
         designUrl={config.planets.user.satelliteDesignUrl}
         selectedId={selectedPostId}
@@ -1855,7 +2143,7 @@ function Scene({
         ref={cameraControlsRef}
         minDistance={0.6}
         maxDistance={MAX_ZOOM_DISTANCE}
-        dollySpeed={0.55}
+        dollySpeed={config.zoomSpeed}
         minPolarAngle={0}
         maxPolarAngle={Math.PI}
         minAzimuthAngle={-Infinity}

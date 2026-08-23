@@ -53,7 +53,9 @@ export function PlanetSettingsPanel({
 }) {
   const [boards, setBoards] = useState<BoardOption[]>([]);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
-  const { offset, dragHandleProps } = useDraggablePanel();
+  // EPIC-144(사용자 지시 — "어떤 설정창이든 그 설정창 외부를 누르면
+  // 설정창이 해제될수 있게 해줘").
+  const { offset, dragHandleProps, panelRef } = useDraggablePanel({ onClickOutside: onClose });
 
   useEffect(() => {
     if (boards.length > 0) return;
@@ -107,6 +109,7 @@ export function PlanetSettingsPanel({
 
   return (
     <div
+      ref={panelRef}
       className="pointer-events-auto fixed bottom-6 left-[352px] z-40 max-h-[85vh] w-[320px] overflow-y-auto rounded-xl border border-white/15 bg-black/70 p-3 text-white shadow-2xl backdrop-blur-md"
       style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
     >
@@ -128,6 +131,23 @@ export function PlanetSettingsPanel({
                 value={config.name}
                 onChange={(e) => onChange({ name: e.target.value })}
               />
+            </label>
+            {/* EPIC-144(사용자 지시 — "각 행성의 크기도 설정할수
+                있게해줘"): 표면 오브젝트/캐릭터/라벨/위성 궤도가 전부 이
+                배율에 비례해 함께 커지거나 작아진다(AboutSiloUniverse.tsx
+                참고). */}
+            <label className={FIELD_LABEL}>
+              크기
+              <input
+                type="range"
+                min={0.4}
+                max={2.5}
+                step={0.05}
+                className="mt-1 w-full"
+                value={config.sizeScale}
+                onChange={(e) => onChange({ sizeScale: Number(e.target.value) })}
+              />
+              <span className="text-white/40">{config.sizeScale.toFixed(2)}배</span>
             </label>
             <label className={FIELD_LABEL}>
               색상

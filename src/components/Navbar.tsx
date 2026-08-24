@@ -82,6 +82,36 @@ function dropdownOffsetTransform(xPx?: number | null, yPx?: number | null): stri
   return `translate(${xPx ?? 0}px, ${yPx ?? 0}px)`;
 }
 
+// HOTFIX-144.4(사용자 지시 — "'메인로고'에 hover 하면 나타날 이미지도
+// 업로드 할수 있게 해줘"): LeftSidebar/RightSidebar 여닫이 아이콘의 기본/
+// 호버 미디어 크로스페이드(EPIC-078)와 동일한 패턴 — hoverImageUrl이
+// 비어있으면(기존 데이터 전부 이 경우) 기존과 완전히 동일한 단일 <img>를
+// 그대로 반환해 회귀가 없고, 값이 있을 때만 두 겹 크로스페이드로 바뀐다.
+// 로고를 감싸는 <Link href="/">에 group 클래스가 있어야 group-hover가
+// 반응한다(아래 두 렌더링 지점 모두에 이미 추가돼 있음).
+function renderMainLogoImage(mainLogo: MainLogoConfig) {
+  const heightPx = mainLogo.heightPx || DEFAULT_LOGO_HEIGHT_PX;
+  const alt = mainLogo.text || DEFAULT_LOGO_TEXT;
+  if (!mainLogo.hoverImageUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={mainLogo.imageUrl} alt={alt} className="w-auto" style={{ height: heightPx }} />;
+  }
+  return (
+    <span className="relative inline-block" style={{ height: heightPx }}>
+      <SidebarTriggerMedia
+        url={mainLogo.imageUrl}
+        alt={alt}
+        className="block h-full w-auto opacity-100 transition-opacity duration-300 group-hover:opacity-0"
+      />
+      <SidebarTriggerMedia
+        url={mainLogo.hoverImageUrl}
+        alt={alt}
+        className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+      />
+    </span>
+  );
+}
+
 // EPIC-136(사용자 지시 — "드래그앤 드롭으로 버튼이든, 이미지, 영상, 무슨
 // 요소든지 자유롭게 내가 선택하면 그 화면 안에서 마음대로 움직일수 있게
 // 해달라"): "홈페이지 설정 관리" 관리자 화면이 이 컴포넌트를 그대로,
@@ -1365,15 +1395,9 @@ export function Navbar({
                 {mainLogo.leftText}
               </span>
             )}
-            <Link href="/" className="font-bold shrink-0">
+            <Link href="/" className="group font-bold shrink-0">
               {mainLogo?.type === "image" && mainLogo.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={mainLogo.imageUrl}
-                  alt={mainLogo.text || DEFAULT_LOGO_TEXT}
-                  className="w-auto"
-                  style={{ height: mainLogo.heightPx || DEFAULT_LOGO_HEIGHT_PX }}
-                />
+                renderMainLogoImage(mainLogo)
               ) : (
                 mainLogo?.text || DEFAULT_LOGO_TEXT
               )}
@@ -1411,15 +1435,9 @@ export function Navbar({
               onOffsetChange={handleSlotOffsetChange}
               className="flex items-center justify-center flex-1 min-w-0"
             >
-              <Link href="/" className="font-bold shrink-0">
+              <Link href="/" className="group font-bold shrink-0">
                 {mainLogo?.type === "image" && mainLogo.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={mainLogo.imageUrl}
-                    alt={mainLogo.text || DEFAULT_LOGO_TEXT}
-                    className="w-auto"
-                    style={{ height: mainLogo.heightPx || DEFAULT_LOGO_HEIGHT_PX }}
-                  />
+                  renderMainLogoImage(mainLogo)
                 ) : (
                   mainLogo?.text || DEFAULT_LOGO_TEXT
                 )}

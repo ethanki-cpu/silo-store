@@ -19,6 +19,13 @@ export type MainLogoConfig = {
   type: "text" | "image";
   text: string;
   imageUrl: string;
+  // HOTFIX-144.4(사용자 지시 — "'메인로고'에 hover 하면 나타날 이미지도
+  // 업로드 할수 있게 해줘"): 로고 이미지(imageUrl)에 마우스를 올렸을 때
+  // 크로스페이드로 바뀌는 이미지 — LeftSidebar/RightSidebar 여닫이 아이콘의
+  // 기본/호버 미디어 크로스페이드(EPIC-078, SidebarTriggerMedia.tsx)와 동일한
+  // 패턴을 로고에도 적용한다. 비어있으면(기본값) 기존처럼 imageUrl 하나만
+  // 고정으로 보여 하위 호환.
+  hoverImageUrl: string;
   heightPx: number;
   align: LogoAlign;
   /** @deprecated EPIC-039: leftText/rightText로 대체. 구버전 데이터 호환용으로만 읽는다. */
@@ -79,6 +86,7 @@ export function defaultMainLogoConfig(): MainLogoConfig {
     type: "text",
     text: "",
     imageUrl: "",
+    hoverImageUrl: "",
     heightPx: DEFAULT_LOGO_HEIGHT_PX,
     align: "left",
     extraText: "",

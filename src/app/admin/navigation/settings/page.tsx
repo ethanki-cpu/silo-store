@@ -1124,6 +1124,7 @@ function ControlsPanel({
   setTopSidebarValue: React.Dispatch<React.SetStateAction<TopSidebarValue>>;
 }) {
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingLogoHover, setUploadingLogoHover] = useState(false);
   const [uploadingFont, setUploadingFont] = useState(false);
   const [uploadingSlideIdx, setUploadingSlideIdx] = useState<number | null>(null);
   const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<number | null>(null);
@@ -1223,6 +1224,17 @@ function ControlsPanel({
     setUploadingLogo(false);
     if (url) patchLogo({ type: "image", imageUrl: url });
   }
+  // HOTFIX-144.4(사용자 지시 — "'메인로고'에 hover 하면 나타날 이미지도
+  // 업로드 할수 있게 해줘"): handleLogoFile과 동일한 패턴, 별도 폴더에
+  // 저장하고 hoverImageUrl만 patch — Navbar.tsx의 renderMainLogoImage가
+  // 이 값이 있을 때만 크로스페이드로 렌더링한다.
+  async function handleLogoHoverFile(file: File | null) {
+    if (!file) return;
+    setUploadingLogoHover(true);
+    const { url } = await uploadImage(file, "main_logo_hover");
+    setUploadingLogoHover(false);
+    if (url) patchLogo({ hoverImageUrl: url });
+  }
   async function handleFontFile(file: File | null) {
     if (!file) return;
     setUploadingFont(true);
@@ -1255,6 +1267,30 @@ function ControlsPanel({
             <span className="mb-1 block text-gray-600">이미지 {uploadingLogo && "(업로드 중...)"}</span>
             <input type="file" accept="image/*" disabled={uploadingLogo} onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
             <ImageThumb url={mainLogo.imageUrl} alt="로고 미리보기" />
+          </label>
+        )}
+        {mainLogo.type === "image" && (
+          <label className="block">
+            <span className="mb-1 block text-gray-600">
+              마우스를 올렸을 때 나타날 이미지(선택, {uploadingLogoHover && "업로드 중... "}비우면 기존처럼 로고 이미지 고정)
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploadingLogoHover}
+              onChange={(e) => handleLogoHoverFile(e.target.files?.[0] ?? null)}
+              className="w-full text-[11px]"
+            />
+            <ImageThumb url={mainLogo.hoverImageUrl} alt="로고 hover 이미지 미리보기" />
+            {mainLogo.hoverImageUrl && (
+              <button
+                type="button"
+                onClick={() => patchLogo({ hoverImageUrl: "" })}
+                className="mt-1 text-[11px] text-red-500 hover:underline"
+              >
+                hover 이미지 제거
+              </button>
+            )}
           </label>
         )}
         <label className="block">

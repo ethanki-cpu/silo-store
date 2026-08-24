@@ -596,6 +596,70 @@ function useDragAwareClick(onClick: () => void) {
 }
 
 // ============================================================
+// HOTFIX-144.8(사용자 신고 — "여전히 여러가지 오브제들이 클릭하면
+// 거대한 하늘색 덩어리가 보여, 몇몇 오브제는 스케일이 안 맞아서
+// 최대로 크게 해도 아주 작아"): 다운로드한 .glb 에셋에는 실제 형상과
+// 무관한 "찌꺼기" 메쉬가 섞여 들어오는 경우가 흔하다 — 실측(scratchpad
+// 스크립트로 라이브 오브젝트 9개 전부의 GLB JSON chunk를 직접 파싱)
+// 결과 최소 두 가지 패턴을 확인했다: (1) 얇고 넓은 장식용 받침대/
+// 바닥판(HOTFIX-144.7이 이미 처리, laputa garden robot의 원형 받침 —
+// 두께는 가장 큰 축의 15% 미만, 나머지 두 축 넓이는 모델 전체 발자국의
+// 20%↑), (2) 삼각형이 거의 없는(<30개, 전체의 2% 미만) 사실상 빈
+// 자리표시자 — Sketchfab 식물 스캔("오브젝트 3", 실제로는 "Marsh
+// Labrador Tea")에 섞여 있던 노드 이름 그대로 "Cube_2"인 기본 큐브
+// 12개 삼각형이 정확히 이 패턴. 이 두 판정을 스케일 정규화(바운딩
+// 박스 계산, UniverseObjectModel/SpaceObjectModel)와 선택 아웃라인
+// (ModelSelectionOutline) 양쪽에서 반드시 동일하게 재사용해야 한다 —
+// 아웃라인만 숨기고 스케일 계산은 여전히 찌꺼기 메쉬의 크기에 끌려가면
+// (예: 찌꺼기가 실제 형상보다 큰 축을 가진 경우) "최대로 키워도 작다"
+// 불일치가 그대로 남는다.
+type DecorativeMeshInfo = { mesh: THREE.Mesh; box: THREE.Box3; tris: number };
+
+function meshTriangleCount(mesh: THREE.Mesh): number {
+  const geom = mesh.geometry;
+  if (geom.index) return geom.index.count / 3;
+  return (geom.attributes.position?.count ?? 0) / 3;
+}
+
+function collectMeshInfos(root: THREE.Object3D): DecorativeMeshInfo[] {
+  const infos: DecorativeMeshInfo[] = [];
+  root.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    infos.push({ mesh, box: new THREE.Box3().setFromObject(mesh), tris: meshTriangleCount(mesh) });
+  });
+  return infos;
+}
+
+function isDecorativeMesh(info: DecorativeMeshInfo, totalFootprint: number, totalTris: number): boolean {
+  const size = info.box.getSize(new THREE.Vector3());
+  const dims = [size.x, size.y, size.z].sort((a, b) => b - a);
+  const flatnessRatio = dims[0] > 0 ? dims[2] / dims[0] : 0;
+  const footprintRatio = totalFootprint > 0 ? (dims[0] * dims[1]) / totalFootprint : 0;
+  const isFlatPlate = flatnessRatio < 0.15 && footprintRatio > 0.2;
+  const isTrivial = info.tris < 30 && (totalTris === 0 || info.tris / totalTris < 0.02);
+  return isFlatPlate || isTrivial;
+}
+
+/** 장식/찌꺼기 메쉬를 제외한 "실제 형상" 바운딩 박스 — 스케일 정규화에 쓴다. */
+function significantBoundingBox(root: THREE.Object3D): THREE.Box3 {
+  const infos = collectMeshInfos(root);
+  const totalBox = new THREE.Box3().setFromObject(root);
+  if (infos.length === 0) return totalBox;
+  const totalSize = totalBox.getSize(new THREE.Vector3());
+  const totalDims = [totalSize.x, totalSize.y, totalSize.z].sort((a, b) => b - a);
+  const totalFootprint = totalDims[0] * totalDims[1];
+  const totalTris = infos.reduce((sum, i) => sum + i.tris, 0);
+  const significant = infos.filter((i) => !isDecorativeMesh(i, totalFootprint, totalTris));
+  // 전부 걸러지면(아주 단순한 모델이 우연히 조건에 걸리는 경우) 안전하게
+  // 원래 바운딩 박스로 폴백 — 오브젝트가 통째로 사라지는 것보다 낫다.
+  if (significant.length === 0) return totalBox;
+  const box = new THREE.Box3();
+  significant.forEach((i) => box.union(i.box));
+  return box;
+}
+
+// ============================================================
 // 장식 오브젝트 — 행성 표면에 배치, 클릭으로 선택 → 드래그(부모
 // AboutSiloUniverse의 TransformControls)로 위치 이동. HOTFIX-123부터
 // SILO/유저 행성 둘 다 이 레이어를 갖는다(행성의 자전 그룹 안에 로컬
@@ -629,7 +693,11 @@ function UniverseObjectModel({
   // 비례하는 비율로 바꿔, 어느 행성에 놓든 상대적으로 같은 크기로 보이게 한다.
   const { normalized, baseOffsetY } = useMemo(() => {
     const clone = scene.clone(true);
-    const box = new THREE.Box3().setFromObject(clone);
+    // HOTFIX-144.8: 장식/찌꺼기 메쉬(받침대/빈 자리표시자 등)는 목표
+    // 크기 계산에서 빼야, 그 메쉬가 실제 형상보다 큰 축을 가진 경우
+    // "관리자가 스케일을 최대로 올려도 실제 형상은 여전히 작게" 보이는
+    // 문제가 안 생긴다.
+    const box = significantBoundingBox(clone);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
     const targetSize = radius * 0.45;
@@ -778,60 +846,93 @@ function hashSeedFromKey(key: string): number {
 // BackSide 재질로 바꾸고 살짝(scale) 키워서 원본 뒤에 겹쳐 그리면,
 // 원본 실루엣 가장자리를 따라 얇은 테두리만 남는다 — 메시 개수/구조와
 // 무관하게 항상 정확히 "그 오브젝트의 실제 표면"을 따라간다.
+// HOTFIX-144.8(사용자 신고 — "여전히 여러가지 오브제들이 클릭하면
+// 거대한 하늘색 덩어리가 보여" — "오브젝트 3"(식물 스캔)로 재현):
+// HOTFIX-144.7/144.8이 고친 "장식/찌꺼기 메쉬" 문제와는 원인이 다른
+// 진짜 근본 버그를 찾았다 — 이전엔 복제본 전체를 원점(그 오브젝트의
+// 피벗) 기준으로 균일하게 살짝 확대(`scale={1 + thickness}`)해서
+// 셸을 만들었는데, 이 방식은 원점에서 "가까운" 덩어리진 오브젝트
+// (로봇/카메라 등)에서만 안전하다 — 원점에서 멀리 뻗은 부분(키 큰
+// 식물의 가지 끝, 길게 뻗은 팔 등)은 그 거리에 비례해 훨씬 크게
+// 밀려나기 때문에, 가늘고 넓게 뻗은 형태에서는 가지 끝마다 거대하게
+// 부풀어 오른 "하늘색 폭발" 처럼 보였다(실측: My Page 식물 오브젝트를
+// 선택하면 화면을 뒤덮는 크기의 하늘색 덩어리 재현). 표준 toon 아웃라인
+// 기법대로 각 정점을 자신의 법선(normal) 방향으로 "고정된 작은 양"만큼
+// 만 밀어내는 정점 셰이더로 교체 — 정점이 원점에서 얼마나 멀든 상관없이
+// 항상 일정하게 얇은 셸이 된다.
+function createOutlineMaterial(color: string, opacity: number, thickness: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color(color) },
+      uOpacity: { value: opacity },
+      uThickness: { value: thickness },
+    },
+    vertexShader: `
+      uniform float uThickness;
+      void main() {
+        vec3 offsetPosition = position + normal * uThickness;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(offsetPosition, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      void main() {
+        gl_FragColor = vec4(uColor, uOpacity);
+      }
+    `,
+    transparent: true,
+    side: THREE.BackSide,
+    depthWrite: false,
+    toneMapped: false,
+  });
+}
+
 function ModelSelectionOutline({
   source,
   opacity,
   position = [0, 0, 0],
-  thickness = 0.035,
 }: {
   source: THREE.Object3D;
   opacity: number;
   /** <primitive object={source}>에 준 것과 동일한 position을 그대로 넘겨야 원본과 정확히 겹친다. */
   position?: [number, number, number];
-  thickness?: number;
 }) {
-  // HOTFIX-144.7(사용자 신고 — "오브제를 클릭하면 하늘색으로 뭔가가
-  // 너무 거대하게 오브제 모양으로 보여, 'laputa garden robot' 확인해봐"):
-  // 다운로드한 .glb 에셋에는 흔히 장식용 받침대/바닥판 메쉬가 함께
-  // 들어있다 — 평소엔 자기 텍스처로 배경/오브젝트에 자연스럽게 묻혀
-  // 안 보이지만, 이 아웃라인이 모든 메쉬를 예외 없이 불투명한 하늘색
-  // BackSide 셸로 덮어써서 그 받침대까지 그대로 드러나며 "오브젝트
-  // 모양의 거대한 하늘색 판"처럼 보였다(실측: laputa garden robot의
-  // 원형 받침 메쉬가 한 축으로는 두께 0.34에 나머지 두 축은 5.03×5.03
-  // — 모델 전체 발자국의 30%). 한 축이 다른 두 축보다 훨씬 얇고(15%
-  // 미만) 그 두 축의 넓이가 모델 전체 발자국의 20%를 넘는 메쉬는
-  // "받침대"로 보고 아웃라인에서 숨긴다 — 진짜 오브젝트 형상(로봇 본체
-  // 등)은 이 정도로 납작하지 않아 걸리지 않는다.
+  // HOTFIX-144.7/144.8(사용자 신고 — "오브제를 클릭하면 하늘색으로
+  // 뭔가가 너무 거대하게 오브제 모양으로 보여" / "여전히 여러가지
+  // 오브제들이... 거대한 하늘색 덩어리가 보여"): 다운로드한 .glb
+  // 에셋에는 흔히 실제 형상과 무관한 장식/찌꺼기 메쉬가 함께 들어있다
+  // — 평소엔 안 보이거나 무해하지만, 이 아웃라인이 모든 메쉬를 예외
+  // 없이 불투명한 하늘색 셸로 덮어써서 그대로 드러난다.
+  // significantBoundingBox와 완전히 동일한 판정(isDecorativeMesh)을
+  // 재사용해 그 메쉬들을 숨긴다 — 스케일 정규화 쪽과 판정이 어긋나지
+  // 않도록 반드시 같은 함수를 공유한다(위 주석 참고).
   const outline = useMemo(() => {
     const clone = source.clone(true);
-    const totalSize = new THREE.Box3().setFromObject(clone).getSize(new THREE.Vector3());
+    const infos = collectMeshInfos(clone);
+    const totalBox = new THREE.Box3().setFromObject(clone);
+    const totalSize = totalBox.getSize(new THREE.Vector3());
     const totalDims = [totalSize.x, totalSize.y, totalSize.z].sort((a, b) => b - a);
     const totalFootprint = totalDims[0] * totalDims[1];
-    clone.traverse((child) => {
-      const mesh = child as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      if (totalFootprint > 0) {
-        const meshSize = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
-        const dims = [meshSize.x, meshSize.y, meshSize.z].sort((a, b) => b - a);
-        const flatnessRatio = dims[0] > 0 ? dims[2] / dims[0] : 0;
-        const footprintRatio = (dims[0] * dims[1]) / totalFootprint;
-        if (flatnessRatio < 0.15 && footprintRatio > 0.2) {
-          mesh.visible = false;
-          return;
-        }
+    const totalTris = infos.reduce((sum, i) => sum + i.tris, 0);
+    infos.forEach(({ mesh, box, tris }) => {
+      if (isDecorativeMesh({ mesh, box, tris }, totalFootprint, totalTris)) {
+        mesh.visible = false;
+        return;
       }
-      mesh.material = new THREE.MeshBasicMaterial({
-        color: PASTEL_SKY_BLUE,
-        transparent: true,
-        opacity,
-        side: THREE.BackSide,
-        depthWrite: false,
-        toneMapped: false,
-      });
+      // 두께는 이 메쉬 자신의 로컬(변환 전) 바운딩 박스 기준으로 정한다
+      // — 정점 셰이더가 로컬 좌표계에서 오프셋을 적용하므로, 여기서도
+      // 부모 그룹의 스케일이 섞이지 않은 이 메쉬 고유의 크기를 써야
+      // 맞는 비율이 나온다(가는 가지는 얇은 셸, 굵은 몸통은 그에 맞는
+      // 셸 — 모델 전체 크기가 아니라 각 메쉬 자신의 크기에 비례).
+      mesh.geometry.computeBoundingBox();
+      const localSize = mesh.geometry.boundingBox?.getSize(new THREE.Vector3()) ?? new THREE.Vector3(1, 1, 1);
+      const localMaxDim = Math.max(localSize.x, localSize.y, localSize.z, 1e-6);
+      mesh.material = createOutlineMaterial(PASTEL_SKY_BLUE, opacity, localMaxDim * 0.03);
     });
     return clone;
   }, [source, opacity]);
-  return <primitive object={outline} position={position} scale={1 + thickness} />;
+  return <primitive object={outline} position={position} />;
 }
 
 // HOTFIX-140.4(사용자 지시 — "오브제들이 반짝이는 효과가 없는거 같은데,
@@ -1023,7 +1124,9 @@ function SpaceObjectModel({
   const { scene } = useGLTF(obj.url);
   const { normalized, centerOffset } = useMemo(() => {
     const clone = scene.clone(true);
-    const box = new THREE.Box3().setFromObject(clone);
+    // HOTFIX-144.8: 장식/찌꺼기 메쉬는 목표 크기 계산에서 제외 —
+    // UniverseObjectModel과 동일한 이유(significantBoundingBox 주석 참고).
+    const box = significantBoundingBox(clone);
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
     const targetSize = 0.45;

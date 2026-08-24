@@ -177,12 +177,11 @@ export async function uploadExternalUrlToR2Media(url: string): Promise<R2UploadR
 export type R2FontUploadResult = { fileUrl: string | null; error: string | null };
 
 /**
- * 폰트 파일(.woff2/.woff/.ttf/.otf)을 R2에 직접 업로드만 한다 —
- * media_library가 아니라 custom_fonts 테이블(EPIC-083, font_name/font_url/
- * file_format만 있으면 되는 훨씬 단순한 스키마)에 기록할 것이므로
- * uploadToR2Media처럼 media_library insert 단계를 거치지 않는다.
+ * media_library/custom_fonts 같은 DB 기록 없이 R2에 파일만 올리고 공개
+ * URL을 돌려주는 공용 로직 — uploadFontToR2와 (HOTFIX-144.5) Silo Planet
+ * 오브젝트/텍스처 업로드가 공유한다.
  */
-export async function uploadFontToR2(file: File): Promise<R2FontUploadResult> {
+async function presignedPutToR2(file: File): Promise<R2FontUploadResult> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -218,4 +217,26 @@ export async function uploadFontToR2(file: File): Promise<R2FontUploadResult> {
   }
 
   return { fileUrl: publicUrl, error: null };
+}
+
+/**
+ * 폰트 파일(.woff2/.woff/.ttf/.otf)을 R2에 직접 업로드만 한다 —
+ * media_library가 아니라 custom_fonts 테이블(EPIC-083, font_name/font_url/
+ * file_format만 있으면 되는 훨씬 단순한 스키마)에 기록할 것이므로
+ * uploadToR2Media처럼 media_library insert 단계를 거치지 않는다.
+ */
+export async function uploadFontToR2(file: File): Promise<R2FontUploadResult> {
+  return presignedPutToR2(file);
+}
+
+// HOTFIX-144.5(사용자 지시 — "silo planet 에 오브제 업로드 제한을 100mb 로
+// 올려줘. 필요하면 R2 로 저장공간을 옮겨줘"): PlanetSettingsPanel/
+// ObjectInspectorPanel이 그동안 src/lib/storage.ts(Supabase Storage,
+// 무료 플랜 50MB 고정 상한 — API로도 못 올림, PlanetSettingsPanel.tsx의
+// HOTFIX 주석 참고)를 쓰고 있어 큰 .glb/텍스처 업로드가 조용히 실패하던
+// 문제의 근본 해결책 — EPIC-082/083에서 이미 만들어둔 이 R2 direct-upload
+// 파이프라인(presigned route가 100MB까지 허용)으로 옮긴다. media_library
+// insert 없이 URL만 필요하므로 uploadFontToR2와 동일하게 얇게 감싼다.
+export async function uploadRawFileToR2(file: File): Promise<R2FontUploadResult> {
+  return presignedPutToR2(file);
 }

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-24 (HOTFIX-144.5 — Silo Planet 오브젝트/텍스처 업로드 상한을 Supabase Storage 50MB → R2 100MB로)
+- **사용자 지시**: "silo planet 에 오브제 업로드 제한을 100mb 로 올려줘. 필요하면 R2 로 저장공간을 옮겨줘".
+- **원인**: `PlanetSettingsPanel.tsx`(행성 텍스처/위성 디자인/캐릭터 .glb/장식 오브젝트)와 `ObjectInspectorPanel.tsx`(오브젝트 썸네일)가 전부 `src/lib/storage.ts`의 Supabase Storage 업로드를 쓰고 있었는데, Supabase 무료 플랜은 파일당 50MB가 고정 상한(유료 전환 전까지 API로도 못 올림 — 기존 HOTFIX 주석에 이미 기록돼 있던 제약).
+- **수정**: 새로 만들지 않고 EPIC-082/083에서 이미 만들어둔 Cloudflare R2 direct-upload 파이프라인(presigned PUT, `src/app/api/media/presigned/route.ts`)으로 이관 — 이 라우트는 이미 `MAX_FILE_SIZE_BYTES = 100MB`로 설정돼 있어 별도 상한 조정 없이 이관만으로 100MB 상한이 적용된다. `src/lib/r2Upload.ts`에 media_library insert 없이 URL만 돌려주는 공용 헬퍼 `uploadRawFileToR2`를 추가(기존 `uploadFontToR2`와 로직 공유, `presignedPutToR2`로 추출). presigned route의 `isAllowedUpload`에 `.glb`/`.gltf` 확장자 허용 추가(브라우저가 이 확장자의 `File.type`을 못 채우는 경우가 흔해 폰트와 동일한 패턴으로 처리) — 안 하면 캐릭터 모델/장식 오브젝트 업로드가 "지원하지 않는 파일 형식"으로 막힘.
+- **번호 정정**: 최초 커밋에는 `HOTFIX-141.5`(작업 브랜치 번호를 그대로 씀) → `develop`과 무관한 EPIC이라 `HOTFIX-144.1`로 정정 → `git fetch` 결과 `develop`이 다른 기기에서 이미 `HOTFIX-144.1`~`.4`(아래 항목들)를 쓴 뒤였음이 드러나 최종적으로 `HOTFIX-144.5`로 재정정.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 경고 없음). 로컬 dev 서버에서 `/silo-planet` 렌더링 확인(콘솔에 기존에 없던 에러 없음). 실제 100MB 근접 파일 업로드는 로그인 세션이 필요해 이번 세션에서 직접 재현하지 않음 — 다음에 관리자 계정으로 실제 대용량 .glb 업로드 확인 필요.
+- **변경 파일**: `src/lib/r2Upload.ts`, `src/app/api/media/presigned/route.ts`, `src/components/about-silo/PlanetSettingsPanel.tsx`, `src/components/about-silo/ObjectInspectorPanel.tsx`.
+
 ## 2026-08-24 (HOTFIX-144.4 — 메인 로고에 마우스를 올렸을 때 바뀌는 hover 이미지 업로드 추가)
 - **요청**: "'홈페이지 설정' 에서 '메인로고' 에 hover 하면 나타날 이미지도 업로드 할수 있게 해줘."
 - **구현**: LeftSidebar/RightSidebar 여닫이 아이콘의 기본/호버 미디어 크로스페이드(EPIC-078, `SidebarTriggerMedia.tsx`)와 동일한 패턴을 로고에도 적용. `mainLogoSettings.ts`에 `hoverImageUrl` 필드 추가(비어있으면 기존과 완전히 동일하게 단일 이미지 고정, 하위 호환). `Navbar.tsx`에 `renderMainLogoImage()` 헬퍼를 새로 만들어 로고 렌더링 2곳(그룹화 배치/개별 배치)의 중복 마크업을 하나로 합치면서, `hoverImageUrl`이 있을 때만 두 이미지를 겹쳐 opacity로 크로스페이드하도록 분기(로고를 감싸는 `<Link>`에 `group` 클래스 추가). 관리자 화면(`/admin/navigation/settings`)의 "로고" Controls에 "마우스를 올렸을 때 나타날 이미지" 업로드 필드(+미리보기+제거 버튼)를 기존 로고 이미지 업로드 바로 아래에 추가 — `main_logo_hover` 폴더에 저장, `handleLogoFile`과 동일한 패턴.

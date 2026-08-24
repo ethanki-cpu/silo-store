@@ -12,7 +12,7 @@
 // 한다(AboutSiloUniverse.tsx가 어느 행성을 클릭했는지에 따라 title/
 // config/onChange만 바꿔 재사용).
 import { useEffect, useState } from "react";
-import { uploadFile } from "@/lib/storage";
+import { uploadRawFileToR2 } from "@/lib/r2Upload";
 import type { PlanetConfig } from "@/lib/aboutSiloUniverseConfig";
 import { useDraggablePanel } from "./useDraggablePanel";
 
@@ -71,21 +71,27 @@ export function PlanetSettingsPanel({
   }, []);
 
   // HOTFIX(사용자 신고 — "silo/my page 행성에 오브제 추가가 작동되지
-  // 않아"): 원인은 업로드 실패(대부분 Supabase 프로젝트의 파일 용량
-  // 상한 — 무료 플랜은 50MB 고정, 유료 전환 전까지는 API로도 못 올림)를
-  // 그냥 조용히 무시하던 것 — 버튼이 "업로드 중..."에서 그냥 원래대로
-  // 돌아갈 뿐 아무 설명이 없어 "작동을 안 한다"로 보였다. 이제 실패
-  // 사유를 그대로 alert로 보여준다(이 파일의 다른 업로드 3곳과 동일).
-  async function handleUpload(field: string, file: File | null, bucket: "attachments" | "gallery", apply: (url: string) => void) {
+  // 않아"): 원인은 업로드 실패(Supabase 프로젝트의 파일 용량 상한 — 무료
+  // 플랜은 50MB 고정, 유료 전환 전까지는 API로도 못 올림)를 그냥 조용히
+  // 무시하던 것 — 버튼이 "업로드 중..."에서 그냥 원래대로 돌아갈 뿐 아무
+  // 설명이 없어 "작동을 안 한다"로 보였다. 이제 실패 사유를 그대로
+  // alert로 보여준다(이 파일의 다른 업로드 3곳과 동일).
+  // HOTFIX-144.5(사용자 지시 — "오브제 업로드 제한을 100mb 로 올려줘.
+  // 필요하면 R2 로 저장공간을 옮겨줘"): 위 50MB 상한의 근본 원인이던
+  // Supabase Storage(src/lib/storage.ts)를 걷어내고, EPIC-082/083에서
+  // 이미 만들어둔 R2 direct-upload 파이프라인(presigned route가 100MB
+  // 까지 허용)으로 옮긴다 — R2는 버킷이 하나뿐이라 Supabase처럼 버킷을
+  // 골라 넘길 필요가 없다.
+  async function handleUpload(field: string, file: File | null, apply: (url: string) => void) {
     if (!file) return;
     setUploadingField(field);
-    const { url, error } = await uploadFile(file, bucket, "about-silo-universe");
+    const { fileUrl, error } = await uploadRawFileToR2(file);
     setUploadingField(null);
-    if (error || !url) {
+    if (error || !fileUrl) {
       alert(`업로드에 실패했어요.\n\n${error ?? "알 수 없는 오류"}`);
       return;
     }
-    apply(url);
+    apply(fileUrl);
   }
 
   function addObject(url: string) {
@@ -184,7 +190,7 @@ export function PlanetSettingsPanel({
                 accept="image/*"
                 className="hidden"
                 disabled={uploadingField === "planetTexture"}
-                onChange={(e) => handleUpload("planetTexture", e.target.files?.[0] ?? null, "gallery", (url) => onChange({ textureUrl: url }))}
+                onChange={(e) => handleUpload("planetTexture", e.target.files?.[0] ?? null, (url) => onChange({ textureUrl: url }))}
               />
             </label>
             {config.textureUrl && (
@@ -240,7 +246,7 @@ export function PlanetSettingsPanel({
               accept="image/*"
               className="hidden"
               disabled={uploadingField === "satelliteDesign"}
-              onChange={(e) => handleUpload("satelliteDesign", e.target.files?.[0] ?? null, "gallery", (url) => onChange({ satelliteDesignUrl: url }))}
+              onChange={(e) => handleUpload("satelliteDesign", e.target.files?.[0] ?? null, (url) => onChange({ satelliteDesignUrl: url }))}
             />
           </label>
         </section>
@@ -267,7 +273,7 @@ export function PlanetSettingsPanel({
               accept=".glb,.gltf"
               className="hidden"
               disabled={uploadingField === "characterModel"}
-              onChange={(e) => handleUpload("characterModel", e.target.files?.[0] ?? null, "attachments", (url) => onChange({ characterModelUrl: url }))}
+              onChange={(e) => handleUpload("characterModel", e.target.files?.[0] ?? null, (url) => onChange({ characterModelUrl: url }))}
             />
           </label>
           {config.characterModelUrl && (
@@ -342,7 +348,7 @@ export function PlanetSettingsPanel({
               accept=".glb,.gltf"
               className="hidden"
               disabled={uploadingField === "object"}
-              onChange={(e) => handleUpload("object", e.target.files?.[0] ?? null, "attachments", addObject)}
+              onChange={(e) => handleUpload("object", e.target.files?.[0] ?? null, addObject)}
             />
           </label>
         </section>

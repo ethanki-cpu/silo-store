@@ -17,7 +17,7 @@
 // thumbnail_url을 자동으로 보여준다. 아래 썸네일/요약/링크 필드는 이제
 // "게시판 값을 오버라이드하는" 용도로 재정의했다(비워두면 게시판 값을
 // 그대로 쓴다).
-import { uploadFile } from "@/lib/storage";
+import { uploadRawFileToR2 } from "@/lib/r2Upload";
 import { supabase } from "@/lib/supabaseClient";
 import type { UniverseObject, ObjectMotion } from "@/lib/aboutSiloUniverseConfig";
 import { useEffect, useState } from "react";
@@ -90,16 +90,19 @@ export function ObjectInspectorPanel({
     };
   }, []);
 
+  // HOTFIX-144.5(사용자 지시 — "오브제 업로드 제한을 100mb 로 올려줘.
+  // 필요하면 R2 로 저장공간을 옮겨줘"): PlanetSettingsPanel.tsx와 동일한
+  // 이유로 Supabase Storage(50MB 상한)에서 R2(100MB 상한)로 옮긴다.
   async function handleThumbUpload(file: File | null) {
     if (!file) return;
     setUploadingThumb(true);
-    const { url, error } = await uploadFile(file, "gallery", "about-silo-universe-objects");
+    const { fileUrl, error } = await uploadRawFileToR2(file);
     setUploadingThumb(false);
-    if (error || !url) {
+    if (error || !fileUrl) {
       alert(`업로드에 실패했어요.\n\n${error ?? "알 수 없는 오류"}`);
       return;
     }
-    onChange({ thumbnailUrl: url });
+    onChange({ thumbnailUrl: fileUrl });
   }
 
   return (

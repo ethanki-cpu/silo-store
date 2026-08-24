@@ -605,12 +605,18 @@ export function BoardForm({
           <label className="block text-xs font-medium text-gray-600 mb-1">슬러그</label>
           <input
             type="text"
-            required
             value={values.category}
             onChange={(e) => update("category", e.target.value.trim())}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             placeholder="예: free-board"
           />
+          {/* 사용자 신고(2026-08-24) — "수정할 때마다 슬러그를 입력하라는
+              알림이 뜬다": 이 필드는 boards.category(nullable, 미지정 시
+              BOARD_DEFINITIONS.topic으로 자동 폴백 — src/lib/boardLayout.ts)에
+              연결돼 있어 원래 선택 항목이다(URL 라우팅에 쓰이는 진짜 slug는
+              별도 컬럼 boards.slug로, 이 폼에서 편집하지 않음). required가
+              붙어있어 category가 비어있는 기존 게시판(사일로 타임라인 등)은
+              저장 시도할 때마다 브라우저 기본 필수 입력 경고가 떴다. */}
           {mode === "edit" && (
             <p className="text-xs text-amber-600 mt-1">
               주의: 이 값은 Board Definition/기존 링크가 참조할 수 있어요 — 바꾸면 그 화면들이

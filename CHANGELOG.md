@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-24 (HOTFIX-144.1 — 게시판 설정의 "슬러그" 필드가 비어있는 기존 게시판마다 저장할 때 필수 입력 경고가 계속 뜨던 문제)
+- **신고**: "게시판의 슬러그 부분이 게시판 설정을 수정할때마다 입력하라는 알림이 뜨는데, 그렇지 않도록 설정해줘."
+- **원인**: `BoardForm.tsx`의 "슬러그" 입력란은 실제로는 URL 라우팅에 쓰이는 `boards.slug`(NOT NULL, 이 폼에서 편집 대상 아님)가 아니라 `boards.category`(nullable, `INDIVIDUAL_BOARD_DEFINITIONS` 조회 키 — 미지정 시 `BOARD_DEFINITIONS.topic`으로 자동 폴백, `src/lib/boardLayout.ts`)에 연결돼 있는데 `required` 속성이 붙어 있었다. `category`가 원래 null이어도 정상 동작하는 선택 필드인데도, DB에서 이미 11개 게시판(사일로 타임라인 포함)이 `category = null` 상태라 그 게시판 설정을 열 때마다 필드가 비어있는 채로 렌더링되고, 어떤 값을 바꿔 저장하든 브라우저 기본 "이 입력란을 작성하세요" 검증이 매번 제출을 막았다.
+- **수정**: `values.category` input의 `required` 속성 제거. `category`가 비어있어도 그대로 저장 가능(기존 폴백 동작 그대로 유지, DB 컬럼도 nullable이라 스키마와 일치).
+- **검증**: `npx tsc --noEmit` 0 errors, `npx eslint src/components/admin/BoardForm.tsx` 0 errors(기존 경고 2개는 이번 변경과 무관, 그대로). 관리자 로그인 세션이 필요한 화면이라 브라우저로 직접 재현/확인은 못 함 — DB에서 `category IS NULL`인 게시판 11개를 조회해 증상 조건(필드가 비어있는 채로 로드됨)을 직접 확인.
+- **변경 파일**: `src/components/admin/BoardForm.tsx`.
+
 ## 2026-08-24 (EPIC-144 — Silo Planet 우주 오브젝트 모션 10종 추가 + 진짜같은 별똥별(orbit+tail) + 먼 우주 배경 배치 + 줌 감도/행성 크기 설정 + 설정창 바깥 클릭 시 닫기)
 - **배경**: 사용자가 한 번에 여러 요청 — (1) "모션효과가 위아래 부유 말고 작동이 안돼, 10가지 모션이 더 있으면좋겠어", (2) "진짜같은 별똥별 효과(내가 설정한 오브제가 orbit 하고 tail 이 있음 반짝이는 tail)", (3) "먼곳에 은하수, 블랙홀, nebula... 왜 전부터 요청했는데 안만들어? ... glb 파일 넣을수 있게 우주의 먼곳에 보일수 있게 하고 크기 설정할수 있게해", (4) "줌인 줌아웃이 너무 조금씩 되니까 답답해 그거도 설정할수 있게", (5) "각 행성의 크기도 설정할수 있게해줘", (6) "어떤 설정창이든 그 설정창 외부를 누르면 설정창이 해제될수 있게".
 - **(1) 모션 버그 원인 + 10종 추가**: "제자리 회전"(spin)이 이미지 빌보드(별/은하수 등 SpaceObjectSprite)에서 시각적으로 아예 안 보이던 진짜 원인은 Three.js의 Sprite가 항상 카메라를 향해 스스로 방향을 재계산해서(billboarding) 부모 group의 rotation을 완전히 무시하기 때문이었다 — `useObjectMotion`(AboutSiloUniverse.tsx)의 회전 계열 모션이 이제 스프라이트에는 group 회전 대신 `SpriteMaterial.rotation`(billboarding과 무관하게 실제로 보임)을 대신 돌리도록 수정. 기존 4개(없음/반짝임/부유/회전)에 sway/pendulum/tumble/drift/orbitSelf/figure8/flicker/shimmer/fadeInOut/nod 10개 추가(`ObjectMotion` 타입, `ObjectInspectorPanel.tsx`의 `MOTION_OPTIONS`) — 전부 기존 규칙 그대로 position/rotation/opacity만 쓰고 scale은 안 건드린다(카메라 줌 거리가 바운딩 반지름에 비례해 계산되므로).

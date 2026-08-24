@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-24 (HOTFIX-144.3 — 상단 탭 1차/2차 드롭다운의 상하 위치 설정 추가 + Controls 패널의 hover 모션 select 전부에 실제 CSS로 즉시 확인 가능한 미리보기 추가)
+- **요청 1**: "'홈페이지 설정' 에 상단탭 의 control 설정에서, 1차 & 2차 드롭다운 카테고리의 상/하 위치를 설정할수 있게 해줘 모든 요소들에게." — 기존에 좌우 위치(`dropdownOffsetXPx`/`subDropdownOffsetXPx`, HOTFIX-141.16)는 있었지만 상하(Y) 이동은 없었다. `topTabStyleSettings.ts`에 `dropdownOffsetYPx`/`subDropdownOffsetYPx`를 X와 동일한 패턴으로 추가하고, `Navbar.tsx`가 드롭다운 위치 style을 만드는 3곳(1차 컨테이너 + 2차 flyout 2곳 — group 분기/item.children 분기)이 전부 `dropdownOffsetTransform(x, y)` 헬퍼로 X/Y를 함께 `translate()`에 반영하도록 통일. 탭마다 독립 설정이라 "모든 요소들에게" 요청대로 하위 탭 전부에 개별 적용 가능(PC/모바일도 기존처럼 독립).
+- **요청 2**: "'홈페이지 설정' 의 상단탭 의 control 설정에서 hover 모션 의 preview 를 볼수 있게 해줘, 어떤 모션이 어떻게 나올지 모르니까 불편해." — hover 모션 select가 관리자 화면 안에 총 5곳(상단 탭 드롭다운 항목/계정 메뉴/상단 사이드바 항목/상단 사이드바 링크/로그인 버튼) 있었는데 전부 라벨 텍스트만 나열해 실제로 어떻게 보이는지 저장 후 실제 사이트에서 직접 hover해봐야 알 수 있었다. `HoverMotionSelect`(select + 미리보기 스와치) 컴포넌트를 새로 만들어 5곳 전부 교체 — 미리보기는 Navbar.tsx가 실제 탭에 쓰는 것과 완전히 동일한 `tabHoverMotionCss()` 함수로 CSS를 만들어 그 자리에서 바로 마우스를 올려 확인할 수 있다(실제 화면과 어긋날 여지 없음). 겸사겸사 "호버 모션 테마"(전체 일괄 적용) 버튼 목록에도 같은 미리보기를 붙여 12종 중 뭘 고를지 미리 보고 선택할 수 있게 했다.
+- **검증**: `npx tsc --noEmit`/`npx eslint` 0 errors(기존 경고만 그대로). 관리자 로그인 세션이 필요한 화면이라 브라우저로 직접 재현/확인은 못 함 — `tabHoverMotionCss`/`dropdownOffsetTransform` 둘 다 이미 실사용 중인 함수를 그대로 재사용하는 방식이라 회귀 위험은 낮다고 판단.
+- **변경 파일**: `src/lib/topTabStyleSettings.ts`, `src/components/Navbar.tsx`, `src/app/admin/navigation/settings/page.tsx`.
+
 ## 2026-08-24 (HOTFIX-144.2 — "About Silo"를 왼쪽 사이드바에, "온라인 도슨트"를 오른쪽 사이드바에 노출 체크했는데 실제 화면엔 반영 안 되던 문제)
 - **신고**: "'About Silo' 카테고리를 '왼쪽사이드바' 에 노출시키고, '온라인 도슨트' 카테고리를 '오른쪽 사이드바' 에 노출시키는 체크를 눌렀는데, 실제 왼쪽 오른쪽 사이드바에 적용이 안되고 있어."
 - **원인**: EPIC-138이 최상위 카테고리마다 노출 위치(`site_navigations.target_types`)를 복수 선택 가능하게 만들었지만, `Navbar.tsx`는 여전히 `navTabs.find(t => t.type === "sidebar-left"/"sidebar-right")`로 배열에서 딱 하나만 골라 썼다. DB 확인 결과 "About Silo"(sort_order 0)가 이미 `sidebar_left`였던 "사일로 상점"(sort_order 1)보다 먼저 오고, "온라인 도슨트"(sort_order 2)도 이미 `sidebar_right`였던 "살롱데상"(sort_order 3)보다 먼저 와서, `find()`가 새로 체크한 카테고리를 조용히 집어삼키고 기존 카테고리 쪽은 완전히 무시했다(체크박스 저장 자체는 정상 동작 — 시각적 반영만 실패). 두 카테고리가 정확히 같은 슬롯을 두고 "승자 독식"으로 경합하는 구조라 어느 쪽을 체크해도 결과가 하나로만 좁혀졌다.

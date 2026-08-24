@@ -84,6 +84,12 @@ export type TopTabStyleEntry = {
   // 양수면 오른쪽으로, 음수면 왼쪽으로 이동. 0/미설정이면 기존과 동일.
   dropdownOffsetXPx?: number | null;
   subDropdownOffsetXPx?: number | null;
+  // HOTFIX-144.3(사용자 지시 — "1차 & 2차 드롭다운 카테고리의 상/하 위치를
+  // 설정할수 있게 해줘 모든 요소들에게"): dropdownOffsetXPx/subDropdownOffsetXPx와
+  // 동일한 패턴의 세로(Y) 버전 — 양수면 아래로, 음수면 위로 민다. 0/미설정이면
+  // 기존과 동일(추가 이동 없음).
+  dropdownOffsetYPx?: number | null;
+  subDropdownOffsetYPx?: number | null;
   // HOTFIX-141.14(사용자 지시 — "'온라인 도슨트' 하위 드랍다운 카테고리의
   // '폭'은 정할수 있지만, 그 하위 카테고리의 하위 카테고리의 '폭'도 따로
   // 정할수 있게 해줘"): 지금까지 dropdownWidthPx 하나가 1차(w-64)/2차

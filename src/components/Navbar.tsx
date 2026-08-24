@@ -72,6 +72,16 @@ const TOP_TAB_FONT_FAMILY_PREFIX = "SiloTopTabFont";
 // — 탭 자체의 폰트(TOP_TAB_FONT_FAMILY_PREFIX)와 별개로 독립 설정한다.
 const TOP_TAB_DROPDOWN_FONT_FAMILY_PREFIX = "SiloTopTabDropdownFont";
 
+// HOTFIX-144.3(사용자 지시 — "1차 & 2차 드롭다운 카테고리의 상/하 위치를
+// 설정할수 있게 해줘 모든 요소들에게"): dropdownOffsetXPx/subDropdownOffsetXPx
+// 옆에 Y축 짝(dropdownOffsetYPx/subDropdownOffsetYPx)이 추가돼, 드롭다운
+// 위치 style을 만드는 3곳(1차 컨테이너, 2차 flyout ×2)이 전부 X/Y 둘 다
+// 반영해야 한다 — translateX만 만들던 것을 이 헬퍼로 통일.
+function dropdownOffsetTransform(xPx?: number | null, yPx?: number | null): string | undefined {
+  if (!xPx && !yPx) return undefined;
+  return `translate(${xPx ?? 0}px, ${yPx ?? 0}px)`;
+}
+
 // EPIC-136(사용자 지시 — "드래그앤 드롭으로 버튼이든, 이미지, 영상, 무슨
 // 요소든지 자유롭게 내가 선택하면 그 화면 안에서 마음대로 움직일수 있게
 // 해달라"): "홈페이지 설정 관리" 관리자 화면이 이 컴포넌트를 그대로,
@@ -912,7 +922,9 @@ export function Navbar({
               className={`w-64 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
               style={{
                 ...(tabStyleEntry?.dropdownWidthPx ? { width: tabStyleEntry.dropdownWidthPx } : undefined),
-                ...(tabStyleEntry?.dropdownOffsetXPx ? { transform: `translateX(${tabStyleEntry.dropdownOffsetXPx}px)` } : undefined),
+                ...(dropdownOffsetTransform(tabStyleEntry?.dropdownOffsetXPx, tabStyleEntry?.dropdownOffsetYPx)
+                  ? { transform: dropdownOffsetTransform(tabStyleEntry?.dropdownOffsetXPx, tabStyleEntry?.dropdownOffsetYPx) }
+                  : undefined),
               }}
             >
               {tab.groups && tab.groups.length > 0
@@ -992,7 +1004,9 @@ export function Navbar({
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
                             style={{
                               ...((tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined),
-                              ...(tabStyleEntry?.subDropdownOffsetXPx ? { transform: `translateX(${tabStyleEntry.subDropdownOffsetXPx}px)` } : undefined),
+                              ...(dropdownOffsetTransform(tabStyleEntry?.subDropdownOffsetXPx, tabStyleEntry?.subDropdownOffsetYPx)
+                                ? { transform: dropdownOffsetTransform(tabStyleEntry?.subDropdownOffsetXPx, tabStyleEntry?.subDropdownOffsetYPx) }
+                                : undefined),
                             }}
                           >
                             {group.items.map((item, idx) => (
@@ -1037,7 +1051,9 @@ export function Navbar({
                             className={`w-56 rounded-md border border-gray-200 bg-white shadow-md py-2 ${topTabDropdownClassName(tab.key)}`}
                             style={{
                               ...((tabStyleEntry?.subDropdownWidthPx ?? tabStyleEntry?.dropdownWidthPx) ? { width: tabStyleEntry!.subDropdownWidthPx ?? tabStyleEntry!.dropdownWidthPx! } : undefined),
-                              ...(tabStyleEntry?.subDropdownOffsetXPx ? { transform: `translateX(${tabStyleEntry.subDropdownOffsetXPx}px)` } : undefined),
+                              ...(dropdownOffsetTransform(tabStyleEntry?.subDropdownOffsetXPx, tabStyleEntry?.subDropdownOffsetYPx)
+                                ? { transform: dropdownOffsetTransform(tabStyleEntry?.subDropdownOffsetXPx, tabStyleEntry?.subDropdownOffsetYPx) }
+                                : undefined),
                             }}
                           >
                             {item.children.map((child, idx) => (

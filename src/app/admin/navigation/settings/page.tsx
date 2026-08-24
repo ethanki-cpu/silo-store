@@ -86,7 +86,7 @@ import {
   type TopSidebarChildLink,
 } from "@/lib/topSidebarSettings";
 import { FIXED_LINKS as TOP_SIDEBAR_FIXED_LINKS } from "@/components/TopSidebarPanel";
-import { TAB_HOVER_MOTIONS, TAB_HOVER_MOTION_LABELS, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
+import { TAB_HOVER_MOTIONS, TAB_HOVER_MOTION_LABELS, DEFAULT_TAB_HOVER_MOTION, tabHoverMotionCss, type TabHoverMotion } from "@/lib/tabHoverMotion";
 import { measureReferenceWidth } from "@/lib/useReferenceWidth";
 
 // HOTFIX-137.4(사용자 지시 — "여백 배경 이미지 갯수를 10개가 아닌 100개로"): 10 → 100.
@@ -110,6 +110,49 @@ const TAB_TARGET_TYPE_LABELS: Record<DbTargetType, string> = {
   user_menu: "사용자 메뉴",
   top_sidebar: "상단 사이드바",
 };
+
+// HOTFIX-144.3(사용자 지시 — "hover 모션 의 preview 를 볼수 있게 해줘, 어떤
+// 모션이 어떻게 나올지 모르니까 불편해"): 지금까지는 모션을 골라 저장하고
+// 실제 사이트로 가서 탭에 마우스를 올려봐야만 어떻게 보이는지 알 수
+// 있었다 — select 옆에 실제와 동일한 CSS(tabHoverMotionCss, Navbar.tsx가
+// 쓰는 것과 완전히 같은 함수)를 적용한 샘플 텍스트를 두고 그 자리에서 바로
+// 마우스를 올려 확인할 수 있게 한다. Controls 패널의 hover 모션 select
+// 5곳(상단 탭 드롭다운 항목/계정 메뉴/상단 사이드바 항목/상단 사이드바
+// 링크/로그인 버튼) 전부 이 컴포넌트로 통일해 중복 select 마크업을 줄인다.
+function HoverMotionPreviewSwatch({ motion }: { motion: TabHoverMotion }) {
+  const className = `hm-preview-${motion}`;
+  return (
+    <span className="inline-block rounded border border-dashed border-gray-300 bg-gray-50 px-3 py-1.5">
+      <style>{tabHoverMotionCss(className, motion)}</style>
+      <span className={`${className} text-sm text-gray-700`}>마우스를 올려 미리보기</span>
+    </span>
+  );
+}
+
+function HoverMotionSelect({
+  value,
+  onChange,
+}: {
+  value: TabHoverMotion;
+  onChange: (motion: TabHoverMotion) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as TabHoverMotion)}
+        className="w-full rounded border border-gray-300 px-2 py-1"
+      >
+        {TAB_HOVER_MOTIONS.map((m) => (
+          <option key={m} value={m}>
+            {TAB_HOVER_MOTION_LABELS[m]}
+          </option>
+        ))}
+      </select>
+      <HoverMotionPreviewSwatch motion={value} />
+    </div>
+  );
+}
 
 async function upsertSetting(key: string, value: unknown) {
   return supabase
@@ -1676,6 +1719,26 @@ function ControlsPanel({
               />
             </label>
             <label className="block">
+              <span className="mb-1 block text-gray-600">1차 상하 위치(px, 양수면 아래로, 음수면 위로)</span>
+              <input
+                type="number"
+                value={entry.dropdownOffsetYPx ?? ""}
+                placeholder="0"
+                onChange={(e) => patchTab({ dropdownOffsetYPx: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">2차 상하 위치(하위 카테고리의 하위 카테고리, px — 양수면 아래로, 음수면 위로)</span>
+              <input
+                type="number"
+                value={entry.subDropdownOffsetYPx ?? ""}
+                placeholder="0"
+                onChange={(e) => patchTab({ subDropdownOffsetYPx: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+            <label className="block">
               <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
               <input value={entry.dropdownFontFamily ?? ""} onChange={(e) => patchTab({ dropdownFontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
             </label>
@@ -1748,13 +1811,10 @@ function ControlsPanel({
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">호버 모션</span>
-          <select value={entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION} onChange={(e) => patchTab({ hoverMotion: e.target.value as TopTabStyleEntry["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
-            {TAB_HOVER_MOTIONS.map((m) => (
-              <option key={m} value={m}>
-                {TAB_HOVER_MOTION_LABELS[m]}
-              </option>
-            ))}
-          </select>
+          <HoverMotionSelect
+            value={entry.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION}
+            onChange={(motion) => patchTab({ hoverMotion: motion })}
+          />
         </label>
         {positionSection}
       </div>
@@ -1857,13 +1917,10 @@ function ControlsPanel({
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">호버 모션</span>
-          <select value={accountMenuStyle.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION} onChange={(e) => patchAccount({ hoverMotion: e.target.value as AccountMenuStyleValue["pc"]["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
-            {TAB_HOVER_MOTIONS.map((m) => (
-              <option key={m} value={m}>
-                {TAB_HOVER_MOTION_LABELS[m]}
-              </option>
-            ))}
-          </select>
+          <HoverMotionSelect
+            value={accountMenuStyle.hoverMotion ?? DEFAULT_TAB_HOVER_MOTION}
+            onChange={(motion) => patchAccount({ hoverMotion: motion })}
+          />
         </label>
         {positionSection}
       </div>
@@ -2148,17 +2205,10 @@ function ControlsPanel({
           </label>
           <label className="block">
             <span className="mb-1 block text-gray-600">항목 hover 모션</span>
-            <select
+            <HoverMotionSelect
               value={value[side === "left" ? "leftPanelHoverMotion" : "rightPanelHoverMotion"]}
-              onChange={(e) => patch({ [side === "left" ? "leftPanelHoverMotion" : "rightPanelHoverMotion"]: e.target.value } as Partial<SidebarIconsValue["pc"]>)}
-              className="w-full rounded border border-gray-300 px-2 py-1"
-            >
-              {TAB_HOVER_MOTIONS.map((m) => (
-                <option key={m} value={m}>
-                  {TAB_HOVER_MOTION_LABELS[m]}
-                </option>
-              ))}
-            </select>
+              onChange={(motion) => patch({ [side === "left" ? "leftPanelHoverMotion" : "rightPanelHoverMotion"]: motion } as Partial<SidebarIconsValue["pc"]>)}
+            />
           </label>
         </div>
         {positionSection}
@@ -2449,13 +2499,7 @@ function TopSidebarControls({
         </div>
         <label className="block">
           <span className="mb-1 block text-gray-600">링크 hover 모션</span>
-          <select value={config.hoverMotion} onChange={(e) => patch({ hoverMotion: e.target.value as TopSidebarConfig["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
-            {TAB_HOVER_MOTIONS.map((m) => (
-              <option key={m} value={m}>
-                {TAB_HOVER_MOTION_LABELS[m]}
-              </option>
-            ))}
-          </select>
+          <HoverMotionSelect value={config.hoverMotion} onChange={(motion) => patch({ hoverMotion: motion })} />
         </label>
       </div>
 
@@ -2523,13 +2567,7 @@ function TopSidebarControls({
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">hover 모션</span>
-          <select value={config.loginButtonStyle.hoverMotion} onChange={(e) => patchLoginStyle({ hoverMotion: e.target.value as TopSidebarConfig["hoverMotion"] })} className="w-full rounded border border-gray-300 px-2 py-1">
-            {TAB_HOVER_MOTIONS.map((m) => (
-              <option key={m} value={m}>
-                {TAB_HOVER_MOTION_LABELS[m]}
-              </option>
-            ))}
-          </select>
+          <HoverMotionSelect value={config.loginButtonStyle.hoverMotion} onChange={(motion) => patchLoginStyle({ hoverMotion: motion })} />
         </label>
       </div>
 
@@ -2777,8 +2815,14 @@ function ThemesPanel({
       <p className="text-[11px] text-gray-400">상단 탭 전체 + 사용자 메뉴 전체에 한 번에 적용해요(개별 조정은 각 요소의 Controls에서 다시 바꿀 수 있어요).</p>
       <div className="space-y-1">
         {TAB_HOVER_MOTIONS.map((m) => (
-          <button key={m} type="button" onClick={() => applyMotionToAll(m)} className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50">
-            {TAB_HOVER_MOTION_LABELS[m]}
+          <button
+            key={m}
+            type="button"
+            onClick={() => applyMotionToAll(m)}
+            className="flex w-full items-center justify-between gap-2 rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50"
+          >
+            <span>{TAB_HOVER_MOTION_LABELS[m]}</span>
+            <HoverMotionPreviewSwatch motion={m} />
           </button>
         ))}
       </div>

@@ -90,7 +90,7 @@ export function ObjectInspectorPanel({
     };
   }, []);
 
-  // HOTFIX-144.1(사용자 지시 — "오브제 업로드 제한을 100mb 로 올려줘.
+  // HOTFIX-144.5(사용자 지시 — "오브제 업로드 제한을 100mb 로 올려줘.
   // 필요하면 R2 로 저장공간을 옮겨줘"): PlanetSettingsPanel.tsx와 동일한
   // 이유로 Supabase Storage(50MB 상한)에서 R2(100MB 상한)로 옮긴다.
   async function handleThumbUpload(file: File | null) {

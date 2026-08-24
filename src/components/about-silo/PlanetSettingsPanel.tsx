@@ -76,7 +76,7 @@ export function PlanetSettingsPanel({
   // 무시하던 것 — 버튼이 "업로드 중..."에서 그냥 원래대로 돌아갈 뿐 아무
   // 설명이 없어 "작동을 안 한다"로 보였다. 이제 실패 사유를 그대로
   // alert로 보여준다(이 파일의 다른 업로드 3곳과 동일).
-  // HOTFIX-144.1(사용자 지시 — "오브제 업로드 제한을 100mb 로 올려줘.
+  // HOTFIX-144.5(사용자 지시 — "오브제 업로드 제한을 100mb 로 올려줘.
   // 필요하면 R2 로 저장공간을 옮겨줘"): 위 50MB 상한의 근본 원인이던
   // Supabase Storage(src/lib/storage.ts)를 걷어내고, EPIC-082/083에서
   // 이미 만들어둔 R2 direct-upload 파이프라인(presigned route가 100MB

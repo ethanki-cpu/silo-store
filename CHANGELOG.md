@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 2026-08-24 (HOTFIX-144.1 — Silo Planet 오브젝트/텍스처 업로드 상한을 Supabase Storage 50MB → R2 100MB로)
+## 2026-08-24 (HOTFIX-144.5 — Silo Planet 오브젝트/텍스처 업로드 상한을 Supabase Storage 50MB → R2 100MB로)
 - **사용자 지시**: "silo planet 에 오브제 업로드 제한을 100mb 로 올려줘. 필요하면 R2 로 저장공간을 옮겨줘".
 - **원인**: `PlanetSettingsPanel.tsx`(행성 텍스처/위성 디자인/캐릭터 .glb/장식 오브젝트)와 `ObjectInspectorPanel.tsx`(오브젝트 썸네일)가 전부 `src/lib/storage.ts`의 Supabase Storage 업로드를 쓰고 있었는데, Supabase 무료 플랜은 파일당 50MB가 고정 상한(유료 전환 전까지 API로도 못 올림 — 기존 HOTFIX 주석에 이미 기록돼 있던 제약).
 - **수정**: 새로 만들지 않고 EPIC-082/083에서 이미 만들어둔 Cloudflare R2 direct-upload 파이프라인(presigned PUT, `src/app/api/media/presigned/route.ts`)으로 이관 — 이 라우트는 이미 `MAX_FILE_SIZE_BYTES = 100MB`로 설정돼 있어 별도 상한 조정 없이 이관만으로 100MB 상한이 적용된다. `src/lib/r2Upload.ts`에 media_library insert 없이 URL만 돌려주는 공용 헬퍼 `uploadRawFileToR2`를 추가(기존 `uploadFontToR2`와 로직 공유, `presignedPutToR2`로 추출). presigned route의 `isAllowedUpload`에 `.glb`/`.gltf` 확장자 허용 추가(브라우저가 이 확장자의 `File.type`을 못 채우는 경우가 흔해 폰트와 동일한 패턴으로 처리) — 안 하면 캐릭터 모델/장식 오브젝트 업로드가 "지원하지 않는 파일 형식"으로 막힘.

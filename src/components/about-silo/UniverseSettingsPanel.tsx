@@ -13,7 +13,7 @@
 // "기본 카테고리 마커 모양" 섹션은 HOTFIX로 카테고리 마커 자체가 완전히
 // 삭제되며 함께 제거됨 — AboutSiloUniverse.tsx 참고.)
 import { useState } from "react";
-import { uploadFile } from "@/lib/storage";
+import { uploadRawFileToR2 } from "@/lib/r2Upload";
 import type { UniverseConfig, SpaceObject } from "@/lib/aboutSiloUniverseConfig";
 import { useDraggablePanel } from "./useDraggablePanel";
 
@@ -95,29 +95,33 @@ export function UniverseSettingsPanel({
       spaceObjects: config.spaceObjects.map((o) => (o.id === id ? { ...o, placement, scatterSeed: o.scatterSeed + 1 } : o)),
     });
   }
+  // HOTFIX-144.7(사용자 신고 — "universe setting 에서 아직도 업로드가
+  // 용량 제한이 있어, 특히 '먼우주 배경' 으로 glb 파일을 올리려 했더니
+  // 실패했어"): HOTFIX-144.5가 PlanetSettingsPanel/ObjectInspectorPanel
+  // 두 곳만 Supabase Storage(50MB 상한)에서 R2(100MB 상한)로 옮기고 이
+  // 파일(우주 공간 오브젝트/별똥별 업로드)을 빠뜨렸다 — 여기도 동일하게
+  // 옮긴다.
   async function handleSpaceUpload(kind: SpaceObject["kind"], file: File | null) {
     if (!file) return;
     setUploadingSpaceField(kind);
-    const bucket = kind === "sprite" ? "gallery" : "attachments";
-    const { url, error } = await uploadFile(file, bucket, "about-silo-universe-space");
+    const { fileUrl, error } = await uploadRawFileToR2(file);
     setUploadingSpaceField(null);
-    if (error || !url) {
+    if (error || !fileUrl) {
       alert(`업로드에 실패했어요.\n\n${error ?? "알 수 없는 오류"}`);
       return;
     }
-    addSpaceObject(kind, url);
+    addSpaceObject(kind, fileUrl);
   }
   async function handleShootingStarUpload(kind: "model" | "sprite", file: File | null) {
     if (!file) return;
     setUploadingShootingStarField(kind);
-    const bucket = kind === "sprite" ? "gallery" : "attachments";
-    const { url, error } = await uploadFile(file, bucket, "about-silo-universe-shooting-star");
+    const { fileUrl, error } = await uploadRawFileToR2(file);
     setUploadingShootingStarField(null);
-    if (error || !url) {
+    if (error || !fileUrl) {
       alert(`업로드에 실패했어요.\n\n${error ?? "알 수 없는 오류"}`);
       return;
     }
-    onChange({ shootingStars: { ...config.shootingStars, objectUrl: url, objectKind: kind } });
+    onChange({ shootingStars: { ...config.shootingStars, objectUrl: fileUrl, objectKind: kind } });
   }
 
   function updateYoutubeUrl(index: number, value: string) {

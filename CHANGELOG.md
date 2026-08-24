@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-08-25 (HOTFIX-144.7 — 오브젝트 선택 시 뜨던 "거대한 하늘색 덩어리" 제거 + Universe Settings 우주 오브젝트/별똥별 업로드도 R2로 이관)
+- **사용자 신고 1**: "오브제를 클릭하면 하늘색으로 뭔가가 너무 거대하게 오브제 모양으로 보여 그거 없애줘. 예를들어 'laputa garden robot' 오브제를 확인해봐".
+- **원인 1**: `ModelSelectionOutline`이 선택된 오브젝트의 모든 메쉬를 예외 없이 불투명한 하늘색 BackSide 셸로 덮어씌운다 — 다운로드한 .glb 에셋에 흔히 딸려오는 장식용 받침대/바닥판 메쉬는 평소엔 자기 텍스처로 배경에 자연스럽게 묻혀 안 보이지만, 이 셸 처리로 그대로 드러나며 "오브젝트 모양의 거대한 하늘색 판"처럼 보였다. 실제로 `laputa garden robot`의 .glb를 직접 파싱해 확인(scratchpad 스크립트로 GLB JSON chunk의 accessor min/max 분석) — 원형 받침 메쉬가 한 축으로는 두께 0.34, 나머지 두 축은 5.03×5.03(모델 전체 발자국의 30%)인 얇고 넓은 판이었다.
+- **수정 1**: `ModelSelectionOutline`이 아웃라인 대상 메쉬를 하나씩 훑을 때, 로컬 바운딩 박스의 가장 얇은 축이 가장 큰 축의 15% 미만이면서 나머지 두 축의 넓이가 모델 전체 발자국의 20%를 넘는 메쉬는 "받침대"로 보고 `visible = false`로 숨긴다 — 실제 오브젝트 형상(로봇 본체 등)은 이 정도로 납작하지 않아 걸리지 않는다.
+- **사용자 신고 2**: "universe setting 에서 아직도 업로드가 용량 제한이 있어, 특히 '먼우주 배경' 으로 glb 파일을 올리려 했더니 실패했어".
+- **원인 2**: HOTFIX-144.5가 Supabase Storage(50MB 상한) → R2(100MB 상한) 이관을 `PlanetSettingsPanel.tsx`/`ObjectInspectorPanel.tsx` 두 곳만 하고 `UniverseSettingsPanel.tsx`(우주 공간 오브젝트 + 별똥별 업로드, "먼 우주 배경"도 이 경로)를 빠뜨렸다 — 여전히 `src/lib/storage.ts`의 Supabase Storage를 쓰고 있었다.
+- **수정 2**: `UniverseSettingsPanel.tsx`의 `handleSpaceUpload`/`handleShootingStarUpload`도 동일하게 `uploadRawFileToR2`(R2 direct-upload, 100MB 상한)로 이관.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 경고 없음). 로컬 dev 서버 + Claude Browser 툴로 실제 `laputa garden robot`을 선택해 더 이상 거대한 하늘색 판이 뜨지 않는 것(수정 전/후 스크린샷 비교) 직접 확인.
+- **변경 파일**: `src/components/about-silo/AboutSiloUniverse.tsx`(`ModelSelectionOutline`), `src/components/about-silo/UniverseSettingsPanel.tsx`.
+
 ## 2026-08-25 (HOTFIX-144.6 — Silo Planet 오브젝트를 드래그로 회전할 수 있게)
 - **사용자 지시**: "오브제들을 회전할수 있게 해줘. 드래그 드롭으로".
 - **배경**: 기존엔 선택된 오브젝트에 이동(TransformControls "translate") 기즈모만 붙어 있었다 — 회전은 아예 저장할 필드도, 조작할 UI도 없었다. 행성 표면 오브젝트는 매 렌더 `setFromUnitVectors((0,1,0), 표면법선)`으로 orientation이 강제로 재계산되는 구조(중력 정렬)라, 단순히 회전 기즈모만 추가하면 그 정렬 로직이 매 'change' 이벤트마다 회전 조작을 즉시 덮어써 아무 효과가 없었을 것.

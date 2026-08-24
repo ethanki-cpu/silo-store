@@ -790,20 +790,44 @@ function ModelSelectionOutline({
   position?: [number, number, number];
   thickness?: number;
 }) {
+  // HOTFIX-144.7(사용자 신고 — "오브제를 클릭하면 하늘색으로 뭔가가
+  // 너무 거대하게 오브제 모양으로 보여, 'laputa garden robot' 확인해봐"):
+  // 다운로드한 .glb 에셋에는 흔히 장식용 받침대/바닥판 메쉬가 함께
+  // 들어있다 — 평소엔 자기 텍스처로 배경/오브젝트에 자연스럽게 묻혀
+  // 안 보이지만, 이 아웃라인이 모든 메쉬를 예외 없이 불투명한 하늘색
+  // BackSide 셸로 덮어써서 그 받침대까지 그대로 드러나며 "오브젝트
+  // 모양의 거대한 하늘색 판"처럼 보였다(실측: laputa garden robot의
+  // 원형 받침 메쉬가 한 축으로는 두께 0.34에 나머지 두 축은 5.03×5.03
+  // — 모델 전체 발자국의 30%). 한 축이 다른 두 축보다 훨씬 얇고(15%
+  // 미만) 그 두 축의 넓이가 모델 전체 발자국의 20%를 넘는 메쉬는
+  // "받침대"로 보고 아웃라인에서 숨긴다 — 진짜 오브젝트 형상(로봇 본체
+  // 등)은 이 정도로 납작하지 않아 걸리지 않는다.
   const outline = useMemo(() => {
     const clone = source.clone(true);
+    const totalSize = new THREE.Box3().setFromObject(clone).getSize(new THREE.Vector3());
+    const totalDims = [totalSize.x, totalSize.y, totalSize.z].sort((a, b) => b - a);
+    const totalFootprint = totalDims[0] * totalDims[1];
     clone.traverse((child) => {
       const mesh = child as THREE.Mesh;
-      if (mesh.isMesh) {
-        mesh.material = new THREE.MeshBasicMaterial({
-          color: PASTEL_SKY_BLUE,
-          transparent: true,
-          opacity,
-          side: THREE.BackSide,
-          depthWrite: false,
-          toneMapped: false,
-        });
+      if (!mesh.isMesh) return;
+      if (totalFootprint > 0) {
+        const meshSize = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+        const dims = [meshSize.x, meshSize.y, meshSize.z].sort((a, b) => b - a);
+        const flatnessRatio = dims[0] > 0 ? dims[2] / dims[0] : 0;
+        const footprintRatio = (dims[0] * dims[1]) / totalFootprint;
+        if (flatnessRatio < 0.15 && footprintRatio > 0.2) {
+          mesh.visible = false;
+          return;
+        }
       }
+      mesh.material = new THREE.MeshBasicMaterial({
+        color: PASTEL_SKY_BLUE,
+        transparent: true,
+        opacity,
+        side: THREE.BackSide,
+        depthWrite: false,
+        toneMapped: false,
+      });
     });
     return clone;
   }, [source, opacity]);

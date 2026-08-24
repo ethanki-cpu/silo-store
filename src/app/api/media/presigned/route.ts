@@ -28,6 +28,11 @@ const ALLOWED_MIME_PREFIXES = ["image/", "video/", "audio/"];
 // 확장자 목록에 매치할 때만 별도로 허용한다(이미지/영상/오디오처럼
 // MIME 신뢰만으로 통과시키지 않고, 실제 확장자를 함께 확인).
 const ALLOWED_FONT_EXTENSIONS = ["woff2", "woff", "ttf", "otf"];
+// HOTFIX-144.1(사용자 지시 — "silo planet 에 오브제 업로드 제한을 100mb
+// 로 올려줘. 필요하면 R2 로 저장공간을 옮겨줘"): Silo Planet의 캐릭터/
+// 장식 오브젝트 .glb 업로드가 이 파이프라인을 타면서 추가 — 폰트와 같은
+// 이유로 브라우저가 .glb/.gltf의 File.type을 못 채우는 경우가 흔하다.
+const ALLOWED_MODEL_EXTENSIONS = ["glb", "gltf"];
 const PRESIGNED_URL_TTL_SECONDS = 300; // 5분
 
 function sanitizeExtension(fileName: string): string {
@@ -40,7 +45,10 @@ function sanitizeExtension(fileName: string): string {
 
 function isAllowedUpload(fileType: string, ext: string): boolean {
   if (ALLOWED_MIME_PREFIXES.some((prefix) => fileType.startsWith(prefix))) return true;
-  return ALLOWED_FONT_EXTENSIONS.includes(ext) && (fileType.startsWith("font/") || fileType === "application/octet-stream" || fileType === "application/font-woff" || fileType === "application/x-font-ttf" || fileType === "application/vnd.ms-fontobject" || fileType === "");
+  if (ALLOWED_FONT_EXTENSIONS.includes(ext) && (fileType.startsWith("font/") || fileType === "application/octet-stream" || fileType === "application/font-woff" || fileType === "application/x-font-ttf" || fileType === "application/vnd.ms-fontobject" || fileType === "")) {
+    return true;
+  }
+  return ALLOWED_MODEL_EXTENSIONS.includes(ext) && (fileType.startsWith("model/") || fileType === "application/octet-stream" || fileType === "");
 }
 
 function getR2Client(): S3Client {

@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-24 (HOTFIX-144.1 — Silo Planet 오브젝트/텍스처 업로드 상한을 Supabase Storage 50MB → R2 100MB로)
+- **사용자 지시**: "silo planet 에 오브제 업로드 제한을 100mb 로 올려줘. 필요하면 R2 로 저장공간을 옮겨줘".
+- **원인**: `PlanetSettingsPanel.tsx`(행성 텍스처/위성 디자인/캐릭터 .glb/장식 오브젝트)와 `ObjectInspectorPanel.tsx`(오브젝트 썸네일)가 전부 `src/lib/storage.ts`의 Supabase Storage 업로드를 쓰고 있었는데, Supabase 무료 플랜은 파일당 50MB가 고정 상한(유료 전환 전까지 API로도 못 올림 — 기존 HOTFIX 주석에 이미 기록돼 있던 제약).
+- **수정**: 새로 만들지 않고 EPIC-082/083에서 이미 만들어둔 Cloudflare R2 direct-upload 파이프라인(presigned PUT, `src/app/api/media/presigned/route.ts`)으로 이관 — 이 라우트는 이미 `MAX_FILE_SIZE_BYTES = 100MB`로 설정돼 있어 별도 상한 조정 없이 이관만으로 100MB 상한이 적용된다. `src/lib/r2Upload.ts`에 media_library insert 없이 URL만 돌려주는 공용 헬퍼 `uploadRawFileToR2`를 추가(기존 `uploadFontToR2`와 로직 공유, `presignedPutToR2`로 추출). presigned route의 `isAllowedUpload`에 `.glb`/`.gltf` 확장자 허용 추가(브라우저가 이 확장자의 `File.type`을 못 채우는 경우가 흔해 폰트와 동일한 패턴으로 처리) — 안 하면 캐릭터 모델/장식 오브젝트 업로드가 "지원하지 않는 파일 형식"으로 막힘.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 경고 없음). 로컬 dev 서버에서 `/silo-planet` 렌더링 확인(콘솔에 기존에 없던 에러 없음). 실제 100MB 근접 파일 업로드는 로그인 세션이 필요해 이번 세션에서 직접 재현하지 않음 — 다음에 관리자 계정으로 실제 대용량 .glb 업로드 확인 필요.
+- **변경 파일**: `src/lib/r2Upload.ts`, `src/app/api/media/presigned/route.ts`, `src/components/about-silo/PlanetSettingsPanel.tsx`, `src/components/about-silo/ObjectInspectorPanel.tsx`.
+
 ## 2026-08-24 (EPIC-144 — Silo Planet 우주 오브젝트 모션 10종 추가 + 진짜같은 별똥별(orbit+tail) + 먼 우주 배경 배치 + 줌 감도/행성 크기 설정 + 설정창 바깥 클릭 시 닫기)
 - **배경**: 사용자가 한 번에 여러 요청 — (1) "모션효과가 위아래 부유 말고 작동이 안돼, 10가지 모션이 더 있으면좋겠어", (2) "진짜같은 별똥별 효과(내가 설정한 오브제가 orbit 하고 tail 이 있음 반짝이는 tail)", (3) "먼곳에 은하수, 블랙홀, nebula... 왜 전부터 요청했는데 안만들어? ... glb 파일 넣을수 있게 우주의 먼곳에 보일수 있게 하고 크기 설정할수 있게해", (4) "줌인 줌아웃이 너무 조금씩 되니까 답답해 그거도 설정할수 있게", (5) "각 행성의 크기도 설정할수 있게해줘", (6) "어떤 설정창이든 그 설정창 외부를 누르면 설정창이 해제될수 있게".
 - **(1) 모션 버그 원인 + 10종 추가**: "제자리 회전"(spin)이 이미지 빌보드(별/은하수 등 SpaceObjectSprite)에서 시각적으로 아예 안 보이던 진짜 원인은 Three.js의 Sprite가 항상 카메라를 향해 스스로 방향을 재계산해서(billboarding) 부모 group의 rotation을 완전히 무시하기 때문이었다 — `useObjectMotion`(AboutSiloUniverse.tsx)의 회전 계열 모션이 이제 스프라이트에는 group 회전 대신 `SpriteMaterial.rotation`(billboarding과 무관하게 실제로 보임)을 대신 돌리도록 수정. 기존 4개(없음/반짝임/부유/회전)에 sway/pendulum/tumble/drift/orbitSelf/figure8/flicker/shimmer/fadeInOut/nod 10개 추가(`ObjectMotion` 타입, `ObjectInspectorPanel.tsx`의 `MOTION_OPTIONS`) — 전부 기존 규칙 그대로 position/rotation/opacity만 쓰고 scale은 안 건드린다(카메라 줌 거리가 바운딩 반지름에 비례해 계산되므로).

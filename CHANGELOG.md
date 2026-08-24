@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-25 (HOTFIX-144.6 — Silo Planet 오브젝트를 드래그로 회전할 수 있게)
+- **사용자 지시**: "오브제들을 회전할수 있게 해줘. 드래그 드롭으로".
+- **배경**: 기존엔 선택된 오브젝트에 이동(TransformControls "translate") 기즈모만 붙어 있었다 — 회전은 아예 저장할 필드도, 조작할 UI도 없었다. 행성 표면 오브젝트는 매 렌더 `setFromUnitVectors((0,1,0), 표면법선)`으로 orientation이 강제로 재계산되는 구조(중력 정렬)라, 단순히 회전 기즈모만 추가하면 그 정렬 로직이 매 'change' 이벤트마다 회전 조작을 즉시 덮어써 아무 효과가 없었을 것.
+- **구현**: `UniverseObject`에 `yaw`(라디안, 기본 0) 필드 신설 — 오브젝트가 서 있는 자리의 로컬 "위" 축(표면 오브젝트는 법선, 우주 오브젝트는 identity) 기준 추가 회전. `ObjectInspectorPanel`에 "↔ 이동 / ⟳ 회전" 토글 추가(새 오브젝트 선택 시 항상 "이동"으로 리셋). `AboutSiloUniverse.tsx`의 `TransformControls`가 이 모드에 따라 `mode`를 바꾸고, 회전 모드에서는 `space="local"` + `showX/showZ=false`로 로컬 Y축 하나로만 제한(표면에서 기울어지거나 파묻히는 것 방지) — 이동 모드의 표면 재정렬 `onChange`는 회전 모드일 때 완전히 꺼둔다(안 그러면 위 배경 문단의 문제 그대로 재발). 드래그가 끝나면(`onMouseUp`) 기준 orientation(법선 정렬 또는 identity)의 역행렬을 현재 quaternion에 곱해 순수 Y축 회전만 뽑아내(로컬+단일축 제한 덕분에 축이 안 섞여 손실 없이 `Euler.y`로 복원 가능) `yaw`로 저장. 렌더링 쪽(`UniverseObjectModel`은 quaternion 곱, 우주 `.glb`(`SpaceObjectModel`)는 `rotation` prop)이 이 값을 반영.
+- **스코프 제한**: 우주 공간의 이미지 빌보드(`kind: "sprite"`, 별/은하수 등)는 Three.js Sprite가 항상 카메라를 향해 스스로 방향을 재계산해(billboarding) 부모 그룹을 돌려도 화면상 아무 효과가 없다(EPIC-144 주석에 이미 기록된 기존 한계) — 그런 오브젝트를 선택하면 회전 토글 자체를 숨긴다. 행성 표면 장식 오브젝트와 우주 공간 `.glb` 모델(`kind: "model"`)은 전부 회전 가능.
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(신규 경고 없음). 로컬 dev 서버 + Claude Browser 툴로 실제 저장된 프로덕션 오브젝트("laputa garden robot")를 선택해 "⟳ 회전" 토글 → 안내 라벨이 "고리를 드래그해서 회전"으로 바뀌는 것 확인 → 실제 드래그로 회전 → 다른 오브젝트 선택 후 재선택해도 회전된 orientation이 그대로 유지되는 것(= 상태에 실제로 저장됨, 드래그 중 시각 효과가 아님) 확인. "이동" 모드로 되돌린 뒤에도 위치 이동 기즈모가 정상적으로 재부착되는 것 확인.
+- **변경 파일**: `src/lib/aboutSiloUniverseConfig.ts`, `src/components/about-silo/AboutSiloUniverse.tsx`, `src/components/about-silo/ObjectInspectorPanel.tsx`, `src/components/about-silo/PlanetSettingsPanel.tsx`(신규 오브젝트 생성 시 `yaw: 0` 기본값), `src/components/about-silo/UniverseSettingsPanel.tsx`(신규 우주 오브젝트 동일).
+
 ## 2026-08-24 (HOTFIX-144.5 — Silo Planet 오브젝트/텍스처 업로드 상한을 Supabase Storage 50MB → R2 100MB로)
 - **사용자 지시**: "silo planet 에 오브제 업로드 제한을 100mb 로 올려줘. 필요하면 R2 로 저장공간을 옮겨줘".
 - **원인**: `PlanetSettingsPanel.tsx`(행성 텍스처/위성 디자인/캐릭터 .glb/장식 오브젝트)와 `ObjectInspectorPanel.tsx`(오브젝트 썸네일)가 전부 `src/lib/storage.ts`의 Supabase Storage 업로드를 쓰고 있었는데, Supabase 무료 플랜은 파일당 50MB가 고정 상한(유료 전환 전까지 API로도 못 올림 — 기존 HOTFIX 주석에 이미 기록돼 있던 제약).

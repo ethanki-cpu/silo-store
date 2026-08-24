@@ -89,6 +89,12 @@ export type UniverseObject = {
   // 명시적으로 "없음"을 고른 것과 "아직 한 번도 안 고른 것"을 구분하지
   // 않아도 되게 한다(어차피 의미상 차이가 없음).
   motion?: ObjectMotion;
+  // HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘. 드래그
+  // 드롭으로"): 오브젝트가 서 있는 자리(행성 표면 법선/우주 공간 identity)를
+  // 기준으로 한 로컬 Y축(위쪽) 추가 회전(라디안). AboutSiloUniverse.tsx의
+  // TransformControls가 "회전" 모드일 때 이 축으로만 드래그해 정하고,
+  // 렌더링 쪽이 기존 배치 orientation 위에 이 값을 곱해서 적용한다.
+  yaw: number;
 };
 
 // HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할 수 있는
@@ -295,6 +301,7 @@ function normalizeObject(raw: unknown): UniverseObject {
     boardSlug: o.boardSlug ?? "",
     focusDistanceMultiplier: typeof o.focusDistanceMultiplier === "number" ? o.focusDistanceMultiplier : null,
     motion: VALID_OBJECT_MOTIONS.includes(o.motion as ObjectMotion) ? o.motion : undefined,
+    yaw: typeof o.yaw === "number" ? o.yaw : 0,
   };
 }
 

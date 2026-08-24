@@ -106,6 +106,7 @@ export function PlanetSettingsPanel({
       link: "",
       boardSlug: "",
       focusDistanceMultiplier: null,
+      yaw: 0,
     };
     onChange({ objects: [...config.objects, obj] });
   }

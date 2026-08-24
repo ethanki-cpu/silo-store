@@ -66,6 +66,7 @@ export function UniverseSettingsPanel({
       link: "",
       boardSlug: "",
       focusDistanceMultiplier: null,
+      yaw: 0,
       count: kind === "sprite" ? 8 : 1,
       scatterSeed: 0,
       placement: "between",

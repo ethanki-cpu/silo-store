@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-24 (HOTFIX-144.2 — "About Silo"를 왼쪽 사이드바에, "온라인 도슨트"를 오른쪽 사이드바에 노출 체크했는데 실제 화면엔 반영 안 되던 문제)
+- **신고**: "'About Silo' 카테고리를 '왼쪽사이드바' 에 노출시키고, '온라인 도슨트' 카테고리를 '오른쪽 사이드바' 에 노출시키는 체크를 눌렀는데, 실제 왼쪽 오른쪽 사이드바에 적용이 안되고 있어."
+- **원인**: EPIC-138이 최상위 카테고리마다 노출 위치(`site_navigations.target_types`)를 복수 선택 가능하게 만들었지만, `Navbar.tsx`는 여전히 `navTabs.find(t => t.type === "sidebar-left"/"sidebar-right")`로 배열에서 딱 하나만 골라 썼다. DB 확인 결과 "About Silo"(sort_order 0)가 이미 `sidebar_left`였던 "사일로 상점"(sort_order 1)보다 먼저 오고, "온라인 도슨트"(sort_order 2)도 이미 `sidebar_right`였던 "살롱데상"(sort_order 3)보다 먼저 와서, `find()`가 새로 체크한 카테고리를 조용히 집어삼키고 기존 카테고리 쪽은 완전히 무시했다(체크박스 저장 자체는 정상 동작 — 시각적 반영만 실패). 두 카테고리가 정확히 같은 슬롯을 두고 "승자 독식"으로 경합하는 구조라 어느 쪽을 체크해도 결과가 하나로만 좁혀졌다.
+- **수정**: `navConfig.ts`에 `mergeSidebarTabs()`를 추가 — 같은 슬롯(sidebar-left/right)을 공유하는 탭이 여럿이면 `find()` 대신 `filter()`로 전부 모아 `groups`를 합친다. 패널 헤더(라벨/링크)는 `target_types`에 `dropdown`이 없는(=이 사이드바 슬롯 전용으로 만들어진) 탭을 "주인"으로 우선한다 — "사일로 상점"/"살롱데상"처럼 다른 곳에 동시 노출되지 않는 카테고리를 헤더로 유지하고, "About Silo"/"온라인 도슨트"처럼 상단 드롭다운과 겸용인 카테고리는 "손님"으로 그룹만 추가하는 방식. `Navbar.tsx`의 `leftSidebarTab`/`rightSidebarTab` 계산이 이 함수를 쓰도록 교체.
+- **검증**: `npx tsc --noEmit`/`npx eslint` 0 errors(기존 경고만 그대로). 로컬 dev 서버 + Claude Browser 툴로 `/shop` 페이지에서 실제 왼쪽 사이드바를 열어 "사일로 상점" 기존 그룹(사일로 보물들/사일로의 뮤즈 등) + "About Silo" 그룹(Silo Timeline/Daily Silo 등) 12개가 한 패널에 전부 뜨는 것, 오른쪽 사이드바에서도 "살롱데상" 기존 그룹(커뮤니티/멤버십 등) + "온라인 도슨트" 그룹(고대~왕정 등 4개 시대구간) 11개가 전부 뜨는 것을 프로그래밍적으로(DOM 조회) 확인. 패널 헤더 라벨도 여전히 "사일로 상점"/"살롱데상"으로 유지됨을 확인(체감상 회귀 없음).
+- **변경 파일**: `src/lib/navConfig.ts`, `src/components/Navbar.tsx`.
+
 ## 2026-08-24 (HOTFIX-144.1 — 게시판 설정의 "슬러그" 필드가 비어있는 기존 게시판마다 저장할 때 필수 입력 경고가 계속 뜨던 문제)
 - **신고**: "게시판의 슬러그 부분이 게시판 설정을 수정할때마다 입력하라는 알림이 뜨는데, 그렇지 않도록 설정해줘."
 - **원인**: `BoardForm.tsx`의 "슬러그" 입력란은 실제로는 URL 라우팅에 쓰이는 `boards.slug`(NOT NULL, 이 폼에서 편집 대상 아님)가 아니라 `boards.category`(nullable, `INDIVIDUAL_BOARD_DEFINITIONS` 조회 키 — 미지정 시 `BOARD_DEFINITIONS.topic`으로 자동 폴백, `src/lib/boardLayout.ts`)에 연결돼 있는데 `required` 속성이 붙어 있었다. `category`가 원래 null이어도 정상 동작하는 선택 필드인데도, DB에서 이미 11개 게시판(사일로 타임라인 포함)이 `category = null` 상태라 그 게시판 설정을 열 때마다 필드가 비어있는 채로 렌더링되고, 어떤 값을 바꿔 저장하든 브라우저 기본 "이 입력란을 작성하세요" 검증이 매번 제출을 막았다.

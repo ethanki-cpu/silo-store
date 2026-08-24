@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
-import { fetchNavTabs, getActiveNavTabKey, type NavTab, type NavItem } from "@/lib/navConfig";
+import { fetchNavTabs, getActiveNavTabKey, mergeSidebarTabs, type NavTab, type NavItem } from "@/lib/navConfig";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
@@ -460,12 +460,15 @@ export function Navbar({
   // 등 여러 독립 state를 갖고 있어 어느 하나만 바뀌어도 전체가 리렌더된다 —
   // navTabs가 최대 ~96개 항목을 갖는 배열이라(§15) find/filter/map을 매
   // 렌더마다 재계산하지 않도록 그 결과만 메모이즈한다(로직/출력은 동일).
+  // HOTFIX-144.2: 여러 카테고리가 동시에 sidebar-left/sidebar-right로
+  // 태그될 수 있어(EPIC-138) find() 하나만으로는 나머지가 무시된다 —
+  // mergeSidebarTabs가 같은 슬롯을 공유하는 탭들의 groups를 전부 합친다.
   const leftSidebarTab = useMemo(
-    () => navTabs.find((t) => t.type === "sidebar-left"),
+    () => mergeSidebarTabs(navTabs.filter((t) => t.type === "sidebar-left")),
     [navTabs],
   );
   const rightSidebarTab = useMemo(
-    () => navTabs.find((t) => t.type === "sidebar-right"),
+    () => mergeSidebarTabs(navTabs.filter((t) => t.type === "sidebar-right")),
     [navTabs],
   );
 

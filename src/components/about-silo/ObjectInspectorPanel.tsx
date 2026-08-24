@@ -57,6 +57,9 @@ export function ObjectInspectorPanel({
   onClose,
   onSave,
   saving,
+  transformMode,
+  onSetTransformMode,
+  canRotate,
 }: {
   object: UniverseObject;
   onChange: (patch: Partial<UniverseObject>) => void;
@@ -69,6 +72,18 @@ export function ObjectInspectorPanel({
   // 있다. 같은 저장 함수를 여기서도 바로 누를 수 있게 노출한다.
   onSave: () => void;
   saving: boolean;
+  // HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘. 드래그
+  // 드롭으로"): 3D 뷰의 TransformControls 기즈모 모드를 이 패널의 토글
+  // 버튼으로 바꾼다 — 실제 드래그는 AboutSiloUniverse.tsx가 처리하고,
+  // 여기는 모드 전환 UI만 담당한다.
+  transformMode: "translate" | "rotate";
+  onSetTransformMode: (mode: "translate" | "rotate") => void;
+  // 우주 공간의 이미지 빌보드(kind: "sprite")는 항상 카메라를 향해 스스로
+  // 방향을 재계산해(billboarding) 부모 그룹을 돌려도 화면상 아무 효과가
+  // 없다 — 그런 오브젝트를 선택했을 때는 회전 토글 자체를 숨긴다(부모가
+  // 계산해 넘겨줌, 이 컴포넌트의 object 타입엔 kind가 없어 여기서는 판단
+  // 못 함).
+  canRotate: boolean;
 }) {
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const [boards, setBoards] = useState<BoardOption[]>([]);
@@ -118,6 +133,24 @@ export function ObjectInspectorPanel({
         </button>
       </div>
       <div className="space-y-2">
+        {canRotate && (
+          <div className="flex overflow-hidden rounded border border-white/20 text-[10px]">
+            <button
+              type="button"
+              onClick={() => onSetTransformMode("translate")}
+              className={`flex-1 px-2 py-1 ${transformMode === "translate" ? "bg-white/20 text-white" : "bg-transparent text-white/50 hover:bg-white/10"}`}
+            >
+              ↔ 이동
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetTransformMode("rotate")}
+              className={`flex-1 px-2 py-1 ${transformMode === "rotate" ? "bg-white/20 text-white" : "bg-transparent text-white/50 hover:bg-white/10"}`}
+            >
+              ⟳ 회전
+            </button>
+          </div>
+        )}
         <label className="block text-[10px] text-white/60">
           이름
           <input

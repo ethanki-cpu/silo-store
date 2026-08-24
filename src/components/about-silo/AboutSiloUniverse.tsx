@@ -559,7 +559,9 @@ function localSurfacePlacementsFor(count: number, radius: number): SurfacePlacem
 // 오브젝트 선택 시 이동 기즈모 옆에 뜨는 안내 라벨 — target은 여러
 // 그룹 안에 중첩돼(행성의 자전 그룹 등) 있을 수 있어 로컬 position이
 // 아니라 매 프레임 실제 월드 좌표를 읽어 따라가야 한다.
-function SelectionHint({ target }: { target: THREE.Object3D }) {
+// HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘. 드래그
+// 드롭으로"): 안내 라벨도 현재 기즈모 모드(이동/회전)에 맞춰 바뀐다.
+function SelectionHint({ target, mode }: { target: THREE.Object3D; mode: "translate" | "rotate" }) {
   const ref = useRef<THREE.Group>(null);
   useFrame(() => {
     if (!ref.current) return;
@@ -570,7 +572,7 @@ function SelectionHint({ target }: { target: THREE.Object3D }) {
     <group ref={ref}>
       <Html center distanceFactor={8} occlude={false} style={{ pointerEvents: "none" }}>
         <div className="whitespace-nowrap rounded-full bg-black/75 px-3 py-1 text-[11px] text-white shadow-lg">
-          여기를 클릭해서 이동
+          {mode === "rotate" ? "고리를 드래그해서 회전" : "여기를 클릭해서 이동"}
         </div>
       </Html>
     </group>
@@ -658,11 +660,20 @@ function UniverseObjectModel({
     materialsRef.current = collectTransparentMaterials(normalized);
   }, [normalized, materialsRef]);
 
+  // HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘. 드래그
+  // 드롭으로"): 표면 정렬(placement.quaternion, "위쪽"을 법선에 맞춤) 위에
+  // 관리자가 회전 기즈모로 정한 로컬 Y축(=법선) 추가 회전을 곱한다 —
+  // Scene의 TransformControls가 "회전" 모드일 때 이 축으로만 돌리므로
+  // 표면에서 뜨거나 파묻히지 않고 제자리에서 스핀한다.
+  const finalQuaternion = obj.yaw
+    ? placement.quaternion.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), obj.yaw))
+    : placement.quaternion;
+
   return (
     <group
       ref={registerRef}
       position={placement.position}
-      quaternion={placement.quaternion}
+      quaternion={finalQuaternion}
       scale={obj.scale}
       onClick={(e) => {
         e.stopPropagation();
@@ -1029,10 +1040,15 @@ function SpaceObjectModel({
     materialsRef.current = collectTransparentMaterials(normalized);
   }, [normalized, materialsRef]);
 
+  // HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘. 드래그
+  // 드롭으로"): 우주 공간 .glb 오브젝트는 표면 정렬이 없어(중력 없음)
+  // yaw를 그대로 로컬 Y 회전으로 쓴다 — spinRef의 상시 자전은 이 안쪽
+  // 자식 그룹이라 그대로 얹혀 함께 돈다.
   return (
     <group
       ref={registerRef}
       position={position}
+      rotation={[0, obj.yaw || 0, 0]}
       scale={obj.scale * scaleJitter}
       onClick={(e) => {
         e.stopPropagation();
@@ -1976,6 +1992,9 @@ function Scene({
   onSelectSpaceObject,
   onSpaceObjectError,
   onSpaceObjectMoved,
+  transformMode,
+  onObjectRotated,
+  onSpaceObjectRotated,
 }: {
   siloPosts: FeedPost[];
   userPosts: FeedPost[];
@@ -2004,6 +2023,12 @@ function Scene({
   onSelectSpaceObject: (id: string) => void;
   onSpaceObjectError: (id: string) => void;
   onSpaceObjectMoved: (id: string, position: [number, number, number]) => void;
+  // HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘. 드래그
+  // 드롭으로"): 선택된 오브젝트의 TransformControls 모드 — 부모
+  // (AboutSiloUniverse)가 ObjectInspectorPanel의 토글 버튼으로 관리한다.
+  transformMode: "translate" | "rotate";
+  onObjectRotated: (planetId: PlanetId, id: string, yaw: number) => void;
+  onSpaceObjectRotated: (id: string, yaw: number) => void;
 }) {
   // EPIC-144(사용자 지시 — "각 행성의 크기도 설정할수 있게해줘"): 드래그로
   // 옮긴 오브젝트를 표면에 다시 투영할 때도 CentralPlanet/UserPlanet
@@ -2070,18 +2095,30 @@ function Scene({
       {selectedGroup && (
         <TransformControls
           object={selectedGroup}
-          mode="translate"
+          mode={transformMode}
+          // HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘.
+          // 드래그 드롭으로"): 회전은 "제자리에 선 채로 스핀"만 지원한다
+          // — 로컬(space="local") Y축(=표면 오브젝트는 그 지점의 법선,
+          // 우주 오브젝트는 identity 기준 위쪽) 하나로만 제한해 X/Z까지
+          // 자유롭게 돌리면 표면에서 기울어지거나 파묻혀 보이는 문제를
+          // 피한다.
+          space="local"
+          showX={transformMode === "translate"}
+          showZ={transformMode === "translate"}
           onMouseDown={() => {
             if (cameraControlsRef.current) cameraControlsRef.current.enabled = false;
           }}
-          // "중력": 드래그하는 동안에도 매 프레임 이 행성의 로컬 원점 기준
-          // 구면 위로 위치를 투영하고 방향을 그 지점 법선에 맞춰, 표면을
-          // 따라 미끄러지듯 이동하는 느낌을 준다. 오브젝트가 이제 행성의
-          // 자전 그룹 안에 중첩돼 있어 .position은 이미 행성 로컬 좌표다.
-          // 우주 공간 오브젝트는 중력이 없어 자유롭게 어디로든 옮길 수
-          // 있으므로 이 보정을 건너뛴다.
+          // "중력": 이동 모드에서 드래그하는 동안 매 프레임 이 행성의
+          // 로컬 원점 기준 구면 위로 위치를 투영하고 방향을 그 지점
+          // 법선에 맞춰, 표면을 따라 미끄러지듯 이동하는 느낌을 준다.
+          // 오브젝트가 행성의 자전 그룹 안에 중첩돼 있어 .position은
+          // 이미 행성 로컬 좌표다. 우주 공간 오브젝트는 중력이 없어
+          // 자유롭게 어디로든 옮길 수 있으므로 이 보정을 건너뛴다.
+          // 회전 모드에서는 이 보정을 절대 켜면 안 된다 — 매 'change'
+          // 이벤트마다 quaternion을 법선 정렬값으로 덮어써 회전 드래그가
+          // 아예 눈에 안 보이게 된다.
           onChange={
-            isSpaceSelection
+            isSpaceSelection || transformMode === "rotate"
               ? undefined
               : () => {
                   const normal = selectedGroup.position.clone().normalize();
@@ -2091,6 +2128,29 @@ function Scene({
           }
           onMouseUp={() => {
             if (cameraControlsRef.current) cameraControlsRef.current.enabled = true;
+            if (transformMode === "rotate") {
+              // 표면 오브젝트의 "기준 orientation"(yaw=0)은 항상 그
+              // 자리(위치는 회전 중 안 바뀜)의 법선 정렬 quaternion —
+              // UniverseObjectsLayer/localSurfacePlacementsFor와 동일한
+              // 공식. 우주 오브젝트는 기준이 identity(회전 없음). local
+              // 공간 + Y축 단일 제한 덕분에 기준값의 역행렬을 곱해 뺀
+              // 나머지는 항상 순수 Y축 회전이라 Euler.y로 그대로 각도를
+              // 복원할 수 있다(축이 안 섞여 손실 없음).
+              const baseQuaternion = isSpaceSelection
+                ? new THREE.Quaternion()
+                : new THREE.Quaternion().setFromUnitVectors(
+                    new THREE.Vector3(0, 1, 0),
+                    selectedGroup.position.clone().normalize(),
+                  );
+              const relative = baseQuaternion.clone().invert().multiply(selectedGroup.quaternion);
+              const yaw = new THREE.Euler().setFromQuaternion(relative, "XYZ").y;
+              if (isSpaceSelection && selectedSpaceObjectId) {
+                onSpaceObjectRotated(selectedSpaceObjectId, yaw);
+              } else if (selectedObjectId && selectedPlanetId) {
+                onObjectRotated(selectedPlanetId, selectedObjectId, yaw);
+              }
+              return;
+            }
             const finalPosition = selectedGroup.position.toArray() as [number, number, number];
             if (isSpaceSelection && selectedSpaceObjectId) {
               onSpaceObjectMoved(selectedSpaceObjectId, finalPosition);
@@ -2100,7 +2160,7 @@ function Scene({
           }}
         />
       )}
-      {selectedGroup && <SelectionHint target={selectedGroup} />}
+      {selectedGroup && <SelectionHint target={selectedGroup} mode={transformMode} />}
 
       <SpaceObjectsLayer
         objects={spaceObjects}
@@ -2311,6 +2371,12 @@ export function AboutSiloUniverse() {
   const [selectedPlanetId, setSelectedPlanetId] = useState<PlanetId | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const objectRefs = useRef<Map<string, THREE.Group>>(new Map());
+  // HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘. 드래그
+  // 드롭으로"): 선택된 오브젝트의 TransformControls 기즈모 모드 —
+  // ObjectInspectorPanel의 "이동"/"회전" 토글로 바꾼다. 새 오브젝트를
+  // 선택할 때마다 "이동"으로 되돌려, 이전 선택에서 회전 모드였던 게
+  // 새 오브젝트에도 그대로 남아 헷갈리는 일을 막는다.
+  const [transformMode, setTransformMode] = useState<"translate" | "rotate">("translate");
 
   // C3(사용자 지시 — "오브제를 클릭하면 오브제를 중심으로 화면이
   // 되어야지"): 오브젝트를 선택할 때 그 오브젝트의 실제 월드 좌표(행성
@@ -2374,6 +2440,7 @@ export function AboutSiloUniverse() {
     setSelectedPlanetId(planetId);
     setSelectedObjectId(id);
     setSelectedPost(null);
+    setTransformMode("translate");
     const obj = panelConfig.planets[planetId].objects.find((o) => o.id === id);
     focusCameraOnObject(`${planetId}:${id}`, obj?.focusDistanceMultiplier ?? null);
   }
@@ -2426,6 +2493,9 @@ export function AboutSiloUniverse() {
   function handleObjectMoved(planetId: PlanetId, id: string, position: [number, number, number]) {
     updateObject(planetId, id, { position });
   }
+  function handleObjectRotated(planetId: PlanetId, id: string, yaw: number) {
+    updateObject(planetId, id, { yaw });
+  }
 
   // HOTFIX(사용자 지시 — "universe setting에서 오브제를 업로드할 수
   // 있는 게 없네... 별, 은하수, 별똥별, asteroid 등등"): 어느 행성에도
@@ -2437,6 +2507,7 @@ export function AboutSiloUniverse() {
     setSelectedObjectId(null);
     setSelectedPlanetId(null);
     setSelectedPost(null);
+    setTransformMode("translate");
     const obj = panelConfig.spaceObjects.find((o) => o.id === id);
     focusCameraOnObject(`space:${id}`, obj?.focusDistanceMultiplier ?? null);
   }
@@ -2458,6 +2529,9 @@ export function AboutSiloUniverse() {
   }
   function handleSpaceObjectMoved(id: string, position: [number, number, number]) {
     updateSpaceObject(id, { position });
+  }
+  function handleSpaceObjectRotated(id: string, yaw: number) {
+    updateSpaceObject(id, { yaw });
   }
 
   const configRef = useRef(panelConfig);
@@ -2668,6 +2742,7 @@ export function AboutSiloUniverse() {
     setSelectedObjectId(null);
     setSelectedPlanetId(null);
     setSelectedSpaceObjectId(null);
+    setTransformMode("translate");
     restoreBaseMinDistance();
   }
 
@@ -2682,6 +2757,13 @@ export function AboutSiloUniverse() {
   // 구조가 같은 UniverseObject 모양이라 그대로 재사용한다 — onChange/
   // onDelete만 어느 쪽이 선택됐는지에 따라 갈라 보낸다.
   const selectedObject = selectedPlanetObject ?? selectedSpaceObject;
+  // HOTFIX-144.6(사용자 지시 — "오브제들을 회전할수 있게 해줘. 드래그
+  // 드롭으로"): 우주 공간의 이미지 빌보드(kind: "sprite")는 항상 카메라를
+  // 향해 스스로 방향을 재계산해(billboarding) 부모 그룹 회전이 화면상
+  // 아무 효과가 없다(UniverseObjectModel 위 주석 참고) — 그런 오브젝트는
+  // 회전 토글 자체를 숨긴다. 행성 표면 오브젝트/우주 .glb 모델은 항상 회전
+  // 가능.
+  const canRotateSelectedObject = selectedSpaceObject ? selectedSpaceObject.kind !== "sprite" : true;
   function handleSelectedObjectChange(patch: Partial<UniverseObject>) {
     if (selectedPlanetObject && selectedPlanetId && selectedObjectId) {
       updateObject(selectedPlanetId, selectedObjectId, patch);
@@ -2758,6 +2840,9 @@ export function AboutSiloUniverse() {
             onSelectSpaceObject={handleSelectSpaceObject}
             onSpaceObjectError={handleSpaceObjectError}
             onSpaceObjectMoved={handleSpaceObjectMoved}
+            transformMode={transformMode}
+            onObjectRotated={handleObjectRotated}
+            onSpaceObjectRotated={handleSpaceObjectRotated}
           />
         )}
       </Canvas>
@@ -2834,6 +2919,9 @@ export function AboutSiloUniverse() {
             onClose={handleCloseObjectPanels}
             onSave={handleSave}
             saving={saving}
+            transformMode={transformMode}
+            onSetTransformMode={setTransformMode}
+            canRotate={canRotateSelectedObject}
           />
         )}
 

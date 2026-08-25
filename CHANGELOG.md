@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-25 (EPIC-147-후속 — 온라인 도슨트 leaf 게시판 전부를 Timeline NG로 일괄 전환, 코드 변경 없음)
+- **사용자 지시**: "온라인 도슨트의 모든 하위 카테고리 페이지의 게시판들을 Timeline NG 로 바꿔줘 일일이 내가 지정하기 불편해" — EPIC-147 완료 시점에는 `group_key='docent'`로만 필터링해 르네상스/바로크 2개만 찾았는데, 실제로는 나머지 11개 leaf 게시판이 `group_key`가 비어있는 채로(카테고리 slug만 site_navigations 트리와 일치) 존재하고 있었다.
+- **찾은 나머지 11개**(전체 boards 테이블을 다시 훑어 `site_navigations`의 "온라인 도슨트" 3단 트리 leaf와 이름/slug로 대조): 그리스(greeks)/로코코(rococo)/신고전주의(neoclassicism)/리젠시(regency)/빅토리아(victoria)/인상파(impressionism-club)/아르누보(art-nouveau)/아르데코(art-deco)/비트 세대(beat-generation)/카운터 컬처(counter-culture)/대중 문화(digital, "디지털~A.I 문화" 리프에 대응). Management API로 `render_type = 'timeline_ng'` 일괄 UPDATE(CHECK 제약은 EPIC-147에서 이미 확장돼 있어 추가 DDL 불필요).
+- **검증**: 코드 변경 없이 순수 데이터 전환이라 별도 tsc/lint 불필요. 로컬 dev 서버 + Claude Browser 툴로 그리스/인상파 게시판을 직접 열어 SlidePlayer가 정상 마운트되는 것 확인(각각 실제 게시글 데이터로 렌더링).
+- **결과**: 이제 "온라인 도슨트" 산하 leaf 게시판 13개(르네상스/바로크 포함) + "사일로 타임라인" 전부 Timeline NG로 렌더링됨 — EPIC-147이 만든 렌더러/API 코드는 전혀 안 바뀌었고 DB의 `render_type` 값만 게시판별로 켜졌다.
+- **변경 파일**: 없음(DB 데이터만 변경) — CHANGELOG.md/NEXT_TASK.md만 기록.
+
 ## 2026-08-25 (EPIC-147 — 사일로 게시글을 Knight Lab "Timeline NG" 인터랙티브 슬라이드로 렌더링, 게시판 목록(List)을 대체)
 - **사용자 지시**: 첨부 `Timeline Json.docx`(Knight Lab TimelineJS의 Svelte 5 재구현 "Timeline NG" 문서)를 숙지하고, 그 JSON 구조와 프론트엔드(SlidePlayer)를 그대로 써서 사일로 게시판 글을 인터랙티브 타임라인으로 렌더링 — "온라인 도슨트"의 leaf 게시판들과 "About Silo"의 "사일로 타임라인" 게시판에서 기존 목록 뷰를 대체.
 - **문서 조사**: docx(pandoc 미설치라 docx를 직접 unzip해 word/document.xml + 임베드 이미지 파싱) + GitHub(`NUKnightLab/timeline-ng`, 2026-07-29 npm 0.3.0 배포)로 실제 API 확인 — `@knight-lab/timeline-ng`(Svelte 5 컴포넌트 `SlidePlayer`/`loadTimeline`)와 `@knight-lab/timeline-ng-core`(TLTimeline 스키마 타입) 둘 다 실재하는 패키지임을 확인.

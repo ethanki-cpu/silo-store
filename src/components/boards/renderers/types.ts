@@ -51,4 +51,9 @@ export type BoardRendererProps = {
   timelineLineWidthPx?: number;
   timelineMarkerSizePx?: number;
   timelineCardTheme?: "light" | "dark";
+  // EPIC-147-후속(사용자 지시 — "타임라인의 윗부분... 위아래 폭이 너무
+  // 좁아 설정할수 있게 해줘"): TimelineNgRenderer(클래식 TimelineJS3)의
+  // 슬라이드(미디어+제목+설명) 영역 높이(px) — boards.widget_settings에서
+  // 옴, TimelineNgRenderer만 쓴다.
+  timelineNgStageHeightPx?: number;
 };

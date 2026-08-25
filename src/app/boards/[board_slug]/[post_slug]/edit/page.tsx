@@ -46,6 +46,9 @@ export default function EditPostPage() {
     category: string | null;
     created_at: string;
     additionalBoardSlugs?: string[];
+    timeline_year?: number | null;
+    timeline_end_year?: number | null;
+    timeline_display_date?: string | null;
   } | null>(null);
   const [existingTags, setExistingTags] = useState<string[]>([]);
   // HOTFIX-093-B(요구사항 1.2): 주 게시판 외에 추가로 노출 중인 게시판 목록.
@@ -64,7 +67,7 @@ export default function EditPostPage() {
     loading: boardsLoading,
   } = useBoardOptions(session);
   const [selectedBoardSlug, setSelectedBoardSlug] = useState(boardSlug);
-  const { boardType, boardCategory } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
+  const { boardType, boardCategory, renderType } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
   const definition = boardType
     ? resolveBoardDefinition({ board_type: boardType, category: boardCategory })
     : null;
@@ -148,6 +151,13 @@ export default function EditPostPage() {
         ...(payload.createdAt ? { createdAt: payload.createdAt } : {}),
         // HOTFIX-099(사용자 지시): 관리자가 작성자를 바꿨을 때만 실려온다.
         ...(payload.authorId ? { authorId: payload.authorId } : {}),
+        ...(renderType === "timeline_ng"
+          ? {
+              timelineYear: payload.timelineYear,
+              timelineEndYear: payload.timelineEndYear,
+              timelineDisplayDate: payload.timelineDisplayDate,
+            }
+          : {}),
         additionalBoardSlugs,
       }),
     });
@@ -288,6 +298,10 @@ export default function EditPostPage() {
         initialCategory={post.category}
         initialCreatedAt={post.created_at}
         initialAuthorName={post.author_name}
+        showTimelineDateFields={renderType === "timeline_ng"}
+        initialTimelineYear={post.timeline_year}
+        initialTimelineEndYear={post.timeline_end_year}
+        initialTimelineDisplayDate={post.timeline_display_date}
         draftStorageKey={`draft-edit-${postSlug}`}
         submitLabel="수정 완료"
         onSubmit={handleSubmit}

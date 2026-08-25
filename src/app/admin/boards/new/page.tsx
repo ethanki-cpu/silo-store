@@ -48,6 +48,7 @@ export default function AdminBoardNewPage() {
           ...(values.timeline_line_width_px ? { timelineLineWidthPx: values.timeline_line_width_px } : {}),
           ...(values.timeline_marker_size_px ? { timelineMarkerSizePx: values.timeline_marker_size_px } : {}),
           ...(values.timeline_card_theme ? { timelineCardTheme: values.timeline_card_theme } : {}),
+          ...(values.timeline_ng_stage_height_px ? { timelineNgStageHeightPx: values.timeline_ng_stage_height_px } : {}),
           ...(buildPostMetaStyle(values) ? { postMetaStyle: buildPostMetaStyle(values) } : {}),
           ...(values.post_layout_order.join(",") !== DEFAULT_POST_LAYOUT_ORDER.join(",")
             ? { postLayoutOrder: values.post_layout_order }

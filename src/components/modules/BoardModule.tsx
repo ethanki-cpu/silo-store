@@ -237,6 +237,7 @@ export function BoardModule({
         timelineMarkerSizePx={board?.widget_settings?.timelineMarkerSizePx}
         timelineCardTheme={board?.widget_settings?.timelineCardTheme}
         postMetaStyle={board?.widget_settings?.postMetaStyle}
+        timelineNgStageHeightPx={board?.widget_settings?.timelineNgStageHeightPx}
       />
 
       {definition.pageable && paginationEnabled !== false && (

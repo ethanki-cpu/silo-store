@@ -80,6 +80,10 @@ export type BoardFormValues = {
   timeline_line_width_px: number; // 0 = 미지정(기본 2px)
   timeline_marker_size_px: number; // 0 = 미지정(기본 14px)
   timeline_card_theme: string; // "" | "light" | "dark" ("" = light과 동일)
+  // EPIC-147-후속(사용자 지시 — "타임라인의 윗부분... 위아래 폭이 너무
+  // 좁아 설정할수 있게 해줘"): Timeline NG(클래식 TimelineJS3) 슬라이드
+  // 영역 높이(px) — TL.Timeline의 `height` 옵션으로 그대로 전달된다.
+  timeline_ng_stage_height_px: number; // 0 = 미지정(TimelineJS3 기본값)
   // EPIC-096(요구사항 3.1): 게시글 상세 페이지의 5개 블록(메타데이터/태그/
   // 본문/좋아요·북마크/댓글) 노출 순서 — widget_settings.postLayoutOrder로
   // 저장된다. 기본 순서(DEFAULT_POST_LAYOUT_ORDER)와 같으면 저장하지 않는다
@@ -173,6 +177,7 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   timeline_line_width_px: 0,
   timeline_marker_size_px: 0,
   timeline_card_theme: "",
+  timeline_ng_stage_height_px: 0,
   post_layout_order: DEFAULT_POST_LAYOUT_ORDER,
 };
 
@@ -880,6 +885,30 @@ export function BoardForm({
           </div>
         )}
 
+        {/* EPIC-147-후속(사용자 지시 — "타임라인의 윗부분 '미디어 와 제목,
+            설명'의 위아래 폭이 너무 좁아 설정할수 있게 해줘"): Timeline
+            NG(클래식 TimelineJS3) 전용 설정 — 슬라이드 영역 높이만 우선
+            노출한다(다른 세부 스타일은 TimelineJS3 자체 기본값을 그대로 씀). */}
+        {values.render_type === "timeline_ng" && (
+          <div className="grid grid-cols-2 gap-4 rounded-md border border-gray-200 p-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">슬라이드 영역 높이 (px)</label>
+              <input
+                type="number"
+                min={300}
+                max={1200}
+                value={values.timeline_ng_stage_height_px || ""}
+                onChange={(e) => update("timeline_ng_stage_height_px", Number(e.target.value) || 0)}
+                placeholder="기본값(자동)"
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <p className="col-span-2 text-xs text-gray-400">
+              미디어/제목/설명이 표시되는 위쪽 영역의 세로 크기예요. 하단 연대표(TimeNav)는 이 값과 무관하게 항상 같은 높이를 유지해요.
+            </p>
+          </div>
+        )}
+
         {/* HOTFIX-093-B(요구사항 1.3): "게시물 출력방식" — 게시글 상세의
             날짜/작성자 텍스트 스타일 커스텀. 값을 비워두면(0/"") 기존
             기본 스타일 그대로 렌더링된다(PostDetailHeader.tsx). */}
@@ -1260,6 +1289,7 @@ export function BoardForm({
             timelineLineWidthPx={values.timeline_line_width_px || undefined}
             timelineMarkerSizePx={values.timeline_marker_size_px || undefined}
             timelineCardTheme={values.timeline_card_theme === "dark" ? "dark" : values.timeline_card_theme === "light" ? "light" : undefined}
+            timelineNgStageHeightPx={values.timeline_ng_stage_height_px || undefined}
             postMetaStyle={buildPostMetaStyle(values) ?? {}}
           />
         </div>

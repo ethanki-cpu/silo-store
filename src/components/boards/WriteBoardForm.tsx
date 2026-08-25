@@ -37,7 +37,7 @@ export function WriteBoardForm({
     loading: boardsLoading,
   } = useBoardOptions(session);
   const [selectedBoardSlug, setSelectedBoardSlug] = useState(initialBoardSlug);
-  const { boardType, boardCategory } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
+  const { boardType, boardCategory, renderType } = useSelectedBoardTypeAndCategory(selectedBoardSlug);
   // HOTFIX-093-B(요구사항 1.2): 주 게시판(selectedBoardSlug) 외에 이 글을
   // 추가로 노출할 게시판들 — 체크박스 다중 선택.
   const [additionalBoardSlugs, setAdditionalBoardSlugs] = useState<string[]>([]);
@@ -107,6 +107,13 @@ export function WriteBoardForm({
         tags: payload.tags,
         ...(boardType === "adoption_story" ? { orderId: payload.orderId } : {}),
         ...(payload.createdAt ? { createdAt: payload.createdAt } : {}),
+        ...(renderType === "timeline_ng"
+          ? {
+              timelineYear: payload.timelineYear,
+              timelineEndYear: payload.timelineEndYear,
+              timelineDisplayDate: payload.timelineDisplayDate,
+            }
+          : {}),
         additionalBoardSlugs,
       }),
     });
@@ -203,6 +210,7 @@ export function WriteBoardForm({
             mode="create"
             boardId={selectedBoardSlug}
             boardType={boardType}
+            showTimelineDateFields={renderType === "timeline_ng"}
             showTags={Boolean(definition?.tags)}
             confirmedOrders={confirmedOrders}
             existingTags={existingTags}

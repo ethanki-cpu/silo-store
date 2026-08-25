@@ -40,6 +40,13 @@ export type PostFormSubmitPayload = {
   /** HOTFIX-099(사용자 지시): 관리자가 작성자를 다른 회원으로 바꿨을 때만
    * 채워진다 — 값이 있을 때만 서버가 posts.author_id를 덮어쓴다. */
   authorId?: string;
+  /** EPIC-147-후속(사용자 지시 — "게시글이 쓰여진 날과는 독립적인,
+   * 타임라인에 등장하는 연대를 설정할수 있도록 해줘"): Timeline NG
+   * 게시판에서만 보이는 연대 필드 — 비어있으면 서버가 created_at으로
+   * 폴백한다. */
+  timelineYear?: number | null;
+  timelineEndYear?: number | null;
+  timelineDisplayDate?: string | null;
 };
 
 type MemberSearchResult = { id: string; name: string; email: string };
@@ -155,6 +162,10 @@ export function PostForm({
   initialCategory = null,
   initialCreatedAt,
   initialAuthorName,
+  showTimelineDateFields = false,
+  initialTimelineYear = null,
+  initialTimelineEndYear = null,
+  initialTimelineDisplayDate = "",
   draftStorageKey,
   submitLabel,
   onSubmit,
@@ -189,6 +200,12 @@ export function PostForm({
    * 넘어옴, create 모드는 작성자가 항상 글쓴이 본인이라 이 필드 자체가
    * 없다). */
   initialAuthorName?: string;
+  /** EPIC-147-후속: 이 게시판이 Timeline NG(render_type==="timeline_ng")면
+   * true — 연대 직접 지정 필드를 보여준다. */
+  showTimelineDateFields?: boolean;
+  initialTimelineYear?: number | null;
+  initialTimelineEndYear?: number | null;
+  initialTimelineDisplayDate?: string | null;
   draftStorageKey: string;
   submitLabel: string;
   onSubmit: (payload: PostFormSubmitPayload) => Promise<void>;
@@ -214,6 +231,16 @@ export function PostForm({
   // EPIC-092(요구사항 1): 관리자 전용 "등록 날짜/시간" — initialCreatedAt이
   // ISO든 "YYYY-MM-DD"(캘린더 "+ 글 등록" pre-fill)든 datetime-local 형식
   // ("YYYY-MM-DDTHH:mm")으로 정규화해 보여준다.
+  // EPIC-147-후속(사용자 지시): Timeline NG 연대 필드 — 숫자 입력은
+  // 빈 문자열도 허용해야 해서(0과 미입력을 구분) string으로 들고 있다가
+  // 제출 시 숫자로 변환한다.
+  const [timelineYear, setTimelineYear] = useState(
+    initialTimelineYear != null ? String(initialTimelineYear) : "",
+  );
+  const [timelineEndYear, setTimelineEndYear] = useState(
+    initialTimelineEndYear != null ? String(initialTimelineEndYear) : "",
+  );
+  const [timelineDisplayDate, setTimelineDisplayDate] = useState(initialTimelineDisplayDate ?? "");
   const [createdAtLocal, setCreatedAtLocal] = useState(() =>
     initialCreatedAt
       ? initialCreatedAt.includes("T")
@@ -306,6 +333,13 @@ export function PostForm({
       ...(boardType === "adoption_story" ? { orderId } : {}),
       ...(member?.is_admin && createdAtLocal ? { createdAt: new Date(createdAtLocal).toISOString() } : {}),
       ...(member?.is_admin && newAuthorId ? { authorId: newAuthorId } : {}),
+      ...(showTimelineDateFields
+        ? {
+            timelineYear: timelineYear.trim() ? Number(timelineYear) : null,
+            timelineEndYear: timelineEndYear.trim() ? Number(timelineEndYear) : null,
+            timelineDisplayDate: timelineDisplayDate.trim() || null,
+          }
+        : {}),
     });
 
     if (mode === "create") localStorage.removeItem(draftStorageKey);
@@ -348,6 +382,47 @@ export function PostForm({
           className="w-full rounded-md border border-gray-300 px-3 py-2"
         />
       </div>
+
+      {showTimelineDateFields && (
+        <div className="rounded-md border border-gray-200 p-3 space-y-3">
+          <p className="text-sm font-medium text-gray-700">타임라인 연대</p>
+          <p className="text-xs text-gray-400">
+            이 글이 타임라인에서 표시될 시대예요 — 게시글을 실제로 작성한 날짜(등록 날짜/시간)와는 별개예요. 비워두면 등록 날짜를 그대로 써요.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">시작 연도</label>
+              <input
+                type="number"
+                value={timelineYear}
+                onChange={(e) => setTimelineYear(e.target.value)}
+                placeholder="예: 1750 (BC는 음수)"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">끝 연도 (범위일 때만)</label>
+              <input
+                type="number"
+                value={timelineEndYear}
+                onChange={(e) => setTimelineEndYear(e.target.value)}
+                placeholder="예: 1850"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">표시 텍스트 (선택)</label>
+            <input
+              type="text"
+              value={timelineDisplayDate}
+              onChange={(e) => setTimelineDisplayDate(e.target.value)}
+              placeholder='예: "circa 1750" — 비워두면 연도를 그대로 보여줘요'
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+      )}
 
       {member?.is_admin && (
         <div>

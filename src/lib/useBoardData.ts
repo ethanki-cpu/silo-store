@@ -31,6 +31,9 @@ type Board = {
     // HOTFIX-098: 날짜/작성자 스타일 — 지금까지 게시글 상세에만 적용되던
     // 것을 타임라인 라벨/미리보기에도 반영한다.
     postMetaStyle?: PostMetaStyle;
+    // EPIC-147-후속(사용자 지시): TimelineNgRenderer(클래식 TimelineJS3)의
+    // 슬라이드(미디어+제목+설명) 영역 높이(px).
+    timelineNgStageHeightPx?: number;
   } | null;
 };
 

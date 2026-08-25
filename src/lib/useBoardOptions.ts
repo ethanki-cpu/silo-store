@@ -96,23 +96,28 @@ export function useBoardOptions(session: Session | null | undefined): {
   return { boards, tree, branches, boardBranchMap, loading, error };
 }
 
-/** 선택된 게시판 slug가 바뀔 때마다 그 게시판의 board_type/category를 다시 조회한다. */
+/** 선택된 게시판 slug가 바뀔 때마다 그 게시판의 board_type/category/render_type을 다시 조회한다. */
 export function useSelectedBoardTypeAndCategory(selectedBoardSlug: string) {
   const [boardType, setBoardType] = useState<string | null>(null);
   const [boardCategory, setBoardCategory] = useState<string | null>(null);
+  // EPIC-147-후속: board_type(권한 판정 축)과 별개로, 글쓰기 폼이 Timeline
+  // NG 전용 필드(연대 직접 지정)를 보여줄지 판단하려면 render_type(레이아웃
+  // 축)도 필요하다.
+  const [renderType, setRenderType] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedBoardSlug) return;
     supabase
       .from("boards")
-      .select("board_type, category")
+      .select("board_type, category, render_type")
       .eq("slug", selectedBoardSlug)
       .single()
       .then(({ data }) => {
         setBoardType(data?.board_type ?? null);
         setBoardCategory(data?.category ?? null);
+        setRenderType(data?.render_type ?? null);
       });
   }, [selectedBoardSlug]);
 
-  return { boardType, boardCategory };
+  return { boardType, boardCategory, renderType };
 }

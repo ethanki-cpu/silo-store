@@ -24,6 +24,13 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // EPIC-147-후속: public/vendor/timelinejs는 자체 호스팅용으로 복사해
+    // 넣은 서드파티 배포 산출물(TimelineJS3 dist 번들)이지 우리 소스가
+    // 아니다 — 이 override 목록이 next의 기본 무시 목록을 완전히 대체하므로
+    // 여기 추가하지 않으면 "public/**"이 더 이상 무시되지 않는다(실측: 이
+    // 항목을 추가하기 전엔 ESLint가 미니파이된 timeline.js를 그대로
+    // 파싱해 수백 개의 가짜 에러를 냈다).
+    "public/**",
   ]),
 ]);
 

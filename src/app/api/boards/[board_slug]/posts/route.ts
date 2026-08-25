@@ -382,6 +382,12 @@ export async function POST(
   const featuredImagePath = (body?.featuredImagePath as string | null | undefined) ?? null;
   const thumbnailVisible = body?.thumbnailVisible === undefined ? true : Boolean(body.thumbnailVisible);
   const category = (body?.category as string | null | undefined) ?? null;
+  // EPIC-147-후속(사용자 지시 — 타임라인 게시판 전용 연대 필드, 작성일과
+  // 무관하게 지정 가능): 값이 없으면(null) /api/timeline/events가
+  // created_at으로 폴백한다.
+  const timelineYear = typeof body?.timelineYear === "number" ? body.timelineYear : null;
+  const timelineEndYear = typeof body?.timelineEndYear === "number" ? body.timelineEndYear : null;
+  const timelineDisplayDate = typeof body?.timelineDisplayDate === "string" ? body.timelineDisplayDate : null;
   const tags =
     definition.tags && Array.isArray(body?.tags)
       ? (body.tags as unknown[])
@@ -479,6 +485,9 @@ export async function POST(
       order_id: validatedOrderId,
       tags,
       slug,
+      timeline_year: timelineYear,
+      timeline_end_year: timelineEndYear,
+      timeline_display_date: timelineDisplayDate,
       ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
     })
     .select()

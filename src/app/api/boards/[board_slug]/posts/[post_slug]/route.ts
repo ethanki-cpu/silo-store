@@ -10,7 +10,7 @@ import { slugify } from "@/lib/slugify";
 import { fetchAdditionalBoardSlugs, fetchCrossPostedPostIds, syncPostBoards } from "@/lib/postBoards";
 
 const richFields =
-  "id, board_id, slug, title, body, body_json, featured_image_url, featured_image_path, thumbnail_visible, category, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at";
+  "id, board_id, slug, title, body, body_json, featured_image_url, featured_image_path, thumbnail_visible, category, is_docent_post, like_count, is_best, photo_url, tags, view_count, updated_at, author_id, created_at, timeline_year, timeline_end_year, timeline_display_date";
 const legacyFields =
   "id, board_id, title, body, is_docent_post, like_count, is_best, photo_url, author_id, created_at";
 
@@ -349,6 +349,15 @@ export async function PATCH(
           .map((t) => t.trim())
       : [];
   const targetBoardSlug = body?.targetBoardSlug as string | undefined;
+  // EPIC-147-후속(사용자 지시 — 타임라인 게시판 전용 연대 필드): PostForm이
+  // showTimelineDateFields=false인 게시판에서는 이 키들을 아예 안 보낸다
+  // — "값이 없음"과 "이 필드를 안 건드림"을 구분해야, 다른 게시판의
+  // 글을 수정할 때 실수로 기존 연대 값을 null로 지우지 않는다.
+  const hasTimelineFields =
+    body && (Object.prototype.hasOwnProperty.call(body, "timelineYear") || Object.prototype.hasOwnProperty.call(body, "timelineEndYear") || Object.prototype.hasOwnProperty.call(body, "timelineDisplayDate"));
+  const timelineYear = typeof body?.timelineYear === "number" ? body.timelineYear : null;
+  const timelineEndYear = typeof body?.timelineEndYear === "number" ? body.timelineEndYear : null;
+  const timelineDisplayDate = typeof body?.timelineDisplayDate === "string" ? body.timelineDisplayDate : null;
 
   // EPIC-092(요구사항 1): 관리자만 게시글 "등록 날짜/시간"(created_at)을
   // 직접 덮어쓸 수 있다 — 클라이언트의 is_admin 표시는 UI 게이팅일 뿐이라
@@ -460,6 +469,9 @@ export async function PATCH(
       ...(targetBoardId ? { board_id: targetBoardId, slug: targetSlug } : {}),
       ...(createdAtOverride ? { created_at: createdAtOverride } : {}),
       ...(authorIdOverride ? { author_id: authorIdOverride } : {}),
+      ...(hasTimelineFields
+        ? { timeline_year: timelineYear, timeline_end_year: timelineEndYear, timeline_display_date: timelineDisplayDate }
+        : {}),
     })
     .eq("id", postId)
     .select()

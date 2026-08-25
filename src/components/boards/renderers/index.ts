@@ -4,6 +4,7 @@ import { StoryRenderer } from "./StoryRenderer";
 import { CommunityRenderer } from "./CommunityRenderer";
 import { GalleryRenderer } from "./GalleryRenderer";
 import { TimelineRenderer } from "./TimelineRenderer";
+import { TimelineNgRenderer } from "./TimelineNgRenderer";
 import { HubRenderer } from "./HubRenderer";
 import { SlideRenderer } from "./SlideRenderer";
 import { SurveyRenderer } from "./SurveyRenderer";
@@ -26,6 +27,7 @@ export const BoardRendererRegistry: Record<BoardLayoutType, ComponentType<BoardR
   community: CommunityRenderer,
   gallery: GalleryRenderer,
   timeline: TimelineRenderer,
+  timeline_ng: TimelineNgRenderer,
   hub: HubRenderer,
   slide: SlideRenderer,
   survey: SurveyRenderer,

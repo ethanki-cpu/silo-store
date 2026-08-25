@@ -70,12 +70,20 @@ export type BoardPost = {
 // 모델이 아직 없어(Page Builder의 survey/calendar 위젯도 boards와 무관한
 // 정적 데모) 스텁 렌더러다(안내 배지 + 기존 글 목록), slide는 HubRenderer가
 // 쓰는 기존 SlideModule을 게시판 자기 자신의 글로 재사용하는 실렌더러다.
+// EPIC-147(사용자 지시 — Knight Lab의 Timeline NG(@knight-lab/timeline-ng,
+// Svelte 5) 프론트엔드/JSON 구조를 그대로 써서 게시판 글을 인터랙티브
+// 타임라인으로 보여달라): 기존 "timeline"(연/월/일 그룹 리스트, EPIC-050)과는
+// 완전히 다른 별도 레이아웃이라 그 값을 재사용하지 않고 새 키를 추가한다 —
+// 기존 "timeline" 게시판(사일로상점/살롱데상 Archive 등)의 동작은 전혀
+// 바뀌지 않는다. 실제 렌더러는 TimelineNgRenderer(SiloTimeline 브릿지
+// 컴포넌트를 얹는다) 참고.
 export type BoardLayoutType =
   | "community"
   | "story"
   | "gallery"
   | "hub"
   | "timeline"
+  | "timeline_ng"
   | "slide"
   | "survey"
   | "calendar"
@@ -1236,6 +1244,7 @@ const RENDER_TYPE_TO_LAYOUT: Record<string, BoardLayoutType> = {
   community: "community",
   gallery: "gallery",
   timeline: "timeline",
+  timeline_ng: "timeline_ng",
   slide: "slide",
   survey: "survey",
   calendar: "calendar",

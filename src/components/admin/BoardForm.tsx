@@ -105,6 +105,7 @@ export const RENDER_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "community", label: "Community" },
   { value: "gallery", label: "Gallery" },
   { value: "timeline", label: "Timeline" },
+  { value: "timeline_ng", label: "Timeline NG (인터랙티브 슬라이드)" },
   { value: "survey", label: "Survey" },
   { value: "slide", label: "Slide" },
   { value: "calendar", label: "Calendar" },

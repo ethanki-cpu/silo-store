@@ -104,7 +104,8 @@ export type TopSidebarConfig = {
   loginButtonStyle: LoginButtonStyle;
 };
 
-export type TopSidebarValue = { pc: TopSidebarConfig; mobile: TopSidebarConfig };
+// HOTFIX-146: pc/mobile과 동등한 독립 태블릿 설정 슬롯 추가 — mainLogoSettings.ts 참고.
+export type TopSidebarValue = { pc: TopSidebarConfig; tablet: TopSidebarConfig; mobile: TopSidebarConfig };
 
 export function defaultLoginButtonStyle(): LoginButtonStyle {
   return {
@@ -136,7 +137,7 @@ export function defaultTopSidebarConfig(): TopSidebarConfig {
 }
 
 export function defaultTopSidebarValue(): TopSidebarValue {
-  return { pc: defaultTopSidebarConfig(), mobile: defaultTopSidebarConfig() };
+  return { pc: defaultTopSidebarConfig(), tablet: defaultTopSidebarConfig(), mobile: defaultTopSidebarConfig() };
 }
 
 function normalizeChild(raw: unknown): TopSidebarChildLink {
@@ -200,8 +201,8 @@ function normalizeLoginButtonStyle(raw: unknown): LoginButtonStyle {
 export function normalizeTopSidebar(raw: unknown): TopSidebarValue {
   if (!raw || typeof raw !== "object") return defaultTopSidebarValue();
   const obj = raw as Record<string, unknown>;
-  if (obj.pc || obj.mobile) {
-    return { pc: normalizeConfig(obj.pc), mobile: normalizeConfig(obj.mobile) };
+  if (obj.pc || obj.tablet || obj.mobile) {
+    return { pc: normalizeConfig(obj.pc), tablet: normalizeConfig(obj.tablet ?? obj.pc), mobile: normalizeConfig(obj.mobile) };
   }
   return defaultTopSidebarValue();
 }

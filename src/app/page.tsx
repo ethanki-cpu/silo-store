@@ -42,7 +42,7 @@ function HeroSlideshowSection({
   device,
 }: {
   config: HeroSlideshowConfig;
-  device: "pc" | "mobile";
+  device: "pc" | "tablet" | "mobile";
 }) {
   const slides = slidesOf(config);
   if (slides.length === 0) return null;
@@ -69,8 +69,12 @@ export default async function Home() {
     .eq("setting_key", "hero_slideshow")
     .maybeSingle();
 
-  const { pc: pcConfig, mobile: mobileConfig } = normalizeHeroSlideshow(data?.setting_value ?? null);
-  const hasAnySlides = slidesOf(pcConfig).length > 0 || slidesOf(mobileConfig).length > 0;
+  // HOTFIX-146(사용자 지시 — "'tab' preview 토글도 추가해줘... '모바일'
+  // preview 와 설정과 똑같은 설정 가능하게 해줘"): 태블릿(768~1023px)을
+  // pc/mobile과 동등한 독립 설정으로 승격 — 아래 3-way hidden 분기 참고.
+  const { pc: pcConfig, tablet: tabletConfig, mobile: mobileConfig } = normalizeHeroSlideshow(data?.setting_value ?? null);
+  const hasAnySlides =
+    slidesOf(pcConfig).length > 0 || slidesOf(tabletConfig).length > 0 || slidesOf(mobileConfig).length > 0;
 
   // EPIC-067: page_builder(slug="home")의 published 모듈을 히어로 슬라이드쇼
   // 바로 다음에 이어서 렌더링 — PageEditButton은 있었지만 PageBuilderRenderer가
@@ -98,8 +102,11 @@ export default async function Home() {
       <div className="flex-1">
       {hasAnySlides ? (
         <>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <HeroSlideshowSection config={pcConfig} device="pc" />
+          </div>
+          <div className="hidden md:block lg:hidden">
+            <HeroSlideshowSection config={tabletConfig} device="tablet" />
           </div>
           <div className="md:hidden">
             <HeroSlideshowSection config={mobileConfig} device="mobile" />

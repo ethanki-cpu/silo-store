@@ -111,7 +111,8 @@ export type TopTabStyleConfig = {
   tier2OffsetPx: number;
 };
 
-export type TopTabStyleValue = { pc: TopTabStyleConfig; mobile: TopTabStyleConfig };
+// HOTFIX-146: pc/mobile과 동등한 독립 태블릿 설정 슬롯 추가 — mainLogoSettings.ts 참고.
+export type TopTabStyleValue = { pc: TopTabStyleConfig; tablet: TopTabStyleConfig; mobile: TopTabStyleConfig };
 
 export function defaultTopTabStyleEntry(): TopTabStyleEntry {
   return {
@@ -139,7 +140,7 @@ export function defaultTopTabStyleConfig(): TopTabStyleConfig {
 }
 
 export function defaultTopTabStyleValue(): TopTabStyleValue {
-  return { pc: defaultTopTabStyleConfig(), mobile: defaultTopTabStyleConfig() };
+  return { pc: defaultTopTabStyleConfig(), tablet: defaultTopTabStyleConfig(), mobile: defaultTopTabStyleConfig() };
 }
 
 function normalizeConfig(raw: unknown): TopTabStyleConfig {
@@ -155,13 +156,13 @@ function normalizeConfig(raw: unknown): TopTabStyleConfig {
 export function normalizeTopTabStyle(raw: unknown): TopTabStyleValue {
   if (!raw || typeof raw !== "object") return defaultTopTabStyleValue();
   const obj = raw as Record<string, unknown>;
-  if (obj.pc || obj.mobile) {
-    return { pc: normalizeConfig(obj.pc), mobile: normalizeConfig(obj.mobile) };
+  if (obj.pc || obj.tablet || obj.mobile) {
+    return { pc: normalizeConfig(obj.pc), tablet: normalizeConfig(obj.tablet ?? obj.pc), mobile: normalizeConfig(obj.mobile) };
   }
-  // 옛 flat 모양(tabs가 최상위에 있음)이면 pc/mobile 양쪽에 동일하게 채운다.
+  // 옛 flat 모양(tabs가 최상위에 있음)이면 pc/tablet/mobile 전부에 동일하게 채운다.
   if (obj.tabs) {
     const flat = normalizeConfig(raw);
-    return { pc: flat, mobile: { ...flat, tabs: { ...flat.tabs } } };
+    return { pc: flat, tablet: { ...flat, tabs: { ...flat.tabs } }, mobile: { ...flat, tabs: { ...flat.tabs } } };
   }
   return defaultTopTabStyleValue();
 }

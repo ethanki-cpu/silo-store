@@ -35,7 +35,8 @@ export type SidebarIconsConfig = {
   rightPanelHoverMotion: TabHoverMotion;
 };
 
-export type SidebarIconsValue = { pc: SidebarIconsConfig; mobile: SidebarIconsConfig };
+// HOTFIX-146: pc/mobile과 동등한 독립 태블릿 설정 슬롯 추가 — mainLogoSettings.ts 참고.
+export type SidebarIconsValue = { pc: SidebarIconsConfig; tablet: SidebarIconsConfig; mobile: SidebarIconsConfig };
 
 export const DEFAULT_ICON_SIZE_PX = 32;
 // EPIC-076: 사이드바 여닫이 버튼 배경색 기본값 — 기존 하드코딩 bg-green-800(#166534)과 맞춤.
@@ -65,7 +66,7 @@ export function defaultSidebarIconsConfig(): SidebarIconsConfig {
 }
 
 export function defaultSidebarIconsValue(): SidebarIconsValue {
-  return { pc: defaultSidebarIconsConfig(), mobile: defaultSidebarIconsConfig() };
+  return { pc: defaultSidebarIconsConfig(), tablet: defaultSidebarIconsConfig(), mobile: defaultSidebarIconsConfig() };
 }
 
 function normalizeConfig(raw: unknown): SidebarIconsConfig {
@@ -82,9 +83,9 @@ function normalizeConfig(raw: unknown): SidebarIconsConfig {
 export function normalizeSidebarIcons(raw: unknown): SidebarIconsValue {
   if (!raw || typeof raw !== "object") return defaultSidebarIconsValue();
   const obj = raw as Record<string, unknown>;
-  if (obj.pc || obj.mobile) {
-    return { pc: normalizeConfig(obj.pc), mobile: normalizeConfig(obj.mobile) };
+  if (obj.pc || obj.tablet || obj.mobile) {
+    return { pc: normalizeConfig(obj.pc), tablet: normalizeConfig(obj.tablet ?? obj.pc), mobile: normalizeConfig(obj.mobile) };
   }
   const flat = normalizeConfig(raw);
-  return { pc: flat, mobile: { ...flat } };
+  return { pc: flat, tablet: { ...flat }, mobile: { ...flat } };
 }

@@ -34,8 +34,10 @@ export type AccountMenuStyleConfig = {
 // 적용되지 않는다 — unifiedHeaderItems가 렌더링을 대신 가져가므로).
 export type ExtraAccountItem = { id: string; kind: HeaderMenuItemKey };
 
+// HOTFIX-146: pc/mobile과 동등한 독립 태블릿 설정 슬롯 추가 — mainLogoSettings.ts 참고.
 export type AccountMenuStyleValue = {
   pc: AccountMenuStyleConfig;
+  tablet: AccountMenuStyleConfig;
   mobile: AccountMenuStyleConfig;
   hiddenKinds: HeaderMenuItemKey[];
   extraItems: ExtraAccountItem[];
@@ -56,6 +58,7 @@ export function defaultAccountMenuStyleConfig(): AccountMenuStyleConfig {
 export function defaultAccountMenuStyleValue(): AccountMenuStyleValue {
   return {
     pc: defaultAccountMenuStyleConfig(),
+    tablet: defaultAccountMenuStyleConfig(),
     mobile: defaultAccountMenuStyleConfig(),
     hiddenKinds: [],
     extraItems: [],
@@ -78,9 +81,14 @@ export function normalizeAccountMenuStyle(raw: unknown): AccountMenuStyleValue {
     writeButtonHidden: typeof obj.writeButtonHidden === "boolean" ? obj.writeButtonHidden : fallback.writeButtonHidden,
     extraWriteButtonIds: Array.isArray(obj.extraWriteButtonIds) ? (obj.extraWriteButtonIds as string[]) : fallback.extraWriteButtonIds,
   };
-  if (obj.pc || obj.mobile) {
-    return { pc: normalizeConfig(obj.pc), mobile: normalizeConfig(obj.mobile), ...extra };
+  if (obj.pc || obj.tablet || obj.mobile) {
+    return {
+      pc: normalizeConfig(obj.pc),
+      tablet: normalizeConfig(obj.tablet ?? obj.pc),
+      mobile: normalizeConfig(obj.mobile),
+      ...extra,
+    };
   }
   const flat = normalizeConfig(raw);
-  return { pc: flat, mobile: { ...flat }, ...extra };
+  return { pc: flat, tablet: { ...flat }, mobile: { ...flat }, ...extra };
 }

@@ -36,8 +36,10 @@ export type HeroSlideshowConfig = {
   heightVh: number | null;
 };
 
+// HOTFIX-146: pc/mobile과 동등한 독립 태블릿 설정 슬롯 추가 — mainLogoSettings.ts 참고.
 export type HeroSlideshowValue = {
   pc: HeroSlideshowConfig;
+  tablet: HeroSlideshowConfig;
   mobile: HeroSlideshowConfig;
 };
 
@@ -60,7 +62,7 @@ export function defaultHeroSlideshowConfig(): HeroSlideshowConfig {
 }
 
 export function defaultHeroSlideshowValue(): HeroSlideshowValue {
-  return { pc: defaultHeroSlideshowConfig(), mobile: defaultHeroSlideshowConfig() };
+  return { pc: defaultHeroSlideshowConfig(), tablet: defaultHeroSlideshowConfig(), mobile: defaultHeroSlideshowConfig() };
 }
 
 function normalizeConfig(raw: Partial<HeroSlideshowConfig> | null | undefined): HeroSlideshowConfig {
@@ -79,12 +81,13 @@ function normalizeConfig(raw: Partial<HeroSlideshowConfig> | null | undefined): 
 export function normalizeHeroSlideshow(raw: unknown): HeroSlideshowValue {
   if (!raw || typeof raw !== "object") return defaultHeroSlideshowValue();
   const obj = raw as Record<string, unknown>;
-  if (obj.pc || obj.mobile) {
+  if (obj.pc || obj.tablet || obj.mobile) {
     return {
       pc: normalizeConfig(obj.pc as Partial<HeroSlideshowConfig> | undefined),
+      tablet: normalizeConfig((obj.tablet ?? obj.pc) as Partial<HeroSlideshowConfig> | undefined),
       mobile: normalizeConfig(obj.mobile as Partial<HeroSlideshowConfig> | undefined),
     };
   }
   const flat = normalizeConfig(raw as Partial<HeroSlideshowConfig>);
-  return { pc: flat, mobile: { ...flat } };
+  return { pc: flat, tablet: { ...flat }, mobile: { ...flat } };
 }

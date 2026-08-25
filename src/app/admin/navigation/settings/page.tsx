@@ -439,7 +439,13 @@ export default function AdminNavigationSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  const [deviceTab, setDeviceTab] = useState<"pc" | "mobile">("pc");
+  // HOTFIX-146(사용자 지시 — "'tab' preview 토글도 추가해줘... '모바일'
+  // preview 와 설정과 똑같은 설정 가능하게 해줘"): EPIC-136 이전에 있던
+  // PC/태블릿/모바일 3단 토글을 되살리되, 이번엔 태블릿도 pc/mobile과
+  // 완전히 동등한 독립 설정 슬롯이다(예전엔 "미리보기 전용, PC 값 재사용"
+  // 이었던 것과 다름 — 아래 모든 *Value 타입에 tablet 슬롯이 이미 있어
+  // deviceTab만 이 셋 중 하나면 나머지 코드는 그대로 제네릭하게 동작한다).
+  const [deviceTab, setDeviceTab] = useState<"pc" | "tablet" | "mobile">("pc");
   const [selection, setSelection] = useState<Selection>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>("controls");
   // HOTFIX-141.9(사용자 지시 — "화면 왼쪽 상단에 '스튜디오' 그아래에
@@ -682,10 +688,10 @@ export default function AdminNavigationSettingsPage() {
       return;
     }
     // 스타일(글자 크기/색상/굵기/호버 모션 등)도 함께 복제 — 원본 탭 키의
-    // 설정을 새 탭 키로 그대로 복사한다(양쪽 기기 모두).
+    // 설정을 새 탭 키로 그대로 복사한다(HOTFIX-146: pc/tablet/mobile 세 기기 모두).
     setTopTabStyleValue((prev) => {
       const next = { ...prev };
-      for (const device of ["pc", "mobile"] as const) {
+      for (const device of ["pc", "tablet", "mobile"] as const) {
         const sourceEntry = prev[device].tabs[tab.key];
         if (sourceEntry) {
           next[device] = { ...next[device], tabs: { ...next[device].tabs, [inserted.id]: { ...sourceEntry } } };
@@ -775,6 +781,13 @@ export default function AdminNavigationSettingsPage() {
               className={`rounded px-3 py-1 ${deviceTab === "pc" ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-100"}`}
             >
               🖥️ PC
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeviceTab("tablet")}
+              className={`rounded px-3 py-1 ${deviceTab === "tablet" ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+            >
+              ▦ 태블릿
             </button>
             <button
               type="button"
@@ -1028,7 +1041,20 @@ export default function AdminNavigationSettingsPage() {
                 할때, align guideline 이 보이면 좋겠어 그래서 중앙...
                 맞는지 알수 있게"): HeaderSlot.tsx가 이 마커로 캔버스
                 가로 중앙선을 계산한다. */}
-            <div data-admin-canvas className={deviceTab === "mobile" ? "mx-auto w-[390px] overflow-hidden border-x border-gray-300 bg-white shadow-lg" : "bg-white"}>
+            {/* HOTFIX-146: 태블릿 프레임 폭(820px)은 실제 공개 사이트의
+                태블릿 판정 구간(768~1023px, useDeviceTier 참고) 한가운데
+                값이다 — 이 폭에서 편집한 오프셋(refWidthPx)이 그 구간
+                전체에서 비율 스케일링으로 자연스럽게 맞는다. */}
+            <div
+              data-admin-canvas
+              className={
+                deviceTab === "mobile"
+                  ? "mx-auto w-[390px] overflow-hidden border-x border-gray-300 bg-white shadow-lg"
+                  : deviceTab === "tablet"
+                    ? "mx-auto w-[820px] overflow-hidden border-x border-gray-300 bg-white shadow-lg"
+                    : "bg-white"
+              }
+            >
               <Navbar
                 editable
                 selectedSlotKey={selection?.kind === "slot" ? selection.key : null}
@@ -1102,7 +1128,7 @@ function ControlsPanel({
   setTopSidebarValue,
 }: {
   selection: Selection;
-  deviceTab: "pc" | "mobile";
+  deviceTab: "pc" | "tablet" | "mobile";
   topNavRows: NavTab[];
   setTopNavRows: React.Dispatch<React.SetStateAction<NavTab[]>>;
   onDuplicateNavItem: (tab: NavTab) => void;
@@ -2269,7 +2295,7 @@ function TopSidebarControls({
 }: {
   value: TopSidebarValue;
   setValue: React.Dispatch<React.SetStateAction<TopSidebarValue>>;
-  deviceTab: "pc" | "mobile";
+  deviceTab: "pc" | "tablet" | "mobile";
 }) {
   const [uploadingLinkId, setUploadingLinkId] = useState<string | null>(null);
   const [uploadingBankImage, setUploadingBankImage] = useState(false);
@@ -2829,7 +2855,7 @@ function ThemesPanel({
   setTopTabStyleValue,
   setAccountMenuStyleValue,
 }: {
-  deviceTab: "pc" | "mobile";
+  deviceTab: "pc" | "tablet" | "mobile";
   topNavRows: NavTab[];
   setTopTabStyleValue: React.Dispatch<React.SetStateAction<TopTabStyleValue>>;
   setAccountMenuStyleValue: React.Dispatch<React.SetStateAction<AccountMenuStyleValue>>;

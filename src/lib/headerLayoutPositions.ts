@@ -47,14 +47,15 @@ export type HeaderPositionsConfig = {
   slots: Record<string, HeaderSlotOffset>;
 };
 
-export type HeaderPositionsValue = { pc: HeaderPositionsConfig; mobile: HeaderPositionsConfig };
+// HOTFIX-146: pc/mobile과 동등한 독립 태블릿 설정 슬롯 추가 — mainLogoSettings.ts 참고.
+export type HeaderPositionsValue = { pc: HeaderPositionsConfig; tablet: HeaderPositionsConfig; mobile: HeaderPositionsConfig };
 
 export function defaultHeaderPositionsConfig(): HeaderPositionsConfig {
   return { slots: {} };
 }
 
 export function defaultHeaderPositionsValue(): HeaderPositionsValue {
-  return { pc: defaultHeaderPositionsConfig(), mobile: defaultHeaderPositionsConfig() };
+  return { pc: defaultHeaderPositionsConfig(), tablet: defaultHeaderPositionsConfig(), mobile: defaultHeaderPositionsConfig() };
 }
 
 function normalizeConfig(raw: unknown): HeaderPositionsConfig {
@@ -65,8 +66,12 @@ function normalizeConfig(raw: unknown): HeaderPositionsConfig {
 export function normalizeHeaderPositions(raw: unknown): HeaderPositionsValue {
   if (!raw || typeof raw !== "object") return defaultHeaderPositionsValue();
   const obj = raw as Record<string, unknown>;
-  if (obj.pc || obj.mobile) {
-    return { pc: normalizeConfig(obj.pc), mobile: normalizeConfig(obj.mobile) };
+  if (obj.pc || obj.tablet || obj.mobile) {
+    // tablet이 없는(태블릿 승격 이전) 저장값은 pc의 드래그 오프셋을 그대로
+    // 물려받는다 — dxPx는 refWidthPx 기준으로 폭에 비례 스케일링되므로
+    // (HeaderSlot.tsx), pc 값을 그대로 태블릿 폭에 적용해도 축소된 비율로
+    // 자연스럽게 이어진다(관리자가 이후 직접 편집하면 그때부터 갈라짐).
+    return { pc: normalizeConfig(obj.pc), tablet: normalizeConfig(obj.tablet ?? obj.pc), mobile: normalizeConfig(obj.mobile) };
   }
   return defaultHeaderPositionsValue();
 }

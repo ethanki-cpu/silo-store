@@ -74,7 +74,12 @@ export type MainLogoConfig = {
   groupGapPx: number | null;
 };
 
-export type MainLogoValue = { pc: MainLogoConfig; mobile: MainLogoConfig };
+// HOTFIX-146(사용자 지시 — "'tab' preview 토글도 추가해줘... '모바일'
+// preview 와 설정과 똑같은 설정 가능하게 해줘"): EPIC-136 이전엔 PC/태블릿/
+// 모바일 3단 토글이 있었지만 태블릿은 "미리보기 전용"(PC 값을 좁은 화면에
+// 보여주기만 함, 별도 저장값 없음)이었다 — 이제 pc/mobile과 완전히 동등한
+// 독립 설정 슬롯으로 승격한다.
+export type MainLogoValue = { pc: MainLogoConfig; tablet: MainLogoConfig; mobile: MainLogoConfig };
 
 export const DEFAULT_LOGO_HEIGHT_PX = 64;
 export const DEFAULT_LOGO_FONT_SIZE_PX = 16;
@@ -118,7 +123,7 @@ export function defaultMainLogoConfig(): MainLogoConfig {
 // 매번 새 객체를 만든다 — pc/mobile 기본값이 배열(customFonts)을 같은
 // 참조로 공유하면 한쪽을 수정할 때 다른 쪽도 같이 바뀌는 버그가 생긴다.
 export function defaultMainLogoValue(): MainLogoValue {
-  return { pc: defaultMainLogoConfig(), mobile: defaultMainLogoConfig() };
+  return { pc: defaultMainLogoConfig(), tablet: defaultMainLogoConfig(), mobile: defaultMainLogoConfig() };
 }
 
 function normalizeConfig(raw: unknown): MainLogoConfig {
@@ -142,9 +147,17 @@ function normalizeConfig(raw: unknown): MainLogoConfig {
 export function normalizeMainLogo(raw: unknown): MainLogoValue {
   if (!raw || typeof raw !== "object") return defaultMainLogoValue();
   const obj = raw as Record<string, unknown>;
-  if (obj.pc || obj.mobile) {
-    return { pc: normalizeConfig(obj.pc), mobile: normalizeConfig(obj.mobile) };
+  if (obj.pc || obj.tablet || obj.mobile) {
+    // HOTFIX-146: tablet이 아직 없는(태블릿 승격 이전) 저장값은 pc 값을
+    // 그대로 물려받는다 — 관리자가 태블릿을 처음 열었을 때 갑자기 빈
+    // 기본값으로 보이지 않고, 지금까지 보이던 대로(구 "PC 재사용" 동작)
+    // 유지되다가 이후 직접 편집하면 그때부터 독립적으로 갈라진다.
+    return { pc: normalizeConfig(obj.pc), tablet: normalizeConfig(obj.tablet ?? obj.pc), mobile: normalizeConfig(obj.mobile) };
   }
   const flat = normalizeConfig(raw);
-  return { pc: flat, mobile: { ...flat, customFonts: flat.customFonts.map((f) => ({ ...f })) } };
+  return {
+    pc: flat,
+    tablet: { ...flat, customFonts: flat.customFonts.map((f) => ({ ...f })) },
+    mobile: { ...flat, customFonts: flat.customFonts.map((f) => ({ ...f })) },
+  };
 }

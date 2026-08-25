@@ -31,11 +31,14 @@ export function HeroSlideshow({
   heightVh = null,
 }: {
   // EPIC-094(요구사항 1.2): 이 인스턴스가 어느 기기용 래퍼 안에 있는지 —
-  // "반대쪽" 기기의 media query에서는 실제 이미지를 내려받지 않도록 픽처
+  // "이 기기가 아닌" media query에서는 실제 이미지를 내려받지 않도록 픽처
   // 소스를 뒤집는 데만 쓰인다(레이아웃 자체는 여전히 부모의 hidden 클래스가 담당).
+  // HOTFIX-146: "tablet"(768~1023px) 추가 — pc/mobile 둘 다와 겹치지 않는
+  // 별도 구간이라, pc의 반대 조건도 "768px 미만"에서 "1024px 미만"으로
+  // 넓어졌다(태블릿 구간을 pc 이미지가 더 이상 뒤덮지 않도록).
   // "both"는 기기 분기 자체가 없는 호출부(Page Builder의 단일 "hero" 모듈)용 —
   // 픽처 트릭을 아예 적용하지 않고 항상 실제 이미지를 그대로 내려준다(기존 동작 유지).
-  device: "pc" | "mobile" | "both";
+  device: "pc" | "tablet" | "mobile" | "both";
   slides: SlideItem[];
   autoAdvanceSeconds?: number;
   objectFit?: "cover" | "contain";
@@ -53,10 +56,19 @@ export function HeroSlideshow({
   // 기본값(모바일 60vh/데스크톱 70vh)을 그대로 쓴다.
   heightVh?: number | null;
 }) {
-  // md: Tailwind 기본 브레이크포인트(768px) — page.tsx의 hidden md:block/
-  // md:hidden과 정확히 같은 경계여야 두 소스가 서로 어긋나지 않는다.
+  // md(768px)/lg(1024px): Tailwind 기본 브레이크포인트 — page.tsx의
+  // hidden lg:block / hidden md:block lg:hidden / md:hidden과 정확히 같은
+  // 경계여야 세 소스가 서로 어긋나지 않는다. 태블릿은 pc/mobile 양쪽과
+  // 겹치지 않는 구간이라 "반대쪽"이 두 구간의 합집합(콤마로 이은 media
+  // query는 OR로 동작)이다.
   const oppositeDeviceMediaQuery =
-    device === "pc" ? "(max-width: 767px)" : device === "mobile" ? "(min-width: 768px)" : null;
+    device === "pc"
+      ? "(max-width: 1023px)"
+      : device === "mobile"
+        ? "(min-width: 768px)"
+        : device === "tablet"
+          ? "(max-width: 767px), (min-width: 1024px)"
+          : null;
   const [current, setCurrent] = useState(0);
   // 버그 수정(EPIC-079-FINAL-FIX): 첫 로드 시 이미지가 아직 안 뜬 짧은
   // 순간(~0.5초) wrapper의 배경색(bg-gray-900, 사실상 검정)이 그대로

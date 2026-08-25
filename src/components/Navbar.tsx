@@ -13,7 +13,7 @@ import { UserMenuDropdown } from "@/components/UserMenuDropdown";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { useHideOnScroll } from "@/lib/useHideOnScroll";
 import { tabHoverMotionCss, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
-import { useIsMobileViewport } from "@/lib/useIsMobileViewport";
+import { useIsMobileViewport, useDeviceTier } from "@/lib/useIsMobileViewport";
 import {
   normalizeMainLogo,
   DEFAULT_LOGO_HEIGHT_PX,
@@ -139,8 +139,9 @@ export function Navbar({
   /** 관리자 화면이 "아직 저장 전, 지금 편집 중인" 값을 곧바로 반영하려고 site_settings 조회 대신 직접 넘긴다. */
   positionsOverride?: HeaderPositionsConfig;
   onOffsetChange?: (slotKey: string, next: HeaderSlotOffset) => void;
-  /** 관리자 화면의 PC/태블릿/모바일 토글 — 실제 뷰포트 폭 대신 이 값으로 강제한다(태블릿은 PC 데이터를 그대로 씀). */
-  deviceOverride?: "pc" | "mobile";
+  /** 관리자 화면의 PC/태블릿/모바일 토글 — 실제 뷰포트 폭 대신 이 값으로 강제한다.
+   *  HOTFIX-146: 태블릿도 pc/mobile과 동등한 독립 설정 슬롯이라 실제로 별도 값을 쓴다. */
+  deviceOverride?: "pc" | "tablet" | "mobile";
   /** positionsOverride와 동일한 이유 — 상단 사이드바(TopSidebarPanel) 편집 중인 값을 즉시 반영. */
   topSidebarOverride?: TopSidebarConfig;
   // HOTFIX-141.11(사용자 신고로 발견 — dropdownAlign 등 탭 스타일 필드를
@@ -263,6 +264,15 @@ export function Navbar({
   // 식으로 그대로 쓸 수 있다(필드 구조 자체는 안 바뀜).
   const isMobileViewportReal = useIsMobileViewport();
   const isMobileViewport = deviceOverride ? deviceOverride === "mobile" : isMobileViewportReal;
+  // HOTFIX-146(사용자 지시 — "'tab' preview 토글도 추가해줘... '모바일'
+  // preview 와 설정과 똑같은 설정 가능하게 해줘"): 태블릿이 pc/mobile과
+  // 동등한 독립 설정 슬롯으로 승격되면서, "이 렌더에서 pc/tablet/mobile
+  // 중 어느 저장값을 쓸지" 판단이 하나 더 필요해졌다. 위 isMobileViewport
+  // (767px 이하, 기존에 이미 쓰이던 "모바일 전용 레이아웃 트릭" 판정)와는
+  // 별개 질문이라 그대로 둔다 — 이 deviceKey는 오직 아래 mainLogo/
+  // sidebarIcons/topTabStyle/accountMenuStyle 4개 설정을 고르는 데만 쓴다.
+  const deviceTierReal = useDeviceTier();
+  const deviceKey = deviceOverride ?? deviceTierReal;
 
   // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
   // site_settings.main_logo를 조회해 로고를 대체한다. 값이 비어 있으면
@@ -285,7 +295,7 @@ export function Navbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainLogoOverride]);
   const resolvedMainLogoValue = mainLogoOverride ?? mainLogoValue;
-  const mainLogo: MainLogoConfig | null = resolvedMainLogoValue ? (isMobileViewport ? resolvedMainLogoValue.mobile : resolvedMainLogoValue.pc) : null;
+  const mainLogo: MainLogoConfig | null = resolvedMainLogoValue ? resolvedMainLogoValue[deviceKey] : null;
 
   // EPIC-039: 좌/우 사이드바 여닫이 버튼에 쓰이는 커스텀 아이콘.
   // 값이 없으면(테이블 미적용 포함) LeftSidebar/RightSidebar가 기존
@@ -308,7 +318,7 @@ export function Navbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarIconsOverride]);
   const resolvedSidebarIconsValue = sidebarIconsOverride ?? sidebarIconsValue;
-  const sidebarIcons = resolvedSidebarIconsValue ? (isMobileViewport ? resolvedSidebarIconsValue.mobile : resolvedSidebarIconsValue.pc) : null;
+  const sidebarIcons = resolvedSidebarIconsValue ? resolvedSidebarIconsValue[deviceKey] : null;
 
   // EPIC-079-PHASE-4: 상단 탭 개별 디자인(표시 텍스트/서체/크기/색상) —
   // /admin/navigation/settings의 "상단 탭 디자인" 섹션이 저장한다. 값이
@@ -332,7 +342,7 @@ export function Navbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topTabStyleOverride]);
   const resolvedTopTabStyleValue = topTabStyleOverride ?? topTabStyleValue;
-  const topTabStyle = resolvedTopTabStyleValue ? (isMobileViewport ? resolvedTopTabStyleValue.mobile : resolvedTopTabStyleValue.pc) : null;
+  const topTabStyle = resolvedTopTabStyleValue ? resolvedTopTabStyleValue[deviceKey] : null;
 
   // HOTFIX(사용자 지시 — "'홈페이지 설정관리'에 맨 위의 '관리자, (회원
   // 등급), 마이페이지, (사용자이름), 로그아웃' 이런 메뉴의 디자인을
@@ -357,7 +367,7 @@ export function Navbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountMenuStyleOverride]);
   const resolvedAccountMenuStyleValue = accountMenuStyleOverride ?? accountMenuStyleValue;
-  const accountMenuStyle = resolvedAccountMenuStyleValue ? (isMobileViewport ? resolvedAccountMenuStyleValue.mobile : resolvedAccountMenuStyleValue.pc) : null;
+  const accountMenuStyle = resolvedAccountMenuStyleValue ? resolvedAccountMenuStyleValue[deviceKey] : null;
 
   // EPIC-134(사용자 지시 — "GrapesJS로... 로그아웃 버튼 옆에 스튜디오 탭을
   // 끌어다 놓을 수 있어야 함"): /admin/navigation/settings의 새 "헤더"
@@ -401,13 +411,13 @@ export function Navbar({
       .then(({ data }) => {
         if (cancelled) return;
         const normalized = normalizeHeaderPositions(data?.setting_value);
-        setHeaderPositionsValue(isMobileViewport ? normalized.mobile : normalized.pc);
+        setHeaderPositionsValue(normalized[deviceKey]);
       });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionsOverride, isMobileViewport]);
+  }, [positionsOverride, deviceKey]);
   const resolvedPositions = positionsOverride ?? headerPositionsValue ?? undefined;
 
   // HOTFIX-137.9: 상단 사이드바(TopSidebarPanel) 설정 — 다른 site_settings
@@ -424,13 +434,13 @@ export function Navbar({
       .then(({ data }) => {
         if (cancelled) return;
         const normalized = normalizeTopSidebar(data?.setting_value);
-        setTopSidebarValue(isMobileViewport ? normalized.mobile : normalized.pc);
+        setTopSidebarValue(normalized[deviceKey]);
       });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topSidebarOverride, isMobileViewport]);
+  }, [topSidebarOverride, deviceKey]);
   const resolvedTopSidebar = topSidebarOverride ?? topSidebarValue ?? undefined;
   // HOTFIX-141.1(사용자 지시 — "'노출위치'에 '상단 사이드바'도
   // 포함해줘"): "상단 사이드바"로 태그된 site_navigations 카테고리를

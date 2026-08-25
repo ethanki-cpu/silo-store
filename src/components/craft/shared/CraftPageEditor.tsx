@@ -132,14 +132,28 @@ function EditorBody({
     actions.addNodeTree(tree, "ROOT");
   }
 
+  // HOTFIX-146(사용자 반복 신고 — "Craft 에디터 preview 와 실제 홈페이지
+  // 출력이 다르다"): Toolbox(w-60)/SettingsSidebar(w-72)가 캔버스와 flex로
+  // 폭을 나눠 쓰고 있어서, PC 모드 캔버스("w-full")가 실제 방문자 화면보다
+  // 항상 528px(두 패널 폭 합) 좁게 렌더링됐다 — 블록 내부 반응형이
+  // 뷰포트가 아니라 이 캔버스의 실제 렌더링 폭 기준 컨테이너 쿼리
+  // (`@[768px]:` 등, 위 EPIC-100 주석 참고)라서, 이 좁아진 폭 때문에
+  // 실제 사이트에서는 데스크톱 레이아웃으로 계산될 폭에서도 에디터
+  // 안에서는 모바일 레이아웃으로 잘못 계산되는 게 근본 원인이었다 —
+  // "홈페이지 설정 관리"의 왼쪽 패널을 오버레이로 바꿔 캔버스 폭을 지킨
+  // HOTFIX-141.9와 동일한 패턴: 두 패널을 flex 형제 대신 캔버스 위에 뜨는
+  // 절대 위치 오버레이로 바꿔, 캔버스(및 그 안의 컨테이너 쿼리)가 항상
+  // 이 셸의 전체 폭을 그대로 쓰게 한다.
   return (
-    <div className="flex flex-1 overflow-hidden">
-      <Toolbox sections={sectionOptions} elements={PRIMITIVE_BLOCK_OPTIONS} onAdd={handleAdd} />
+    <div className="relative flex flex-1 overflow-hidden">
+      <div className="absolute inset-y-0 left-0 z-20 flex shadow-xl">
+        <Toolbox sections={sectionOptions} elements={PRIMITIVE_BLOCK_OPTIONS} onAdd={handleAdd} />
+      </div>
       {/* EPIC-100(항목 3): 모바일 모드일 때 캔버스를 실제 폰 너비(390px)로
           좁히고 가운데 정렬 + 기기 프레임처럼 보이는 테두리/그림자를 얹는다.
           바깥 회색 배경은 캔버스가 전체 폭이 아닐 때 경계를 눈으로 구분하기
           위함(PC 모드에서는 배경이 그대로 흰색 캔버스에 가려짐). */}
-      <div className="flex-1 overflow-y-auto bg-gray-100">
+      <div className="h-full w-full overflow-y-auto bg-gray-100">
         <div
           className={`craft-home @container mx-auto ${editorialSerif.variable} ${
             deviceMode === "mobile"
@@ -150,7 +164,9 @@ function EditorBody({
           <Frame data={initialState ?? undefined}>{!initialState && defaultTree}</Frame>
         </div>
       </div>
-      <SettingsSidebar />
+      <div className="absolute inset-y-0 right-0 z-20 flex shadow-xl">
+        <SettingsSidebar />
+      </div>
     </div>
   );
 }

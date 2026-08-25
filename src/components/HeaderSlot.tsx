@@ -96,11 +96,24 @@ export function HeaderSlot({
 
   // HOTFIX-141.15: 저장된 dxPx는 refWidthPx(드래그 당시 기준 폭) 기준이다
   // — 지금 기준 폭과 비율만큼 스케일링해 실제로 적용한다(가로만 — 세로는
-  // 폭 변화와 무관하므로 그대로). refWidthPx가 없으면(옛 데이터, 혹은
-  // dxPx=0) 배율 1로 취급해 기존과 동일하게 동작한다.
+  // 폭 변화와 무관하므로 그대로).
+  // HOTFIX-146(사용자 반복 신고 — "'홈페이지 설정 관리'의 preview가 실제
+  // 홈페이지 출력과 다르다"): refWidthPx가 없는 경우를 "배율 1로 적용"
+  // 취급했던 게 진짜 원인이었다 — 141.15 이전에 드래그돼 refWidthPx 없이
+  // 저장된 값(예: '관리자' dxPx=-747, '스튜디오' dxPx=-735)은 그 당시
+  // 캔버스 폭에서만 유효한 큰 픽셀값인데, "배율 1"로 아무 폭에서나 그대로
+  // 적용해버리면 관리자 캔버스 폭과 실제 방문자 창 폭이 조금만 달라도
+  // 화면 밖으로 완전히 밀려나 사라진다(실측: 관리자 캔버스에서는 우연히
+  // 보이는 위치였지만 실제 사이트 폭에서는 x좌표가 음수로 나가 안 보임).
+  // 기준 폭을 모르는 오프셋은 "적당히 맞겠지"로 그대로 믿기보다
+  // 아예 무시(0)하는 게 안전하다 — 원래 flex 자리로 돌아가 항상 화면
+  // 안에 보이는 값이 "폭 불명 오프셋을 그대로 믿어 화면 밖으로 나가는 것"보다
+  // 훨씬 낫다. 새로 드래그하면 refWidthPx가 항상 함께 저장되니(위 startDrag
+  // 참고) 이 경로를 다시 타지 않는다.
   const referenceWidth = useReferenceWidth();
-  const scaleFactor = value.refWidthPx && value.refWidthPx > 0 && referenceWidth > 0 ? referenceWidth / value.refWidthPx : 1;
-  const effectiveDx = value.dxPx * scaleFactor;
+  const hasKnownRefWidth = typeof value.refWidthPx === "number" && value.refWidthPx > 0;
+  const scaleFactor = hasKnownRefWidth && referenceWidth > 0 ? referenceWidth / value.refWidthPx! : 1;
+  const effectiveDx = hasKnownRefWidth ? value.dxPx * scaleFactor : 0;
 
   function startDrag(e: ReactPointerEvent<HTMLElement>) {
     e.stopPropagation();

@@ -183,10 +183,15 @@ export function LeftSidebar({
   // HOTFIX-141.15(사용자 신고 — "좌우 폭을 줄이니까... 겹쳐지잖아"): 저장된
   // dxPx는 refWidthPx(드래그 당시 기준 폭) 기준 — 지금 기준 폭과 비율만큼
   // 스케일링해 적용한다. 세로(dy)는 폭 변화와 무관하므로 그대로.
+  // HOTFIX-146: refWidthPx를 모르는 옛 오프셋을 "배율 1"로 그대로 믿고
+  // 적용하면 관리자 캔버스 폭과 실제 방문자 창 폭이 다를 때 화면 밖으로
+  // 밀려날 수 있다(HeaderSlot.tsx 동일 수정 참고) — 기준 폭 불명이면 dx를
+  // 무시(0)해 항상 원래 자리에 안전하게 보이게 한다.
   const rawDx = offset?.dxPx ?? 0;
   const dy = offset?.dyPx ?? 0;
-  const scaleFactor = offset?.refWidthPx && offset.refWidthPx > 0 && referenceWidth > 0 ? referenceWidth / offset.refWidthPx : 1;
-  const dx = rawDx * scaleFactor;
+  const hasKnownRefWidth = typeof offset?.refWidthPx === "number" && offset.refWidthPx > 0;
+  const scaleFactor = hasKnownRefWidth && referenceWidth > 0 ? referenceWidth / offset!.refWidthPx! : 1;
+  const dx = hasKnownRefWidth ? rawDx * scaleFactor : 0;
   const centerTransform = topOffsetPx === undefined ? "translateY(-50%)" : "";
   const dragTransform = dx || dy ? `translate(${dx}px, ${dy}px)` : "";
   const combinedTransform = [centerTransform, dragTransform].filter(Boolean).join(" ") || undefined;

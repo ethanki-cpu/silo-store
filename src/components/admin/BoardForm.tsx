@@ -87,6 +87,10 @@ export type BoardFormValues = {
   // 좁아 설정할수 있게 해줘"): Timeline NG(클래식 TimelineJS3) 슬라이드
   // 영역 높이(px) — TL.Timeline의 `height` 옵션으로 그대로 전달된다.
   timeline_ng_stage_height_px: number; // 0 = 미지정(TimelineJS3 기본값)
+  // HOTFIX-147.19(사용자 지시 — "타임라인 대시보드가 전체를 한눈에 볼 수
+  // 없도록 줌인되어있다, 조절할 수 있는 기능을 넣어달라"): TL3 TimeNav
+  // 확대 배율 초기값(공식 zoom_sequence 값만 허용) — 0 = 미지정(1로 처리).
+  timeline_ng_zoom_factor: number;
   // HOTFIX-147.3(사용자 지시 — "페이지 첫 화면 대표사진 슬라이드 + 그 위에
   // 중첩되는 텍스트(제목/요약)"): Timeline NG 리프 게시판 전용 히어로 —
   // widget_settings.timelineHeroSlides로 저장. 비어있으면(기본) 기존처럼
@@ -186,6 +190,7 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   timeline_marker_size_px: 0,
   timeline_card_theme: "",
   timeline_ng_stage_height_px: 0,
+  timeline_ng_zoom_factor: 0,
   timeline_hero_slides: [],
   post_layout_order: DEFAULT_POST_LAYOUT_ORDER,
 };
@@ -996,6 +1001,26 @@ export function BoardForm({
             <p className="col-span-2 text-xs text-gray-400">
               미디어/제목/설명이 표시되는 위쪽 영역의 세로 크기예요. 하단 연대표(TimeNav)는 이 값과 무관하게 항상 같은 높이를 유지해요.
             </p>
+            {/* 사용자 지시(2026-08-27 — "타임라인 대시보드가 전체를 한눈에
+                볼 수 없도록 줌인되어있다, 조절할 수 있는 기능을 넣고
+                전체를 한눈에 볼 수 있도록 줌을 조절해달라"): TL3 TimeNav
+                확대 배율 — 공식 zoom_sequence(피보나치) 값만 허용. */}
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                처음 열었을 때 확대 배율(낮을수록 더 넓게/전체가 보임)
+              </label>
+              <select
+                value={values.timeline_ng_zoom_factor || 0.5}
+                onChange={(e) => update("timeline_ng_zoom_factor", Number(e.target.value))}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                {[0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89].map((z) => (
+                  <option key={z} value={z}>
+                    {z}배{z === 0.5 ? " (기본값, 전체가 한눈에 보임)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
 
@@ -1391,6 +1416,7 @@ export function BoardForm({
             timelineMarkerSizePx={values.timeline_marker_size_px || undefined}
             timelineCardTheme={values.timeline_card_theme === "dark" ? "dark" : values.timeline_card_theme === "light" ? "light" : undefined}
             timelineNgStageHeightPx={values.timeline_ng_stage_height_px || undefined}
+            timelineNgZoomFactor={values.timeline_ng_zoom_factor || undefined}
             postMetaStyle={buildPostMetaStyle(values) ?? {}}
           />
         </div>

@@ -23,11 +23,18 @@ export function SiloTimeline({
   boardId,
   groupHref,
   stageHeightPx,
+  initialZoomFactor,
   onCoverStateChange,
 }: {
   boardId?: string;
   groupHref?: string;
   stageHeightPx?: number | null;
+  /** HOTFIX-147.19(사용자 지시 — "대시보드가 그 타임라인 전체를 한눈에
+   * 볼 수 없도록 줌인되어있다, 처음 default로 줌인되어있는걸 조절할수
+   * 있는 기능을 넣고 전체를 한눈에 볼수있도록 줌을 조절해달라"):
+   * TL3의 TimeNav 확대 배율(scale_factor, 낮을수록 더 넓게/줌아웃) —
+   * SiloTimelineInner.tsx 주석 참고. */
+  initialZoomFactor?: number | null;
   /** HOTFIX-147.8: SiloTimelineEmbedBlock의 표지 자유배치 오버레이용 —
    * SiloTimelineInner.tsx 주석 참고. */
   onCoverStateChange?: (state: TimelineCoverState) => void;
@@ -37,6 +44,7 @@ export function SiloTimeline({
       boardId={boardId}
       groupHref={groupHref}
       stageHeightPx={stageHeightPx}
+      initialZoomFactor={initialZoomFactor}
       onCoverStateChange={onCoverStateChange}
     />
   );

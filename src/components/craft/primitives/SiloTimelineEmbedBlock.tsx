@@ -73,6 +73,13 @@ export type SiloTimelineEmbedBlockProps = {
   boardId: string;
   groupHref: string;
   stageHeightPx: number;
+  // HOTFIX-147.19(사용자 지시 — "대시보드가 그 타임라인 전체를 한눈에 볼
+  // 수 없도록 줌인되어있다, 조절할 수 있는 기능을 넣고 전체를 한눈에 볼
+  // 수 있도록 줌을 조절해달라"): TL3 TimeNav의 확대 배율(공식 옵션명
+  // scale_factor) 초기값 — TL3 자체 기본값 2 대신 공식 zoom_sequence
+  // 최솟값인 0.5(실측상 4단계 카테고리 마커가 전부 스크롤 없이 들어옴)를
+  // 기본으로 쓴다. 0/미지정이면 0.5로 취급(SiloTimelineInner.tsx).
+  initialZoomFactor: number;
   motion?: MotionConfig;
   // HOTFIX-147.8(사용자 지시 — "타임라인 섹션이 처음 로딩되면 보이는
   // '혁명~제국' 부분을 내가 텍스트를 변형하고, 뒷 배경으로 슬라이드/이미지를
@@ -104,6 +111,11 @@ export type SiloTimelineEmbedBlockProps = {
   // 설정. 표지와 달리 이벤트는 개수가 정해져 있지 않아 맵으로 둔다.
   eventOverlays: Record<string, SlideOverlayConfig>;
 };
+
+// HOTFIX-147.19: TL3(TimelineJS3) 자체가 정의한 `zoom_sequence` 기본값
+// 그대로(node_modules/@knight-lab/timelinejs/src/js/timenav/TimeNav.js) —
+// TimeNav 확대는 이 이산 단계 사이에서만 오간다(피보나치 수열).
+const ZOOM_SEQUENCE = [0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
 
 const COVER_WEIGHT_CLASS: Record<CoverFontWeight, string> = {
   normal: "font-normal",
@@ -248,6 +260,7 @@ export function SiloTimelineEmbedBlock({
   boardId,
   groupHref,
   stageHeightPx,
+  initialZoomFactor,
   motion = DEFAULT_MOTION,
   coverEnabled,
   coverText,
@@ -276,9 +289,19 @@ export function SiloTimelineEmbedBlock({
   // 알아야 한다.
   const timelineEl =
     mode === "group" ? (
-      <SiloTimeline groupHref={groupHref} stageHeightPx={stageHeightPx || undefined} onCoverStateChange={setCoverState} />
+      <SiloTimeline
+        groupHref={groupHref}
+        stageHeightPx={stageHeightPx || undefined}
+        initialZoomFactor={initialZoomFactor}
+        onCoverStateChange={setCoverState}
+      />
     ) : (
-      <SiloTimeline boardId={boardId} stageHeightPx={stageHeightPx || undefined} onCoverStateChange={setCoverState} />
+      <SiloTimeline
+        boardId={boardId}
+        stageHeightPx={stageHeightPx || undefined}
+        initialZoomFactor={initialZoomFactor}
+        onCoverStateChange={setCoverState}
+      />
     );
 
   // 지금 보고 있는 슬라이드(표지 또는 특정 이벤트)에 적용할 설정을 고른다 —
@@ -731,6 +754,27 @@ function SiloTimelineEmbedSettings() {
         />
       </label>
 
+      {/* HOTFIX-147.19(사용자 지시 — "대시보드가 전체를 한눈에 볼 수
+          없도록 줌인되어있다, 조절할 수 있는 기능을 넣고 전체를 한눈에
+          볼 수 있도록 줌을 조절해달라"): TL3 공식 zoom_sequence 값
+          (Fibonacci 수열, TL3 자체가 정해둔 이산 단계라 자유 입력 대신
+          이 목록에서만 고르게 한다 — 아무 값이나 넣으면 TL3가 어차피
+          이 목록에서 가장 가까운 값으로 스냅함)만 보여준다. */}
+      <label className="block text-xs text-gray-600">
+        처음 열었을 때 확대 배율(낮을수록 더 넓게/전체가 보임)
+        <select
+          value={props.initialZoomFactor || 0.5}
+          onChange={(e) => setProp((p) => { p.initialZoomFactor = Number(e.target.value); })}
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        >
+          {ZOOM_SEQUENCE.map((z) => (
+            <option key={z} value={z}>
+              {z}배{z === 0.5 ? " (기본값, 전체가 한눈에 보임)" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <div className="space-y-2 border-t border-gray-200 pt-3">
         <label className="flex items-center gap-2 text-xs text-gray-700">
           <input
@@ -852,6 +896,7 @@ SiloTimelineEmbedBlock.craft = {
     boardId: "",
     groupHref: "",
     stageHeightPx: 0,
+    initialZoomFactor: 0.5,
     motion: DEFAULT_MOTION,
     coverEnabled: false,
     coverText: "",

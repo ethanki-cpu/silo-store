@@ -85,6 +85,7 @@ export default function SiloTimelineInner({
   boardId,
   groupHref,
   stageHeightPx,
+  initialZoomFactor,
   onCoverStateChange,
 }: {
   /** 단일 게시판 모드 — groupHref와 둘 중 하나만 준다. */
@@ -96,6 +97,14 @@ export default function SiloTimelineInner({
    * 좁아 설정할수 있게 해줘"): 슬라이드(미디어+제목+설명) 영역의 높이.
    * 없으면 TimelineJS3 기본값(컨테이너 높이 자동 계산)을 그대로 쓴다. */
   stageHeightPx?: number | null;
+  /** HOTFIX-147.19(사용자 지시 — "타임라인 대시보드가 전체를 한눈에 볼 수
+   * 없도록 줌인되어있다"): TL3의 TimeNav 확대 배율(공식 옵션명
+   * `scale_factor` — "타임라인이 화면 몇 개 너비만큼인가", 낮을수록
+   * 더 넓게/줌아웃) 초기값. TL3 자체 기본값은 2(전체 기간의 절반만
+   * 화면에 보임) — 공식 zoom_sequence 최솟값인 0.5(실측상 4단계 마커가
+   * 전부 스크롤 없이 들어옴)를 우리 기본값으로 쓴다. null/undefined면
+   * (예: 이 필드가 생기기 전에 저장된 craft_state) 이 0.5가 적용된다. */
+  initialZoomFactor?: number | null;
   /** HOTFIX-147.8: 표지 슬라이드를 보고 있는지 + `.tl-storyslider`의 실제
    * top/height(컨테이너 기준)를 알려준다 — 부모가 이 위에 자유배치 오버레이를
    * 정확히 겹칠 수 있도록. 매번 새 함수를 넘겨도 effect가 매번 재설정되지
@@ -199,9 +208,21 @@ export default function SiloTimelineInner({
         // 찾는데, URL 생성자의 base는 반드시 절대 URL이어야 한다(실측 —
         // "/vendor/..." 같은 루트-상대 경로를 넘기면 "Invalid base URL"로
         // 죽는다) — origin을 직접 붙인다.
+        // 사용자 지시(2026-08-27 — "대시보드가 타임라인 전체를 한눈에 볼
+        // 수 없도록 줌인되어있다, 전체를 한눈에 볼 수 있도록 줌을
+        // 조절해달라"): TL3 자체 기본값(scale_factor 2)은 전체 기간의
+        // 절반 정도만 화면에 보인다. 실측(elementFromPoint 대신
+        // getBoundingClientRect로 마커 좌표를 직접 대조): TL3 공식
+        // zoom_sequence의 최솟값인 0.5를 쓰면 이 4단계 카테고리
+        // 전부(그리스~로코코) 마커가 스크롤 없이 화면 안에 들어온다 —
+        // 그보다 더 작은 값(0.05 등)은 마커는 다 들어오지만 축 눈금
+        // 라벨이 서로 겹쳐 못 읽는 부작용이 있어(TL3가 그 span에 맞춰
+        // 과도하게 넓은 눈금 범위를 그림) 공식 프리셋 중 가장 작은 0.5를
+        // 기본값으로 쓴다.
         const instance = new TimelineCtor(container, data, {
           script_path: `${window.location.origin}${TL_BASE}/js/`,
           ...(stageHeightPx ? { height: stageHeightPx } : {}),
+          scale_factor: initialZoomFactor || 0.5,
         });
         instanceRef.current = instance;
         isTitleRef.current = true;
@@ -225,7 +246,7 @@ export default function SiloTimelineInner({
       // 공식적으로 안내된 정리 방법(다른 사용자들도 재마운트 시 이렇게 함).
       if (container) container.innerHTML = "";
     };
-  }, [boardId, groupHref, stageHeightPx, emitCoverState]);
+  }, [boardId, groupHref, stageHeightPx, initialZoomFactor, emitCoverState]);
 
   // EPIC-147(요구사항 3 — 새로고침 없이 상세 페이지로 이동): TimelineJS3가
   // 그리는 순수 DOM이라 React가 그 안의 <a> 클릭을 알 방법이 없다 —

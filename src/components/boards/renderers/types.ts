@@ -56,4 +56,9 @@ export type BoardRendererProps = {
   // 슬라이드(미디어+제목+설명) 영역 높이(px) — boards.widget_settings에서
   // 옴, TimelineNgRenderer만 쓴다.
   timelineNgStageHeightPx?: number;
+  // HOTFIX-147.19(사용자 지시 — "타임라인 대시보드가 전체를 한눈에 볼 수
+  // 없도록 줌인되어있다, 조절할 수 있는 기능을 넣고 전체를 한눈에 볼 수
+  // 있도록 줌을 조절해달라"): TL3 TimeNav 확대 배율 초기값 — 미지정이면
+  // SiloTimelineInner.tsx가 1(전체가 화면 하나에 딱 맞음)로 기본 처리한다.
+  timelineNgZoomFactor?: number;
 };

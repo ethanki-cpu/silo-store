@@ -246,6 +246,7 @@ export function BoardModule({
         timelineCardTheme={board?.widget_settings?.timelineCardTheme}
         postMetaStyle={board?.widget_settings?.postMetaStyle}
         timelineNgStageHeightPx={board?.widget_settings?.timelineNgStageHeightPx}
+        timelineNgZoomFactor={board?.widget_settings?.timelineNgZoomFactor}
       />
 
       {definition.pageable && paginationEnabled !== false && (

@@ -7,7 +7,7 @@ import type { BoardRendererProps } from "./types";
 // (TLTimeline 스키마 변환은 API 라우트 한 곳에만 두고 싶어서 하는 의도적
 // 선택). "게시판 관리" 미리보기 패널은 boardId="preview"(실제 게시판이
 // 아님)로 호출하므로, 그 경우엔 실제 fetch 대신 안내 문구만 보여준다.
-export function TimelineNgRenderer({ boardId, timelineNgStageHeightPx }: BoardRendererProps) {
+export function TimelineNgRenderer({ boardId, timelineNgStageHeightPx, timelineNgZoomFactor }: BoardRendererProps) {
   if (boardId === "preview") {
     return (
       <p className="p-6 text-sm text-gray-500">
@@ -15,5 +15,5 @@ export function TimelineNgRenderer({ boardId, timelineNgStageHeightPx }: BoardRe
       </p>
     );
   }
-  return <SiloTimeline boardId={boardId} stageHeightPx={timelineNgStageHeightPx} />;
+  return <SiloTimeline boardId={boardId} stageHeightPx={timelineNgStageHeightPx} initialZoomFactor={timelineNgZoomFactor} />;
 }

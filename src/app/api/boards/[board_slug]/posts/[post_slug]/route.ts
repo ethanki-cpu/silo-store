@@ -477,8 +477,18 @@ export async function PATCH(
     .select()
     .single();
 
-  // 신규 컬럼이 라이브 DB에 아직 없으면(42703) 레거시 컬럼만으로 재시도.
-  if (updateError) {
+  // HOTFIX-147.1(사용자 신고 — 아르데코 "Gertrude Lawrence" 게시글의 타임라인
+  // 연대가 저장되지 않음): 신규 컬럼이 라이브 DB에 아직 없을 때(42703)만
+  // 레거시 컬럼만으로 재시도해야 하는데, 기존 코드는 updateError가 있으면
+  // 원인을 가리지 않고 무조건 이 fallback으로 넘어갔다 — 실제로는
+  // timeline_year 등 3개 컬럼에 authenticated 역할의 UPDATE 권한이
+  // 빠져있어(42501 insufficient_privilege) 전체 UPDATE 문이 거부됐는데,
+  // 이 fallback이 title/body/is_docent_post만 남기고 body_json/
+  // featured_image_url/category/tags/thumbnail_visible/timeline_* 전부를
+  // 조용히 빠뜨린 채 200 OK를 반환해 "저장은 됐는데 일부 필드만 사라짐"이
+  // 사용자 눈에 안 띄게 발생했다 — 진짜 42703(컬럼 없음)일 때만 재시도하고,
+  // 그 외 에러(권한 문제 등)는 그대로 실패를 알린다.
+  if (updateError && updateError.code === "42703") {
     ({ data: updated, error: updateError } = await requester.scopedClient
       .from("posts")
       .update({

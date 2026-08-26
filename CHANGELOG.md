@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-26 (HOTFIX-147.1 — 타임라인 연대 수정이 저장되지 않는 버그 + 게시글 수정 시 필드 조용히 누락되는 위험한 폴백 제거)
+- **사용자 신고**: 아르데코 "Gertrude Lawrence" 게시글을 수정 화면에서 타임라인 연대를 입력하고 "수정완료"를 눌러도 저장되지 않고 타임라인에도 반영되지 않음 — 다른 온라인 도슨트 게시글도 같은 문제인지 확인 요청.
+- **근본 원인**: `posts.timeline_year`/`timeline_end_year`/`timeline_display_date` 3개 컬럼이 `authenticated` 역할에 `UPDATE` 권한 없이(INSERT/SELECT만 있고 UPDATE는 `postgres`/`service_role`에만 부여된 채) 추가돼 있었다(`information_schema.column_privileges`로 실측 확인) — 그래서 이 필드를 포함한 게시글 수정 UPDATE 문 전체가 Postgres 권한 오류(42501)로 거부됐다. 새 글 "작성"은 INSERT 권한이 멀쩡해 문제없이 저장되지만, 그 글을 나중에 "수정"하는 순간부터 실패한다.
+- **더 위험했던 2차 버그**: `src/app/api/boards/[board_slug]/posts/[post_slug]/route.ts`의 수정 라우트가 UPDATE 실패 시 원인을 가리지 않고 "레거시 DB엔 신규 컬럼이 없을 수 있다(42703)"는 낡은 가정으로 무조건 title/body/is_docent_post만 남긴 축소 재시도로 넘어가 200 OK를 반환하고 있었다 — 이 때문에 타임라인 연대뿐 아니라 body_json/featured_image_url/category/tags/thumbnail_visible까지 조용히 저장에서 빠진 채 "수정 완료" 화면으로 넘어갔다. `updateError.code === "42703"`일 때만 이 재시도를 타도록 수정 — 그 외 에러(권한 문제 등)는 이제 실제 실패로 사용자에게 보인다.
+- **영향 범위**: 컬럼 권한은 게시판이 아니라 테이블 전체에 걸리므로, `render_type='timeline_ng'`인 14개 게시판(온라인 도슨트 leaf 13개 + 사일로 타임라인) 전부에서 동일하게 재현되는 구조적 버그였다 — 특정 게시글/게시판만의 문제가 아니었음.
+- `tsc` 0 errors. **DB 권한 보강이 아직 남아있음**: `grant update (timeline_year, timeline_end_year, timeline_display_date) on posts to authenticated;`가 근본 해결책인데 auto-mode 클래시파이어가 이 GRANT 실행을 차단해 사용자 승인 대기 중 — 승인 후 실행하면 이제 수정 라우트가 축소 재시도 대신 정상적으로 3개 필드를 저장한다.
+
 ## 2026-08-26 (HOTFIX-143.5 — 인스타그램 캐러셀 항목 통째 누락 수정 + 기존 게시물 복구 라우트)
 - **사용자 신고**: 바로크 게시판 "빨간머리 사제 Act 1"/"Act 2"의 인스타그램 캐러셀에서 첫 번째 '동영상'이 안 보이고 두 번째 '사진'만 나온다는 신고 → 조사 도중 사용자가 아르데코 "Gertrude Lawrence" 게시글도 캐러셀 3개 중 마지막 1개만 나온다고 추가 신고.
 - **근본 원인**: `src/app/api/instagram/fetch/route.ts`가 캐러셀(여러 장) 게시물의 각 항목을 Graph API의 `children{id,media_type,media_url,thumbnail_url}` 서브필드 응답 하나로만 받아왔는데, 이 서브필드 응답이 특정 자식(특히 VIDEO)의 `media_url`을 아예 비워서 내려주는 경우가 실제로 확인됨(Gertrude Lawrence 게시글은 원래 3개 항목 중 2개가 이 사유로 완전히 누락되어 `instagram_feeds.media_urls`에 1개만 저장돼 있었음, `media_urls.length > 1` 조건이 깨지면서 캐러셀 UI 자체가 단일 이미지 뷰로 전환됨). 기존 코드는 `media_url`이 없는 자식을 `continue`로 통째로 건너뛰어 사진/영상이 순서까지 밀리며 조용히 사라졌다.

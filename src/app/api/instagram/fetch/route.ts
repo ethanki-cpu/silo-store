@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestMember } from "@/lib/serverAuth";
 import { downloadBuffer, uploadBufferToR2 } from "@/lib/r2Server";
+import { GRAPH_API_VERSION, resolveChildMediaUrl, type IgChild } from "@/lib/instagramGraph";
 
 // EPIC-143(사용자 지시 — "Instagram Graph API 기반 네이티브 피드 렌더링"):
 // 사일로 스토어 소유 Instagram 비즈니스 계정(_silo_store)의 게시물을 공식
@@ -19,12 +20,10 @@ import { downloadBuffer, uploadBufferToR2 } from "@/lib/r2Server";
 // 요청으로 전부 처리하면 서버리스 함수 타임아웃 위험이 커서, 프론트(관리자
 // 페이지)가 nextCursor가 null이 될 때까지 반복 호출하는 방식으로 나눈다.
 
-const GRAPH_API_VERSION = "v21.0";
 const MEDIA_FIELDS =
   "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,children{id,media_type,media_url,thumbnail_url}";
 const PAGE_LIMIT = 12;
 
-type IgChild = { id: string; media_type: "IMAGE" | "VIDEO"; media_url?: string; thumbnail_url?: string };
 type IgMediaNode = {
   id: string;
   caption?: string;
@@ -103,29 +102,39 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    // HOTFIX 확인됨(실사용 테스트): 일부 VIDEO/릴스 게시물은 media_url이
-    // 아예 안 내려오고 thumbnail_url만 있는 경우가 있다 — 그런 항목도
-    // 조용히 건너뛰지 않고 썸네일만이라도 저장해 최소한 무언가는 보이게 한다.
-    const sources: { media_type: "IMAGE" | "VIDEO"; media_url?: string }[] =
+    // HOTFIX-143.5(실사용 재현 — 바로크 Act 1/2, 아르데코 Gertrude Lawrence):
+    // children{...} 서브필드 응답이 특정 캐러셀 자식(특히 VIDEO)의 media_url을
+    // 아예 비워서 내려주는 경우가 있었다 — 예전엔 그런 자식을 통째로
+    // 건너뛰어(continue) 캐러셀에서 사진/영상이 사라졌다. 이제
+    // resolveChildMediaUrl이 그 자식을 단독 재조회하거나(그래도 실패하면
+    // thumbnail_url로) 복구를 시도하고, 그래도 안 되는 것만 진짜로 건너뛴다.
+    const childSources: IgChild[] =
       node.media_type === "CAROUSEL_ALBUM"
-        ? (node.children?.data ?? []).map((c) => ({ media_type: c.media_type, media_url: c.media_url }))
-        : [{ media_type: node.media_type === "VIDEO" ? "VIDEO" : "IMAGE", media_url: node.media_url }];
+        ? (node.children?.data ?? [])
+        : [{ id: node.id, media_type: node.media_type === "VIDEO" ? "VIDEO" : "IMAGE", media_url: node.media_url }];
 
     const mediaUrls: string[] = [];
     const mediaItemTypes: string[] = [];
-    for (const src of sources) {
-      if (!src.media_url) continue;
-      const downloaded = await downloadBuffer(src.media_url);
-      if (!downloaded) continue;
+    for (const child of childSources) {
+      const resolved = await resolveChildMediaUrl(child, accessToken);
+      if (!resolved) {
+        errors.push(`${node.id}: 캐러셀 항목(${child.id}) 미디어를 찾지 못해 건너뛰었어요.`);
+        continue;
+      }
+      const downloaded = await downloadBuffer(resolved.media_url);
+      if (!downloaded) {
+        errors.push(`${node.id}: 캐러셀 항목(${child.id}) 다운로드에 실패했어요.`);
+        continue;
+      }
       const uploaded = await uploadBufferToR2(
         downloaded.buffer,
         downloaded.contentType,
-        src.media_type === "VIDEO",
+        resolved.media_type === "VIDEO",
         `instagram/${node.id}`,
       );
       if (!uploaded) continue;
       mediaUrls.push(uploaded);
-      mediaItemTypes.push(src.media_type);
+      mediaItemTypes.push(resolved.media_type);
     }
 
     let thumbnailR2Url: string | null = null;

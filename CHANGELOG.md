@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-26 (HOTFIX-143.5 — 인스타그램 캐러셀 항목 통째 누락 수정 + 기존 게시물 복구 라우트)
+- **사용자 신고**: 바로크 게시판 "빨간머리 사제 Act 1"/"Act 2"의 인스타그램 캐러셀에서 첫 번째 '동영상'이 안 보이고 두 번째 '사진'만 나온다는 신고 → 조사 도중 사용자가 아르데코 "Gertrude Lawrence" 게시글도 캐러셀 3개 중 마지막 1개만 나온다고 추가 신고.
+- **근본 원인**: `src/app/api/instagram/fetch/route.ts`가 캐러셀(여러 장) 게시물의 각 항목을 Graph API의 `children{id,media_type,media_url,thumbnail_url}` 서브필드 응답 하나로만 받아왔는데, 이 서브필드 응답이 특정 자식(특히 VIDEO)의 `media_url`을 아예 비워서 내려주는 경우가 실제로 확인됨(Gertrude Lawrence 게시글은 원래 3개 항목 중 2개가 이 사유로 완전히 누락되어 `instagram_feeds.media_urls`에 1개만 저장돼 있었음, `media_urls.length > 1` 조건이 깨지면서 캐러셀 UI 자체가 단일 이미지 뷰로 전환됨). 기존 코드는 `media_url`이 없는 자식을 `continue`로 통째로 건너뛰어 사진/영상이 순서까지 밀리며 조용히 사라졌다.
+- **수정**: `src/lib/instagramGraph.ts`(신규) — `resolveChildMediaUrl()`이 `media_url`이 빈 자식을 `GET /{child-id}?fields=media_type,media_url,thumbnail_url`로 단독 재조회하고, 그래도 실패하면 `thumbnail_url`을 정지 이미지로 대체해 최소한 아무것도 사라지지 않게 한다. `/api/instagram/fetch`가 이 헬퍼를 쓰도록 교체(앞으로 새로 동기화되는 게시물부터 적용).
+- **기존에 이미 손상된 채로 저장된 게시물 복구**: `src/app/api/admin/instagram/resync-carousels/route.ts`(신규, 관리자 전용, 커서 페이지네이션) — `instagram_feeds`의 모든 `CAROUSEL_ALBUM` 행을 Graph API에서 `children`만 다시 받아와(위 복구 로직 포함) `media_urls`/`media_item_types`를 완전히 재구성해 덮어쓴다. `/admin/instagram` 페이지에 "캐러셀 누락 항목 일괄 복구" 버튼 추가(기존 "깨진 썸네일 일괄 복구"와 동일한 반복 호출 패턴).
+- `tsc`/`lint` 0 errors, 77 warnings(기존 기준선). **로컬에는 `IG_ACCESS_TOKEN`/`IG_USER_ID`가 없어(프로덕션/Vercel 환경 변수 전용) 실제 Graph API 재조회는 로컬에서 검증 불가** — Supabase Management API로 `instagram_feeds` 원본 데이터를 직접 조회해 문제(누락/순서)를 확인했고, 코드 로직은 tsc/lint로만 검증됨. **사용자가 직접 해야 하는 것**: `/admin/instagram`(dev.silostore.net 또는 프로덕션, 실제 IG 환경 변수가 있는 배포)에서 "캐러셀 누락 항목 일괄 복구" 버튼을 클릭 — 이 두 게시글을 포함해 저장된 모든 캐러셀 게시물이 대상이 됨.
+
 ## 2026-08-25 (EPIC-147-후속 2차 — Timeline NG를 클래식 TimelineJS3 스타일로 전면 교체 + 연대 직접 지정 + 본문 발췌 + 슬라이드 높이 설정)
 - **사용자 재지시(스크린샷 2장 + 화면 녹화 영상 첨부)**: "지금 네가 구현한 스타일은 싫어... 예전 스타일의 타임라인을 원해. 여기에 단지 하단 줌인 줌아웃 기능이 추가된걸 원해", "게시글이 쓰여진 날짜가 timeline 에 적용되었는데... 게시글이 쓰여진 날과는 독립적인, 타임라인에 등장하는 연대를 설정할수 있도록 해줘", "타임라인에는 게시글의 모든게 올라가면 안돼... 최대 100자의 게시글의 첫 도입부내용을 올리는데, instagram 게시물 보기 같은 embed 내용은 필요없어", "미디어 와 제목, 설명의 위아래 폭이 너무 좁아 설정할수 있게 해줘", "타임라인을 '위젯'처럼 페이지 수정에서도 추가제거 할수 있게 만들어줘".
 - **라이브러리 전면 교체**: 이전 EPIC-147이 쓰던 `@knight-lab/timeline-ng`(Svelte 5, "Timeline NG" 신버전)의 화면 자체가 사용자가 원하는 클래식 스타일(전체 배경 이미지+오버레이 텍스트, 아이콘 칩 형태의 TimeNav, 돋보기 줌 버튼)과 근본적으로 다른 레이아웃이라 CSS로 되돌릴 수 없었다 — 그 클래식 스타일을 실제로 만드는 원조 라이브러리 `@knight-lab/timelinejs`(TimelineJS3, 순수 JS/DOM, Svelte 아님)로 완전히 교체. `svelte`/`@knight-lab/timeline-ng`/`patch-package`(업스트림 버그 패치용이었으나 이제 불필요) 전부 제거.

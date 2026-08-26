@@ -20,9 +20,19 @@ type BackfillResult = {
   nextCursor: string | null;
   hasMore: boolean;
 };
+type ResyncResult = {
+  processed: number;
+  updated: number;
+  unchanged: number;
+  errors: string[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
 
 const MAX_PAGES_PER_RUN = 20; // 안전장치 — 12*20=240개 정도면 한 번에 충분.
 const MAX_BACKFILL_PAGES_PER_RUN = 40; // 10개씩 40페이지 = 최대 400개 게시글까지.
+// HOTFIX-143.5: 캐러셀 하나당 다운로드+업로드가 여러 번이라 5개씩 60페이지 = 최대 300개 캐러셀까지.
+const MAX_RESYNC_PAGES_PER_RUN = 60;
 
 export default function AdminInstagramSyncPage() {
   const { session } = useAuth();
@@ -38,6 +48,12 @@ export default function AdminInstagramSyncPage() {
   const [backfillUnresolved, setBackfillUnresolved] = useState(0);
   const [backfillErrors, setBackfillErrors] = useState<string[]>([]);
   const [backfillStatusText, setBackfillStatusText] = useState<string | null>(null);
+
+  const [resyncRunning, setResyncRunning] = useState(false);
+  const [resyncUpdated, setResyncUpdated] = useState(0);
+  const [resyncUnchanged, setResyncUnchanged] = useState(0);
+  const [resyncErrors, setResyncErrors] = useState<string[]>([]);
+  const [resyncStatusText, setResyncStatusText] = useState<string | null>(null);
 
   async function loadFeedCount() {
     const { count } = await supabase.from("instagram_feeds").select("id", { count: "exact", head: true });
@@ -138,6 +154,49 @@ export default function AdminInstagramSyncPage() {
     }
   }
 
+  async function runResync() {
+    if (!session) {
+      setResyncStatusText("로그인이 필요해요.");
+      return;
+    }
+    setResyncRunning(true);
+    setResyncErrors([]);
+    setResyncUpdated(0);
+    setResyncUnchanged(0);
+    setResyncStatusText("캐러셀 게시물을 다시 받아오는 중...");
+
+    let cursor: string | undefined;
+    let page = 0;
+    try {
+      while (page < MAX_RESYNC_PAGES_PER_RUN) {
+        page += 1;
+        setResyncStatusText(`${page}번째 묶음 처리 중...`);
+        const res = await fetch("/api/admin/instagram/resync-carousels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify(cursor ? { after: cursor } : {}),
+        });
+        const data: ResyncResult & { error?: string } = await res.json();
+        if (!res.ok) {
+          setResyncErrors((prev) => [...prev, data.error ?? "알 수 없는 오류"]);
+          break;
+        }
+        setResyncUpdated((prev) => prev + data.updated);
+        setResyncUnchanged((prev) => prev + data.unchanged);
+        if (data.errors.length > 0) setResyncErrors((prev) => [...prev, ...data.errors]);
+
+        if (!data.hasMore || !data.nextCursor) break;
+        cursor = data.nextCursor;
+      }
+      setResyncStatusText("캐러셀 복구 완료");
+    } catch (e) {
+      setResyncErrors((prev) => [...prev, e instanceof Error ? e.message : "알 수 없는 오류"]);
+      setResyncStatusText("캐러셀 복구 중 오류가 발생했어요");
+    } finally {
+      setResyncRunning(false);
+    }
+  }
+
   return (
     <main className="flex-1 px-8 pb-8 max-w-2xl mx-auto w-full">
       <h1 className="mb-1 mt-6 text-2xl font-bold">Instagram 동기화</h1>
@@ -200,6 +259,36 @@ export default function AdminInstagramSyncPage() {
           <p className="mb-1 font-semibold">일부 게시물을 복구하지 못했어요:</p>
           <ul className="list-disc space-y-0.5 pl-4">
             {backfillErrors.slice(0, 20).map((e, i) => (
+              <li key={i}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <hr className="my-8 border-gray-200" />
+
+      <h2 className="mb-1 text-lg font-bold">캐러셀 누락 항목 복구</h2>
+      <p className="mb-6 text-xs text-gray-400">
+        Instagram Graph API가 캐러셀(여러 장) 게시물의 일부 항목(특히 영상)의 media_url을 비워서 내려줘, 동기화
+        당시 사진/영상 한 장이 통째로 누락된 게시물들을 다시 받아와요. 저장된 모든 캐러셀 게시물을 대상으로 해요.
+      </p>
+
+      <button type="button" onClick={runResync} disabled={resyncRunning} className={primaryButtonClass}>
+        {resyncRunning ? "복구 중..." : "캐러셀 누락 항목 일괄 복구"}
+      </button>
+
+      {resyncStatusText && <p className="mt-4 text-sm text-gray-600">{resyncStatusText}</p>}
+      {(resyncUpdated > 0 || resyncUnchanged > 0) && (
+        <p className="mt-1 text-sm text-gray-600">
+          다시 받아옴 {resyncUpdated}개 · 변경 없음/실패 {resyncUnchanged}개
+        </p>
+      )}
+
+      {resyncErrors.length > 0 && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          <p className="mb-1 font-semibold">일부 게시물을 복구하지 못했어요:</p>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {resyncErrors.slice(0, 20).map((e, i) => (
               <li key={i}>{e}</li>
             ))}
           </ul>

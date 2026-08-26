@@ -36,6 +36,41 @@ export function freePositionStyle(position: FreePosition): CSSProperties {
   };
 }
 
+// HOTFIX-147.7(사용자 지시 — "모바일에서 텍스트 위치를 드래그 드롭으로 따로
+// 설정할 수 있게 해줘"): mobilePosition이 있는 블록만 쓰는 확장판 —
+// 인라인 style 대신 CSS 커스텀 프로퍼티 + 정적 클래스(globals.css의
+// .craft-free-pos, `@container (max-width:767px)` 오버라이드)로 좌표를
+// 넘긴다. Tailwind는 런타임에 동적으로 만든 `left-[42%]` 같은 클래스명을
+// 빌드 타임에 못 보므로(JIT 스캔 불가) 임의 값을 그대로 유틸리티 클래스로
+// 못 쓴다 — CSS 변수가 그 우회로다. mobilePosition이 없으면(대부분의 기존
+// 블록) 기존 freePositionStyle과 완전히 동일하게 동작한다(모바일 오버레이
+// 클래스 자체가 안 붙음).
+export function freePositionResponsiveAttrs(
+  position: FreePosition,
+  mobilePosition?: FreePosition | null,
+): { style: CSSProperties; className: string } {
+  if (!position.enabled) return { style: { position: "relative" }, className: "" };
+
+  const vars: Record<string, string> = {
+    "--fp-x": `${position.xPct}%`,
+    "--fp-y": `${position.yPct}%`,
+    "--fp-w": `${position.widthPct}%`,
+    "--fp-h": `${position.heightPct}%`,
+  };
+  const hasMobile = !!mobilePosition;
+  if (hasMobile) {
+    vars["--fp-x-m"] = `${mobilePosition!.xPct}%`;
+    vars["--fp-y-m"] = `${mobilePosition!.yPct}%`;
+    vars["--fp-w-m"] = `${mobilePosition!.widthPct}%`;
+    vars["--fp-h-m"] = `${mobilePosition!.heightPct}%`;
+  }
+
+  return {
+    style: { ...(vars as CSSProperties), zIndex: position.zIndex },
+    className: `craft-free-pos${hasMobile ? " craft-free-pos--has-mobile" : ""}`,
+  };
+}
+
 export function clampPct(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }

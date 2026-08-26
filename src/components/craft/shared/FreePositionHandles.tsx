@@ -11,6 +11,7 @@
 import { useNode } from "@craftjs/core";
 import { useRef, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useCraftEditable } from "@/components/craft/home/editable";
+import { useDeviceMode } from "@/components/craft/shared/DeviceModeContext";
 import { clampPct, type FreePosition } from "@/lib/useFreePosition";
 
 type Corner = "nw" | "ne" | "sw" | "se";
@@ -32,15 +33,28 @@ export function FreePositionHandles({
   // 세로 % 자체는 컨테이너가 정사각형이 아니면 같은 %라도 실제 픽셀 비율이
   // 다르므로, 픽셀 단위로 환산해야 눈으로 보이는 비율이 정확히 유지된다).
   lockedAspectRatio = null,
+  // HOTFIX-147.7(사용자 지시 — 모바일 전용 드래그 위치): 둘 다 넘긴 블록만
+  // "모바일 모드일 때는 mobilePosition을 드래그"하게 된다 — 안 넘기면(6개
+  // 기존 블록) deviceMode와 무관하게 항상 position 하나만 편집하는 기존
+  // 동작 그대로다.
+  mobilePosition,
+  onMobileChange,
 }: {
   position: FreePosition;
   onChange: (next: FreePosition) => void;
   anchorRef: RefObject<HTMLElement | null>;
   lockedAspectRatio?: number | null;
+  mobilePosition?: FreePosition | null;
+  onMobileChange?: (next: FreePosition) => void;
 }) {
   const editable = useCraftEditable();
+  const deviceMode = useDeviceMode();
   const { isSelected } = useNode((node) => ({ isSelected: node.events.selected }));
   const dragRef = useRef<DragState | null>(null);
+
+  const editingMobile = deviceMode === "mobile" && onMobileChange !== undefined;
+  const effectivePosition = editingMobile ? (mobilePosition ?? position) : position;
+  const handleChange = editingMobile ? onMobileChange! : onChange;
 
   if (!editable || !position.enabled || !isSelected) return null;
 
@@ -63,7 +77,7 @@ export function FreePositionHandles({
     } catch {
       // no-op — 아래 dragRef 세팅은 그대로 진행
     }
-    dragRef.current = { mode, corner, startX: e.clientX, startY: e.clientY, start: position };
+    dragRef.current = { mode, corner, startX: e.clientX, startY: e.clientY, start: effectivePosition };
   }
 
   // EPIC-110: 네 모서리 중 어느 쪽을 잡았는지에 따라 반대쪽 변은 고정하고
@@ -108,13 +122,13 @@ export function FreePositionHandles({
     const dxPct = ((e.clientX - drag.startX) / rect.width) * 100;
     const dyPct = ((e.clientY - drag.startY) / rect.height) * 100;
     if (drag.mode === "move") {
-      onChange({
-        ...position,
+      handleChange({
+        ...effectivePosition,
         xPct: clampPct(drag.start.xPct + dxPct, 0, 100 - drag.start.widthPct),
         yPct: clampPct(drag.start.yPct + dyPct, 0, 100 - drag.start.heightPct),
       });
     } else if (drag.corner) {
-      onChange({ ...position, ...resizeFromCorner(drag.corner, dxPct, dyPct, rect, drag.start) });
+      handleChange({ ...effectivePosition, ...resizeFromCorner(drag.corner, dxPct, dyPct, rect, drag.start) });
     }
   }
 

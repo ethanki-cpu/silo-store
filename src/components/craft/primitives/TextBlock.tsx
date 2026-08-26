@@ -8,7 +8,7 @@ import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsS
 import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
 import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
-import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
+import { DEFAULT_FREE_POSITION, freePositionResponsiveAttrs, type FreePosition } from "@/lib/useFreePosition";
 
 export type TextBlockProps = {
   text: string;
@@ -18,6 +18,11 @@ export type TextBlockProps = {
   color: string;
   motion?: MotionConfig;
   position?: FreePosition;
+  // HOTFIX-147.7(사용자 지시 — "모바일에서 텍스트 위치를 드래그 드롭으로
+  // 따로 설정할 수 있게 해줘"): null/미지정이면 PC의 position을 그대로
+  // 물려받는다(기존 동작과 동일) — 모바일 모드에서 한 번이라도 드래그/
+  // 입력하면 이 필드가 채워지며 그때부터 독립적으로 유지된다.
+  mobilePosition?: FreePosition | null;
 };
 
 const WEIGHT_CLASS: Record<TextBlockProps["fontWeight"], string> = {
@@ -33,19 +38,31 @@ const ALIGN_CLASS: Record<TextBlockProps["align"], string> = {
   right: "text-right",
 };
 
-export function TextBlock({ text, fontSizePx, fontWeight, align, color, motion = DEFAULT_MOTION, position = DEFAULT_FREE_POSITION }: TextBlockProps) {
+export function TextBlock({
+  text,
+  fontSizePx,
+  fontWeight,
+  align,
+  color,
+  motion = DEFAULT_MOTION,
+  position = DEFAULT_FREE_POSITION,
+  mobilePosition = null,
+}: TextBlockProps) {
   const {
     connectors: { connect },
     setProp,
   } = useNode();
   const boxRef = useRef<HTMLDivElement>(null);
+  const { style, className } = freePositionResponsiveAttrs(position, mobilePosition);
 
   return (
-    <div ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }} style={freePositionStyle(position)}>
+    <div ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }} style={style} className={className}>
       <FreePositionHandles
         position={position}
         onChange={(next) => setProp((p) => { p.position = next; })}
         anchorRef={boxRef}
+        mobilePosition={mobilePosition}
+        onMobileChange={(next) => setProp((p) => { p.mobilePosition = next; })}
       />
       <EditableBlockFrame label="텍스트">
         <RevealWrapper motion={motion}>
@@ -114,7 +131,7 @@ function TextSettings() {
         />
       </label>
       <MotionSettingsSection />
-      <FreePositionSettingsSection />
+      <FreePositionSettingsSection supportsMobileOverride />
     </div>
   );
 }
@@ -129,6 +146,7 @@ TextBlock.craft = {
     color: "#111111",
     motion: DEFAULT_MOTION,
     position: DEFAULT_FREE_POSITION,
+    mobilePosition: null,
   } satisfies TextBlockProps,
   related: { settings: TextSettings },
 };

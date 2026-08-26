@@ -11,9 +11,11 @@ import { editorialSerif } from "@/components/craft/home/font";
 import { Toolbox } from "./Toolbox";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { PRIMITIVE_BLOCK_OPTIONS, PRIMITIVE_RESOLVER } from "@/components/craft/primitives";
+import { DeviceModeProvider, type DeviceMode } from "./DeviceModeContext";
 import type { CraftBlockOption } from "./types";
 
 export type { CraftBlockOption };
+export type { DeviceMode };
 
 // EPIC-100(항목 3): 관리자 PC/모바일 반응형 빌더 모드 — 캔버스(Frame)를 감싼
 // 컨테이너의 실제 렌더링 너비만 바꾼다. 블록 내부 반응형이 뷰포트 미디어쿼리
@@ -21,7 +23,6 @@ export type { CraftBlockOption };
 // 등에서 이미 바꿔뒀기 때문에, 이 너비 변경만으로 그리드/스플릿이 실시간으로
 // 다시 계산된다 — 실제 브라우저 창 크기는 그대로라 뷰포트 미디어쿼리였다면
 // 아무 효과가 없었을 것.
-export type DeviceMode = "pc" | "mobile";
 
 function DeviceModeToggle({ value, onChange }: { value: DeviceMode; onChange: (mode: DeviceMode) => void }) {
   return (
@@ -144,30 +145,38 @@ function EditorBody({
   // HOTFIX-141.9와 동일한 패턴: 두 패널을 flex 형제 대신 캔버스 위에 뜨는
   // 절대 위치 오버레이로 바꿔, 캔버스(및 그 안의 컨테이너 쿼리)가 항상
   // 이 셸의 전체 폭을 그대로 쓰게 한다.
+  // HOTFIX-147.7(사용자 지시 — 모바일 전용 드래그 위치): DeviceModeProvider가
+  // 캔버스만 감싸고 있었을 때는 SettingsSidebar(우측 패널, 여기서는 형제
+  // 요소로 absolute 오버레이됨)가 이 컨텍스트 밖에 있어 deviceMode를 항상
+  // 기본값 "pc"로만 읽었다 — FreePositionSettingsSection의 "지금 모바일
+  // 모드" 분기가 절대 안 켜지던 진짜 원인. Toolbox/캔버스/SettingsSidebar
+  // 셋 다를 하나의 Provider로 감싼다.
   return (
-    <div className="relative flex flex-1 overflow-hidden">
-      <div className="absolute inset-y-0 left-0 z-20 flex shadow-xl">
-        <Toolbox sections={sectionOptions} elements={PRIMITIVE_BLOCK_OPTIONS} onAdd={handleAdd} />
-      </div>
-      {/* EPIC-100(항목 3): 모바일 모드일 때 캔버스를 실제 폰 너비(390px)로
-          좁히고 가운데 정렬 + 기기 프레임처럼 보이는 테두리/그림자를 얹는다.
-          바깥 회색 배경은 캔버스가 전체 폭이 아닐 때 경계를 눈으로 구분하기
-          위함(PC 모드에서는 배경이 그대로 흰색 캔버스에 가려짐). */}
-      <div className="h-full w-full overflow-y-auto bg-gray-100">
-        <div
-          className={`craft-home @container mx-auto ${editorialSerif.variable} ${
-            deviceMode === "mobile"
-              ? "w-[390px] border-x border-gray-300 bg-white shadow-lg"
-              : "w-full bg-white"
-          }`}
-        >
-          <Frame data={initialState ?? undefined}>{!initialState && defaultTree}</Frame>
+    <DeviceModeProvider mode={deviceMode}>
+      <div className="relative flex flex-1 overflow-hidden">
+        <div className="absolute inset-y-0 left-0 z-20 flex shadow-xl">
+          <Toolbox sections={sectionOptions} elements={PRIMITIVE_BLOCK_OPTIONS} onAdd={handleAdd} />
+        </div>
+        {/* EPIC-100(항목 3): 모바일 모드일 때 캔버스를 실제 폰 너비(390px)로
+            좁히고 가운데 정렬 + 기기 프레임처럼 보이는 테두리/그림자를 얹는다.
+            바깥 회색 배경은 캔버스가 전체 폭이 아닐 때 경계를 눈으로 구분하기
+            위함(PC 모드에서는 배경이 그대로 흰색 캔버스에 가려짐). */}
+        <div className="h-full w-full overflow-y-auto bg-gray-100">
+          <div
+            className={`craft-home @container mx-auto ${editorialSerif.variable} ${
+              deviceMode === "mobile"
+                ? "w-[390px] border-x border-gray-300 bg-white shadow-lg"
+                : "w-full bg-white"
+            }`}
+          >
+            <Frame data={initialState ?? undefined}>{!initialState && defaultTree}</Frame>
+          </div>
+        </div>
+        <div className="absolute inset-y-0 right-0 z-20 flex shadow-xl">
+          <SettingsSidebar />
         </div>
       </div>
-      <div className="absolute inset-y-0 right-0 z-20 flex shadow-xl">
-        <SettingsSidebar />
-      </div>
-    </div>
+    </DeviceModeProvider>
   );
 }
 

@@ -32,6 +32,32 @@
   font-family: var(--font-editorial-serif), ui-serif, Georgia, "Times New Roman", serif;
 }
 
+/* HOTFIX-147.7(사용자 지시 — "모바일에서 텍스트 위치를 드래그 드롭으로
+   따로 설정할 수 있게 해줘"): 자유 배치(FreePosition) 블록의 좌표를 인라인
+   style 대신 CSS 커스텀 프로퍼티로 넣고, .craft-home이 이미 Tailwind
+   `@container`(container-type: inline-size)로 깔아둔 컨테이너 컨텍스트
+   안에서 폭이 767px 이하일 때만 모바일 전용 좌표로 덮어쓴다 — 관리자
+   에디터의 "모바일 모드"(캔버스를 실제 390px로 좁힘)와 공개 페이지의 실제
+   좁은 화면 둘 다 이 하나의 CSS 규칙으로 동일하게 반응한다(별도 JS 분기
+   없음). --fp-x-m 등이 없는(모바일 전용 좌표를 아직 지정하지 않은) 블록은
+   craft-free-pos--has-mobile 클래스 자체가 안 붙어 이 규칙이 아예 적용되지
+   않고 PC 좌표를 그대로 물려받는다(기존 단일-좌표 블록과 100% 동일 동작). */
+.craft-free-pos {
+  position: absolute;
+  left: var(--fp-x);
+  top: var(--fp-y);
+  width: var(--fp-w);
+  height: var(--fp-h);
+}
+@container (max-width: 767px) {
+  .craft-free-pos.craft-free-pos--has-mobile {
+    left: var(--fp-x-m);
+    top: var(--fp-y-m);
+    width: var(--fp-w-m);
+    height: var(--fp-h-m);
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

@@ -51,7 +51,13 @@ let tlLoadPromise: Promise<void> | null = null;
 // 없는 슬라이드는 전부 표지로 취급하도록 뒤집었다 — TL3가 표지에 어떤
 // unique_id를 붙이든 항상 정확하다.
 
-export type TimelineCoverState = { isTitle: boolean; top: number; height: number } | null;
+// HOTFIX-147.13(사용자 지시 — "표지뿐 아니라 그리스/르네상스/바로크/로코코
+// 같은 하위 이벤트 화면에도 같은 자유편집을 넣고 싶다"): eventId를 추가해
+// 지금 표지가 아니라면 정확히 "어느 이벤트"를 보고 있는지도 알려준다 —
+// 표지일 때는 null. 부모(SiloTimelineEmbedBlock)가 이 id로 이벤트별
+// 오버레이 설정(eventOverlays[eventId])을 찾아 표지와 동일한 자유편집
+// 오버레이를 그 이벤트 위에도 겹칠 수 있다.
+export type TimelineCoverState = { isTitle: boolean; eventId: string | null; top: number; height: number } | null;
 
 function loadTimelineJs(): Promise<void> {
   if (window.TL?.Timeline) return Promise.resolve();
@@ -105,6 +111,8 @@ export default function SiloTimelineInner({
     onCoverStateChangeRef.current = onCoverStateChange;
   });
   const isTitleRef = useRef(true);
+  // HOTFIX-147.13: 표지가 아닐 때 지금 보고 있는 이벤트의 unique_id.
+  const activeEventIdRef = useRef<string | null>(null);
 
   const emitCoverState = useCallback(() => {
     const cb = onCoverStateChangeRef.current;
@@ -114,7 +122,12 @@ export default function SiloTimelineInner({
     if (!slider) return;
     const wrapperRect = container.getBoundingClientRect();
     const sliderRect = slider.getBoundingClientRect();
-    cb({ isTitle: isTitleRef.current, top: sliderRect.top - wrapperRect.top, height: sliderRect.height });
+    cb({
+      isTitle: isTitleRef.current,
+      eventId: isTitleRef.current ? null : activeEventIdRef.current,
+      top: sliderRect.top - wrapperRect.top,
+      height: sliderRect.height,
+    });
   }, []);
 
   // HOTFIX-147.8: `.tl-storyslider`는 TL3가 내부적으로 비동기 생성하므로
@@ -192,8 +205,11 @@ export default function SiloTimelineInner({
         });
         instanceRef.current = instance;
         isTitleRef.current = true;
+        activeEventIdRef.current = null;
         instance.on("change", (d) => {
-          isTitleRef.current = !knownEventIds.has(d?.unique_id);
+          const isKnownEvent = knownEventIds.has(d?.unique_id);
+          isTitleRef.current = !isKnownEvent;
+          activeEventIdRef.current = isKnownEvent ? (d.unique_id as string) : null;
           emitCoverState();
         });
         emitCoverState();

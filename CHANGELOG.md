@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-26 (HOTFIX-147.8 — 인스타그램 캐러셀 순서 수정을 기존 저장 행에도 콕 집어 적용할 수 있는 타겟 재동기화)
+- **사용자 재신고**: "아직도 첫번째 인스타그램 미디어가 영상이 아니잖아 !!!" (바로크 Act 1). HOTFIX-147.4는 앞으로의 동기화/전체 재동기화 로직만 고쳤을 뿐, 이미 `instagram_feeds`에 저장된 이 게시물의 행은 손대지 않았다 — Supabase Management API로 직접 조회해 실측 확인: `media_item_types`가 여전히 `["IMAGE","IMAGE","IMAGE","IMAGE","IMAGE","VIDEO"]`(옛 순서 그대로, VIDEO가 맨 뒤)였다.
+- **원인**: `/api/admin/instagram/resync-carousels`가 `CAROUSEL_ALBUM` 행 전체를 `id` 오름차순으로 5개씩만 훑는 구조라, 약 230개 행 중 특정 게시물 하나를 고치려면 그 앞의 행을 전부 순서대로 처리해야 도달한다 — 사실상 특정 게시물만 즉시 고칠 방법이 없었다(HOTFIX-147.4가 "실측 미검증"으로 남긴 이유이기도 함, 로컬엔 `IG_ACCESS_TOKEN`이 없어 애초에 실행 자체를 못 해봄).
+- **수정**: 같은 라우트에 `igMediaId` 옵션 추가 — 넘기면 그 `ig_media_id` 행 하나만 조회해 즉시 재동기화한다(기존 페이지네이션 방식은 그대로 유지, 전체 일괄 복구 용도로 계속 사용 가능). `tsc` 0 errors.
+- **dev.silostore.net에서 실측 검증**: `develop`에 배포된 뒤 관리자 세션으로 `POST /api/admin/instagram/resync-carousels {igMediaId: "17873896711921843"}` 호출 → 재조회 결과 확인.
+
 ## 2026-08-26 (HOTFIX-147.7 — Craft 히어로 텍스트 자유 배치(드래그+폰트/색상) + PC/모바일 독립 위치)
 - **사용자 지시**: "'혁명~제국 Revolution~Empire' 이렇게 카테고리가 나오게 하는게 아니라, 내가 원하는 크기/색상/폰트의 텍스트를 드래그&드랍으로 자유롭게 이동하는걸 원하고, 그 뒤에 배경으로 슬라이드를 정하는거야" + "모바일에서 텍스트가 제대로 안 보인다, 모바일에서도 위치를 드래그 드롭으로 따로 설정할 수 있게 해줘".
 - **히어로 재구성**: 기존엔 `HeroSlideshowWidgetBlock`이 슬라이드 자체에 title/description을 갖고 있어 항상 중앙 정렬 고정 오버레이(어두운 틴트 포함)로만 나왔다 — 이제 그 슬라이드의 title/description을 비워 순수 배경 이미지 슬라이드쇼만 남기고, `ContainerBlock`(position:relative 캔버스) 안에 배경(`HeroSlideshowWidgetBlock`)과 자유 배치 텍스트(`TextBlock`, 이미 정렬/굵기/크기(px)/색상/자유 배치(콜라주) 지원)를 형제로 넣어 겹친다 — 새 블록을 만들지 않고 기존 두 원자 블록을 조합만 다르게 했다. 4개 그룹 페이지(고대~왕정/혁명~제국/프로이트~대중문화/디지털~A.i 문화)의 craft_state를 이 구조로 재작성(Management API).

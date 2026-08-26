@@ -25,20 +25,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Instagram 환경 변수가 설정되지 않았어요." }, { status: 500 });
   }
 
-  let body: { after?: string } = {};
+  let body: { after?: string; igMediaId?: string } = {};
   try {
     body = await request.json();
   } catch {
     // 본문 없이 호출(첫 페이지)도 허용.
   }
 
+  // HOTFIX-147.4 후속(사용자 재신고 — 바로크 Act 1 실사용 확인, 실제로
+  // 저장된 행이 여전히 옛 순서였음): 230개 가까운 CAROUSEL_ALBUM 행을 5개씩
+  // 순서대로 훑는 기존 방식으로는 특정 게시물 하나를 콕 집어 고치는 게
+  // 사실상 불가능하다(어디 있는지 몰라 처음부터 다 돌려야 함) — igMediaId를
+  // 넘기면 그 행 하나만 조회해 즉시 고칠 수 있게 한다.
   let query = requester.scopedClient
     .from("instagram_feeds")
     .select("id, ig_media_id")
     .eq("media_type", "CAROUSEL_ALBUM")
     .order("id", { ascending: true })
     .limit(PAGE_LIMIT);
-  if (body.after) {
+  if (body.igMediaId) {
+    query = requester.scopedClient
+      .from("instagram_feeds")
+      .select("id, ig_media_id")
+      .eq("media_type", "CAROUSEL_ALBUM")
+      .eq("ig_media_id", body.igMediaId);
+  } else if (body.after) {
     query = query.gt("id", body.after);
   }
 

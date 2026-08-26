@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-08-27 (HOTFIX-147.12 — 타임라인 "표지 자유편집"이 슬라이드/폰트를 넣어도 절대 안 보이던 근본 원인 2건 수정)
+- **사용자 신고**: "타임라인 표지(첫화면) 자유편집에 슬라이드를 넣어도 적용이 안 되고, 폰트설정도 적용이 안 된다." 관리자 세션으로 로컬 dev 서버 Craft 에디터에서 직접 재현 — "혁명~제국" 페이지에서 "표지(첫 화면) 자유 편집" 체크박스를 켜고 배경 이미지를 실제로 업로드해도(Supabase Storage에 정상 저장 확인) 캔버스에 전혀 나타나지 않음을 확인.
+- **근본 원인 ①**: `TimelineCoverOverlay`는 `coverState.isTitle`이 `true`일 때만 `opacity: 1`로 보인다(`SiloTimelineEmbedBlock.tsx`). `coverState`는 TL3(TimelineJS3)의 `change` 이벤트 핸들러 안에서 `d.unique_id === "title-headline"`로 지금 표지를 보고 있는지 판별해왔는데(HOTFIX-147.8), 실측 결과 TL3는 `title` 객체에 `unique_id`를 명시적으로 안 주면 **headline 텍스트를 자체 slugify해서 자기가 직접 짓는다** — "혁명 ~ 제국 Revolution ~ Empire" 같은 실제 카테고리 제목은 `"-revolution-empire"`가 되는 식(콘솔 로그로 직접 확인). 즉 `"title-headline"`이라는 고정 문자열과는 사실상 한 번도 일치한 적이 없어 `isTitle`이 항상 `false`로 고정돼 있었다 — 이 기능은 배경/텍스트/폰트를 뭘 넣든 오버레이 자체가 절대 보이지 않는 상태였다.
+- **수정 ①**: 고정 문자열 추측을 그만두고, `/api/timeline/events`가 실제로 만든 이벤트들의 `unique_id` 목록(`knownEventIds`)에 **없는** 슬라이드는 전부 표지로 판정하도록 뒤집었다(`SiloTimelineInner.tsx`) — TL3가 표지에 어떤 이름을 붙이든 항상 정확하다.
+- **근본 원인 ②(부차적, 실사용 흐름에서 항상 함께 겪는 문제)**: `.tl-storyslider`가 나타나는 순간을 잡으려고 `MutationObserver`로 감시하는데(HOTFIX-147.8), 관리자가 실제로 하는 행동 순서(먼저 페이지를 보고 → 그제서야 "표지 자유 편집"을 켬)에서는 그 시점에 `.tl-storyslider`가 **이미 DOM에 있어** "새로 추가되는 순간"이 다시는 안 와 `ResizeObserver`/`emitCoverState()`가 한 번도 안 붙었다(TL3에서 아무 이벤트나 한 번 클릭했다 표지로 돌아오면 `change` 핸들러가 직접 `emitCoverState()`를 불러 그제서야 우연히 나타남 — 이 우회 경로 때문에 ①의 버그가 지금까지 안 들켰던 것으로 보임).
+- **수정 ②**: effect 시작 시 `.tl-storyslider`가 이미 있는지 먼저 확인해 그 자리에서 바로 옵저버를 붙이도록 수정.
+- **영향 범위**: `SiloTimelineEmbedBlock`은 4개 온라인 도슨트 카테고리 페이지(고대~왕정/혁명~제국/프로이트~대중문화/디지털~A.i 문화) + 개별 리프 게시판 타임라인이 전부 공유하는 컴포넌트라, 이 수정으로 전체가 한 번에 고쳐진다.
+- **실측 검증(로컬 dev 서버, 관리자 세션 실제 Craft 에디터 조작)**: 수정 전 — 체크박스 on + 배경 업로드 후에도 오버레이 `opacity: 0` 그대로(콘솔 로그로 `change event unique_id`가 `"-revolution-empire"`임을 직접 확인). 수정 후 — 새로고침한 새 세션에서 체크박스를 켜자마자(다른 조작 없이) `opacity: 1`, 표지 안내 placeholder 텍스트(`"표지에 보여줄 텍스트를 입력하세요"`) 노출, 실제 업로드한 배경 이미지가 1249×485(스토리슬라이더 전체 크기)로 렌더링되는 것까지 확인. 텍스트 더블클릭 인라인 편집은 기존에 이미 구현돼 있었음(`EditableText`) — 별도 수정 불필요.
+- `tsc` 0 errors, `lint` 0 errors(77 warnings, 기존 기준선 유지).
+- **참고(코드 변경 없음, 기존 기능 확인)**: 사용자가 함께 요청한 "container block 삭제 기능"/"섹션·요소 삭제"/"container에 사진 슬라이드 넣기"는 전부 이미 구현돼 있음을 실측으로 확인 — 모든 블록(컨테이너 포함)에 드래그(⠿)/복제(⧉)/삭제(🗑) 아이콘이 이미 붙어있고, Toolbox의 "슬라이드쇼" 블록을 컨테이너 안에 드래그하면 사진 슬라이드를 바로 넣을 수 있다.
+
 ## 2026-08-27 (HOTFIX-147.11 — 갤러리 게시판 "호버 자동 슬라이드"가 사이트 전체에서 작동한 적이 없던 근본 원인 수정 + 모든 게시판 기본값 true로 전환)
 - **사용자 신고**: dev.silostore.net/about-silo/daily-silo에서 "썸네일 호버 시 이미지 자동 슬라이드(끄면 좌우 화살표로 직접 넘김 — 영상은 항상 자동재생)"가 작동하지 않음 + 모든 게시판에 기본으로 켜달라 + 게시판마다 실제로 동작하는지 확인해달라는 요청.
 - **실측(Supabase Management API로 DB 직접 조회) — 근본 원인**: `render_type="gallery"`인 게시판(af06e86e/silo-story/treasures/ethan-s-bluenotes/silo-daily 등 — `galleryHoverAutoSlide`가 이미 `true`였던 곳 포함)의 게시글이 예외 없이 전부 인스타그램에서 동기화된 embed 콘텐츠였다. `body_json`엔 permalink 하나만 있고 실제 캐러셀 이미지 목록은 `instagram_feeds.media_urls`에 있는데, 기존 `extractCalendarMedia()`(`src/lib/calendarMedia.ts`)는 TipTap 네이티브 `gallery`/`figureImage` 블록만 보고 `embed` 타입은 아예 걸러내므로 media가 항상 0개로 계산돼 토글이 켜져 있어도 슬라이드할 대상 자체가 없었다 — 이 기능은 사이트 전체에서 사실상 한 번도 실제로 작동한 적이 없었다.

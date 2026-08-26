@@ -34,13 +34,22 @@ let tlLoadPromise: Promise<void> | null = null;
 // 렌더링을 손대는 대신(라이브러리 내부 DOM/CSS라 안전하게 재배치 불가),
 // SiloTimelineEmbedBlock이 이 위에 자기만의 자유배치 오버레이(배경 슬라이드+
 // 자유배치 텍스트)를 얹는다 — TL3의 "change" 이벤트로 지금 표지를 보고
-// 있는지 판별(실측: title 슬라이드의 unique_id는 항상 정확히
-// "title-headline" — 로컬 스크래치 인스턴스로 goToId 왕복하며 직접 확인한
-// 값, TL3 공식 문서에는 없음)하고, `.tl-storyslider`의 실제 렌더링 영역을
-// ResizeObserver로 재서 그 위에만 겹치도록 한다(`.tl-timenav`(하단 대시보드)
-// 는 절대 가리지 않음 — 유저가 "1번(표지/슬라이드) 아래 2번 대시보드에서
-// 다른 항목 클릭하면 1번이 바뀐다"고 정확히 묘사한 그 구조를 그대로 유지).
-const TITLE_SLIDE_UNIQUE_ID = "title-headline";
+// 있는지 판별하고, `.tl-storyslider`의 실제 렌더링 영역을 ResizeObserver로
+// 재서 그 위에만 겹치도록 한다(`.tl-timenav`(하단 대시보드)는 절대 가리지
+// 않음 — 유저가 "1번(표지/슬라이드) 아래 2번 대시보드에서 다른 항목 클릭하면
+// 1번이 바뀐다"고 정확히 묘사한 그 구조를 그대로 유지).
+// HOTFIX-147.11(사용자 신고 — "표지 자유편집에 슬라이드/폰트를 넣어도 적용이
+// 안 됨" 실측 재현): "표지 슬라이드의 unique_id는 항상 'title-headline'"이라던
+// HOTFIX-147.8의 가정이 틀렸다 — TL3는 우리가 `title` 객체에 unique_id를
+// 안 주면 headline 텍스트를 slugify해서 자기가 직접 생성한다("혁명 ~ 제국
+// Revolution ~ Empire" → "-revolution-empire" 같은 식, 실측 콘솔 로그로
+// 확인). 즉 표지 unique_id는 페이지마다 다르고, 고정 문자열과 비교하는
+// 방식으로는 사실상 한 번도 true가 될 수 없어 오버레이(coverState.isTitle)가
+// 항상 false로 남아 있었다 — 이게 사용자가 본 "슬라이드/폰트를 넣어도 적용이
+// 안 된다"의 진짜 근본 원인. 고정 문자열을 추측하는 대신, 우리가 실제로
+// 만든 이벤트들의 unique_id 목록(knownEventIds, 아래 fetch 결과에서 채움)에
+// 없는 슬라이드는 전부 표지로 취급하도록 뒤집었다 — TL3가 표지에 어떤
+// unique_id를 붙이든 항상 정확하다.
 
 export type TimelineCoverState = { isTitle: boolean; top: number; height: number } | null;
 
@@ -111,21 +120,33 @@ export default function SiloTimelineInner({
   // HOTFIX-147.8: `.tl-storyslider`는 TL3가 내부적으로 비동기 생성하므로
   // MutationObserver로 나타나길 기다렸다가 ResizeObserver를 붙인다 — 리사이즈/
   // 뷰포트 폭 변화(모바일 skinny 레이아웃 전환 등)마다 정확한 위치를 다시 잰다.
+  // HOTFIX-147.11(사용자 신고 — "표지 자유편집에 슬라이드/폰트를 넣어도
+  // 적용이 안 됨" 재현 확인): 관리자가 이미 렌더링된 타임라인을 보다가
+  // "표지 자유 편집" 체크박스를 그제서야 켜는 게 실제 사용 흐름인데, 그
+  // 시점엔 `.tl-storyslider`가 이미 DOM에 존재해 MutationObserver가 감시할
+  // "새로 추가되는 순간"이 다시는 오지 않는다 — coverState가 영영 null로
+  // 남아 오버레이(슬라이드/텍스트/폰트 전부) 자체가 안 그려졌다(TL3에서
+  // 아무 이벤트나 한 번 클릭했다 표지로 돌아오면 change 이벤트가 emitCoverState를
+  // 직접 불러 그제서야 나타남 — 실측으로 재현). effect 시작 시 이미 슬라이더가
+  // 있는지 먼저 확인해 그 자리에서 바로 붙이도록 수정.
   useEffect(() => {
     if (!onCoverStateChange) return;
     const container = containerRef.current;
     if (!container) return;
     let ro: ResizeObserver | null = null;
 
-    const mo = new MutationObserver(() => {
-      const slider = container.querySelector(".tl-storyslider");
+    function attachIfPresent() {
+      const slider = container!.querySelector(".tl-storyslider");
       if (slider && !ro) {
         ro = new ResizeObserver(emitCoverState);
         ro.observe(slider);
-        ro.observe(container);
+        ro.observe(container!);
         emitCoverState();
       }
-    });
+    }
+
+    attachIfPresent();
+    const mo = new MutationObserver(attachIfPresent);
     mo.observe(container, { childList: true, subtree: true });
 
     return () => {
@@ -154,6 +175,13 @@ export default function SiloTimelineInner({
           setError("TimelineJS3 스크립트를 불러오지 못했어요.");
           return;
         }
+        // HOTFIX-147.11: 표지 슬라이드의 unique_id를 TL3가 뭐라고 짓든(위
+        // 주석 참고) 실제 이벤트 목록에 없는 unique_id는 전부 표지로 본다.
+        const knownEventIds = new Set(
+          (Array.isArray(data?.events) ? data.events : [])
+            .map((e: { unique_id?: string }) => e?.unique_id)
+            .filter((id: unknown): id is string => typeof id === "string"),
+        );
         // TL3 내부가 `new URL(fragment, script_path)`로 폰트/테마 CSS를
         // 찾는데, URL 생성자의 base는 반드시 절대 URL이어야 한다(실측 —
         // "/vendor/..." 같은 루트-상대 경로를 넘기면 "Invalid base URL"로
@@ -165,7 +193,7 @@ export default function SiloTimelineInner({
         instanceRef.current = instance;
         isTitleRef.current = true;
         instance.on("change", (d) => {
-          isTitleRef.current = d?.unique_id === TITLE_SLIDE_UNIQUE_ID;
+          isTitleRef.current = !knownEventIds.has(d?.unique_id);
           emitCoverState();
         });
         emitCoverState();

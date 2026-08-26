@@ -4,7 +4,7 @@ import { getRequestMember, getTier, canReadBoard, RANK_LABELS } from "@/lib/serv
 import { fetchBoard } from "@/lib/boardFetch";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { htmlToExcerpt } from "@/lib/htmlExcerpt";
-import { resolveGroupBoardIds } from "@/lib/timelineGroup";
+import { fetchNavGroup, parseCategoryTitle, fallbackThumbnailForHref } from "@/lib/timelineGroup";
 
 // EPIC-147(사용자 지시 — 사일로 게시글을 클래식 TimelineJS3의 timeline.json
 // 포맷으로 렌더링): 이 게시판의 글 목록을 TL3 JSON 스키마로 실시간
@@ -113,45 +113,47 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // HOTFIX-147.3(사용자 지시 — 온라인 도슨트 2단계 카테고리 페이지에 그
-  // 하위 3단계 게시판들의 글을 모두 모아 보여주는 집계 타임라인): 특정
-  // 게시판 하나가 아니라 site_navigations 트리의 한 branch(href) 아래
-  // 모든 게시판을 대상으로 한다 — 개별 게시판처럼 멤버십 등급 게이팅을
-  // 적용할 단일 board 행이 없으므로, 이 하위 게시판들은 전부 공개(story()
-  // 헬퍼의 기본 membership=0)라는 전제로 공개 조회만 한다.
+  // HOTFIX-147.5(사용자 지시 — "혁명~제국 타임라인에는 신고전주의/리전시/
+  // 빅토리안/인상파 이 네가지의 '페이지'가 들어와야 하는거야, 게시글이
+  // 아니라"): 이 그룹 바로 아래 카테고리(페이지) 하나당 슬라이드 하나 —
+  // 그 카테고리에 속한 게시글들을 끌어모으지 않는다. 각 카테고리 제목의
+  // 연대 접두사("1750~1850 신고전주의...")를 그대로 TL3 날짜로 쓴다.
   if (groupParam) {
-    const boardIds = await resolveGroupBoardIds(groupParam);
-    if (boardIds.length === 0) {
-      return NextResponse.json({ error: "이 카테고리에 연결된 게시판을 찾지 못했어요." }, { status: 404 });
+    const group = await fetchNavGroup(groupParam);
+    if (!group || group.children.length === 0) {
+      return NextResponse.json({ error: "이 카테고리에 하위 페이지를 찾지 못했어요." }, { status: 404 });
     }
 
-    let posts: Record<string, unknown>[] | null;
-    let postsError: { message: string } | null;
-    ({ data: posts, error: postsError } = await supabase
-      .from("posts")
-      .select(richFields)
-      .in("board_id", boardIds)
-      .eq("visibility", "public")
-      .order("created_at", { ascending: true }));
+    const events = await Promise.all(
+      group.children.map(async (child, index) => {
+        const { startYear, endYear, headline } = parseCategoryTitle(child.title);
+        const mediaUrl = child.thumbnailUrl ?? (await fallbackThumbnailForHref(child.href));
+        const excerpt = child.description ? htmlToExcerpt(child.description, EXCERPT_MAX_LENGTH) : "";
+        return {
+          unique_id: child.id,
+          // 연대 접두사가 없는 예외적인 제목은 순번으로 순서만 보존한다
+          // (실제로는 이 세션에서 다루는 모든 카테고리가 접두사를 갖고 있음).
+          start_date: { year: startYear ?? 2000 + index },
+          ...(endYear != null ? { end_date: { year: endYear } } : {}),
+          text: {
+            headline,
+            text: `${excerpt ? `<p>${excerpt}</p>` : ""}<p><a href="${child.href}">자세히 보기</a></p>`,
+          },
+          ...(mediaUrl ? { media: { url: mediaUrl, thumbnail: mediaUrl, caption: headline } } : {}),
+        };
+      }),
+    );
 
-    let usedRichFields = true;
-    if (postsError) {
-      usedRichFields = false;
-      ({ data: posts, error: postsError } = await supabase
-        .from("posts")
-        .select(legacyFields)
-        .in("board_id", boardIds)
-        .eq("visibility", "public")
-        .order("created_at", { ascending: true }));
-    }
-
-    if (postsError || !posts) {
-      return NextResponse.json({ error: "게시글을 불러오지 못했어요." }, { status: 500 });
-    }
-
+    const groupThumb = group.thumbnailUrl;
     return NextResponse.json({
-      title: { text: { headline: "" } },
-      events: mapPostsToEvents(posts, usedRichFields),
+      title: {
+        text: {
+          headline: group.title,
+          text: group.description ? `<p>${htmlToExcerpt(group.description, EXCERPT_MAX_LENGTH)}</p>` : "",
+        },
+        ...(groupThumb ? { media: { url: groupThumb, thumbnail: groupThumb } } : {}),
+      },
+      events,
     });
   }
 
@@ -201,8 +203,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "게시글을 불러오지 못했어요." }, { status: 500 });
   }
 
+  // HOTFIX-147.5(사용자 지시 — "신고전주의 타임라인의 가장 첫번째로 보이는
+  // 대시보드 위의 슬라이드를 어디서 수정하라는거야?"): TL3는 이벤트를
+  // 아무것도 고르지 않았을 때 이 title 슬라이드를 표지처럼 보여준다 —
+  // 지금까지 게시판 이름 텍스트만 있고 이미지/설명이 없어 휑하게 비어
+  // 보였다. 게시판 수정(BoardForm) → "첫 화면 대표사진 히어로"의 첫 번째
+  // 슬라이드(widget_settings.timelineHeroSlides[0])를 그대로 이 표지
+  // 슬라이드에도 재사용한다 — 새 편집 UI를 따로 만들지 않고, 이미 있는
+  // 히어로 편집 화면 하나가 이 표지까지 함께 채운다.
+  const heroSlide = (board as { widget_settings?: { timelineHeroSlides?: { imageUrl: string; title: string; description: string }[] } | null })
+    .widget_settings?.timelineHeroSlides?.[0];
+
   return NextResponse.json({
-    title: { text: { headline: (board as { name: string }).name } },
+    title: {
+      text: {
+        headline: heroSlide?.title || (board as { name: string }).name,
+        text: heroSlide?.description ? `<p>${htmlToExcerpt(heroSlide.description, EXCERPT_MAX_LENGTH)}</p>` : "",
+      },
+      ...(heroSlide?.imageUrl ? { media: { url: heroSlide.imageUrl, thumbnail: heroSlide.imageUrl } } : {}),
+    },
     events: mapPostsToEvents(posts, usedRichFields),
   });
 }

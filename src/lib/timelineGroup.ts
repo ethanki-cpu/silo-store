@@ -1,53 +1,106 @@
 import { supabase } from "@/lib/supabaseClient";
 
-// HOTFIX-147.3(사용자 지시 — "온라인 도슨트의 2단계 카테고리 페이지(혁명~
-// 제국 등)에도 타임라인을 넣어달라, 그 하위 3단계 카테고리들이 보일 수
-// 있도록"): site_navigations 트리에서 주어진 branch(href)의 모든 자손
-// 노드를 찾고, 그 href의 마지막 경로 세그먼트를 boards.slug로 매칭해 실제
-// 게시판 id 목록을 뽑는다. leaf board의 href 마지막 세그먼트가 곧 그
-// 게시판의 slug라는 관례는 이미 이 세션에서 여러 번 확인됨(예: "대중문화"
-// 게시판 slug를 pop-culture로 맞춘 것도 이 관례를 따른 것).
-type NavRow = { id: string; parent_id: string | null; href: string | null };
+// HOTFIX-147.5(사용자 지시 — "혁명~제국 타임라인에는 신고전주의/리전시/
+// 빅토리안/인상파 이 네가지의 '페이지'가 들어와야 하는거야, 게시글이
+// 아니라"): HOTFIX-147.3에서 만든 "group" 모드는 하위 게시판 전체의
+// 게시글을 전부 끌어모아 게시글 단위로 보여줬는데, 사용자가 원한 건 그게
+// 아니라 "이 그룹 바로 아래 카테고리(페이지) 하나당 슬라이드 하나"였다 —
+// 게시글 집계가 아니라 카테고리 디렉토리다. site_navigations의 각 카테고리
+// 제목이 이미 "1750~1850 신고전주의 NeoClassicism"처럼 연대 접두사를
+// 달고 있어 그 연대를 그대로 타임라인 start/end date로 파싱해 쓴다.
 
-async function fetchDescendantHrefs(groupHref: string): Promise<string[]> {
+type NavRow = {
+  id: string;
+  parent_id: string | null;
+  title: string;
+  href: string | null;
+  thumbnail_url: string | null;
+  description: string | null;
+};
+
+export type NavChildInfo = {
+  id: string;
+  title: string;
+  href: string;
+  thumbnailUrl: string | null;
+  description: string | null;
+};
+
+export type NavGroupInfo = {
+  id: string;
+  title: string;
+  thumbnailUrl: string | null;
+  description: string | null;
+  children: NavChildInfo[];
+};
+
+/** groupHref(예: "/online-docent/revolution-empire") 노드 자신의 정보와
+ * 바로 아래 직계 자식(카테고리) 목록을 가져온다. 손자 항목까지 내려가지
+ * 않는다 — "이 그룹 바로 하위 페이지들"만 슬라이드가 된다. */
+export async function fetchNavGroup(groupHref: string): Promise<NavGroupInfo | null> {
   const { data: root } = await supabase
     .from("site_navigations")
-    .select("id, parent_id, href")
+    .select("id, parent_id, title, href, thumbnail_url, description")
     .eq("href", groupHref)
     .maybeSingle();
-  if (!root) return [];
+  if (!root) return null;
+  const rootRow = root as NavRow;
 
-  const hrefs: string[] = [];
-  let frontier: string[] = [(root as NavRow).id];
-  // 3단계 트리라 3-4번이면 충분하지만, 혹시 더 깊어져도 무한루프는 방지.
-  for (let depth = 0; depth < 6 && frontier.length > 0; depth++) {
-    const { data: children } = await supabase
-      .from("site_navigations")
-      .select("id, parent_id, href")
-      .in("parent_id", frontier);
-    const rows = (children ?? []) as NavRow[];
-    if (rows.length === 0) break;
-    for (const row of rows) {
-      if (row.href) hrefs.push(row.href);
-    }
-    frontier = rows.map((r) => r.id);
-  }
-  return hrefs;
+  const { data: children } = await supabase
+    .from("site_navigations")
+    .select("id, parent_id, title, href, thumbnail_url, description")
+    .eq("parent_id", rootRow.id)
+    .order("sort_order", { ascending: true });
+
+  return {
+    id: rootRow.id,
+    title: rootRow.title,
+    thumbnailUrl: rootRow.thumbnail_url,
+    description: rootRow.description,
+    children: ((children ?? []) as NavRow[])
+      .filter((c): c is NavRow & { href: string } => !!c.href)
+      .map((c) => ({ id: c.id, title: c.title, href: c.href, thumbnailUrl: c.thumbnail_url, description: c.description })),
+  };
 }
 
-function lastSegment(href: string): string {
+export function lastPathSegment(href: string): string {
   const parts = href.split("/").filter(Boolean);
   return parts[parts.length - 1] ?? "";
 }
 
-/** groupHref(예: "/online-docent/revolution-empire") 아래 모든 하위
- * 카테고리에 대응하는 실제 boards.id 목록을 돌려준다. 매칭되는 게시판이
- * 없으면 빈 배열. */
-export async function resolveGroupBoardIds(groupHref: string): Promise<string[]> {
-  const descendantHrefs = await fetchDescendantHrefs(groupHref);
-  if (descendantHrefs.length === 0) return [];
+// "BC 1100~146 그리스 Greeks" / "1750~1850 신고전주의 NeoClassicism" 같은
+// 제목에서 연대 접두사를 뽑아 TL3 날짜로 쓰고, 나머지를 headline으로 쓴다.
+// BC면 더 큰 숫자가 더 이전(더 음수)이라 그대로 부호만 뒤집으면 시간순이
+// 맞는다. 접두사가 없는 제목(관례를 안 지킨 예외적인 경우)은 연대 없이
+// headline만 반환한다 — 호출부가 순번 기반 fallback 날짜를 부여한다.
+export function parseCategoryTitle(title: string): { startYear: number | null; endYear: number | null; headline: string } {
+  const trimmed = title.trim();
+  const match = trimmed.match(/^(BC\s+)?(\d{1,4})\s*~\s*(\d{1,4})\s*(.*)$/i);
+  if (!match) return { startYear: null, endYear: null, headline: trimmed };
+  const isBC = !!match[1];
+  const start = parseInt(match[2], 10);
+  const end = parseInt(match[3], 10);
+  const headline = match[4].trim() || trimmed;
+  return { startYear: isBC ? -start : start, endYear: isBC ? -end : end, headline };
+}
 
-  const slugs = [...new Set(descendantHrefs.map(lastSegment).filter(Boolean))];
-  const { data: boards } = await supabase.from("boards").select("id, slug").in("slug", slugs);
-  return (boards ?? []).map((b) => (b as { id: string }).id);
+/** 대표 이미지가 nav 항목에 없을 때, 그 카테고리에 매칭되는 게시판의 첫
+ * (공개, 썸네일 노출) 게시글 이미지로 대체한다 — 완전히 빈 슬라이드보다는
+ * 낫다는 절충(다른 폴백 이미지 패턴들과 동일한 관례). */
+export async function fallbackThumbnailForHref(href: string): Promise<string | null> {
+  const slug = lastPathSegment(href);
+  if (!slug) return null;
+  const { data: board } = await supabase.from("boards").select("id").eq("slug", slug).maybeSingle();
+  if (!board) return null;
+  const { data: posts } = await supabase
+    .from("posts")
+    .select("featured_image_url, thumbnail_visible")
+    .eq("board_id", (board as { id: string }).id)
+    .eq("visibility", "public")
+    .order("created_at", { ascending: true })
+    .limit(5);
+  const withImage = ((posts ?? []) as { featured_image_url: string | null; thumbnail_visible: boolean | null }[]).find(
+    (p) => p.thumbnail_visible !== false && p.featured_image_url,
+  );
+  return withImage?.featured_image_url ?? null;
 }

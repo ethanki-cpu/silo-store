@@ -14,6 +14,7 @@ import { BoardEmbedBlock } from "./BoardEmbedBlock";
 import { TimelineEmbedBlock } from "./TimelineEmbedBlock";
 import { ShopItemsGridBlock } from "./ShopItemsGridBlock";
 import { HeroSlideshowWidgetBlock } from "./HeroSlideshowWidgetBlock";
+import { SiloTimelineEmbedBlock } from "./SiloTimelineEmbedBlock";
 
 export {
   ContainerBlock,
@@ -26,6 +27,7 @@ export {
   TimelineEmbedBlock,
   ShopItemsGridBlock,
   HeroSlideshowWidgetBlock,
+  SiloTimelineEmbedBlock,
 };
 
 export const PRIMITIVE_RESOLVER: Resolver = {
@@ -39,6 +41,7 @@ export const PRIMITIVE_RESOLVER: Resolver = {
   TimelineEmbedBlock,
   ShopItemsGridBlock,
   HeroSlideshowWidgetBlock,
+  SiloTimelineEmbedBlock,
 };
 
 // ContainerBlock은 canvas(다른 블록을 담는 그릇)라서 `<Element canvas>`로
@@ -58,4 +61,5 @@ export const PRIMITIVE_BLOCK_OPTIONS: CraftBlockOption[] = [
   { label: "타임라인 연동", buildElement: () => createElement(TimelineEmbedBlock, TimelineEmbedBlock.craft.props) },
   { label: "사일로 상점 목록", buildElement: () => createElement(ShopItemsGridBlock, ShopItemsGridBlock.craft.props) },
   { label: "홈페이지 슬라이드쇼 위젯", buildElement: () => createElement(HeroSlideshowWidgetBlock, HeroSlideshowWidgetBlock.craft.props) },
+  { label: "사일로 타임라인 연동", buildElement: () => createElement(SiloTimelineEmbedBlock, SiloTimelineEmbedBlock.craft.props) },
 ];

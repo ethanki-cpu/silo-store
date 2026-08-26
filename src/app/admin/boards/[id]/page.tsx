@@ -79,6 +79,9 @@ export default function AdminBoardEditPage() {
         timeline_marker_size_px: data.widget_settings?.timelineMarkerSizePx ?? 0,
         timeline_card_theme: data.widget_settings?.timelineCardTheme ?? "",
         timeline_ng_stage_height_px: data.widget_settings?.timelineNgStageHeightPx ?? 0,
+        timeline_hero_slides: Array.isArray(data.widget_settings?.timelineHeroSlides)
+          ? data.widget_settings.timelineHeroSlides
+          : [],
         post_layout_order: normalizePostLayoutOrder(data.widget_settings?.postLayoutOrder),
       });
     }
@@ -129,6 +132,7 @@ export default function AdminBoardEditPage() {
           ...(next.timeline_marker_size_px ? { timelineMarkerSizePx: next.timeline_marker_size_px } : {}),
           ...(next.timeline_card_theme ? { timelineCardTheme: next.timeline_card_theme } : {}),
           ...(next.timeline_ng_stage_height_px ? { timelineNgStageHeightPx: next.timeline_ng_stage_height_px } : {}),
+          ...(next.timeline_hero_slides.length > 0 ? { timelineHeroSlides: next.timeline_hero_slides } : {}),
           // HOTFIX-093-B(요구사항 1.3)/HOTFIX-099: 값이 전부 미지정이면
           // postMetaStyle 자체를 저장하지 않는다(PostDetailHeader가
           // undefined일 때 기존 기본 스타일을 그대로 쓰도록 이미 구현돼 있음).

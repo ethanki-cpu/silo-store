@@ -56,6 +56,12 @@ const CRAFT_EDITORS: Record<string, CraftEditorComponent> = {
   "salon-des-cent": CraftSalonEditor,
   studio: CraftStudioEditor,
   mypage: CraftMypageEditor,
+  // HOTFIX-147.3: 온라인 도슨트 2단계 카테고리 페이지 4개 — CraftDocentEditor는
+  // resolver/defaultTree를 파라미터로 받는 범용 셸이라 그대로 재사용한다.
+  "online-docent-ancient-monarchy": CraftDocentEditor,
+  "online-docent-revolution-empire": CraftDocentEditor,
+  "online-docent-freud-pop": CraftDocentEditor,
+  "online-docent-digital-ai": CraftDocentEditor,
 };
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {

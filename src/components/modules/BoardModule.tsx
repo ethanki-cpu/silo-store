@@ -9,6 +9,7 @@ import { BoardSkeleton } from "@/components/boards/BoardSkeleton";
 import { Pagination } from "@/components/boards/Pagination";
 import { FilterModule } from "@/components/modules/FilterModule";
 import { HeroModule } from "@/components/modules/HeroModule";
+import { HeroSlideshow } from "@/components/HeroSlideshow";
 import {
   resolveBoardDefinition,
   isRealBoardCategory,
@@ -187,6 +188,13 @@ export function BoardModule({
 
   return (
     <div>
+      {/* HOTFIX-147.3(사용자 지시 — "히어로 아래에 그대로 유지"): 새 대표사진
+          슬라이드쇼+오버레이 텍스트는 기존 브레드크럼/게시판 이름/검색·정렬
+          헤더보다 위에 오고, 그 헤더는 그대로 아래에 남는다. */}
+      {board?.widget_settings?.timelineHeroSlides && board.widget_settings.timelineHeroSlides.length > 0 && (
+        <HeroSlideshow device="both" slides={board.widget_settings.timelineHeroSlides} />
+      )}
+
       {showHero && (
         <HeroModule
           title={board?.name ?? ""}

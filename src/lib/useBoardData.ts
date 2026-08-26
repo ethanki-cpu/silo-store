@@ -34,6 +34,10 @@ type Board = {
     // EPIC-147-후속(사용자 지시): TimelineNgRenderer(클래식 TimelineJS3)의
     // 슬라이드(미디어+제목+설명) 영역 높이(px).
     timelineNgStageHeightPx?: number;
+    // HOTFIX-147.3(사용자 지시 — "페이지 첫 화면 대표사진 슬라이드"): Timeline
+    // NG 리프 게시판의 헤더 위에 얹는 히어로 슬라이드쇼(기존 HeroSlideshow.tsx
+    // 재사용) — 비어있으면 히어로 없이 기존 화면 그대로.
+    timelineHeroSlides?: { imageUrl: string; title: string; description: string }[];
   } | null;
 };
 

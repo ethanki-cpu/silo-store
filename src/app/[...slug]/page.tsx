@@ -22,6 +22,17 @@ const CRAFT_RENDERERS: Record<string, React.ComponentType<{ craftState?: string 
   "silo-store": CraftShopRenderer,
   "online-docent": CraftDocentRenderer,
   "salon-des-cent": CraftSalonRenderer,
+  // HOTFIX-147.3(사용자 지시 — "고대~왕정/혁명~제국/프로이트~대중문화/
+  // 디지털~A.i 문화 페이지들에도 craft 에디터가 페이지 수정에 가능하게
+  // 해줘"): 이 4개는 온라인 도슨트의 2단계 카테고리 페이지 — craft_state를
+  // 직접 채워뒀으므로(HeroSlideshowWidgetBlock+SiloTimelineEmbedBlock,
+  // group 모드) docentDefaultTree(EraGridBlock 등, 최상위 온라인 도슨트
+  // 전용)는 폴백으로도 쓰이지 않는다. resolver/렌더러 셸 자체는 이미
+  // 범용이라 CraftDocentRenderer를 그대로 재사용한다.
+  "online-docent-ancient-monarchy": CraftDocentRenderer,
+  "online-docent-revolution-empire": CraftDocentRenderer,
+  "online-docent-freud-pop": CraftDocentRenderer,
+  "online-docent-digital-ai": CraftDocentRenderer,
 };
 
 // EPIC-068: 이 파일 이전까지는 src/app 전체가 138개의 손으로 만든 정적

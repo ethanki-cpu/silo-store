@@ -51,9 +51,14 @@ function loadTimelineJs(): Promise<void> {
 
 export default function SiloTimelineInner({
   boardId,
+  groupHref,
   stageHeightPx,
 }: {
-  boardId: string;
+  /** 단일 게시판 모드 — groupHref와 둘 중 하나만 준다. */
+  boardId?: string;
+  /** HOTFIX-147.3: 여러 하위 게시판(2단계 카테고리 아래 3단계 전부)의 글을
+   * 한 타임라인에 모아 보여주는 집계 모드 — site_navigations의 href. */
+  groupHref?: string;
   /** EPIC-147-후속(사용자 지시 — "타임라인의 윗부분... 위아래 폭이 너무
    * 좁아 설정할수 있게 해줘"): 슬라이드(미디어+제목+설명) 영역의 높이.
    * 없으면 TimelineJS3 기본값(컨테이너 높이 자동 계산)을 그대로 쓴다. */
@@ -68,10 +73,11 @@ export default function SiloTimelineInner({
     let cancelled = false;
     const container = containerRef.current;
 
-    Promise.all([
-      loadTimelineJs(),
-      fetch(`/api/timeline/events?board=${encodeURIComponent(boardId)}`).then((res) => res.json()),
-    ])
+    const eventsUrl = groupHref
+      ? `/api/timeline/events?group=${encodeURIComponent(groupHref)}`
+      : `/api/timeline/events?board=${encodeURIComponent(boardId ?? "")}`;
+
+    Promise.all([loadTimelineJs(), fetch(eventsUrl).then((res) => res.json())])
       .then(([, data]) => {
         if (cancelled || !container) return;
         if (data?.error) {
@@ -103,7 +109,7 @@ export default function SiloTimelineInner({
       // 공식적으로 안내된 정리 방법(다른 사용자들도 재마운트 시 이렇게 함).
       if (container) container.innerHTML = "";
     };
-  }, [boardId, stageHeightPx]);
+  }, [boardId, groupHref, stageHeightPx]);
 
   // EPIC-147(요구사항 3 — 새로고침 없이 상세 페이지로 이동): TimelineJS3가
   // 그리는 순수 DOM이라 React가 그 안의 <a> 클릭을 알 방법이 없다 —

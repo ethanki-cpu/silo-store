@@ -13,6 +13,8 @@ import { DEFAULT_POST_LAYOUT_ORDER, type PostLayoutBlock } from "@/lib/postLayou
 import { PostLayoutOrderEditor } from "@/components/admin/PostLayoutOrderEditor";
 import { FontPicker } from "@/components/admin/FontPicker";
 import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
+import { uploadFile } from "@/lib/storage";
+import type { SlideItem } from "@/components/HeroSlideshow";
 
 export { RANK_OPTIONS };
 
@@ -84,6 +86,11 @@ export type BoardFormValues = {
   // 좁아 설정할수 있게 해줘"): Timeline NG(클래식 TimelineJS3) 슬라이드
   // 영역 높이(px) — TL.Timeline의 `height` 옵션으로 그대로 전달된다.
   timeline_ng_stage_height_px: number; // 0 = 미지정(TimelineJS3 기본값)
+  // HOTFIX-147.3(사용자 지시 — "페이지 첫 화면 대표사진 슬라이드 + 그 위에
+  // 중첩되는 텍스트(제목/요약)"): Timeline NG 리프 게시판 전용 히어로 —
+  // widget_settings.timelineHeroSlides로 저장. 비어있으면(기본) 기존처럼
+  // 히어로 없이 브레드크럼+게시판 이름 헤더부터 바로 시작한다.
+  timeline_hero_slides: SlideItem[];
   // EPIC-096(요구사항 3.1): 게시글 상세 페이지의 5개 블록(메타데이터/태그/
   // 본문/좋아요·북마크/댓글) 노출 순서 — widget_settings.postLayoutOrder로
   // 저장된다. 기본 순서(DEFAULT_POST_LAYOUT_ORDER)와 같으면 저장하지 않는다
@@ -178,6 +185,7 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   timeline_marker_size_px: 0,
   timeline_card_theme: "",
   timeline_ng_stage_height_px: 0,
+  timeline_hero_slides: [],
   post_layout_order: DEFAULT_POST_LAYOUT_ORDER,
 };
 
@@ -277,6 +285,87 @@ const PREVIEW_POSTS: BoardPost[] = [
 // EPIC-066: 게시판 생성/수정 공용 폼. Board Type을 바꾸면 즉시 아래
 // 미리보기(BoardRenderer, 샘플 글 2건)가 다시 그려져 "변경 즉시 Renderer
 // 변경"(요구사항 ③)을 화면에서 바로 확인할 수 있다.
+// HOTFIX-147.3: HeroSlideshowWidgetBlock(craft/primitives)의 슬라이드
+// 목록 편집 UI와 동일한 패턴(이미지 업로드+제목+설명, 추가/삭제) — Craft가
+// 아닌 일반 관리자 폼이라 useNode 대신 props로 값/변경 콜백을 받는다.
+function TimelineHeroSlidesEditor({
+  slides,
+  onChange,
+}: {
+  slides: SlideItem[];
+  onChange: (next: SlideItem[]) => void;
+}) {
+  function updateSlide(index: number, patch: Partial<SlideItem>) {
+    onChange(slides.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  }
+  function addSlide() {
+    onChange([...slides, { imageUrl: "", title: "", description: "" }]);
+  }
+  function removeSlide(index: number) {
+    onChange(slides.filter((_, i) => i !== index));
+  }
+  async function uploadSlideImage(index: number, file: File | null) {
+    if (!file) return;
+    const { url, error } = await uploadFile(file, "post-images", "timeline-hero");
+    if (!error && url) updateSlide(index, { imageUrl: url });
+  }
+
+  return (
+    <div className="rounded-md border border-gray-200 p-3 space-y-3">
+      <p className="text-sm font-medium text-gray-700">첫 화면 대표사진 히어로 ({slides.length})</p>
+      <p className="text-xs text-gray-400">
+        비어있으면 히어로 없이 기존처럼 브레드크럼+게시판 이름부터 바로 시작해요. 여러 장을 등록하면 자동으로 넘어가는 슬라이드쇼가 돼요.
+      </p>
+      <div className="space-y-3">
+        {slides.map((slide, i) => (
+          <div key={i} className="space-y-1.5 rounded border border-gray-200 p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-medium text-gray-400">#{i + 1}</span>
+              <button type="button" onClick={() => removeSlide(i)} className="text-[10px] text-red-500 hover:underline">
+                삭제
+              </button>
+            </div>
+            {slide.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={slide.imageUrl} alt="" className="h-20 w-full rounded object-cover" />
+            )}
+            <label className="block text-[10px] text-gray-500">
+              이미지 업로드
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => uploadSlideImage(i, e.target.files?.[0] ?? null)}
+                className="mt-0.5 block w-full text-[10px]"
+              />
+            </label>
+            <input
+              type="text"
+              value={slide.title}
+              placeholder="제목"
+              onChange={(e) => updateSlide(i, { title: e.target.value })}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+            />
+            <input
+              type="text"
+              value={slide.description}
+              placeholder="요약"
+              onChange={(e) => updateSlide(i, { description: e.target.value })}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+            />
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addSlide}
+        className="w-full rounded border border-dashed border-gray-300 py-1.5 text-xs text-gray-500 hover:border-gray-400"
+      >
+        + 슬라이드 추가
+      </button>
+    </div>
+  );
+}
+
 export function BoardForm({
   mode,
   initial,
@@ -907,6 +996,17 @@ export function BoardForm({
               미디어/제목/설명이 표시되는 위쪽 영역의 세로 크기예요. 하단 연대표(TimeNav)는 이 값과 무관하게 항상 같은 높이를 유지해요.
             </p>
           </div>
+        )}
+
+        {/* HOTFIX-147.3(사용자 지시): 게시판 이름/검색창 헤더 위에 얹는
+            대표사진 슬라이드쇼 + 오버레이 텍스트(제목/요약) — 기존
+            HeroSlideshow.tsx(홈페이지 슬라이드쇼)를 그대로 재사용한다(새
+            슬라이드쇼 구현 금지 원칙). */}
+        {values.render_type === "timeline_ng" && (
+          <TimelineHeroSlidesEditor
+            slides={values.timeline_hero_slides}
+            onChange={(next) => update("timeline_hero_slides", next)}
+          />
         )}
 
         {/* HOTFIX-093-B(요구사항 1.3): "게시물 출력방식" — 게시글 상세의

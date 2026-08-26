@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type SlideItem = { imageUrl: string; title: string; description: string };
+export type SlideItem = { imageUrl: string; title: string; description: string };
 
 const DEFAULT_AUTO_ADVANCE_SECONDS = 5;
 

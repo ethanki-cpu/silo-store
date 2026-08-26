@@ -14,6 +14,18 @@ const SiloTimelineInner = dynamic(() => import("./SiloTimelineInner"), {
   loading: () => <div style={{ minHeight: 600 }} className="animate-pulse bg-gray-50" />,
 });
 
-export function SiloTimeline({ boardId, stageHeightPx }: { boardId: string; stageHeightPx?: number | null }) {
-  return <SiloTimelineInner boardId={boardId} stageHeightPx={stageHeightPx} />;
+// HOTFIX-147.3(사용자 지시 — "온라인 도슨트 2단계 카테고리 페이지에도
+// 타임라인을 넣어줘, 그 하위 3단계 카테고리들이 보일 수 있도록"): boardId
+// 하나 대신, 여러 하위 게시판의 글을 한 타임라인에 모아 보여주는
+// groupHref 모드를 추가한다 — 둘 중 하나만 넘긴다.
+export function SiloTimeline({
+  boardId,
+  groupHref,
+  stageHeightPx,
+}: {
+  boardId?: string;
+  groupHref?: string;
+  stageHeightPx?: number | null;
+}) {
+  return <SiloTimelineInner boardId={boardId} groupHref={groupHref} stageHeightPx={stageHeightPx} />;
 }

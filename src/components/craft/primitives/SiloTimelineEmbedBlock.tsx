@@ -37,6 +37,11 @@ type CoverAlign = "left" | "center" | "right";
 export type SlideOverlayConfig = {
   enabled: boolean;
   text: string;
+  // HOTFIX-147.18(사용자 지시 — "그 화면에 이미 있는 텍스트들을 수정할 수
+  // 있기를 원해 <제목/설명>"): 지금까지 자유배치 텍스트가 `text`(제목)
+  // 하나뿐이었다 — 제목 아래 부제/설명 한 줄을 더 얹을 수 있게 별도
+  // 필드로 분리한다(같은 위치 상자 안에 제목보다 작게 이어서 표시).
+  description: string;
   fontSizePx: number;
   fontWeight: CoverFontWeight;
   align: CoverAlign;
@@ -51,6 +56,7 @@ export type SlideOverlayConfig = {
 export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   enabled: false,
   text: "",
+  description: "",
   fontSizePx: 40,
   fontWeight: "bold",
   align: "center",
@@ -79,6 +85,8 @@ export type SiloTimelineEmbedBlockProps = {
   // 이 모양으로 저장돼 있어 구조를 바꾸면 마이그레이션이 필요해진다.
   coverEnabled: boolean;
   coverText: string;
+  // HOTFIX-147.18: coverText(제목) 아래 붙는 부제/설명 한 줄.
+  coverDescription: string;
   coverFontSizePx: number;
   coverFontWeight: CoverFontWeight;
   coverAlign: CoverAlign;
@@ -143,6 +151,7 @@ function TimelineCoverOverlay({
   top,
   height,
   text,
+  description,
   fontSizePx,
   fontWeight,
   align,
@@ -153,6 +162,7 @@ function TimelineCoverOverlay({
   position,
   mobilePosition,
   onTextCommit,
+  onDescriptionCommit,
   onPositionChange,
   onMobilePositionChange,
 }: {
@@ -160,6 +170,7 @@ function TimelineCoverOverlay({
   top: number;
   height: number;
   text: string;
+  description: string;
   fontSizePx: number;
   fontWeight: CoverFontWeight;
   align: CoverAlign;
@@ -170,6 +181,7 @@ function TimelineCoverOverlay({
   position: FreePosition;
   mobilePosition: FreePosition | null;
   onTextCommit: (next: string) => void;
+  onDescriptionCommit: (next: string) => void;
   onPositionChange: (next: FreePosition) => void;
   onMobilePositionChange: (next: FreePosition) => void;
 }) {
@@ -212,7 +224,18 @@ function TimelineCoverOverlay({
             onCommit={onTextCommit}
             className={`${COVER_WEIGHT_CLASS[fontWeight]} ${COVER_ALIGN_CLASS[align]}`}
             style={{ fontSize: fontSizePx, color, ...(fontFamily ? { fontFamily } : {}) }}
-            placeholder="표지에 보여줄 텍스트를 입력하세요"
+            placeholder="제목을 입력하세요"
+          />
+          {/* HOTFIX-147.18(사용자 지시 — "그 화면에 이미 있는 텍스트들을
+              수정할 수 있기를 원해 <제목/설명>"): 제목 아래 이어지는 설명
+              한 줄 — 같은 위치 상자 안에서 제목보다 작게(60%) 표시. */}
+          <EditableText
+            as="p"
+            value={description}
+            onCommit={onDescriptionCommit}
+            className={COVER_ALIGN_CLASS[align]}
+            style={{ fontSize: Math.round(fontSizePx * 0.5), color, ...(fontFamily ? { fontFamily } : {}) }}
+            placeholder="설명을 입력하세요"
           />
         </div>
       </div>
@@ -228,6 +251,7 @@ export function SiloTimelineEmbedBlock({
   motion = DEFAULT_MOTION,
   coverEnabled,
   coverText,
+  coverDescription,
   coverFontSizePx,
   coverFontWeight,
   coverAlign,
@@ -265,6 +289,7 @@ export function SiloTimelineEmbedBlock({
       ? {
           enabled: coverEnabled,
           text: coverText,
+          description: coverDescription,
           fontSizePx: coverFontSizePx,
           fontWeight: coverFontWeight,
           align: coverAlign,
@@ -284,6 +309,7 @@ export function SiloTimelineEmbedBlock({
     if (coverState.isTitle) {
       setProp((p) => {
         if ("text" in patch) p.coverText = patch.text!;
+        if ("description" in patch) p.coverDescription = patch.description!;
         if ("position" in patch) p.position = patch.position!;
         if ("mobilePosition" in patch) p.mobilePosition = patch.mobilePosition!;
       });
@@ -315,6 +341,7 @@ export function SiloTimelineEmbedBlock({
                   top={coverState.top}
                   height={coverState.height}
                   text={activeConfig.text}
+                  description={activeConfig.description}
                   fontSizePx={activeConfig.fontSizePx}
                   fontWeight={activeConfig.fontWeight}
                   align={activeConfig.align}
@@ -325,6 +352,7 @@ export function SiloTimelineEmbedBlock({
                   position={activeConfig.position}
                   mobilePosition={activeConfig.mobilePosition}
                   onTextCommit={(next) => commitActiveConfig({ text: next })}
+                  onDescriptionCommit={(next) => commitActiveConfig({ description: next })}
                   onPositionChange={(next) => commitActiveConfig({ position: next })}
                   onMobilePositionChange={(next) => commitActiveConfig({ mobilePosition: next })}
                 />
@@ -359,6 +387,32 @@ function SlideOverlayFieldsEditor({
 }) {
   return (
     <>
+      {/* HOTFIX-147.18(사용자 지시 — "'표지에 보여줄 텍스트를 입력하세요'
+          라는 문구가 있는데 craft에는 텍스트를 입력하는데가 없네" +
+          "그 화면에 이미 있는 텍스트들을 수정할 수 있기를 원해
+          <제목/설명>"): 지금까지 제목/설명은 캔버스에서 더블클릭해야만
+          고칠 수 있었다(EditableText) — 그 자체는 되지만 설정 패널에서
+          찾을 방법이 없었다는 신고라, 여기 직접 입력창을 추가한다. */}
+      <label className="block text-xs text-gray-600">
+        제목
+        <textarea
+          value={value.text}
+          onChange={(e) => onChange({ text: e.target.value })}
+          rows={2}
+          placeholder="표지/이 화면에 보여줄 제목"
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        />
+      </label>
+      <label className="block text-xs text-gray-600">
+        설명
+        <textarea
+          value={value.description}
+          onChange={(e) => onChange({ description: e.target.value })}
+          rows={2}
+          placeholder="제목 아래 보여줄 설명(선택)"
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        />
+      </label>
       <label className="block text-xs text-gray-600">
         정렬
         <select
@@ -698,6 +752,7 @@ function SiloTimelineEmbedSettings() {
               value={{
                 enabled: props.coverEnabled,
                 text: props.coverText,
+                description: props.coverDescription,
                 fontSizePx: props.coverFontSizePx,
                 fontWeight: props.coverFontWeight,
                 align: props.coverAlign,
@@ -711,6 +766,7 @@ function SiloTimelineEmbedSettings() {
               onChange={(patch) =>
                 setProp((p) => {
                   if ("text" in patch) p.coverText = patch.text!;
+                  if ("description" in patch) p.coverDescription = patch.description!;
                   if ("fontSizePx" in patch) p.coverFontSizePx = patch.fontSizePx!;
                   if ("fontWeight" in patch) p.coverFontWeight = patch.fontWeight!;
                   if ("align" in patch) p.coverAlign = patch.align!;
@@ -799,6 +855,7 @@ SiloTimelineEmbedBlock.craft = {
     motion: DEFAULT_MOTION,
     coverEnabled: false,
     coverText: "",
+    coverDescription: "",
     coverFontSizePx: 40,
     coverFontWeight: "bold",
     coverAlign: "center",

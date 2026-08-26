@@ -129,9 +129,16 @@ function CollapsibleEdgePanel({
   onToggle: () => void;
   children: ReactNode;
 }) {
+  // 사용자 신고(2026-08-27 — "오른쪽 패널 스크롤이 안 되고 있어"): 접기
+  // 기능을 넣으며 Toolbox/SettingsSidebar를 이 wrapper div로 한 겹 더
+  // 감쌌는데, 그 wrapper에 높이를 안 줘서 아래 `<aside
+  // className="overflow-y-auto">`가 더 이상 "부모가 준 한정된 높이 안에서
+  // 넘치는 만큼만 스크롤"이 아니라 그냥 콘텐츠 높이만큼 계속 늘어나
+  // 버렸다(overflow-y-auto는 부모 높이가 실제로 정해져 있어야 동작). h-full로
+  // 이 div도 `inset-y-0`가 준 실제 높이를 그대로 물려받게 한다.
   return (
     <div className={`absolute inset-y-0 z-20 flex ${side === "left" ? "left-0" : "right-0 flex-row-reverse"}`}>
-      {open && <div className="shadow-xl">{children}</div>}
+      {open && <div className="flex h-full shadow-xl">{children}</div>}
       <button
         type="button"
         onClick={onToggle}

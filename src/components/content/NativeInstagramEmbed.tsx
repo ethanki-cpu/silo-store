@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { InstagramFeedPost } from "@/components/content/InstagramFeedPost";
 import { InstagramMediaSlider } from "@/components/content/InstagramMediaSlider";
 import type { InstagramFeedItem } from "@/lib/instagramFeed";
+import { extractInstagramShortcode } from "@/lib/instagramShortcode";
 
 // EPIC-143-후속(사용자 지시 — "인스타그램 피드를 새 게시글로 만드는 게
 // 아니라, 기존/향후 게시글 '본문'에 이미 삽입된 인스타그램 임베드를 사일로
@@ -25,18 +26,13 @@ import type { InstagramFeedItem } from "@/lib/instagramFeed";
 //    프록시(InstagramMediaSlider, 영구 저장 없음 — 서명 URL 만료 문제를
 //    구조적으로 피하려고 설계됨)로 폴백한다. 새로운 비공식 스크래핑을 추가로
 //    만든 게 아니라 이미 있던 걸 여기서 처음 실제로 연결한 것뿐이다.
-function extractShortcode(url: string): string | null {
-  const m = url.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/);
-  return m ? m[1] : null;
-}
-
 export function NativeInstagramEmbed({ permalink }: { permalink: string }) {
   const [status, setStatus] = useState<"loading" | "native" | "fallback">("loading");
   const [item, setItem] = useState<InstagramFeedItem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const shortcode = extractShortcode(permalink);
+    const shortcode = extractInstagramShortcode(permalink);
     if (!shortcode) {
       setStatus("fallback");
       return;

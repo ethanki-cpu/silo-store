@@ -6,17 +6,43 @@ import type { BoardPost } from "@/lib/boardLayout";
 import { PostTags } from "@/components/boards/PostTags";
 import { formatPostMeta } from "@/lib/postMeta";
 import { ScrapButton } from "@/components/common/ScrapButton";
-import { extractCalendarMedia } from "@/lib/calendarMedia";
+import { extractCalendarMedia, extractInstagramPermalink } from "@/lib/calendarMedia";
+import { fetchInstagramFeedsByShortcodes, type InstagramFeedItem } from "@/lib/instagramFeed";
+import { extractInstagramShortcode } from "@/lib/instagramShortcode";
 
 const HOVER_SLIDE_INTERVAL_MS = 1800;
 
+type GalleryMediaItem = { type: "image" | "video"; src: string; isVideoThumbnail?: boolean };
+
+// HOTFIX-147.11(사용자 신고 — "호버 자동 슬라이드가 작동 안 함"): 이
+// 사이트의 갤러리 게시판 글은 거의 전부 인스타그램에서 동기화된 embed
+// 게시글이라, body_json에는 permalink 하나만 있고 실제 캐러셀 사진들은
+// instagram_feeds.media_urls에 있다 — extractCalendarMedia(아래)는
+// TipTap 네이티브 gallery/figureImage 블록만 보므로 이 경우 media가
+// 항상 0개로 나와 자동 슬라이드가 켜져 있어도 슬라이드할 게 없었다.
+// instagramItem이 있으면(캐러셀 매칭 성공) 그 media_urls를 우선 쓰고,
+// 없으면 기존 네이티브 갤러리 추출로 폴백한다.
+function resolveMedia(bodyJson: BoardPost["body_json"], instagramItem?: InstagramFeedItem): GalleryMediaItem[] {
+  if (instagramItem && instagramItem.media_urls.length > 0) {
+    return instagramItem.media_urls.map((src, i) => {
+      const itemType = instagramItem.media_item_types[i] ?? "IMAGE";
+      return {
+        type: itemType === "VIDEO" ? "video" : "image",
+        src,
+        isVideoThumbnail: itemType === "VIDEO_THUMBNAIL",
+      };
+    });
+  }
+  return (bodyJson ? extractCalendarMedia(bodyJson) : [])
+    .filter((m): m is { type: "image" | "video"; src: string } => m.type !== "embed")
+    .map((m) => ({ type: m.type, src: m.src }));
+}
+
 // EPIC-092 후속(사용자 요청): 카드에 커서를 올리면 본문 갤러리의 영상을
-// 자동재생하고 이미지들을 미리 볼 수 있다. 데이터는 목록 API가 이미
-// 내려주는 post.body_json에서 뽑는다(별도 fetch 없음, 사용자 확인) —
-// src/lib/calendarMedia.ts의 extractCalendarMedia를 그대로 재사용한다
-// (캘린더 위젯 전용이 아니라 body_json → 미디어 목록 추출 범용 유틸이라
-// 이름과 무관하게 재사용 가능). embed(유튜브 등 iframe)는 매 hover마다
-// 로드하기엔 무겁고 autoplay가 보장되지 않아 이미지/영상만 대상으로 삼는다.
+// 자동재생하고 이미지들을 미리 볼 수 있다. embed(유튜브 등 iframe)는 매
+// hover마다 로드하기엔 무겁고 autoplay가 보장되지 않아 이미지/영상만
+// 대상으로 삼는다(인스타그램 캐러셀은 위 resolveMedia가 R2 재호스팅
+// media_urls로 이미지/영상만 뽑아주므로 이 제약과 무관).
 // EPIC-092 후속 2차(사용자 요청): 영상은 계속 자동재생하지만, 이미지
 // 슬라이드는 기본이 좌우 화살표로 직접 넘기는 수동 방식 — autoSlide prop이
 // true일 때만(게시판 설정) 기존처럼 일정 간격으로 자동 전환한다.
@@ -24,18 +50,20 @@ function GalleryCardMedia({
   imageUrl,
   alt,
   bodyJson,
+  instagramItem,
   autoSlide = false,
 }: {
   imageUrl: string | null;
   alt: string;
   bodyJson: BoardPost["body_json"];
+  instagramItem?: InstagramFeedItem;
   autoSlide?: boolean;
 }) {
   const [hovering, setHovering] = useState(false);
   const [index, setIndex] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const media = (bodyJson ? extractCalendarMedia(bodyJson) : []).filter((m) => m.type !== "embed");
+  const media = resolveMedia(bodyJson, instagramItem);
 
   useEffect(() => {
     if (!hovering || !autoSlide || media.length <= 1) return;
@@ -45,7 +73,6 @@ function GalleryCardMedia({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hovering, autoSlide, media.length]);
 
   function handleEnter() {
@@ -90,8 +117,21 @@ function GalleryCardMedia({
           playsInline
         />
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={current?.src ?? imageUrl ?? undefined} alt={alt} className="w-full object-cover" />
+        <div className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={current?.src ?? imageUrl ?? undefined} alt={alt} className="w-full object-cover" />
+          {/* HOTFIX-147.11: 원래 영상인데 Instagram Graph API가 실제 영상
+              파일을 안 줘서 정지 이미지로 대체된 항목(VIDEO_THUMBNAIL,
+              InstagramFeedPost.tsx의 동일 처리 참고) — 그냥 사진처럼
+              보이지 않도록 재생 버튼 아이콘을 얹는다. */}
+          {current?.isVideoThumbnail && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white">
+                <span className="ml-0.5 text-lg">▶</span>
+              </div>
+            </div>
+          )}
+        </div>
       )}
       {showArrows && (
         <>
@@ -142,7 +182,7 @@ export function GalleryModule({
   layout = "grid",
   columns,
   thumbnailMaxPx,
-  hoverAutoSlide = false,
+  hoverAutoSlide = true,
 }: {
   boardId: string;
   posts: BoardPost[];
@@ -163,10 +203,39 @@ export function GalleryModule({
   // 쓰고, 없으면 EPIC-096처럼 columns로 자동 역산한다.
   thumbnailMaxPx?: number;
   // EPIC-092 후속 2차: 호버 시 이미지 슬라이드를 자동으로 넘길지(true) 아니면
-  // 좌우 화살표로 직접 넘기게 할지(기본 false) — 영상은 이 값과 무관하게
-  // 항상 자동재생된다.
+  // 좌우 화살표로 직접 넘기게 할지 — 영상은 이 값과 무관하게 항상
+  // 자동재생된다. HOTFIX-147.11(사용자 지시): 기본값을 모든 게시판에서
+  // true로 변경(이전엔 false) — board 쪽에서 명시적으로 설정하지 않은
+  // 경우의 최종 폴백.
   hoverAutoSlide?: boolean;
 }) {
+  const [instagramMap, setInstagramMap] = useState<Map<string, InstagramFeedItem>>(new Map());
+
+  // HOTFIX-147.11: 이 페이지의 게시글들 중 인스타그램 embed를 가진 것만
+  // 골라 permalink→shortcode를 뽑고, instagram_feeds에서 한 번에 조회한다
+  // (카드 개수만큼 개별 요청하지 않도록 배치 처리).
+  const postsKey = posts.map((p) => p.id).join(",");
+  useEffect(() => {
+    const shortcodes = posts
+      .map((p) => {
+        const permalink = extractInstagramPermalink(p.body_json);
+        return permalink ? extractInstagramShortcode(permalink) : null;
+      })
+      .filter((code): code is string => Boolean(code));
+    if (shortcodes.length === 0) {
+      setInstagramMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    fetchInstagramFeedsByShortcodes(shortcodes).then((map) => {
+      if (!cancelled) setInstagramMap(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postsKey]);
+
   const gridColumns = Math.min(MAX_GRID_COLUMNS, Math.max(MIN_GRID_COLUMNS, columns || DEFAULT_GRID_COLUMNS));
   // EPIC-096(요구사항 1.3): `repeat(N, minmax(0, 1fr))`은 열 "개수"만 고정할
   // 뿐 각 칸의 너비는 그대로 컨테이너 너비에 비례해 커진다 — 위젯이 폭
@@ -208,6 +277,9 @@ export function GalleryModule({
       >
       {posts.map((post) => {
         const imageUrl = post.thumbnail_visible !== false ? (post.featured_image_url ?? post.photo_url) : null;
+        const permalink = extractInstagramPermalink(post.body_json);
+        const shortcode = permalink ? extractInstagramShortcode(permalink) : null;
+        const instagramItem = shortcode ? instagramMap.get(shortcode) : undefined;
         return (
         <div key={post.id} className={`relative group ${layout === "grid" ? "" : "mb-4 break-inside-avoid"}`}>
           {/* EPIC-085: ScrapButton은 자체 클릭 핸들러(preventDefault/
@@ -222,6 +294,7 @@ export function GalleryModule({
               imageUrl={imageUrl}
               alt={post.title ?? ""}
               bodyJson={post.body_json}
+              instagramItem={instagramItem}
               autoSlide={hoverAutoSlide}
             />
             <p className="text-sm font-medium text-gray-900 mt-2 group-hover:underline">

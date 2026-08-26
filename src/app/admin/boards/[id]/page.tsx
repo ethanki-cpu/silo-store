@@ -55,7 +55,7 @@ export default function AdminBoardEditPage() {
         gallery_layout: data.widget_settings?.galleryLayout ?? "",
         gallery_columns: data.widget_settings?.galleryColumns ?? 3,
         gallery_thumbnail_max_px: data.widget_settings?.galleryThumbnailMaxPx ?? 0,
-        gallery_hover_auto_slide: data.widget_settings?.galleryHoverAutoSlide ?? false,
+        gallery_hover_auto_slide: data.widget_settings?.galleryHoverAutoSlide ?? true,
         post_meta_date_size_px: data.widget_settings?.postMetaStyle?.dateSizePx ?? 0,
         post_meta_date_color_hex: data.widget_settings?.postMetaStyle?.dateColorHex ?? "",
         post_meta_font_weight: data.widget_settings?.postMetaStyle?.fontWeight ?? 0,

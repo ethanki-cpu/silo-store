@@ -31,3 +31,24 @@ export function extractCalendarMedia(bodyJson: JSONContent | null | undefined): 
   walk(bodyJson);
   return items;
 }
+
+// HOTFIX-147.11: 본문(body_json)에 박힌 첫 인스타그램 embed 노드의 원본
+// permalink(쿼리스트링 포함)를 뽑아낸다 — extractCalendarMedia의 embed
+// 항목은 embedSrc()로 iframe URL로 변형돼 있어 shortcode 매칭에 못 쓰므로
+// 별도로 raw attrs.url을 순회한다.
+export function extractInstagramPermalink(bodyJson: JSONContent | null | undefined): string | null {
+  if (!bodyJson) return null;
+  let found: string | null = null;
+
+  function walk(node: JSONContent) {
+    if (found) return;
+    if (node.type === "embed" && node.attrs?.provider === "instagram" && typeof node.attrs?.url === "string") {
+      found = node.attrs.url;
+      return;
+    }
+    for (const child of node.content ?? []) walk(child);
+  }
+
+  walk(bodyJson);
+  return found;
+}

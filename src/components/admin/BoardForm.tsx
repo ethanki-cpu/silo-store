@@ -43,8 +43,9 @@ export type BoardFormValues = {
   // 사용자 신고(2026-08-12): 썸네일 크기를 관리자가 직접 지정할 수 있게 —
   // 0 = 미지정(한 행당 개수로 자동 계산, EPIC-096 기존 동작 그대로).
   gallery_thumbnail_max_px: number;
-  // EPIC-092 후속 2차: 호버 시 이미지 슬라이드 자동 전환 여부(기본 false —
-  // 좌우 화살표로 직접 넘김). 영상은 이 값과 무관하게 항상 자동재생.
+  // EPIC-092 후속 2차: 호버 시 이미지 슬라이드 자동 전환 여부(HOTFIX-147.11
+  // 부터 기본 true — 이전엔 false/좌우 화살표 직접 넘김이 기본이었음).
+  // 영상은 이 값과 무관하게 항상 자동재생.
   gallery_hover_auto_slide: boolean;
   // HOTFIX-093-B(요구사항 1.3): 게시글 상세의 날짜/작성자 영역 커스텀
   // 스타일 — widget_settings.postMetaStyle로 저장된다. 값이 비어있으면
@@ -161,7 +162,7 @@ export const DEFAULT_BOARD_FORM_VALUES: BoardFormValues = {
   gallery_layout: "",
   gallery_columns: 3,
   gallery_thumbnail_max_px: 0,
-  gallery_hover_auto_slide: false,
+  gallery_hover_auto_slide: true,
   post_meta_date_size_px: 0,
   post_meta_date_color_hex: "",
   post_meta_font_weight: 0,

@@ -7,6 +7,8 @@ import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
 import { FreePositionHandles } from "@/components/craft/shared/FreePositionHandles";
 import { FreePositionSettingsSection } from "@/components/craft/shared/FreePositionSettingsSection";
+import { FontPicker } from "@/components/admin/FontPicker";
+import { useCustomFonts } from "@/lib/useCustomFonts";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
 import { DEFAULT_FREE_POSITION, freePositionResponsiveAttrs, type FreePosition } from "@/lib/useFreePosition";
 
@@ -16,6 +18,11 @@ export type TextBlockProps = {
   fontWeight: "normal" | "medium" | "semibold" | "bold";
   align: "left" | "center" | "right";
   color: string;
+  // HOTFIX-147.8(사용자 지시 — "텍스트는 폰트 업로드 할수 있게 하라고
+  // 했지"): /admin/fonts(EPIC-083)의 custom_fonts 업로드 인프라를 그대로
+  // 재사용(FontPicker/useCustomFonts) — 새 업로드 파이프라인을 따로 만들지
+  // 않는다. 빈 문자열이면 기본 폰트(기존 동작과 동일).
+  fontFamily: string;
   motion?: MotionConfig;
   position?: FreePosition;
   // HOTFIX-147.7(사용자 지시 — "모바일에서 텍스트 위치를 드래그 드롭으로
@@ -44,6 +51,7 @@ export function TextBlock({
   fontWeight,
   align,
   color,
+  fontFamily,
   motion = DEFAULT_MOTION,
   position = DEFAULT_FREE_POSITION,
   mobilePosition = null,
@@ -54,6 +62,10 @@ export function TextBlock({
   } = useNode();
   const boxRef = useRef<HTMLDivElement>(null);
   const { style, className } = freePositionResponsiveAttrs(position, mobilePosition);
+  // fontFamily가 실제로 쓰이려면 이 폰트의 @font-face가 문서에 주입돼
+  // 있어야 한다 — 이 훅이 그 자체로 custom_fonts 전체를 불러와 주입하므로
+  // (useCustomFonts.ts 참고), 페이지에 이 블록이 하나만 있어도 항상 보장된다.
+  useCustomFonts();
 
   return (
     <div ref={(dom) => { if (dom) { connect(dom); boxRef.current = dom; } }} style={style} className={className}>
@@ -71,7 +83,7 @@ export function TextBlock({
             value={text}
             onCommit={(next) => setProp((p) => { p.text = next; })}
             className={`${WEIGHT_CLASS[fontWeight]} ${ALIGN_CLASS[align]}`}
-            style={{ fontSize: fontSizePx, color }}
+            style={{ fontSize: fontSizePx, color, ...(fontFamily ? { fontFamily } : {}) }}
             placeholder="텍스트를 입력하세요"
           />
         </RevealWrapper>
@@ -122,14 +134,27 @@ function TextSettings() {
       </label>
       <label className="block text-xs text-gray-600">
         색상
-        <input
-          type="text"
-          value={props.color}
-          placeholder="#111111"
-          onChange={(e) => setProp((p) => { p.color = e.target.value; })}
-          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
-        />
+        <div className="mt-1 flex items-center gap-1.5">
+          <input
+            type="color"
+            value={/^#[0-9a-fA-F]{6}$/.test(props.color) ? props.color : "#111111"}
+            onChange={(e) => setProp((p) => { p.color = e.target.value; })}
+            className="h-7 w-9 shrink-0 cursor-pointer rounded border border-gray-300 p-0.5"
+          />
+          <input
+            type="text"
+            value={props.color}
+            placeholder="#111111"
+            onChange={(e) => setProp((p) => { p.color = e.target.value; })}
+            className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </div>
       </label>
+      <FontPicker
+        label="폰트"
+        value={props.fontFamily}
+        onChange={(fontFamily) => setProp((p) => { p.fontFamily = fontFamily; })}
+      />
       <MotionSettingsSection />
       <FreePositionSettingsSection supportsMobileOverride />
     </div>
@@ -144,6 +169,7 @@ TextBlock.craft = {
     fontWeight: "normal",
     align: "left",
     color: "#111111",
+    fontFamily: "",
     motion: DEFAULT_MOTION,
     position: DEFAULT_FREE_POSITION,
     mobilePosition: null,

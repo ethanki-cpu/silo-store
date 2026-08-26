@@ -21,11 +21,28 @@
 // 해결: 이 파일(및 CSS)을 public/vendor/timelinejs/로 복사해 자체 호스팅하고,
 // 브라우저 DOM에 진짜 <script src>/<link> 태그를 직접 넣는다 — 번들러
 // 스코프를 완전히 우회해 원래 라이브러리가 기대하는 대로 전역에 등록된다.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const TL_BASE = "/vendor/timelinejs";
 let tlLoadPromise: Promise<void> | null = null;
+
+// HOTFIX-147.8(사용자 지시 — "타임라인 섹션이 처음 로딩되면 보이는 '혁명~
+// 제국' 부분을 내가 텍스트를 변형하고 배경도 넣고 싶다, 드래그앤드랍/사이즈
+// 조절을 자유롭게 하게 해달라" + 모바일에서 표지 텍스트가 화면보다 커서
+// 스와이프 안내문과 겹치는 버그 실측 확인): TL3 자체 표지(title) 슬라이드
+// 렌더링을 손대는 대신(라이브러리 내부 DOM/CSS라 안전하게 재배치 불가),
+// SiloTimelineEmbedBlock이 이 위에 자기만의 자유배치 오버레이(배경 슬라이드+
+// 자유배치 텍스트)를 얹는다 — TL3의 "change" 이벤트로 지금 표지를 보고
+// 있는지 판별(실측: title 슬라이드의 unique_id는 항상 정확히
+// "title-headline" — 로컬 스크래치 인스턴스로 goToId 왕복하며 직접 확인한
+// 값, TL3 공식 문서에는 없음)하고, `.tl-storyslider`의 실제 렌더링 영역을
+// ResizeObserver로 재서 그 위에만 겹치도록 한다(`.tl-timenav`(하단 대시보드)
+// 는 절대 가리지 않음 — 유저가 "1번(표지/슬라이드) 아래 2번 대시보드에서
+// 다른 항목 클릭하면 1번이 바뀐다"고 정확히 묘사한 그 구조를 그대로 유지).
+const TITLE_SLIDE_UNIQUE_ID = "title-headline";
+
+export type TimelineCoverState = { isTitle: boolean; top: number; height: number } | null;
 
 function loadTimelineJs(): Promise<void> {
   if (window.TL?.Timeline) return Promise.resolve();
@@ -53,6 +70,7 @@ export default function SiloTimelineInner({
   boardId,
   groupHref,
   stageHeightPx,
+  onCoverStateChange,
 }: {
   /** 단일 게시판 모드 — groupHref와 둘 중 하나만 준다. */
   boardId?: string;
@@ -63,11 +81,58 @@ export default function SiloTimelineInner({
    * 좁아 설정할수 있게 해줘"): 슬라이드(미디어+제목+설명) 영역의 높이.
    * 없으면 TimelineJS3 기본값(컨테이너 높이 자동 계산)을 그대로 쓴다. */
   stageHeightPx?: number | null;
+  /** HOTFIX-147.8: 표지 슬라이드를 보고 있는지 + `.tl-storyslider`의 실제
+   * top/height(컨테이너 기준)를 알려준다 — 부모가 이 위에 자유배치 오버레이를
+   * 정확히 겹칠 수 있도록. 매번 새 함수를 넘겨도 effect가 매번 재설정되지
+   * 않도록 ref로 최신 값만 추적한다. */
+  onCoverStateChange?: (state: TimelineCoverState) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const instanceRef = useRef<{ zoomIn: () => void; zoomOut: () => void } | null>(null);
+  const instanceRef = useRef<InstanceType<NonNullable<Window["TL"]>["Timeline"]> | null>(null);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const onCoverStateChangeRef = useRef(onCoverStateChange);
+  useEffect(() => {
+    onCoverStateChangeRef.current = onCoverStateChange;
+  });
+  const isTitleRef = useRef(true);
+
+  const emitCoverState = useCallback(() => {
+    const cb = onCoverStateChangeRef.current;
+    const container = containerRef.current;
+    if (!cb || !container) return;
+    const slider = container.querySelector<HTMLElement>(".tl-storyslider");
+    if (!slider) return;
+    const wrapperRect = container.getBoundingClientRect();
+    const sliderRect = slider.getBoundingClientRect();
+    cb({ isTitle: isTitleRef.current, top: sliderRect.top - wrapperRect.top, height: sliderRect.height });
+  }, []);
+
+  // HOTFIX-147.8: `.tl-storyslider`는 TL3가 내부적으로 비동기 생성하므로
+  // MutationObserver로 나타나길 기다렸다가 ResizeObserver를 붙인다 — 리사이즈/
+  // 뷰포트 폭 변화(모바일 skinny 레이아웃 전환 등)마다 정확한 위치를 다시 잰다.
+  useEffect(() => {
+    if (!onCoverStateChange) return;
+    const container = containerRef.current;
+    if (!container) return;
+    let ro: ResizeObserver | null = null;
+
+    const mo = new MutationObserver(() => {
+      const slider = container.querySelector(".tl-storyslider");
+      if (slider && !ro) {
+        ro = new ResizeObserver(emitCoverState);
+        ro.observe(slider);
+        ro.observe(container);
+        emitCoverState();
+      }
+    });
+    mo.observe(container, { childList: true, subtree: true });
+
+    return () => {
+      mo.disconnect();
+      ro?.disconnect();
+    };
+  }, [onCoverStateChange, emitCoverState, boardId, groupHref, stageHeightPx]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,10 +158,17 @@ export default function SiloTimelineInner({
         // 찾는데, URL 생성자의 base는 반드시 절대 URL이어야 한다(실측 —
         // "/vendor/..." 같은 루트-상대 경로를 넘기면 "Invalid base URL"로
         // 죽는다) — origin을 직접 붙인다.
-        instanceRef.current = new TimelineCtor(container, data, {
+        const instance = new TimelineCtor(container, data, {
           script_path: `${window.location.origin}${TL_BASE}/js/`,
           ...(stageHeightPx ? { height: stageHeightPx } : {}),
         });
+        instanceRef.current = instance;
+        isTitleRef.current = true;
+        instance.on("change", (d) => {
+          isTitleRef.current = d?.unique_id === TITLE_SLIDE_UNIQUE_ID;
+          emitCoverState();
+        });
+        emitCoverState();
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -109,7 +181,7 @@ export default function SiloTimelineInner({
       // 공식적으로 안내된 정리 방법(다른 사용자들도 재마운트 시 이렇게 함).
       if (container) container.innerHTML = "";
     };
-  }, [boardId, groupHref, stageHeightPx]);
+  }, [boardId, groupHref, stageHeightPx, emitCoverState]);
 
   // EPIC-147(요구사항 3 — 새로고침 없이 상세 페이지로 이동): TimelineJS3가
   // 그리는 순수 DOM이라 React가 그 안의 <a> 클릭을 알 방법이 없다 —

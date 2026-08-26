@@ -10,6 +10,9 @@ declare global {
       Timeline: new (elem: HTMLElement | string, data: unknown, options?: Record<string, unknown>) => {
         zoomIn(): void;
         zoomOut(): void;
+        // HOTFIX-147.8: 공식 문서화된 이벤트 구독 API — "change"(슬라이드
+        // 전환)가 표지(title) 슬라이드 감지에 쓰인다(SiloTimelineInner.tsx).
+        on(event: string, callback: (data: { unique_id?: string }) => void): void;
       };
     };
   }

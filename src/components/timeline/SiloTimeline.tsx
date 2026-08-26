@@ -8,6 +8,7 @@
 // 페이지도 최초 요청 때 Node.js에서 한 번 SSR하는 그 순간 `document`가
 // 없어 죽는다(자세한 배경은 SiloTimelineInner.tsx 주석 참고).
 import dynamic from "next/dynamic";
+import type { TimelineCoverState } from "./SiloTimelineInner";
 
 const SiloTimelineInner = dynamic(() => import("./SiloTimelineInner"), {
   ssr: false,
@@ -22,10 +23,21 @@ export function SiloTimeline({
   boardId,
   groupHref,
   stageHeightPx,
+  onCoverStateChange,
 }: {
   boardId?: string;
   groupHref?: string;
   stageHeightPx?: number | null;
+  /** HOTFIX-147.8: SiloTimelineEmbedBlock의 표지 자유배치 오버레이용 —
+   * SiloTimelineInner.tsx 주석 참고. */
+  onCoverStateChange?: (state: TimelineCoverState) => void;
 }) {
-  return <SiloTimelineInner boardId={boardId} groupHref={groupHref} stageHeightPx={stageHeightPx} />;
+  return (
+    <SiloTimelineInner
+      boardId={boardId}
+      groupHref={groupHref}
+      stageHeightPx={stageHeightPx}
+      onCoverStateChange={onCoverStateChange}
+    />
+  );
 }

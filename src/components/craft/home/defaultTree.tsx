@@ -71,7 +71,7 @@ export const homeDefaultTree = (
 
     {/* 3. 드래그 스크롤 목록(Inside Issue Sixty) */}
     <Element canvas is={ContainerBlock} layout="col" gap={16} paddingY={48} paddingX={24} background="#ffffff" maxWidthPx={1200} align="start">
-      <TextBlock text="Inside Issue Sixty" fontSizePx={22} fontWeight="semibold" align="left" color="#111111" />
+      <TextBlock text="Inside Issue Sixty" fontSizePx={22} fontWeight="semibold" align="left" color="#111111" fontFamily="" />
       <BoardEmbedBlock boardId="" cardStyle="dragRow" count={8} />
     </Element>
 
@@ -91,7 +91,7 @@ export const homeDefaultTree = (
 
     {/* 6. 드래그 스크롤 목록 — 배경색만 다르게 */}
     <Element canvas is={ContainerBlock} layout="col" gap={16} paddingY={48} paddingX={24} background="#f5f1e8" maxWidthPx={1200} align="start">
-      <TextBlock text="더 읽어보기" fontSizePx={22} fontWeight="semibold" align="left" color="#111111" />
+      <TextBlock text="더 읽어보기" fontSizePx={22} fontWeight="semibold" align="left" color="#111111" fontFamily="" />
       <BoardEmbedBlock boardId="" cardStyle="dragRow" count={8} />
     </Element>
 
@@ -111,7 +111,7 @@ export const homeDefaultTree = (
 
     {/* 9. 드래그 스크롤 목록 — 흰 배경 */}
     <Element canvas is={ContainerBlock} layout="col" gap={16} paddingY={48} paddingX={24} background="#ffffff" maxWidthPx={1200} align="start">
-      <TextBlock text="Free Preview" fontSizePx={22} fontWeight="semibold" align="center" color="#111111" />
+      <TextBlock text="Free Preview" fontSizePx={22} fontWeight="semibold" align="center" color="#111111" fontFamily="" />
       <BoardEmbedBlock boardId="" cardStyle="dragRow" count={6} />
     </Element>
 
@@ -128,7 +128,7 @@ export const homeDefaultTree = (
 
     {/* 11. 큰 텍스트 + 오른쪽 이미지, 여백 넉넉 */}
     <Element canvas is={ContainerBlock} layout="row" gap={48} paddingY={64} paddingX={24} background="#ffffff" maxWidthPx={1200} align="center">
-      <TextBlock text="The Silo Shop" fontSizePx={40} fontWeight="bold" align="left" color="#111111" />
+      <TextBlock text="The Silo Shop" fontSizePx={40} fontWeight="bold" align="left" color="#111111" fontFamily="" />
       <Element canvas is={ContainerBlock} layout="col" gap={0} paddingY={0} paddingX={0} background="transparent" maxWidthPx={480} align="start">
         <ImageBlock imageUrl={PLACEHOLDER_1200x1500("Shop")} href="/shop" objectFit="cover" aspectRatio="4/5" />
       </Element>
@@ -161,19 +161,19 @@ export const homeDefaultTree = (
 
     {/* 14. 3개 글 썸네일/제목/카테고리 */}
     <Element canvas is={ContainerBlock} layout="col" gap={16} paddingY={48} paddingX={24} background="#ffffff" maxWidthPx={1200} align="start">
-      <TextBlock text="Uncommon Interests" fontSizePx={22} fontWeight="semibold" align="left" color="#111111" />
+      <TextBlock text="Uncommon Interests" fontSizePx={22} fontWeight="semibold" align="left" color="#111111" fontFamily="" />
       <BoardEmbedBlock boardId="" cardStyle="thumbnail" count={3} />
     </Element>
 
     {/* 15. Stories You May Have Missed */}
     <Element canvas is={ContainerBlock} layout="col" gap={16} paddingY={48} paddingX={24} background="#ffffff" maxWidthPx={1200} align="start">
-      <TextBlock text="Stories You May Have Missed" fontSizePx={22} fontWeight="semibold" align="left" color="#111111" />
+      <TextBlock text="Stories You May Have Missed" fontSizePx={22} fontWeight="semibold" align="left" color="#111111" fontFamily="" />
       <BoardEmbedBlock boardId="" cardStyle="gallery" count={4} />
     </Element>
 
     {/* 16. 썸네일 3개 + 위에 큰 텍스트(버튼처럼) */}
     <Element canvas is={ContainerBlock} layout="col" gap={24} paddingY={64} paddingX={24} background="#000000" maxWidthPx={null} align="center">
-      <TextBlock text="SUBSCRIBE" fontSizePx={36} fontWeight="bold" align="center" color="#ffffff" />
+      <TextBlock text="SUBSCRIBE" fontSizePx={36} fontWeight="bold" align="center" color="#ffffff" fontFamily="" />
       <BoardEmbedBlock boardId="" cardStyle="thumbnail" count={3} />
     </Element>
 

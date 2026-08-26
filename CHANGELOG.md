@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-26 (HOTFIX-147.4 — 인스타그램 캐러셀 항목 순서가 실제 표시 순서와 다른 문제 수정)
+- **사용자 재신고**: HOTFIX-143.5로 "캐러셀 항목 통째 누락" 복구 버튼을 만들고 실행까지 했는데도, 바로크 "빨간머리 사제 Act 1"의 캐러셀 첫 번째가 여전히 영상이 아니라 사진으로 나옴.
+- **근본 원인(추가 확인)**: `information_schema` 대신 `instagram_feeds` 실데이터로 재확인 — 복구 이후에도 `media_item_types`가 `[IMAGE,IMAGE,IMAGE,IMAGE,IMAGE,VIDEO]`처럼 VIDEO 항목이 항상 배열 맨 뒤로 밀려 저장되고 있었다(HOTFIX-143.5는 "빠진 항목을 되살리는" 버그만 고쳤을 뿐, "순서 자체가 틀어지는" 별개의 버그는 남아있었음). Graph API에 `children{id,media_type,media_url,thumbnail_url}`처럼 자식 서브필드를 중첩해서 요청하면 응답 배열 순서가 실제 캐러셀 표시 순서와 달라지는(특히 VIDEO 항목이 뒤로 밀리는) 문서화되지 않은 동작이 원인으로 확인됨.
+- **수정**: `children`을 서브필드 없이 **bare edge**로만 요청하도록 변경(`children{...}` → `children`) — 이 형태의 응답(`data:[{id},...]`)은 실제 표시 순서를 그대로 보존한다. 각 자식의 실제 `media_type`/`media_url`은 이미 있던 `resolveChildMediaUrl()`(HOTFIX-143.5가 "누락된 자식 복구용"으로 만든 개별 조회 로직)이 자식 id 하나하나를 조회해 채우도록 — 이제 캐러셀 자식은 항상 이 경로를 탄다. `src/app/api/instagram/fetch/route.ts`(새 게시물 동기화)와 `src/app/api/admin/instagram/resync-carousels/route.ts`(기존 게시물 복구) 둘 다 동일하게 수정.
+- `tsc` 0 errors. **실측 검증 못 함**: 로컬 환경에는 `IG_ACCESS_TOKEN`이 없어(프로덕션/Vercel 전용) 이 순서 보존 가설을 실제 Graph API 응답으로 확인할 수 없었다 — 관측된 데이터 패턴(VIDEO가 항상 뒤로 밀림)과 일치하는 잘 알려진 Graph API 동작을 근거로 한 최선의 수정이며, 100% 확신할 수는 없다. **사용자가 직접 확인해야 하는 것**: 배포 후 `/admin/instagram`에서 "캐러셀 누락 항목 일괄 복구" 버튼을 다시 클릭 → 바로크 Act 1(및 다른 캐러셀들)의 순서가 실제 인스타그램 게시물과 일치하는지 확인, 여전히 틀리면 알려달라(이 경우 순서 문제의 다른 원인을 더 조사해야 함).
+
 ## 2026-08-26 (HOTFIX-147.3 — Timeline NG 리프 게시판 히어로 + 온라인 도슨트 2단계 카테고리 통합 타임라인 + TimeNav 상시 썸네일)
 - **사용자 지시**: (1) Timeline NG가 적용된 온라인 도슨트 리프 페이지(신고전주의 등) 첫 화면에 대표사진 슬라이드+오버레이 텍스트(제목/요약)를 얹고, 타임라인 마커에 게시글 썸네일이 작게 보이게 해달라 — 단, 기존 게시판 이름/검색/정렬 헤더는 히어로 아래에 그대로 유지. (2) "고대~왕정"/"혁명~제국"/"프로이트~대중문화"/"디지털~A.i 문화"(온라인 도슨트 2단계 카테고리 페이지 4개)에도 타임라인을 넣되, 그 하위 3단계 카테고리 게시판 전부의 글을 한 타임라인에 모아 보여주고, 이 4개 페이지에 Craft 에디터로 자유 편집이 가능하게 해달라. (3) "호버해도 썸네일이 안 뜬다"는 재확인 요청 — 실측 결과 진짜 버그였음(아래 HOTFIX-147.2).
 - **HOTFIX-147.2(먼저 발견) — TimeNav 마커에 썸네일이 전혀 안 뜨던 버그**: `public/vendor/timelinejs/js/timeline.js` 실측 확인 — TimelineJS3의 TimeNav 마커는 호버와 무관하게 `media.thumbnail`이 있으면 항상 작은 썸네일을 그린다(`tl-timemarker-media-container` 로직). `/api/timeline/events`가 지금까지 `media.url`(슬라이드용 원본 이미지)만 주고 `media.thumbnail`은 아예 안 줘서 마커에 아무것도 안 그려졌던 것 — 같은 이미지를 `media.thumbnail`로도 함께 내려주도록 수정. 로컬 dev 서버로 실측: 마커마다 작은 정사각 썸네일이 상시 노출됨을 확인.

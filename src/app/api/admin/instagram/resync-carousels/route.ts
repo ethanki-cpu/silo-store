@@ -53,16 +53,24 @@ export async function POST(request: NextRequest) {
 
   for (const row of rows ?? []) {
     try {
+      // HOTFIX-147.4(사용자 재신고 — 바로크 Act 1의 캐러셀 첫 번째가 영상이어야
+      // 하는데 사진만 나옴): children을 서브필드 없이 bare edge로 요청해야
+      // 실제 표시 순서가 보존된다(src/app/api/instagram/fetch/route.ts의
+      // 동일 주석 참고) — media_type/media_url은 항상 자식별 개별 조회로 채운다.
       const res = await fetch(
-        `https://graph.facebook.com/${GRAPH_API_VERSION}/${row.ig_media_id}?fields=children{id,media_type,media_url,thumbnail_url}&access_token=${accessToken}`,
+        `https://graph.facebook.com/${GRAPH_API_VERSION}/${row.ig_media_id}?fields=children&access_token=${accessToken}`,
       );
-      const data = (await res.json()) as { children?: { data: IgChild[] }; error?: { message: string } };
+      const data = (await res.json()) as { children?: { data: { id: string }[] }; error?: { message: string } };
       if (!res.ok) {
         errors.push(`${row.ig_media_id}: ${data.error?.message ?? "Graph API 호출 실패"}`);
         continue;
       }
 
-      const children = data.children?.data ?? [];
+      const children: IgChild[] = (data.children?.data ?? []).map((c) => ({
+        id: c.id,
+        media_type: "IMAGE" as const,
+        media_url: undefined,
+      }));
       const mediaUrls: string[] = [];
       const mediaItemTypes: string[] = [];
       for (const child of children) {

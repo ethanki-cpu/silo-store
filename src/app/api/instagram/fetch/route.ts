@@ -20,8 +20,19 @@ import { GRAPH_API_VERSION, resolveChildMediaUrl, type IgChild } from "@/lib/ins
 // 요청으로 전부 처리하면 서버리스 함수 타임아웃 위험이 커서, 프론트(관리자
 // 페이지)가 nextCursor가 null이 될 때까지 반복 호출하는 방식으로 나눈다.
 
+// HOTFIX-147.4(사용자 재신고 — 바로크 Act 1: "캐러셀 첫번째는 영상이어야
+// 하는데 사진만 나온다"): 실측 확인된 Graph API 버그 — `children{media_type,
+// media_url,...}`처럼 자식 필드를 중첩으로 같이 요청하면 응답 순서가
+// 실제 캐러셀 표시 순서와 달라진다(반복 재현 — VIDEO 항목이 매번 맨
+// 뒤로 밀림, HOTFIX-143.5 복구 이후에도 동일 현상 재발). 반면 `children`을
+// 아무 서브필드 없이 bare edge로 요청하면 그 `data: [{id}, ...]` 배열은
+// 실제 표시 순서를 그대로 반환한다(Graph API 문서화되지 않은 동작이지만
+// 이 계정 데이터로 일관되게 확인됨) — 그래서 순서 정보는 이 bare 목록에서만
+// 가져오고, 각 자식의 실제 media_type/media_url은 resolveChildMediaUrl이
+// 자식 id 하나하나를 개별 조회해서 채운다(이미 "media_url 누락" 복구용으로
+// 있던 로직을 그대로 재사용 — 이제 캐러셀 자식은 항상 이 경로를 탄다).
 const MEDIA_FIELDS =
-  "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,children{id,media_type,media_url,thumbnail_url}";
+  "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,children";
 const PAGE_LIMIT = 12;
 
 type IgMediaNode = {
@@ -32,7 +43,7 @@ type IgMediaNode = {
   permalink?: string;
   thumbnail_url?: string;
   timestamp?: string;
-  children?: { data: IgChild[] };
+  children?: { data: { id: string }[] };
 };
 type IgMediaListResponse = {
   data?: IgMediaNode[];
@@ -102,15 +113,12 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    // HOTFIX-143.5(실사용 재현 — 바로크 Act 1/2, 아르데코 Gertrude Lawrence):
-    // children{...} 서브필드 응답이 특정 캐러셀 자식(특히 VIDEO)의 media_url을
-    // 아예 비워서 내려주는 경우가 있었다 — 예전엔 그런 자식을 통째로
-    // 건너뛰어(continue) 캐러셀에서 사진/영상이 사라졌다. 이제
-    // resolveChildMediaUrl이 그 자식을 단독 재조회하거나(그래도 실패하면
-    // thumbnail_url로) 복구를 시도하고, 그래도 안 되는 것만 진짜로 건너뛴다.
+    // HOTFIX-143.5/147.4: 캐러셀 자식은 항상 id만 넘기고(bare children 목록의
+    // 순서를 그대로 보존) media_type/media_url은 resolveChildMediaUrl이
+    // 자식별로 개별 조회해서 채운다 — 위 주석 참고.
     const childSources: IgChild[] =
       node.media_type === "CAROUSEL_ALBUM"
-        ? (node.children?.data ?? [])
+        ? (node.children?.data ?? []).map((c) => ({ id: c.id, media_type: "IMAGE" as const, media_url: undefined }))
         : [{ id: node.id, media_type: node.media_type === "VIDEO" ? "VIDEO" : "IMAGE", media_url: node.media_url }];
 
     const mediaUrls: string[] = [];

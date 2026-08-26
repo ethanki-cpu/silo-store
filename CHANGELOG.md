@@ -5,6 +5,7 @@
 - **기존 폴백의 문제**: `resolveChildMediaUrl`이 이 경우 `media_type`을 통째로 "IMAGE"로 강등해 저장 — "원래 영상이었다"는 정보 자체가 사라져 평범한 사진과 구분이 안 됐다.
 - **수정**: `media_type`은 항상 사실대로(VIDEO면 VIDEO) 반환하고, 실제 재생 가능한 파일을 구했는지는 별도 `playable` 플래그로 분리(`src/lib/instagramGraph.ts`). 재생 불가능한 VIDEO는 `media_item_types`에 새 값 `"VIDEO_THUMBNAIL"`로 저장(배열 컬럼이라 CHECK 제약 없이 추가 가능)하고, `InstagramFeedPost.tsx`가 이 값을 `<video>` 대신 재생 버튼 아이콘을 얹은 `<img>`로 렌더링해 "이건 영상이었다"를 시각적으로 표시한다. R2 업로드 시 isVideo 플래그도 `playable`을 함께 확인하도록 수정(정지 이미지 바이트를 .mp4로 잘못 저장하지 않도록). `embedThumbnail.ts`의 대표 이미지 선택 로직도 `"VIDEO_THUMBNAIL"`을 안전한 후보로 포함(사용자 지시 — "그 영상이 썸네일이 되어야지": 실제 파일이 진짜 이미지라 안전하게 대표 이미지로 쓸 수 있고, 오히려 그 캐러셀의 원래 대표 영상 프레임일 가능성이 높음).
 - **정직하게 밝히는 한계**: Graph API가 실제 영상 파일 자체를 주지 않는 이상 진짜 재생 가능한 영상으로 만들 방법은 없다 — 이번 수정은 "가짜로 사진처럼 보이던 것"을 "이건 영상이었다고 정확히 표시하는 것"으로 바꾸는 것이지, 재생 불가 자체를 없애는 것은 아니다.
+- **전체 계정 재동기화 완료(dev.silostore.net, 관리자 세션으로 직접 실행)**: `/api/admin/instagram/resync-carousels`를 전체 CAROUSEL_ALBUM(230개)에 대해 끝까지 실행 — 그중 **52개 게시물**이 이 정확한 버그(영상인데 media_url을 못 받아 IMAGE로 잘못 저장됨)를 갖고 있었고 전부 "VIDEO_THUMBNAIL"로 정정됨(에러 0건). 사용자가 지적한 대로 바로크 Act 1 하나만의 문제가 아니었음이 실측으로 확인됨.
 - `tsc`/`lint` 0 errors(77 warnings, 기존 기준선 유지).
 
 ## 2026-08-26 (HOTFIX-147.9 — 타임라인 표지 자유 편집(배경+드래그 텍스트) + Craft TextBlock 색상피커/폰트업로드)

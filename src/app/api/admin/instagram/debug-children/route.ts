@@ -25,11 +25,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "igMediaId 쿼리 파라미터가 필요해요." }, { status: 400 });
   }
 
-  const [bareRes, nestedRes, timestampRes] = await Promise.all([
+  const [bareRes, nestedRes, timestampRes, exactRes, retryRes] = await Promise.all([
     fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=children&access_token=${accessToken}`).then((r) => r.json()),
     fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=children{id,media_type,media_url,timestamp}&access_token=${accessToken}`).then((r) => r.json()),
     fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=id,media_type,media_url,thumbnail_url,timestamp,permalink&access_token=${accessToken}`).then((r) => r.json()),
+    // resolveChildMediaUrl과 정확히 같은 필드 조합(순서/개수까지) — 필드
+    // 조합에 따라 Graph API 응답이 달라지는지 대조.
+    fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=media_type,media_url,thumbnail_url&access_token=${accessToken}`).then((r) => r.json()),
+    // 같은 요청을 한 번 더(캐시/일시적 응답 변동 여부 확인).
+    fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=media_type,media_url,thumbnail_url&access_token=${accessToken}`).then((r) => r.json()),
   ]);
 
-  return NextResponse.json({ bare: bareRes, nested: nestedRes, parent: timestampRes });
+  return NextResponse.json({ bare: bareRes, nested: nestedRes, parent: timestampRes, exact: exactRes, retry: retryRes });
 }

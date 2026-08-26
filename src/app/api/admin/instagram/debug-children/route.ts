@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const [bareRes, nestedRes, timestampRes] = await Promise.all([
     fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=children&access_token=${accessToken}`).then((r) => r.json()),
     fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=children{id,media_type,media_url,timestamp}&access_token=${accessToken}`).then((r) => r.json()),
-    fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=id,media_type,timestamp,permalink&access_token=${accessToken}`).then((r) => r.json()),
+    fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igMediaId}?fields=id,media_type,media_url,thumbnail_url,timestamp,permalink&access_token=${accessToken}`).then((r) => r.json()),
   ]);
 
   return NextResponse.json({ bare: bareRes, nested: nestedRes, parent: timestampRes });

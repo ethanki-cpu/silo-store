@@ -177,9 +177,19 @@ function TimelineCoverOverlay({
   const { style, className } = freePositionResponsiveAttrs(position, mobilePosition);
   useCustomFonts();
 
+  // 사용자 신고(2026-08-27, 스크린샷 — "표지가 깜빡이듯 바로 사라지고 흰
+  // 배경이 나온다"): opacity는 실제로 1이었지만 눈엔 하나도 안 보였다 —
+  // `document.elementFromPoint()`로 직접 찍어보니 TL3 자체가 표지(title)
+  // 슬라이드 텍스트를 그리는 `.tl-slide-content-container`에 자체
+  // `z-index: 3`을 줘서(그 안의 `.tl-slider-touch-mask`는 25까지 감) 이
+  // 오버레이(z-index 지정 없음=auto)를 그 위에서 완전히 덮고 있었다 — 이
+  // 컴포넌트가 처음 만들어진 뒤로 실제 화면에서 opacity만 확인했지
+  // "진짜로 맨 위에 그려지는지"는 한 번도 스크린샷/elementFromPoint로
+  // 검증한 적이 없었다. TL3의 `.tl-storyslider` 내부에서 관측된 최댓값(25)을
+  // 넉넉히 넘는 z-index를 명시해 항상 그 위에 그려지도록 한다.
   return (
     <div
-      className="pointer-events-none absolute left-0 right-0 overflow-hidden transition-opacity duration-300"
+      className="pointer-events-none absolute left-0 right-0 z-30 overflow-hidden transition-opacity duration-300"
       style={{ top, height, opacity: visible ? 1 : 0 }}
     >
       <div className="relative h-full w-full">

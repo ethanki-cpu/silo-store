@@ -8,7 +8,7 @@
 // EPIC-099(항목 2)부터는 EditableBlockFrame이 복제/삭제/드래그 컨트롤을
 // 위해 useNode()도 직접 부른다(아래 해당 함수 주석 참고).
 import { useEditor, useNode } from "@craftjs/core";
-import { createElement, useState, type CSSProperties, type ReactNode } from "react";
+import { createElement, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { uploadFile } from "@/lib/storage";
 
 export function useCraftEditable(): boolean {
@@ -224,16 +224,68 @@ export function EditableResponsiveImage({
 // 복제/삭제/순서 변경"이라는 스코프 그대로 — 새로운 블록 "종류"를 즉석에서
 // 만들 수 있는 자유 캔버스/컴포넌트 팔레트는 여기 없다(그건
 // CraftHomeEditor.tsx의 "+ 섹션 추가" 버튼이 정해진 6종 목록으로만 제공).
+// 사용자 지시(2026-08-27 — "각 요소들의 위아래 폭을 내가 드래그 드랍으로
+// 움직여서 조정하게 해줘"): 6~7종 블록 전부가 이 프레임 하나를 공유하므로
+// (위 EPIC-099 주석), 각 블록 파일을 따로 건드리지 않고 여기 하나에
+// "높이 직접 지정" 드래그 핸들을 붙인다 — Craft.js의 props는 그 블록의
+// TS 타입에 선언 안 된 키(`frameHeightPx`)도 setProp/node.data.props로
+// 그냥 읽고 쓸 수 있으므로(느슨한 Record 저장소), 이 파일만 고쳐도 모든
+// 블록에 즉시 적용된다. 자유 배치(position.enabled)로 이미 %기반
+// 리사이즈 핸들을 갖고 있는 블록은 그것과 겹쳐 보이지 않도록 숨긴다.
+const MIN_FRAME_HEIGHT_PX = 60;
+
 export function EditableBlockFrame({ children, label }: { children: ReactNode; label: string }) {
   const editable = useCraftEditable();
   const {
     id,
     connectors: { drag },
     isSelected,
-  } = useNode((node) => ({ isSelected: node.events.selected }));
+    frameHeightPx,
+    freePositionEnabled,
+    setProp,
+  } = useNode((node) => ({
+    isSelected: node.events.selected,
+    frameHeightPx: (node.data.props as Record<string, unknown>).frameHeightPx as number | undefined,
+    freePositionEnabled: Boolean(
+      (node.data.props as Record<string, { enabled?: boolean } | undefined>).position?.enabled,
+    ),
+  }));
   const { actions, query } = useEditor();
+  const [liveHeight, setLiveHeight] = useState<number | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
 
-  if (!editable) return <>{children}</>;
+  const effectiveHeightPx = liveHeight ?? frameHeightPx;
+  const heightStyle: CSSProperties | undefined =
+    effectiveHeightPx != null ? { height: effectiveHeightPx, overflowY: "auto", overflowX: "hidden" } : undefined;
+
+  if (!editable) {
+    return heightStyle ? <div style={heightStyle}>{children}</div> : <>{children}</>;
+  }
+
+  function handleResizeStart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const startHeight = frameHeightPx ?? frameRef.current?.getBoundingClientRect().height ?? MIN_FRAME_HEIGHT_PX;
+
+    function onMouseMove(ev: MouseEvent) {
+      const next = Math.max(MIN_FRAME_HEIGHT_PX, Math.round(startHeight + (ev.clientY - startY)));
+      setLiveHeight(next);
+    }
+    function onMouseUp(ev: MouseEvent) {
+      const next = Math.max(MIN_FRAME_HEIGHT_PX, Math.round(startHeight + (ev.clientY - startY)));
+      setProp((props: Record<string, unknown>) => { props.frameHeightPx = next; });
+      setLiveHeight(null);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
+
+  function handleResizeReset() {
+    setProp((props: Record<string, unknown>) => { props.frameHeightPx = undefined; });
+  }
 
   function handleDuplicate() {
     const node = query.node(id).get();
@@ -283,7 +335,7 @@ export function EditableBlockFrame({ children, label }: { children: ReactNode; l
   // 오른쪽 가장자리에 걸쳐 있으면 `right-2` 위치가 그 오버레이 밑에
   // 깔린다. 패널의 z-20보다 높여 항상 그 위에 그려지도록 한다.
   return (
-    <div className="group/block relative h-full">
+    <div ref={frameRef} className="group/block relative h-full" style={heightStyle}>
       <div
         className={`pointer-events-none absolute right-2 top-2 z-40 flex items-center gap-1 transition-opacity group-hover/block:opacity-100 ${isSelected ? "opacity-100" : "opacity-0"}`}
       >
@@ -316,6 +368,20 @@ export function EditableBlockFrame({ children, label }: { children: ReactNode; l
         </button>
       </div>
       <div className="h-full outline-dashed outline-1 outline-gray-300 outline-offset-[-1px]">{children}</div>
+      {!freePositionEnabled && (
+        <div
+          onMouseDown={handleResizeStart}
+          onDoubleClick={handleResizeReset}
+          title={
+            effectiveHeightPx != null
+              ? `드래그해서 높이 조절 (${effectiveHeightPx}px) — 더블클릭하면 자동 높이로 되돌림`
+              : "드래그해서 높이를 직접 지정"
+          }
+          className={`absolute inset-x-0 -bottom-1 z-40 flex h-3 cursor-ns-resize items-center justify-center opacity-0 transition-opacity group-hover/block:opacity-100 ${isSelected ? "opacity-100" : ""}`}
+        >
+          <span className="h-1 w-10 rounded-full bg-gray-500/70 hover:bg-gray-700" />
+        </div>
+      )}
     </div>
   );
 }

@@ -275,10 +275,17 @@ export function EditableBlockFrame({ children, label }: { children: ReactNode; l
   // 올리기 전엔 삭제 버튼 자체를 찾을 방법이 사실상 없었다. Craft.js가
   // 이미 추적하는 "지금 선택된 노드인가"(node.events.selected)도 같이
   // 봐서, 선택만 해두면 마우스 위치와 무관하게 계속 보이도록 한다.
+  // 사용자 재신고(2026-08-27, "왼쪽 오른쪽 패널에 가려서 안보이는거
+  // 아니야?" — 실측으로 확인됨): 이 툴바가 opacity:1이어도, 캔버스는
+  // 실제 사이트와 동일한 폭을 유지하려고 Toolbox/SettingsSidebar가 캔버스
+  // 폭을 줄이는 flex 형제가 아니라 그 위에 뜨는 절대 위치 오버레이라서
+  // (CraftPageEditor.tsx의 z-20 오버레이, HOTFIX-146 참고), 블록이 캔버스
+  // 오른쪽 가장자리에 걸쳐 있으면 `right-2` 위치가 그 오버레이 밑에
+  // 깔린다. 패널의 z-20보다 높여 항상 그 위에 그려지도록 한다.
   return (
     <div className="group/block relative h-full">
       <div
-        className={`pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1 transition-opacity group-hover/block:opacity-100 ${isSelected ? "opacity-100" : "opacity-0"}`}
+        className={`pointer-events-none absolute right-2 top-2 z-40 flex items-center gap-1 transition-opacity group-hover/block:opacity-100 ${isSelected ? "opacity-100" : "opacity-0"}`}
       >
         <span className="rounded bg-gray-900/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
           {label}

@@ -111,6 +111,39 @@ function EditorToolbar({
   );
 }
 
+// 사용자 지시(2026-08-27 — "왼쪽 오른쪽 패널이 접혔다 펴질수 있게 해야지"):
+// 캔버스 오른쪽 가장자리 근처 블록의 툴바가 SettingsSidebar 오버레이에
+// 가려 안 보이던 문제(위 editable.tsx z-index 수정으로 근본 해결)와는
+// 별개로, 패널 자체를 필요할 때 접어 캔버스를 더 넓게 볼 수 있어야 한다는
+// 요청 — Toolbox/SettingsSidebar를 감싸 접기/펼치기 탭을 붙인다. 두 패널
+// 다 이미 절대 위치 오버레이(HOTFIX-146)라 접어도 캔버스 폭 계산에는
+// 영향이 없다(원래도 canvas는 항상 전체 폭).
+function CollapsibleEdgePanel({
+  side,
+  open,
+  onToggle,
+  children,
+}: {
+  side: "left" | "right";
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`absolute inset-y-0 z-20 flex ${side === "left" ? "left-0" : "right-0 flex-row-reverse"}`}>
+      {open && <div className="shadow-xl">{children}</div>}
+      <button
+        type="button"
+        onClick={onToggle}
+        title={open ? "패널 접기" : "패널 펼치기"}
+        className="flex w-4 flex-shrink-0 items-center justify-center self-center rounded-sm bg-gray-800/70 py-10 text-[10px] text-white hover:bg-gray-700"
+      >
+        {side === "left" ? (open ? "◀" : "▶") : open ? "▶" : "◀"}
+      </button>
+    </div>
+  );
+}
+
 // EPIC-102: 캔버스 + 좌측 Toolbox + 우측 SettingsSidebar를 감싸는 본문 —
 // useEditor()가 <Editor> 컨텍스트 안에서만 호출 가능해 별도 컴포넌트로
 // 분리했다. "요소" 그룹(원자 블록)은 PRIMITIVE_BLOCK_OPTIONS를 항상 포함해
@@ -127,6 +160,8 @@ function EditorBody({
   initialState?: string | null;
 }) {
   const { query, actions } = useEditor();
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
 
   function handleAdd(option: CraftBlockOption) {
     const tree = query.parseReactElement(option.buildElement()).toNodeTree();
@@ -154,9 +189,9 @@ function EditorBody({
   return (
     <DeviceModeProvider mode={deviceMode}>
       <div className="relative flex flex-1 overflow-hidden">
-        <div className="absolute inset-y-0 left-0 z-20 flex shadow-xl">
+        <CollapsibleEdgePanel side="left" open={leftOpen} onToggle={() => setLeftOpen((v) => !v)}>
           <Toolbox sections={sectionOptions} elements={PRIMITIVE_BLOCK_OPTIONS} onAdd={handleAdd} />
-        </div>
+        </CollapsibleEdgePanel>
         {/* EPIC-100(항목 3): 모바일 모드일 때 캔버스를 실제 폰 너비(390px)로
             좁히고 가운데 정렬 + 기기 프레임처럼 보이는 테두리/그림자를 얹는다.
             바깥 회색 배경은 캔버스가 전체 폭이 아닐 때 경계를 눈으로 구분하기
@@ -172,9 +207,9 @@ function EditorBody({
             <Frame data={initialState ?? undefined}>{!initialState && defaultTree}</Frame>
           </div>
         </div>
-        <div className="absolute inset-y-0 right-0 z-20 flex shadow-xl">
+        <CollapsibleEdgePanel side="right" open={rightOpen} onToggle={() => setRightOpen((v) => !v)}>
           <SettingsSidebar />
-        </div>
+        </CollapsibleEdgePanel>
       </div>
     </DeviceModeProvider>
   );

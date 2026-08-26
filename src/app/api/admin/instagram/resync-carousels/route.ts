@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestMember } from "@/lib/serverAuth";
 import { downloadBuffer, uploadBufferToR2 } from "@/lib/r2Server";
-import { GRAPH_API_VERSION, resolveChildMediaUrl, type IgChild } from "@/lib/instagramGraph";
+import { GRAPH_API_VERSION, resolveChildMediaUrl, storedMediaItemType, type IgChild } from "@/lib/instagramGraph";
 
 // HOTFIX-143.5(사용자 신고 — 바로크 Act 1/2, 아르데코 Gertrude Lawrence 게시글
 // 캐러셀에서 일부 사진/영상이 통째로 사라짐): src/app/api/instagram/fetch/
@@ -64,10 +64,13 @@ export async function POST(request: NextRequest) {
 
   for (const row of rows ?? []) {
     try {
-      // HOTFIX-147.4(사용자 재신고 — 바로크 Act 1의 캐러셀 첫 번째가 영상이어야
-      // 하는데 사진만 나옴): children을 서브필드 없이 bare edge로 요청해야
-      // 실제 표시 순서가 보존된다(src/app/api/instagram/fetch/route.ts의
-      // 동일 주석 참고) — media_type/media_url은 항상 자식별 개별 조회로 채운다.
+      // HOTFIX-147.4/147.10(정정 — HOTFIX-147.4의 "bare edge가 순서를
+      // 보존한다"는 가설은 실측 결과 틀렸음이 확인됨, instagramGraph.ts
+      // 상단 HOTFIX-147.10 주석 참고): 순서 자체는 bare든 nested든 항상
+      // 동일했고, 진짜 원인은 resolveChildMediaUrl의 media_url 폴백
+      // 처리였다 — 그래도 media_type/media_url을 자식별 개별 조회로 채우는
+      // 이 구조 자체는 유지한다(HOTFIX-143.5의 "누락 항목 복구" 목적에는
+      // 여전히 필요).
       const res = await fetch(
         `https://graph.facebook.com/${GRAPH_API_VERSION}/${row.ig_media_id}?fields=children&access_token=${accessToken}`,
       );
@@ -98,12 +101,12 @@ export async function POST(request: NextRequest) {
         const uploaded = await uploadBufferToR2(
           downloaded.buffer,
           downloaded.contentType,
-          resolved.media_type === "VIDEO",
+          resolved.media_type === "VIDEO" && resolved.playable,
           `instagram/${row.ig_media_id}`,
         );
         if (!uploaded) continue;
         mediaUrls.push(uploaded);
-        mediaItemTypes.push(resolved.media_type);
+        mediaItemTypes.push(storedMediaItemType(resolved));
       }
 
       if (mediaUrls.length === 0) {

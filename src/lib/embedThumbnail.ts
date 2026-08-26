@@ -60,9 +60,14 @@ export async function resolveEmbedThumbnailUrl(
       // media_item_types와 짝지어 실제 IMAGE인 첫 항목만 쓴다 — 캐러셀
       // 전체가 영상뿐이면(이미지가 하나도 없음) 억지로 아무거나 쓰지 않고
       // null로 남겨(대표 이미지 없음) 깨진 표시보다 낫다는 기존 원칙 유지.
+      // HOTFIX-147.10(사용자 지시 — "그 영상이 썸네일이 되어야지"): "VIDEO_
+      // THUMBNAIL"(instagramGraph.ts 참고 — 실제 영상 파일을 못 구해 정지
+      // 이미지로 대체된 항목)도 실제 파일 자체는 진짜 이미지라 <img>로
+      // 안전하게 쓸 수 있다 — 오히려 이게 그 캐러셀의 원래 첫 항목(영상)
+      // 이었을 가능성이 높아 대표 이미지 후보에 포함시킨다.
       const mediaUrls: string[] = data?.media_urls ?? [];
       const mediaItemTypes: string[] = data?.media_item_types ?? [];
-      const firstImageUrl = mediaUrls.find((_, i) => mediaItemTypes[i] === "IMAGE");
+      const firstImageUrl = mediaUrls.find((_, i) => mediaItemTypes[i] === "IMAGE" || mediaItemTypes[i] === "VIDEO_THUMBNAIL");
       const cached = data?.thumbnail_url ?? firstImageUrl ?? null;
       if (cached) return cached;
     }

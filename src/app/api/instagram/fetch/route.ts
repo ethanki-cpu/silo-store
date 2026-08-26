@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestMember } from "@/lib/serverAuth";
 import { downloadBuffer, uploadBufferToR2 } from "@/lib/r2Server";
-import { GRAPH_API_VERSION, resolveChildMediaUrl, type IgChild } from "@/lib/instagramGraph";
+import { GRAPH_API_VERSION, resolveChildMediaUrl, storedMediaItemType, type IgChild } from "@/lib/instagramGraph";
 
 // EPIC-143(사용자 지시 — "Instagram Graph API 기반 네이티브 피드 렌더링"):
 // 사일로 스토어 소유 Instagram 비즈니스 계정(_silo_store)의 게시물을 공식
@@ -20,17 +20,18 @@ import { GRAPH_API_VERSION, resolveChildMediaUrl, type IgChild } from "@/lib/ins
 // 요청으로 전부 처리하면 서버리스 함수 타임아웃 위험이 커서, 프론트(관리자
 // 페이지)가 nextCursor가 null이 될 때까지 반복 호출하는 방식으로 나눈다.
 
-// HOTFIX-147.4(사용자 재신고 — 바로크 Act 1: "캐러셀 첫번째는 영상이어야
-// 하는데 사진만 나온다"): 실측 확인된 Graph API 버그 — `children{media_type,
-// media_url,...}`처럼 자식 필드를 중첩으로 같이 요청하면 응답 순서가
-// 실제 캐러셀 표시 순서와 달라진다(반복 재현 — VIDEO 항목이 매번 맨
-// 뒤로 밀림, HOTFIX-143.5 복구 이후에도 동일 현상 재발). 반면 `children`을
-// 아무 서브필드 없이 bare edge로 요청하면 그 `data: [{id}, ...]` 배열은
-// 실제 표시 순서를 그대로 반환한다(Graph API 문서화되지 않은 동작이지만
-// 이 계정 데이터로 일관되게 확인됨) — 그래서 순서 정보는 이 bare 목록에서만
-// 가져오고, 각 자식의 실제 media_type/media_url은 resolveChildMediaUrl이
-// 자식 id 하나하나를 개별 조회해서 채운다(이미 "media_url 누락" 복구용으로
-// 있던 로직을 그대로 재사용 — 이제 캐러셀 자식은 항상 이 경로를 탄다).
+// HOTFIX-147.4/147.10(정정): HOTFIX-147.4는 "children을 중첩 서브필드로
+// 요청하면 순서가 스크램블된다"고 가정했으나, HOTFIX-147.10에서 실제
+// Graph API 응답 3가지 필드 조합을 직접 대조해보니 순서는 bare/nested와
+// 무관하게 항상 동일했다 — 그 가설은 틀렸다. 바로크 Act 1이 "첫 번째가
+// 영상이어야 하는데 사진으로 보인" 진짜 원인은 순서가 아니라
+// resolveChildMediaUrl의 media_url 폴백 처리였다(instagramGraph.ts 상단
+// HOTFIX-147.10 주석 참고 — 그 자식의 media_type은 VIDEO가 맞지만 Graph
+// API가 media_url을 영구히 안 줘서 IMAGE로 잘못 강등 저장되고 있었다).
+// 그래도 `children`을 bare edge로만 요청하고 각 자식의 실제 media_type/
+// media_url을 resolveChildMediaUrl이 개별 조회로 채우는 이 구조 자체는
+// 유지한다(HOTFIX-143.5의 "media_url 누락 항목 복구" 목적에는 여전히
+// 필요 — 각 자식을 개별 조회하는 게 그 복구 로직의 핵심이었다).
 const MEDIA_FIELDS =
   "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,children";
 const PAGE_LIMIT = 12;
@@ -137,12 +138,12 @@ export async function POST(request: NextRequest) {
       const uploaded = await uploadBufferToR2(
         downloaded.buffer,
         downloaded.contentType,
-        resolved.media_type === "VIDEO",
+        resolved.media_type === "VIDEO" && resolved.playable,
         `instagram/${node.id}`,
       );
       if (!uploaded) continue;
       mediaUrls.push(uploaded);
-      mediaItemTypes.push(resolved.media_type);
+      mediaItemTypes.push(storedMediaItemType(resolved));
     }
 
     let thumbnailR2Url: string | null = null;

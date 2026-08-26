@@ -47,6 +47,13 @@ export function InstagramFeedPost({
 
   const mediaFit = isEmbed ? "object-contain" : "object-cover";
 
+  // HOTFIX-147.10(사용자 신고 — "첫번째가 영상이어야 하는데 사진이다"):
+  // "VIDEO_THUMBNAIL"은 Graph API가 실제 영상 파일(media_url)을 영구히
+  // 안 줘서(instagramGraph.ts HOTFIX-147.10 주석 참고, 우리 쪽에서 복구
+  // 불가능한 외부 API 한계) 정지 이미지(썸네일)로만 대체된 항목 — <video
+  // src="...jpg">는 재생이 안 되니 대신 <img>를 그리되, 이게 원래 영상
+  // 이었다는 걸 알 수 있도록 재생 버튼 아이콘을 얹는다(평범한 사진과
+  // 구분 없이 보이던 문제를 최소한 시각적으로는 해결).
   function renderMedia(url: string, type: string, idx: number) {
     if (type === "VIDEO") {
       return (
@@ -60,6 +67,19 @@ export function InstagramFeedPost({
           loop
           playsInline
         />
+      );
+    }
+    if (type === "VIDEO_THUMBNAIL") {
+      return (
+        <div key={`${url}-${idx}`} className="relative h-full w-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className={`h-full w-full ${mediaFit}`} src={url} alt="" loading="lazy" />
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white">
+              <span className="ml-0.5 text-xl">▶</span>
+            </div>
+          </div>
+        </div>
       );
     }
     return (

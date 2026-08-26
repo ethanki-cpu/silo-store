@@ -229,7 +229,8 @@ export function EditableBlockFrame({ children, label }: { children: ReactNode; l
   const {
     id,
     connectors: { drag },
-  } = useNode();
+    isSelected,
+  } = useNode((node) => ({ isSelected: node.events.selected }));
   const { actions, query } = useEditor();
 
   if (!editable) return <>{children}</>;
@@ -266,9 +267,19 @@ export function EditableBlockFrame({ children, label }: { children: ReactNode; l
   // 이상하게(컨테이너 rect가 실제와 다르게 측정됨) 동작하던 근본 원인.
   // h-full은 조상이 실제 높이를 안 줄 때는 그냥 auto와 동일하게 동작하므로
   // 자유 배치가 아닌 블록에는 아무 영향이 없다.
+  // 사용자 신고(2026-08-27, "여기에 containerblock 을 삭제하는게 어디
+  // 보인다는거지?"): 이 툴바가 지금까지 순수 CSS :hover로만 나타났다 —
+  // 컨테이너를 클릭해서 선택해도(오른쪽 설정 패널은 바뀌지만) 마우스가
+  // 그 자리를 벗어나는 순간 곧바로 사라져, 특히 자유 배치 자식만 들어있어
+  // 실제 높이가 거의 없는 컨테이너는 마우스를 다시 그 좁은 영역에 정확히
+  // 올리기 전엔 삭제 버튼 자체를 찾을 방법이 사실상 없었다. Craft.js가
+  // 이미 추적하는 "지금 선택된 노드인가"(node.events.selected)도 같이
+  // 봐서, 선택만 해두면 마우스 위치와 무관하게 계속 보이도록 한다.
   return (
     <div className="group/block relative h-full">
-      <div className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/block:opacity-100">
+      <div
+        className={`pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1 transition-opacity group-hover/block:opacity-100 ${isSelected ? "opacity-100" : "opacity-0"}`}
+      >
         <span className="rounded bg-gray-900/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
           {label}
         </span>

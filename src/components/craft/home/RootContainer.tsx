@@ -52,6 +52,32 @@ export const DEFAULT_PAGE_BACKGROUND: PageBackground = {
   opacityPercent: 100,
 };
 
+// EPIC-150(Themes 프리셋 — 사용자 지시 "다음 phase 진행해 그냥 순서대로
+// 알아서 전부"의 마지막 Phase): BuilderJS 레퍼런스의 "Themes" 탭(클릭
+// 한 번으로 페이지 전체 톤을 바꾸는 프리셋 갤러리)에 대응. 폰트는 일부러
+// 뺐다 — FontPicker는 이 사이트에 실제로 업로드된 커스텀 폰트만 고를 수
+// 있어(사이트마다 다름, /admin/fonts 참고) 프리셋에 특정 폰트를 박아두면
+// 그 폰트가 없는 배포에서는 조용히 아무 효과 없이 실패한다(FontPicker.tsx
+// 상단 주석과 동일한 함정). 색상/여백처럼 항상 유효한 값만 프리셋으로 묶었다.
+export type ThemePreset = {
+  name: string;
+  swatch: string;
+  background: string;
+  containerWidthPx: number | null;
+  blockGapPx: number;
+  paddingY: number;
+  paddingX: number;
+};
+
+export const THEME_PRESETS: ThemePreset[] = [
+  { name: "기본값", swatch: "#ffffff", background: "", containerWidthPx: null, blockGapPx: 0, paddingY: 0, paddingX: 0 },
+  { name: "미니멀", swatch: "#ffffff", background: "#ffffff", containerWidthPx: 720, blockGapPx: 32, paddingY: 48, paddingX: 0 },
+  { name: "갤러리(다크)", swatch: "#111111", background: "#111111", containerWidthPx: null, blockGapPx: 0, paddingY: 0, paddingX: 0 },
+  { name: "웜 빈티지", swatch: "#f5efe3", background: "#f5efe3", containerWidthPx: 960, blockGapPx: 40, paddingY: 64, paddingX: 24 },
+  { name: "와이드 에디토리얼", swatch: "#fafafa", background: "#ffffff", containerWidthPx: 1200, blockGapPx: 64, paddingY: 80, paddingX: 24 },
+  { name: "컴팩트", swatch: "#fafafa", background: "#fafafa", containerWidthPx: 600, blockGapPx: 16, paddingY: 24, paddingX: 16 },
+];
+
 export function RootContainer({
   children,
   containerWidthPx = null,
@@ -122,11 +148,41 @@ function PageSettings() {
     if (!error && url) patchBackground({ imageUrl: url });
   }
 
+  function applyTheme(preset: ThemePreset) {
+    setProp((p) => {
+      p.background = { ...DEFAULT_PAGE_BACKGROUND, ...p.background, color: preset.background };
+      p.containerWidthPx = preset.containerWidthPx;
+      p.blockGapPx = preset.blockGapPx;
+      p.paddingTop = preset.paddingY;
+      p.paddingBottom = preset.paddingY;
+      p.paddingLeft = preset.paddingX;
+      p.paddingRight = preset.paddingX;
+    });
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-[11px] leading-relaxed text-gray-400">
         이 페이지 전체에 적용되는 설정이에요 — 캔버스 빈 곳을 클릭하면 언제든 다시 이 패널로 돌아올 수 있어요.
       </p>
+
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold text-gray-500">테마(한 번에 적용, 아래에서 다시 세부 조정 가능)</h4>
+        <div className="grid grid-cols-3 gap-2">
+          {THEME_PRESETS.map((preset) => (
+            <button
+              key={preset.name}
+              type="button"
+              onClick={() => applyTheme(preset)}
+              className="flex flex-col items-center gap-1 rounded border border-gray-200 p-1.5 hover:border-gray-400"
+              title={preset.name}
+            >
+              <span className="h-8 w-full rounded border border-gray-200" style={{ backgroundColor: preset.swatch }} />
+              <span className="truncate text-[10px] text-gray-600">{preset.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="space-y-3 border-t border-gray-200 pt-3">
         <h4 className="text-xs font-semibold text-gray-500">레이아웃</h4>

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-28 (HOTFIX-147.28 — 타임라인 배경 패닝 모션에 대각선 방향 추가)
+- **사용자 지시**: "가로 이미지는, 좌, 우도 있지만 대각선에서 대각선으로 움직이는것도 추가해줘."
+- **구현**: `SlideOverlayConfig`에 `panDirection`(`"auto" | "horizontal" | "vertical" | "diagonal-down" | "diagonal-up" | null`, 표지는 `coverPanDirection`) 필드 추가 — `null`/`"auto"`면 지금까지처럼 이미지 원본 비율로 자동 판정(가로→좌우, 세로→상하), 그 외엔 관리자가 직접 고른 방향을 그대로 쓴다. `PAN_KEYFRAMES`에 대각선 2종 키프레임(`silo-cover-pan-diag-down`: 왼쪽 위→오른쪽 아래 ↘, `silo-cover-pan-diag-up`: 오른쪽 위→왼쪽 아래 ↙) 추가 — x/y축을 동시에 같은 `--silo-pan-dist`만큼만 움직여, HOTFIX-147.27에서 확인한 확대 배율의 안전 여유분을 그대로 재사용(축마다 독립적으로 여유분이 있어 대각선도 별도 계산 없이 안전). `SlideOverlayFieldsEditor`(표지·이벤트 공용 폼)의 "배경 패닝 모션" 섹션에 "이동 방향" 드롭다운(자동/좌우/상하/대각선 ↘/대각선 ↙) 추가.
+- **적용 범위**: 이전 HOTFIX들과 동일하게 `CoverBackground`/`SlideOverlayFieldsEditor`(`SiloTimelineEmbedBlock.tsx`) 한 곳만 고쳐 4개 온라인 도슨트 카테고리 페이지 전부에 자동 반영.
+- **실측 검증**: 로컬 dev 서버 + 관리자 세션, "고대~왕정" Craft 에디터에서 새 "이동 방향" 드롭다운의 5개 옵션 노출 확인 → "대각선 ↘"로 바꾸자 캔버스의 실제 이미지 클래스가 `silo-cover-pan-diag-down`으로, `getComputedStyle().transform`이 x/y 둘 다 동시에 0이 아닌 값(`matrix(1.15, 0, 0, 1.15, -113.62, -44.62)`)으로 바뀌는 것까지 실시간 확인(x축만/y축만이 아니라 대각선으로 실제 움직임 — 테스트 값은 저장하지 않고 에디터를 닫음).
+- `tsc` 0 errors, `lint` 0 errors(79 warnings, 기존 기준선 유지).
+- **다음에 확인 필요**: 관리자가 실제 화면에서 대각선 두 방향(↘/↙)이 기대한 대로 자연스럽게 보이는지, 저장 후 새로고침해도 유지되는지 확인.
+
 ## 2026-08-28 (HOTFIX-147.27 — 타임라인 배경 패닝 모션 속도/강도 조절 가능하게 + 배경 슬라이드 프리뷰 썸네일 확대)
 - **사용자 신고**: "너무 느리고 움직임이 적어, 그걸 조절할 수 있게 해줘, 그리고 배경슬라이드 프리뷰가 너무 작아."
 - **패닝 모션 조절**: HOTFIX-147.26까지 패닝(확대+이동)이 고정값(속도 18초→8초, 확대 15%, 이동 4%)이었다 — `SlideOverlayConfig`에 `panSpeedSeconds`/`panZoomPct`/`panDistancePct`(전부 `| null`, 미설정 시 기본값 8초/15%/8% — 기존 저장 데이터 회귀 없음) 3개 필드 추가, 표지는 기존 flat prop 패턴대로 `coverPanSpeedSeconds` 등 대응 필드 추가. `CoverBackground`가 이 값들을 CSS 커스텀 프로퍼티(`--silo-pan-duration`/`--silo-pan-zoom`/`--silo-pan-dist`)로 각 이미지에 인라인 주입하고, `PAN_KEYFRAMES`는 `var()`로 이 값을 읽어 적용 — 키프레임 자체는 하나만 두고 슬라이드마다(표지/각 이벤트) 독립적으로 조절 가능. `SlideOverlayFieldsEditor`(표지·이벤트 공용 폼)에 "배경 패닝 모션" 섹션으로 속도/확대 배율/이동 거리 3개 입력창 추가.

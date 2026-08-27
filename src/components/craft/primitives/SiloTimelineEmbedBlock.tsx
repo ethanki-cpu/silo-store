@@ -28,6 +28,11 @@ import { supabase } from "@/lib/supabaseClient";
 
 type CoverFontWeight = "normal" | "medium" | "semibold" | "bold";
 type CoverAlign = "left" | "center" | "right";
+// HOTFIX-147.28(사용자 지시 — "가로 이미지는, 좌, 우도 있지만 대각선에서
+// 대각선으로 움직이는것도 추가해줘"): "auto"는 지금까지의 방식(가로
+// 이미지→좌우, 세로 이미지→상하) 그대로 — 직접 방향을 고르고 싶을 때만
+// 나머지 중 하나를 고른다.
+type PanDirection = "auto" | "horizontal" | "vertical" | "diagonal-down" | "diagonal-up";
 
 // HOTFIX-147.13(사용자 지시 — "그리스/르네상스/바로크/로코코 같은 하위
 // 이벤트 화면에도 표지처럼 자유편집(슬라이드+드래그 텍스트+폰트/색상)을
@@ -77,6 +82,11 @@ export type SlideOverlayConfig = {
   panSpeedSeconds: number | null;
   panZoomPct: number | null;
   panDistancePct: number | null;
+  // HOTFIX-147.28(사용자 지시 — "가로 이미지는 좌우도 있지만 대각선에서
+  // 대각선으로 움직이는것도 추가해줘"): null/"auto"면 지금까지처럼 방향을
+  // 이미지 원본 비율(가로→좌우, 세로→상하)로 자동 판정 — 대각선 등으로
+  // 직접 고르고 싶을 때만 명시적으로 지정.
+  panDirection: PanDirection | null;
   position: FreePosition;
   mobilePosition: FreePosition | null;
 };
@@ -106,6 +116,7 @@ export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   panSpeedSeconds: null,
   panZoomPct: null,
   panDistancePct: null,
+  panDirection: null,
   position: DEFAULT_FREE_POSITION,
   mobilePosition: null,
 };
@@ -157,6 +168,8 @@ export type SiloTimelineEmbedBlockProps = {
   coverPanSpeedSeconds: number | null;
   coverPanZoomPct: number | null;
   coverPanDistancePct: number | null;
+  // HOTFIX-147.28: SlideOverlayConfig의 panDirection과 동일.
+  coverPanDirection: PanDirection | null;
   // FreePositionSettingsSection/FreePositionHandles가 node.data.props의
   // 최상위 position/mobilePosition을 직접 읽고 쓰므로(다른 자유배치
   // 블록들과 동일한 계약) 이 두 필드는 반드시 최상위에 있어야 한다 —
@@ -213,6 +226,11 @@ const COVER_ALIGN_CLASS: Record<CoverAlign, string> = {
 // 있게 해줘"): 속도(18초 → 기본 8초)/확대 배율/이동 거리를 CSS 변수로
 // 빼서 슬라이드마다(SlideOverlayConfig.panXxx) 조절 가능하게 한다 — 키프레임
 // 자체는 하나만 두고 인라인 style로 --silo-pan-* 값만 슬라이드별로 주입.
+// HOTFIX-147.28(사용자 지시 — "가로 이미지는 좌우도 있지만 대각선에서
+// 대각선으로 움직이는것도 추가해줘"): 좌우/상하 2종에 대각선 2종(↘/↙)을
+// 추가 — 대각선도 x/y축 각각 같은 --silo-pan-dist 만큼만 움직이므로(더
+// 크게 늘리지 않음) 기존에 확인한 안전 여유분(확대 배율) 그대로 재사용
+// 가능하다.
 const PAN_KEYFRAMES = `
   @keyframes silo-cover-pan-x {
     0% { transform: scale(var(--silo-pan-zoom, 1.15)) translateX(calc(-1 * var(--silo-pan-dist, 8%))); }
@@ -222,7 +240,15 @@ const PAN_KEYFRAMES = `
     0% { transform: scale(var(--silo-pan-zoom, 1.15)) translateY(calc(-1 * var(--silo-pan-dist, 8%))); }
     100% { transform: scale(var(--silo-pan-zoom, 1.15)) translateY(var(--silo-pan-dist, 8%)); }
   }
-  .silo-cover-pan-x, .silo-cover-pan-y {
+  @keyframes silo-cover-pan-diag-down {
+    0% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(calc(-1 * var(--silo-pan-dist, 8%)), calc(-1 * var(--silo-pan-dist, 8%))); }
+    100% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(var(--silo-pan-dist, 8%), var(--silo-pan-dist, 8%)); }
+  }
+  @keyframes silo-cover-pan-diag-up {
+    0% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(var(--silo-pan-dist, 8%), calc(-1 * var(--silo-pan-dist, 8%))); }
+    100% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(calc(-1 * var(--silo-pan-dist, 8%)), var(--silo-pan-dist, 8%)); }
+  }
+  .silo-cover-pan-x, .silo-cover-pan-y, .silo-cover-pan-diag-down, .silo-cover-pan-diag-up {
     animation-timing-function: ease-in-out;
     animation-iteration-count: infinite;
     animation-direction: alternate;
@@ -230,7 +256,27 @@ const PAN_KEYFRAMES = `
   }
   .silo-cover-pan-x { animation-name: silo-cover-pan-x; }
   .silo-cover-pan-y { animation-name: silo-cover-pan-y; }
+  .silo-cover-pan-diag-down { animation-name: silo-cover-pan-diag-down; }
+  .silo-cover-pan-diag-up { animation-name: silo-cover-pan-diag-up; }
 `;
+
+// HOTFIX-147.28: panDirection이 "auto"/null이면 기존처럼 이미지 원본
+// 비율로 좌우/상하를 자동 판정 — 그 외엔 사용자가 고른 방향을 그대로 쓴다.
+function resolvePanClass(direction: PanDirection | null, orientation: "landscape" | "portrait" | undefined): string {
+  if (!orientation) return "";
+  const effective: Exclude<PanDirection, "auto"> =
+    direction && direction !== "auto" ? direction : orientation === "landscape" ? "horizontal" : "vertical";
+  switch (effective) {
+    case "horizontal":
+      return "silo-cover-pan-x";
+    case "vertical":
+      return "silo-cover-pan-y";
+    case "diagonal-down":
+      return "silo-cover-pan-diag-down";
+    case "diagonal-up":
+      return "silo-cover-pan-diag-up";
+  }
+}
 
 function CoverBackground({
   urls,
@@ -239,6 +285,7 @@ function CoverBackground({
   panSpeedSeconds,
   panZoomPct,
   panDistancePct,
+  panDirection,
 }: {
   urls: string[];
   autoAdvanceSeconds: number;
@@ -246,6 +293,7 @@ function CoverBackground({
   panSpeedSeconds: number | null;
   panZoomPct: number | null;
   panDistancePct: number | null;
+  panDirection: PanDirection | null;
 }) {
   const [current, setCurrent] = useState(0);
   // HOTFIX-147.25: 어느 방향으로 패닝할지(가로/세로)는 그 이미지의 실제
@@ -279,11 +327,7 @@ function CoverBackground({
         const isVideo = /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
         const fitClass = effectiveFit === "contain" ? "object-contain" : "object-cover";
         const panClass =
-          effectiveFit === "cover" && !isVideo && orientations[url]
-            ? orientations[url] === "landscape"
-              ? "silo-cover-pan-x"
-              : "silo-cover-pan-y"
-            : "";
+          effectiveFit === "cover" && !isVideo ? resolvePanClass(panDirection, orientations[url]) : "";
         const className = `absolute inset-0 h-full w-full ${fitClass} ${panClass} transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
         return isVideo ? (
           <video key={url + i} src={url} className={className} autoPlay muted loop playsInline />
@@ -330,6 +374,7 @@ function TimelineCoverOverlay({
   panSpeedSeconds,
   panZoomPct,
   panDistancePct,
+  panDirection,
   position,
   mobilePosition,
   onTextCommit,
@@ -358,6 +403,7 @@ function TimelineCoverOverlay({
   panSpeedSeconds: number | null;
   panZoomPct: number | null;
   panDistancePct: number | null;
+  panDirection: PanDirection | null;
   position: FreePosition;
   mobilePosition: FreePosition | null;
   onTextCommit: (next: string) => void;
@@ -401,6 +447,7 @@ function TimelineCoverOverlay({
           panSpeedSeconds={panSpeedSeconds}
           panZoomPct={panZoomPct}
           panDistancePct={panDistancePct}
+          panDirection={panDirection}
         />
         {/* 사용자 신고(2026-08-27 — "혁명~제국 페이지 윗부분이 짤려"): 자유
             배치(position.enabled)를 안 켜면 이 박스가 여백 없이 표지 영역의
@@ -510,6 +557,7 @@ export function SiloTimelineEmbedBlock({
   coverPanSpeedSeconds = null,
   coverPanZoomPct = null,
   coverPanDistancePct = null,
+  coverPanDirection = null,
   position = DEFAULT_FREE_POSITION,
   mobilePosition = null,
   eventOverlays = {},
@@ -574,6 +622,7 @@ export function SiloTimelineEmbedBlock({
           panSpeedSeconds: coverPanSpeedSeconds,
           panZoomPct: coverPanZoomPct,
           panDistancePct: coverPanDistancePct,
+          panDirection: coverPanDirection,
           position,
           mobilePosition,
         }
@@ -635,6 +684,7 @@ export function SiloTimelineEmbedBlock({
                   panSpeedSeconds={activeConfig.panSpeedSeconds}
                   panZoomPct={activeConfig.panZoomPct}
                   panDistancePct={activeConfig.panDistancePct}
+                  panDirection={activeConfig.panDirection}
                   position={activeConfig.position}
                   mobilePosition={activeConfig.mobilePosition}
                   onTextCommit={(next) => commitActiveConfig({ text: next })}
@@ -854,9 +904,27 @@ function SlideOverlayFieldsEditor({
       {/* HOTFIX-147.27(사용자 신고 — "너무 느리고 움직임이 적어, 그걸
           조절할 수 있게 해줘"): HOTFIX-147.26의 패닝(확대+이동) 모션이
           고정값이었다 — 속도/확대/이동 거리 3개를 직접 조절 가능하게
-          뺀다. 비워두면(기본값) 속도 8초·확대 15%·이동 8%. */}
+          뺀다. 비워두면(기본값) 속도 8초·확대 15%·이동 8%.
+          HOTFIX-147.28(사용자 지시 — "가로 이미지는 좌우도 있지만
+          대각선에서 대각선으로 움직이는것도 추가해줘"): 방향 선택 추가 —
+          기본은 지금까지처럼 가로 이미지는 좌우, 세로 이미지는 상하로
+          자동 판정, 대각선(↘/↙)을 직접 고를 수도 있다. */}
       <div className="space-y-2 rounded border border-gray-200 p-2">
-        <h4 className="text-xs font-semibold text-gray-500">배경 패닝 모션(가로는 좌우, 세로는 상하로 서서히 이동)</h4>
+        <h4 className="text-xs font-semibold text-gray-500">배경 패닝 모션(서서히 확대+이동)</h4>
+        <label className="block text-xs text-gray-600">
+          이동 방향
+          <select
+            value={value.panDirection ?? "auto"}
+            onChange={(e) => onChange({ panDirection: e.target.value as PanDirection })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="auto">자동(가로 이미지는 좌우, 세로 이미지는 상하)</option>
+            <option value="horizontal">좌우</option>
+            <option value="vertical">상하</option>
+            <option value="diagonal-down">대각선 ↘ (왼쪽 위 → 오른쪽 아래)</option>
+            <option value="diagonal-up">대각선 ↙ (오른쪽 위 → 왼쪽 아래)</option>
+          </select>
+        </label>
         <label className="block text-xs text-gray-600">
           속도(초, 작을수록 빠름)
           <input
@@ -1228,6 +1296,7 @@ function SiloTimelineEmbedSettings() {
                     panSpeedSeconds: props.coverPanSpeedSeconds,
                     panZoomPct: props.coverPanZoomPct,
                     panDistancePct: props.coverPanDistancePct,
+                    panDirection: props.coverPanDirection,
                     position: props.position,
                     mobilePosition: props.mobilePosition,
                   }}
@@ -1251,6 +1320,7 @@ function SiloTimelineEmbedSettings() {
                       if ("panSpeedSeconds" in patch) p.coverPanSpeedSeconds = patch.panSpeedSeconds!;
                       if ("panZoomPct" in patch) p.coverPanZoomPct = patch.panZoomPct!;
                       if ("panDistancePct" in patch) p.coverPanDistancePct = patch.panDistancePct!;
+                      if ("panDirection" in patch) p.coverPanDirection = patch.panDirection!;
                     })
                   }
                 />
@@ -1330,6 +1400,7 @@ SiloTimelineEmbedBlock.craft = {
     coverPanSpeedSeconds: null,
     coverPanZoomPct: null,
     coverPanDistancePct: null,
+    coverPanDirection: null,
     position: DEFAULT_FREE_POSITION,
     mobilePosition: null,
     eventOverlays: {},

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-27 (HOTFIX-147.20 — "온라인 도슨트" 드롭다운 줄바꿈이 PC에만 반영되던 문제 + 홈페이지 상단 메뉴가 20초 넘게 안 뜨던 문제 수정)
+- **사용자 신고 1**: "홈페이지 설정 관리"의 PC 미리보기에서는 "온라인 도슨트" 드롭다운의 "고대 ~ 왕정\nAncient ~ Monarchy" 줄바꿈이 잘 적용됐는데, 실제 웹사이트에서는 줄바꿈이 안 됐다.
+- **원인(실측)**: 이 최상위 카테고리(`site_navigations`, id `710a8240`)는 `target_types`에 `dropdown`과 `sidebar_right`가 함께 태그돼 있는데, `navConfig.ts`의 `mapTargetTypes()`는 여러 타입이 동시에 있으면 `sidebar_right`를 `dropdown`보다 먼저 확인해 **groups 구조**로 트리를 조립한다(과거 HOTFIX-144.2에서 "오른쪽 사이드바 노출"이 추가되며 이 우선순위 뒤로 조용히 바뀐 것으로 보임). 그 결과 `Navbar.tsx`의 실제 렌더 코드는 하위 카테고리 텍스트 오버라이드를 **그룹 라벨 키**(`group.groupLabel`, 원본 제목 그대로)로 조회하는데, `site_settings.top_tab_style`에는 PC 설정에만 이 그룹 라벨 키로 값이 저장돼 있었고 태블릿/모바일 설정에는 (예전 items/href 구조였던 시절에 저장된) **href 키**만 남아있어 — 태블릿/모바일에서는 오버라이드가 매칭되지 않고 원본 제목(줄바꿈 없음)이 그대로 노출됐다. Claude Browser 툴로 dev.silostore.net을 직접 열어 DOM 텍스트 노드를 검사해 실제로 PC 폭(1280px)에서는 `\n`이 포함되고 태블릿 폭(839px)에서는 빠지는 것을 확인해 특정.
+- **수정**: 코드 변경 없음 — Supabase Management API로 `site_settings.top_tab_style`의 `tablet`/`mobile` 양쪽 `tabs.docent.subLabelOverrides`에 PC와 동일한 그룹 라벨 키("고대 ~ 왕정 Ancient ~ Monarchy ")로 줄바꿈 포함 값을 추가(기존 PC 값·href 키는 그대로 둠, 다른 뷰포트에서 재사용될 가능성 있어 삭제하지 않음).
+- **사용자 신고 2(조사 중 별도 발견)**: 홈페이지(`/`)에서만 상단 메뉴(About Silo/사일로상점/살롱데상/온라인 도슨트)가 최대 20초 넘게 아예 안 뜨는 현상을 자동화 브라우저로 반복 재현(`/about-silo`는 항상 5초 이내 정상). 네트워크 로그 확인 결과, 페이지 하나에 렌더링되는 사이트 메뉴 트리(최상단 탭 + 모든 드롭다운/메가메뉴/사이드바 하위 항목, `Navbar.tsx` 주석 기준 최대 ~96개)의 `GatedNavLink`가 전부 next/link 기본 prefetch 동작을 그대로 써서, 페이지 로드 시 `_rsc` prefetch 요청이 60~90개 가까이 동시에 쏟아지는 것을 확인 — 이미지/JS가 훨씬 많은 홈페이지에서는 이 요청 폭주가 브라우저 동시 연결을 다 잠식해, 정작 메뉴 자체를 채우는 `fetchNavTabs()`의 Supabase 조회가 완료까지 20초 넘게 밀렸다.
+- **수정**: `GatedNavLink.tsx`에 `prefetch = false` 기본값 추가(개별 호출부에서 필요하면 여전히 오버라이드 가능) — 사이트 메뉴 트리 전체(Navbar/LeftSidebar/RightSidebar/UserMenuDropdown 공용 컴포넌트라 자동 전체 적용)의 불필요한 대량 prefetch를 제거.
+- **실측 검증**: 로컬 dev 서버에서 수정 전(홈페이지 nav 텍스트 길이가 "글쓰기"만, 20초 이상 대기해도 그대로) → 수정 후(3초 내 nav 전체 텍스트 로드, `_rsc` prefetch 요청 0건) 직접 대조. 태블릿(839px)/모바일(375px) 폭 각각에서 "고대 ~ 왕정\nAncient ~ Monarchy" 줄바꿈이 실제로 반영되는 것도 재확인.
+- `tsc` 0 errors, `lint` 0 errors(78 warnings, 기존 기준선 유지).
+
 ## 2026-08-27 (HOTFIX-147.19 — 모든 타임라인이 대시보드 전체를 한눈에 볼 수 없도록 과도하게 줌인돼있던 문제 수정 + 초기 줌 배율 설정 추가)
 - **사용자 지시**: "모든 타임라인을 확인해보니, 대시보드가 그 타임라인 전체를 한눈에 볼 수 없도록 줌인되어있어. 처음 default로 줌인되어있는걸 조절할 수 있는 기능을 넣고, 모든 타임라인을 한눈에 볼 수 있도록 줌을 조절해줘."
 - **원인**: TL3(TimelineJS3)의 TimeNav 확대 배율 옵션 `scale_factor`(공식 기본값 2, "타임라인이 화면 몇 개 너비만큼인가")를 지금까지 한 번도 지정한 적이 없어 TL3 자체 기본값 그대로 쓰고 있었다 — 전체 기간의 절반 정도만 화면에 보이고 나머지는 가로 스크롤해야 나오는 상태.

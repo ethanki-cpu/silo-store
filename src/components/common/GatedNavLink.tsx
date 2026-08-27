@@ -23,6 +23,21 @@ export function GatedNavLink({
   minRankToRead,
   onClick,
   children,
+  // HOTFIX(사용자 신고 — "홈페이지에서 상단 메뉴가 20초 넘게 안 뜬다"):
+  // 이 컴포넌트는 사이트 전체 메뉴 트리(상단 드롭다운/메가메뉴/좌우
+  // 사이드바/마이페이지 드롭다운)를 통틀어 최대 ~96개 항목까지 렌더링한다
+  // — 대부분은 hover/클릭 전까지 화면에 보이지도 않는 플라이아웃 하위
+  // 항목인데, next/link의 기본 prefetch 동작(뷰포트에 들어오면 자동
+  // prefetch)이 이 항목들 전부에 그대로 적용돼 페이지 하나를 열 때마다
+  // 수십~수백 개의 RSC prefetch 요청이 동시에 쏟아졌다. 브라우저의
+  // 동시 연결 수를 이 요청들이 다 잠식해, 정작 메뉴 자체를 채우는
+  // site_navigations Supabase 조회(Navbar.tsx의 fetchNavTabs 이펙트)가
+  // 뒷순위로 밀려 완료까지 20초 넘게 걸리는 게 실제로 재현됐다(콘텐츠가
+  // 무거운 홈페이지일수록 더 심함 — 그 자체 리소스 로딩과 경쟁하므로).
+  // 기본값을 꺼서(prefetch=false) 이 급증을 없앤다 — 필요한 특정 링크는
+  // 호출부에서 prefetch prop을 명시적으로 넘겨 되살릴 수 있다(...rest로
+  // 여전히 오버라이드 가능).
+  prefetch = false,
   ...rest
 }: {
   href: string;
@@ -63,7 +78,7 @@ export function GatedNavLink({
   }
 
   return (
-    <Link href={href} onClick={handleClick} {...rest}>
+    <Link href={href} onClick={handleClick} prefetch={prefetch} {...rest}>
       {children}
     </Link>
   );

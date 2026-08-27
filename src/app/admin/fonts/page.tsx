@@ -2,23 +2,35 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { customFontFromRow, type CustomFont, type CustomFontRow } from "@/lib/media";
+import {
+  customFontFromRow,
+  type CustomFont,
+  type CustomFontRow,
+  ALLOWED_FONT_EXTENSIONS,
+  FONT_PREVIEW_TEXT,
+  deriveFontNameFromFilename,
+} from "@/lib/media";
 import { uploadFontToR2 } from "@/lib/r2Upload";
-
-const ALLOWED_EXTENSIONS = ["woff2", "woff", "ttf", "otf"];
-
-function extensionOf(fileName: string): string {
-  return fileName.split(".").pop()?.toLowerCase() ?? "";
-}
 
 // EPIC-083: Admin 전용 커스텀 폰트 업로드/관리 화면 — 에디터 툴바의
 // 폰트 드롭다운(src/lib/useCustomFonts.ts가 여기서 만든 목록을 그대로
 // 읽어 @font-face로 주입)에 실시간 반영되는 유일한 등록 경로다.
+//
+// HOTFIX(사용자 지시 — "이 silo 플랫폼에서 사용할 폰트를 그냥 일괄적으로
+// 올리고 싶어, 모든 폰트는 프리뷰가 나오게 되어야해"): 지금까지 "이름
+// 입력 → 파일 1개 선택"만 가능해 여러 폰트를 한 번에 등록하려면 파일마다
+// 이 과정을 반복해야 했다 — 파일을 여러 개 한 번에 고르면(input multiple)
+// 각 파일명에서 자동으로 이름을 만들어(deriveFontNameFromFilename) 한
+// 번에 전부 등록한다. 목록의 미리보기도 지금까지는 폰트 이름 자체를
+// 그 폰트로 렌더링할 뿐이었는데(영문 이름이 많아 한글 지원 여부를 못
+// 보여줌), 한글/영문/숫자가 섞인 공용 샘플 문구(FontPicker.tsx와 동일,
+// FONT_PREVIEW_TEXT)로 바꿔 모든 폰트가 실제로 어떻게 보이는지 한눈에
+// 비교할 수 있게 했다.
 export default function AdminFontsPage() {
   const [fonts, setFonts] = useState<CustomFont[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fontName, setFontName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,45 +51,51 @@ export default function AdminFontsPage() {
     loadFonts();
   }, [loadFonts]);
 
-  async function handleUpload(file: File) {
+  async function handleUploadFiles(files: FileList) {
     setError(null);
-    const ext = extensionOf(file.name);
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      setError(`지원하지 않는 파일 형식이에요 — ${ALLOWED_EXTENSIONS.join("/")}만 가능해요.`);
-      return;
-    }
-    const name = fontName.trim();
-    if (!name) {
-      setError("폰트 이름을 먼저 입력해주세요.");
-      return;
-    }
-
     setUploading(true);
-    const { fileUrl, error: uploadError } = await uploadFontToR2(file);
-    if (uploadError || !fileUrl) {
-      setError(uploadError ?? "업로드에 실패했어요.");
-      setUploading(false);
-      return;
+    const succeeded: string[] = [];
+    const failed: string[] = [];
+
+    for (const [i, file] of Array.from(files).entries()) {
+      setUploadStatus(`${i + 1}/${files.length}개 처리 중... (${file.name})`);
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+      if (!ALLOWED_FONT_EXTENSIONS.includes(ext)) {
+        failed.push(`${file.name}(지원 안 하는 형식 — ${ALLOWED_FONT_EXTENSIONS.join("/")}만 가능)`);
+        continue;
+      }
+      const name = deriveFontNameFromFilename(file.name);
+      if (!name) {
+        failed.push(`${file.name}(파일명에서 이름을 만들 수 없음)`);
+        continue;
+      }
+
+      const { fileUrl, error: uploadError } = await uploadFontToR2(file);
+      if (uploadError || !fileUrl) {
+        failed.push(`${file.name}(${uploadError ?? "업로드 실패"})`);
+        continue;
+      }
+
+      const { error: insertError } = await supabase.from("custom_fonts").insert({
+        font_name: name,
+        font_url: fileUrl,
+        file_format: ext,
+      });
+      if (insertError) {
+        failed.push(`${file.name}(${insertError.message.includes("duplicate") ? "이미 같은 이름의 폰트가 있어요" : "저장 실패"})`);
+        continue;
+      }
+      succeeded.push(name);
     }
 
-    const { error: insertError } = await supabase.from("custom_fonts").insert({
-      font_name: name,
-      font_url: fileUrl,
-      file_format: ext,
-    });
     setUploading(false);
-
-    if (insertError) {
-      setError(
-        insertError.message.includes("duplicate")
-          ? "이미 같은 이름의 폰트가 있어요 — 다른 이름을 써주세요."
-          : "폰트 정보를 저장하지 못했어요.",
-      );
-      return;
-    }
-
-    setFontName("");
+    setUploadStatus(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (failed.length > 0) {
+      setError(
+        `${succeeded.length}개 성공, ${failed.length}개 실패 — ${failed.join(", ")}`,
+      );
+    }
     await loadFonts();
   }
 
@@ -93,27 +111,23 @@ export default function AdminFontsPage() {
 
       <div className="border border-gray-200 rounded-md p-4 mb-6">
         <h2 className="text-sm font-medium mb-3">새 폰트 업로드</h2>
+        <p className="text-xs text-gray-500 mb-2">
+          여러 파일을 한 번에 선택하면 전부 일괄 등록돼요 — 이름은 파일명에서 자동으로 만들어요(예: <code>MyBrand-Bold.woff2</code> → <code>MyBrand Bold</code>).
+        </p>
         <div className="flex flex-col gap-2">
-          <input
-            type="text"
-            value={fontName}
-            onChange={(e) => setFontName(e.target.value)}
-            placeholder="폰트 이름 (예: MyBrandFont)"
-            className="text-sm border border-gray-300 rounded px-3 py-2"
-            disabled={uploading}
-          />
           <input
             ref={fileInputRef}
             type="file"
             accept=".woff2,.woff,.ttf,.otf"
+            multiple
             disabled={uploading}
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleUpload(file);
+              const files = e.target.files;
+              if (files && files.length > 0) handleUploadFiles(files);
             }}
             className="text-sm"
           />
-          {uploading && <p className="text-xs text-gray-400">업로드 중...</p>}
+          {uploading && <p className="text-xs text-gray-400">{uploadStatus ?? "업로드 중..."}</p>}
           {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
       </div>
@@ -126,17 +140,19 @@ export default function AdminFontsPage() {
       ) : (
         <ul className="divide-y divide-gray-100 border border-gray-200 rounded-md">
           {fonts.map((font) => (
-            <li key={font.id} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="text-sm font-medium" style={{ fontFamily: font.fontName }}>
-                  {font.fontName}
+            <li key={font.id} className="flex items-center justify-between gap-4 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-gray-500">
+                  {font.fontName} <span className="text-gray-300 uppercase">· {font.fileFormat}</span>
                 </p>
-                <p className="text-xs text-gray-400 uppercase">{font.fileFormat}</p>
+                <p className="mt-1 truncate text-lg" style={{ fontFamily: font.fontName }}>
+                  {FONT_PREVIEW_TEXT}
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => handleDelete(font.id)}
-                className="text-xs text-red-600 hover:underline"
+                className="shrink-0 text-xs text-red-600 hover:underline"
               >
                 삭제
               </button>

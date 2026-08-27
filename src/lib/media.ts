@@ -124,3 +124,23 @@ export function customFontFromRow(row: CustomFontRow): CustomFont {
     createdAt: row.created_at,
   };
 }
+
+// HOTFIX(사용자 지시 — "폰트를 일괄적으로 올리고 싶다, 모든 폰트는
+// 프리뷰가 나오게 해달라"): `/admin/fonts`와 Craft 에디터의 `FontPicker`
+// 둘 다 폰트 업로드/미리보기 UI를 각자 구현하고 있었다 — 여기 공용
+// 상수/헬퍼로 뽑아 두 곳이 동일한 파일 형식 제한, 파일명→폰트 이름 변환
+// 규칙, 미리보기 문구를 쓰게 한다(따로 관리하다 서로 달라지는 것 방지).
+export const ALLOWED_FONT_EXTENSIONS = ["woff2", "woff", "ttf", "otf"];
+
+// 한글/영문/숫자가 골고루 섞인 문장 — 폰트마다 실제로 어떻게 보이는지
+// 판단하려면 그 폰트의 이름 자체(영문이 대부분이라 한글 지원 여부를 못
+// 보여줌)보다 이런 고정 샘플 문구가 훨씬 유용하다.
+export const FONT_PREVIEW_TEXT = "Silo Store 사일로 다람쥐 0123456789";
+
+// 여러 파일을 한 번에 올릴 때(일괄 업로드) 파일마다 이름을 직접 타이핑할
+// 수 없으므로, 파일명에서 확장자를 떼고 -/_를 공백으로 바꿔 자동으로
+// 폰트 이름을 만든다 — 예: "MyBrand-Bold_Italic.woff2" → "MyBrand Bold Italic".
+export function deriveFontNameFromFilename(fileName: string): string {
+  const withoutExt = fileName.replace(/\.[^./]+$/, "");
+  return withoutExt.replace(/[-_]+/g, " ").trim();
+}

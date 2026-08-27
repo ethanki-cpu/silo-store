@@ -59,6 +59,12 @@ export type SlideOverlayConfig = {
   descriptionAlign: CoverAlign | null;
   descriptionColor: string | null;
   descriptionFontFamily: string | null;
+  // HOTFIX(사용자 신고 — "슬라이드 이미지가 전부 안보이고 잘려서 보여"):
+  // 배경 슬라이드가 지금까지 항상 object-cover(컨테이너를 꽉 채우도록
+  // 남는 부분을 잘라냄)로만 그려졌다 — 이미지 비율이 표지 영역과 다르면
+  // 위/아래 또는 좌우가 크게 잘려 나갔다. null이면 기존과 동일하게
+  // "꽉 채우기"(cover) 유지 — 기존 저장 데이터의 시각적 회귀를 막는다.
+  backgroundFit: "cover" | "contain" | null;
   slideUrls: string[];
   autoAdvanceSeconds: number;
   position: FreePosition;
@@ -79,6 +85,7 @@ export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   descriptionAlign: null,
   descriptionColor: null,
   descriptionFontFamily: null,
+  backgroundFit: null,
   slideUrls: [],
   autoAdvanceSeconds: 5,
   position: DEFAULT_FREE_POSITION,
@@ -124,6 +131,7 @@ export type SiloTimelineEmbedBlockProps = {
   coverDescriptionAlign: CoverAlign | null;
   coverDescriptionColor: string | null;
   coverDescriptionFontFamily: string | null;
+  coverBackgroundFit: "cover" | "contain" | null;
   coverSlideUrls: string[];
   coverAutoAdvanceSeconds: number;
   // FreePositionSettingsSection/FreePositionHandles가 node.data.props의
@@ -158,7 +166,15 @@ const COVER_ALIGN_CLASS: Record<CoverAlign, string> = {
 // 갖춘 무거운 컴포넌트라(제목을 자체적으로도 그려 이 블록의 자유배치
 // 텍스트와 중복됨, 높이도 vh 단위라 TL3 표지 영역의 실측 px 높이에 맞추기
 // 어려움) 재사용하지 않고, 배경 크로스페이드만 담당하는 최소 구현을 둔다.
-function CoverBackground({ urls, autoAdvanceSeconds }: { urls: string[]; autoAdvanceSeconds: number }) {
+function CoverBackground({
+  urls,
+  autoAdvanceSeconds,
+  fit,
+}: {
+  urls: string[];
+  autoAdvanceSeconds: number;
+  fit: "cover" | "contain" | null;
+}) {
   const [current, setCurrent] = useState(0);
   useEffect(() => {
     if (urls.length <= 1) return;
@@ -167,11 +183,20 @@ function CoverBackground({ urls, autoAdvanceSeconds }: { urls: string[]; autoAdv
   }, [urls.length, autoAdvanceSeconds]);
 
   if (urls.length === 0) return <div className="absolute inset-0 bg-gray-900" />;
+  // HOTFIX(사용자 신고 — "슬라이드 이미지가 전부 안보이고 잘려서 보여"):
+  // 지금까지 object-cover 고정이라 이미지 비율이 표지 영역과 다르면 위/
+  // 아래나 좌우가 크게 잘려 나갔다. "전체 보기"(contain)를 고르면 이미지가
+  // 잘리지 않는 대신 남는 자리가 생기므로, 그 자리를 채울 배경(검정)을
+  // 항상 깔아둔다 — object-contain만 쓰면 그 자리가 투명해져 바로 아래
+  // TL3 콘텐츠가 비쳐 보인다.
+  const effectiveFit = fit ?? "cover";
   return (
     <>
+      {effectiveFit === "contain" && <div className="absolute inset-0 bg-black" />}
       {urls.map((url, i) => {
         const isVideo = /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
-        const className = `absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
+        const fitClass = effectiveFit === "contain" ? "object-contain" : "object-cover";
+        const className = `absolute inset-0 h-full w-full ${fitClass} transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
         return isVideo ? (
           <video key={url + i} src={url} className={className} autoPlay muted loop playsInline />
         ) : (
@@ -199,6 +224,7 @@ function TimelineCoverOverlay({
   descriptionAlign,
   descriptionColor,
   descriptionFontFamily,
+  backgroundFit,
   slideUrls,
   autoAdvanceSeconds,
   position,
@@ -223,6 +249,7 @@ function TimelineCoverOverlay({
   descriptionAlign: CoverAlign | null;
   descriptionColor: string | null;
   descriptionFontFamily: string | null;
+  backgroundFit: "cover" | "contain" | null;
   slideUrls: string[];
   autoAdvanceSeconds: number;
   position: FreePosition;
@@ -261,7 +288,7 @@ function TimelineCoverOverlay({
       style={{ top, height, opacity: visible ? 1 : 0 }}
     >
       <div className="relative h-full w-full">
-        <CoverBackground urls={slideUrls} autoAdvanceSeconds={autoAdvanceSeconds} />
+        <CoverBackground urls={slideUrls} autoAdvanceSeconds={autoAdvanceSeconds} fit={backgroundFit} />
         {/* 사용자 신고(2026-08-27 — "혁명~제국 페이지 윗부분이 짤려"): 자유
             배치(position.enabled)를 안 켜면 이 박스가 여백 없이 표지 영역의
             맨 위-왼쪽 모서리(0,0)에 그대로 붙어 렌더링됐다 — freePosition*
@@ -329,6 +356,7 @@ export function SiloTimelineEmbedBlock({
   coverDescriptionAlign = null,
   coverDescriptionColor = null,
   coverDescriptionFontFamily = null,
+  coverBackgroundFit = null,
   coverSlideUrls,
   coverAutoAdvanceSeconds,
   position = DEFAULT_FREE_POSITION,
@@ -382,6 +410,7 @@ export function SiloTimelineEmbedBlock({
           descriptionAlign: coverDescriptionAlign,
           descriptionColor: coverDescriptionColor,
           descriptionFontFamily: coverDescriptionFontFamily,
+          backgroundFit: coverBackgroundFit,
           slideUrls: coverSlideUrls,
           autoAdvanceSeconds: coverAutoAdvanceSeconds,
           position,
@@ -439,6 +468,7 @@ export function SiloTimelineEmbedBlock({
                   descriptionAlign={activeConfig.descriptionAlign}
                   descriptionColor={activeConfig.descriptionColor}
                   descriptionFontFamily={activeConfig.descriptionFontFamily}
+                  backgroundFit={activeConfig.backgroundFit}
                   slideUrls={activeConfig.slideUrls}
                   autoAdvanceSeconds={activeConfig.autoAdvanceSeconds}
                   position={activeConfig.position}
@@ -631,6 +661,22 @@ function SlideOverlayFieldsEditor({
           onChange={(descriptionFontFamily) => onChange({ descriptionFontFamily })}
         />
       </div>
+      {/* HOTFIX(사용자 신고 — "슬라이드 이미지가 전부 안보이고 잘려서 보여"):
+          지금까지 배경 슬라이드가 항상 꽉 채우기(object-cover)로만 그려져
+          이미지 비율이 표지 영역과 다르면 위아래/좌우가 크게 잘려 나갔다 —
+          "전체 보기"를 고르면 잘리지 않는 대신 남는 자리에 검정 배경이
+          채워진다. */}
+      <label className="block text-xs text-gray-600">
+        배경 이미지 채우기 방식
+        <select
+          value={value.backgroundFit ?? "cover"}
+          onChange={(e) => onChange({ backgroundFit: e.target.value as "cover" | "contain" })}
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        >
+          <option value="cover">꽉 채우기(비율에 따라 일부 잘릴 수 있음)</option>
+          <option value="contain">전체 보기(잘리지 않음, 남는 자리는 검정 배경)</option>
+        </select>
+      </label>
       <label className="block text-xs text-gray-600">
         배경 자동 전환 간격(초)
         <input
@@ -948,6 +994,7 @@ function SiloTimelineEmbedSettings() {
                 descriptionAlign: props.coverDescriptionAlign,
                 descriptionColor: props.coverDescriptionColor,
                 descriptionFontFamily: props.coverDescriptionFontFamily,
+                backgroundFit: props.coverBackgroundFit,
                 slideUrls: props.coverSlideUrls,
                 autoAdvanceSeconds: props.coverAutoAdvanceSeconds,
                 position: props.position,
@@ -967,6 +1014,7 @@ function SiloTimelineEmbedSettings() {
                   if ("descriptionAlign" in patch) p.coverDescriptionAlign = patch.descriptionAlign!;
                   if ("descriptionColor" in patch) p.coverDescriptionColor = patch.descriptionColor!;
                   if ("descriptionFontFamily" in patch) p.coverDescriptionFontFamily = patch.descriptionFontFamily!;
+                  if ("backgroundFit" in patch) p.coverBackgroundFit = patch.backgroundFit!;
                   if ("slideUrls" in patch) p.coverSlideUrls = patch.slideUrls!;
                   if ("autoAdvanceSeconds" in patch) p.coverAutoAdvanceSeconds = patch.autoAdvanceSeconds!;
                 })
@@ -1062,6 +1110,7 @@ SiloTimelineEmbedBlock.craft = {
     coverDescriptionAlign: null,
     coverDescriptionColor: null,
     coverDescriptionFontFamily: null,
+    coverBackgroundFit: null,
     coverSlideUrls: [],
     coverAutoAdvanceSeconds: 5,
     position: DEFAULT_FREE_POSITION,

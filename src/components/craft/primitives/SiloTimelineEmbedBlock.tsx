@@ -9,6 +9,7 @@
 // 아래 모든 하위 게시판 글을 한 타임라인에 모으는 집계 모드(mode="group")도
 // 지원한다 — 온라인 도슨트 2단계 카테고리 페이지가 이 모드를 쓴다.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { CSSProperties } from "react";
 import { useNode } from "@craftjs/core";
 import { EditableBlockFrame, EditableText, useCraftEditable } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
@@ -67,9 +68,23 @@ export type SlideOverlayConfig = {
   backgroundFit: "cover" | "contain" | null;
   slideUrls: string[];
   autoAdvanceSeconds: number;
+  // HOTFIX-147.27(사용자 신고 — "너무 느리고 움직임이 적어, 그걸 조절할 수
+  // 있게 해줘"): HOTFIX-147.26의 패닝(확대+이동) 모션이 고정값(18초 →
+  // 8초로 완화했었지만 여전히 하드코딩, scale 1.15/이동 4%)이었다 — 화면/
+  // 이미지마다 원하는 속도·강도가 다를 수 있어 3개 다 조절 가능하게 뺀다.
+  // null이면 기본값(속도 8초, 확대 15%, 이동 8%) 그대로 — 기존 저장 데이터
+  // 시각적 회귀 없음.
+  panSpeedSeconds: number | null;
+  panZoomPct: number | null;
+  panDistancePct: number | null;
   position: FreePosition;
   mobilePosition: FreePosition | null;
 };
+
+// HOTFIX-147.27: 패닝 모션 기본값 — 셋 다 null(미설정)이면 이 값을 쓴다.
+export const DEFAULT_PAN_SPEED_SECONDS = 8;
+export const DEFAULT_PAN_ZOOM_PCT = 15;
+export const DEFAULT_PAN_DISTANCE_PCT = 8;
 
 export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   enabled: false,
@@ -88,6 +103,9 @@ export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   backgroundFit: null,
   slideUrls: [],
   autoAdvanceSeconds: 5,
+  panSpeedSeconds: null,
+  panZoomPct: null,
+  panDistancePct: null,
   position: DEFAULT_FREE_POSITION,
   mobilePosition: null,
 };
@@ -134,6 +152,11 @@ export type SiloTimelineEmbedBlockProps = {
   coverBackgroundFit: "cover" | "contain" | null;
   coverSlideUrls: string[];
   coverAutoAdvanceSeconds: number;
+  // HOTFIX-147.27: SlideOverlayConfig의 panSpeedSeconds/panZoomPct/
+  // panDistancePct와 동일 — 표지는 flat prop 패턴을 그대로 따른다.
+  coverPanSpeedSeconds: number | null;
+  coverPanZoomPct: number | null;
+  coverPanDistancePct: number | null;
   // FreePositionSettingsSection/FreePositionHandles가 node.data.props의
   // 최상위 position/mobilePosition을 직접 읽고 쓰므로(다른 자유배치
   // 블록들과 동일한 계약) 이 두 필드는 반드시 최상위에 있어야 한다 —
@@ -186,21 +209,43 @@ const COVER_ALIGN_CLASS: Record<CoverAlign, string> = {
 // 정확히 일치하고, 이제 이미지/컨테이너 비율과 무관하게 항상 보인다.
 // 부모(TimelineCoverOverlay)가 이미 overflow-hidden이라 확대된 여유분이
 // 밖으로 새지 않는다.
+// HOTFIX-147.27(사용자 신고 — "너무 느리고 움직임이 적어, 그걸 조절할 수
+// 있게 해줘"): 속도(18초 → 기본 8초)/확대 배율/이동 거리를 CSS 변수로
+// 빼서 슬라이드마다(SlideOverlayConfig.panXxx) 조절 가능하게 한다 — 키프레임
+// 자체는 하나만 두고 인라인 style로 --silo-pan-* 값만 슬라이드별로 주입.
 const PAN_KEYFRAMES = `
-  @keyframes silo-cover-pan-x { 0% { transform: scale(1.15) translateX(-4%); } 100% { transform: scale(1.15) translateX(4%); } }
-  @keyframes silo-cover-pan-y { 0% { transform: scale(1.15) translateY(-4%); } 100% { transform: scale(1.15) translateY(4%); } }
-  .silo-cover-pan-x { animation: silo-cover-pan-x 18s ease-in-out infinite alternate; }
-  .silo-cover-pan-y { animation: silo-cover-pan-y 18s ease-in-out infinite alternate; }
+  @keyframes silo-cover-pan-x {
+    0% { transform: scale(var(--silo-pan-zoom, 1.15)) translateX(calc(-1 * var(--silo-pan-dist, 8%))); }
+    100% { transform: scale(var(--silo-pan-zoom, 1.15)) translateX(var(--silo-pan-dist, 8%)); }
+  }
+  @keyframes silo-cover-pan-y {
+    0% { transform: scale(var(--silo-pan-zoom, 1.15)) translateY(calc(-1 * var(--silo-pan-dist, 8%))); }
+    100% { transform: scale(var(--silo-pan-zoom, 1.15)) translateY(var(--silo-pan-dist, 8%)); }
+  }
+  .silo-cover-pan-x, .silo-cover-pan-y {
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+    animation-duration: var(--silo-pan-duration, 8s);
+  }
+  .silo-cover-pan-x { animation-name: silo-cover-pan-x; }
+  .silo-cover-pan-y { animation-name: silo-cover-pan-y; }
 `;
 
 function CoverBackground({
   urls,
   autoAdvanceSeconds,
   fit,
+  panSpeedSeconds,
+  panZoomPct,
+  panDistancePct,
 }: {
   urls: string[];
   autoAdvanceSeconds: number;
   fit: "cover" | "contain" | null;
+  panSpeedSeconds: number | null;
+  panZoomPct: number | null;
+  panDistancePct: number | null;
 }) {
   const [current, setCurrent] = useState(0);
   // HOTFIX-147.25: 어느 방향으로 패닝할지(가로/세로)는 그 이미지의 실제
@@ -221,6 +266,11 @@ function CoverBackground({
   // 항상 깔아둔다 — object-contain만 쓰면 그 자리가 투명해져 바로 아래
   // TL3 콘텐츠가 비쳐 보인다.
   const effectiveFit = fit ?? "cover";
+  const panVars = {
+    "--silo-pan-duration": `${panSpeedSeconds ?? DEFAULT_PAN_SPEED_SECONDS}s`,
+    "--silo-pan-zoom": 1 + (panZoomPct ?? DEFAULT_PAN_ZOOM_PCT) / 100,
+    "--silo-pan-dist": `${panDistancePct ?? DEFAULT_PAN_DISTANCE_PCT}%`,
+  } as CSSProperties;
   return (
     <>
       <style>{PAN_KEYFRAMES}</style>
@@ -244,6 +294,7 @@ function CoverBackground({
             src={url}
             alt=""
             className={className}
+            style={panClass ? panVars : undefined}
             onLoad={(e) => {
               const { naturalWidth, naturalHeight } = e.currentTarget;
               setOrientations((prev) =>
@@ -276,6 +327,9 @@ function TimelineCoverOverlay({
   backgroundFit,
   slideUrls,
   autoAdvanceSeconds,
+  panSpeedSeconds,
+  panZoomPct,
+  panDistancePct,
   position,
   mobilePosition,
   onTextCommit,
@@ -301,6 +355,9 @@ function TimelineCoverOverlay({
   backgroundFit: "cover" | "contain" | null;
   slideUrls: string[];
   autoAdvanceSeconds: number;
+  panSpeedSeconds: number | null;
+  panZoomPct: number | null;
+  panDistancePct: number | null;
   position: FreePosition;
   mobilePosition: FreePosition | null;
   onTextCommit: (next: string) => void;
@@ -337,7 +394,14 @@ function TimelineCoverOverlay({
       style={{ top, height, opacity: visible ? 1 : 0 }}
     >
       <div className="relative h-full w-full">
-        <CoverBackground urls={slideUrls} autoAdvanceSeconds={autoAdvanceSeconds} fit={backgroundFit} />
+        <CoverBackground
+          urls={slideUrls}
+          autoAdvanceSeconds={autoAdvanceSeconds}
+          fit={backgroundFit}
+          panSpeedSeconds={panSpeedSeconds}
+          panZoomPct={panZoomPct}
+          panDistancePct={panDistancePct}
+        />
         {/* 사용자 신고(2026-08-27 — "혁명~제국 페이지 윗부분이 짤려"): 자유
             배치(position.enabled)를 안 켜면 이 박스가 여백 없이 표지 영역의
             맨 위-왼쪽 모서리(0,0)에 그대로 붙어 렌더링됐다 — freePosition*
@@ -443,6 +507,9 @@ export function SiloTimelineEmbedBlock({
   coverBackgroundFit = null,
   coverSlideUrls,
   coverAutoAdvanceSeconds,
+  coverPanSpeedSeconds = null,
+  coverPanZoomPct = null,
+  coverPanDistancePct = null,
   position = DEFAULT_FREE_POSITION,
   mobilePosition = null,
   eventOverlays = {},
@@ -504,6 +571,9 @@ export function SiloTimelineEmbedBlock({
           backgroundFit: coverBackgroundFit,
           slideUrls: coverSlideUrls,
           autoAdvanceSeconds: coverAutoAdvanceSeconds,
+          panSpeedSeconds: coverPanSpeedSeconds,
+          panZoomPct: coverPanZoomPct,
+          panDistancePct: coverPanDistancePct,
           position,
           mobilePosition,
         }
@@ -562,6 +632,9 @@ export function SiloTimelineEmbedBlock({
                   backgroundFit={activeConfig.backgroundFit}
                   slideUrls={activeConfig.slideUrls}
                   autoAdvanceSeconds={activeConfig.autoAdvanceSeconds}
+                  panSpeedSeconds={activeConfig.panSpeedSeconds}
+                  panZoomPct={activeConfig.panZoomPct}
+                  panDistancePct={activeConfig.panDistancePct}
                   position={activeConfig.position}
                   mobilePosition={activeConfig.mobilePosition}
                   onTextCommit={(next) => commitActiveConfig({ text: next })}
@@ -778,21 +851,69 @@ function SlideOverlayFieldsEditor({
           className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
         />
       </label>
+      {/* HOTFIX-147.27(사용자 신고 — "너무 느리고 움직임이 적어, 그걸
+          조절할 수 있게 해줘"): HOTFIX-147.26의 패닝(확대+이동) 모션이
+          고정값이었다 — 속도/확대/이동 거리 3개를 직접 조절 가능하게
+          뺀다. 비워두면(기본값) 속도 8초·확대 15%·이동 8%. */}
+      <div className="space-y-2 rounded border border-gray-200 p-2">
+        <h4 className="text-xs font-semibold text-gray-500">배경 패닝 모션(가로는 좌우, 세로는 상하로 서서히 이동)</h4>
+        <label className="block text-xs text-gray-600">
+          속도(초, 작을수록 빠름)
+          <input
+            type="number"
+            min={1}
+            placeholder={String(DEFAULT_PAN_SPEED_SECONDS)}
+            value={value.panSpeedSeconds ?? ""}
+            onChange={(e) => onChange({ panSpeedSeconds: e.target.value === "" ? null : Number(e.target.value) || DEFAULT_PAN_SPEED_SECONDS })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+        <label className="block text-xs text-gray-600">
+          확대 배율(%, 클수록 더 확대됨)
+          <input
+            type="number"
+            min={0}
+            max={80}
+            placeholder={String(DEFAULT_PAN_ZOOM_PCT)}
+            value={value.panZoomPct ?? ""}
+            onChange={(e) => onChange({ panZoomPct: e.target.value === "" ? null : Number(e.target.value) || DEFAULT_PAN_ZOOM_PCT })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+        <label className="block text-xs text-gray-600">
+          이동 거리(%, 클수록 많이 움직임)
+          <input
+            type="number"
+            min={0}
+            max={30}
+            placeholder={String(DEFAULT_PAN_DISTANCE_PCT)}
+            value={value.panDistancePct ?? ""}
+            onChange={(e) => onChange({ panDistancePct: e.target.value === "" ? null : Number(e.target.value) || DEFAULT_PAN_DISTANCE_PCT })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+      </div>
       <div>
+        {/* HOTFIX-147.27(사용자 신고 — "배경슬라이드 프리뷰가 너무 작아"):
+            32px 정사각형이라 이미지가 뭔지 거의 안 보였다 — 훨씬 큰
+            썸네일로 키우고 파일명/삭제 버튼을 그 아래로 옮겨 한눈에
+            알아볼 수 있게 한다. */}
         <h4 className="mb-1.5 text-xs font-semibold text-gray-500">배경 슬라이드 ({value.slideUrls.length})</h4>
-        <div className="space-y-1.5">
+        <div className="grid grid-cols-2 gap-2">
           {value.slideUrls.map((url, i) => (
-            <div key={url + i} className="flex items-center gap-1.5">
+            <div key={url + i} className="space-y-1 rounded border border-gray-200 p-1.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="" className="h-8 w-8 flex-shrink-0 rounded object-cover" />
-              <span className="flex-1 truncate text-[10px] text-gray-400">{url}</span>
-              <button
-                type="button"
-                onClick={() => onChange({ slideUrls: value.slideUrls.filter((_, idx) => idx !== i) })}
-                className="text-[10px] text-red-500 hover:underline"
-              >
-                삭제
-              </button>
+              <img src={url} alt="" className="h-24 w-full rounded object-cover" />
+              <div className="flex items-center justify-between gap-1">
+                <span className="min-w-0 flex-1 truncate text-[10px] text-gray-400">{url.split("/").pop()}</span>
+                <button
+                  type="button"
+                  onClick={() => onChange({ slideUrls: value.slideUrls.filter((_, idx) => idx !== i) })}
+                  className="shrink-0 text-[10px] text-red-500 hover:underline"
+                >
+                  삭제
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -1104,6 +1225,9 @@ function SiloTimelineEmbedSettings() {
                     backgroundFit: props.coverBackgroundFit,
                     slideUrls: props.coverSlideUrls,
                     autoAdvanceSeconds: props.coverAutoAdvanceSeconds,
+                    panSpeedSeconds: props.coverPanSpeedSeconds,
+                    panZoomPct: props.coverPanZoomPct,
+                    panDistancePct: props.coverPanDistancePct,
                     position: props.position,
                     mobilePosition: props.mobilePosition,
                   }}
@@ -1124,6 +1248,9 @@ function SiloTimelineEmbedSettings() {
                       if ("backgroundFit" in patch) p.coverBackgroundFit = patch.backgroundFit!;
                       if ("slideUrls" in patch) p.coverSlideUrls = patch.slideUrls!;
                       if ("autoAdvanceSeconds" in patch) p.coverAutoAdvanceSeconds = patch.autoAdvanceSeconds!;
+                      if ("panSpeedSeconds" in patch) p.coverPanSpeedSeconds = patch.panSpeedSeconds!;
+                      if ("panZoomPct" in patch) p.coverPanZoomPct = patch.panZoomPct!;
+                      if ("panDistancePct" in patch) p.coverPanDistancePct = patch.panDistancePct!;
                     })
                   }
                 />
@@ -1200,6 +1327,9 @@ SiloTimelineEmbedBlock.craft = {
     coverBackgroundFit: null,
     coverSlideUrls: [],
     coverAutoAdvanceSeconds: 5,
+    coverPanSpeedSeconds: null,
+    coverPanZoomPct: null,
+    coverPanDistancePct: null,
     position: DEFAULT_FREE_POSITION,
     mobilePosition: null,
     eventOverlays: {},

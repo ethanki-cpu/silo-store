@@ -262,6 +262,15 @@ function TimelineCoverOverlay({
     >
       <div className="relative h-full w-full">
         <CoverBackground urls={slideUrls} autoAdvanceSeconds={autoAdvanceSeconds} />
+        {/* 사용자 신고(2026-08-27 — "혁명~제국 페이지 윗부분이 짤려"): 자유
+            배치(position.enabled)를 안 켜면 이 박스가 여백 없이 표지 영역의
+            맨 위-왼쪽 모서리(0,0)에 그대로 붙어 렌더링됐다 — freePosition*
+            헬퍼가 enabled=false일 때 `{ position: "relative" }` 말고는
+            아무 스타일도 안 주기 때문(다른 블록들과 공유하는 범용 동작이라
+            그 헬퍼 자체는 그대로 둠). 표지처럼 이미지 전체를 덮는 오버레이는
+            여백 없이 모서리에 붙으면 화면 끝에 짤린 것처럼 보인다 — 자유
+            배치를 안 쓸 때만 이 래퍼로 가운데 정렬 + 여백을 기본으로 준다. */}
+        <div className={position.enabled ? "pointer-events-none" : "pointer-events-none flex h-full w-full flex-col items-center justify-center gap-2 px-8 py-10 text-center"}>
         <div
           ref={(dom) => { boxRef.current = dom; }}
           style={{ ...style, position: style.position ?? "absolute" }}
@@ -293,6 +302,7 @@ function TimelineCoverOverlay({
             style={{ fontSize: descFontSizePx, color: descColor, ...(descFontFamily ? { fontFamily: descFontFamily } : {}) }}
             placeholder="설명을 입력하세요"
           />
+        </div>
         </div>
       </div>
     </div>

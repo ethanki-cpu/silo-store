@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-27 (HOTFIX-147.22 — 타임라인 표지 제목/설명이 자유 배치를 안 켰을 때 화면 맨 위-왼쪽 모서리에 붙어 "짤린 것처럼" 보이던 문제 수정)
+- **사용자 신고(스크린샷)**: "craft 에디터, '혁명~제국' 페이지 윗부분이 짤려." — 표지의 "Revolution ~ Empire" 제목이 캔버스 맨 위 가장자리에 딱 붙어, 위쪽 절반이 잘려 보였다.
+- **원인(실측)**: `TimelineCoverOverlay`의 텍스트 박스는 "자유 배치(콜라주)"를 켜지 않으면(`position.enabled === false`, 이 페이지의 기본/현재 상태) `freePositionResponsiveAttrs()`가 `{ position: "relative" }`만 반환하고 다른 스타일은 전혀 안 준다 — 이 헬퍼는 Container/Text/Button 등 여러 블록이 공유하는 범용 함수라 그 자체를 바꾸면 다른 블록들의 "자유 배치 꺼짐 = 일반 문서 흐름" 동작까지 건드리게 된다. 이 텍스트 박스만 표지 이미지 전체를 덮는 절대 위치 오버레이의 유일한 자식이라, 별도 여백/정렬 없이 그냥 부모의 맨 위-왼쪽(0,0)에 그대로 렌더링되고 있었다 — HOTFIX-147.21에서 이 컴포넌트를 다시 손보다가(제목/설명 스타일 분리) 처음 눈에 띔.
+- **수정**: `SiloTimelineEmbedBlock.tsx`의 `TimelineCoverOverlay`에 자유 배치가 꺼져 있을 때만 적용되는 래퍼(`flex h-full w-full flex-col items-center justify-center gap-2 px-8 py-10`)를 추가 — 표지 이미지 안에서 제목/설명이 가운데 정렬 + 여백을 갖고 자연스럽게 보이도록 했다. `freePositionResponsiveAttrs()`나 다른 블록들은 손대지 않았고, 자유 배치를 켠 상태(`position.enabled === true`)는 기존과 완전히 동일하게 동작(추가한 래퍼가 `position:static`이라 `position:absolute` 자식의 containing block에 영향을 주지 않음).
+- **부수적으로 발견/해결**: 수정 직후 로컬 dev 서버가 이 파일에서 `Unexpected token` 파싱 에러를 계속 냈는데, `tsc --noEmit`은 0 errors였고 파일 자체도 중괄호/태그가 정확히 맞아떨어져 — 이번 세션 동안 로컬 미리보기 서버를 여러 차례 껐다 켜며 쌓인 오래된(2026-08-26) Turbopack `.next` 빌드 캐시(1.4GB)가 꼬인 것으로 확인, `.next` 삭제 후 재시작으로 해결(소스 코드 문제 아니었음).
+- **실측 검증**: 로컬 dev 서버(캐시 초기화 후) + 관리자 세션으로 "혁명~제국" 페이지를 열어 제목/설명이 표지 이미지 정중앙에 여백을 두고 나타나는 것을 스크린샷으로 직접 확인. 콘솔에 새로운 종류의 에러 없음.
+- `tsc` 0 errors, `lint` 0 errors(80 warnings, 기존 기준선 유지).
+
 ## 2026-08-27 (EPIC-150 — Craft 에디터 Page 설정에 Themes 프리셋 갤러리 추가, "요소별 독립 설정→새 블록 팔레트→Page 설정→Themes" 4단계 시리즈 완료)
 - **사용자 지시**: "다음 phase 진행해 그냥 순서대로 알아서 전부"의 마지막 Phase — BuilderJS 레퍼런스의 "Themes" 탭(클릭 한 번으로 페이지 톤을 바꾸는 프리셋 갤러리, Blank/Minimal/Plain Text/Gallery/Sell Products/1:2:1 Column/1:3 Column/Tell a story)에 대응.
 - **범위 판단**: BuilderJS의 각 테마는 배경/여백/폭뿐 아니라 페이지 전체의 "완성된 콘텐츠 레이아웃"까지 미리 짜여 있는데(이메일 템플릿), 이 사이트의 6개 페이지 패밀리는 저마다 다른 전용 섹션 블록(Docent Hero/Era Grid, Editorial Grid 등)을 쓰고 있어 "테마 하나가 임의 블록 트리를 통째로 갈아끼우는" 방식은 위험도(기존 콘텐츠 유실 가능성)와 설계 난이도가 이번 Phase 범위를 크게 넘어선다. 대신 EPIC-149에서 만든 Page 설정(배경/컨테이너 폭/블록 간격/여백)을 한 번에 묶어 적용하는 프리셋 6종으로 스코프를 좁혔다 — 안전(ROOT props만 바꿈, 기존 블록 내용 무손상)하면서도 "테마 클릭 한 번으로 톤을 바꾼다"는 핵심 가치는 그대로 제공. **폰트는 프리셋에서 의도적으로 제외** — `FontPicker`는 이 배포에 실제로 업로드된 커스텀 폰트만 고를 수 있어(사이트마다 다름), 프리셋에 특정 폰트를 박아두면 그 폰트가 없는 배포에서는 조용히 아무 효과 없이 실패하기 때문(`FontPicker.tsx` 상단 주석에 이미 기록된 동일한 함정).

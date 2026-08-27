@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-27 (EPIC-149 — Craft 에디터에 Page(페이지 전역) 설정 신설)
+- **사용자 지시**: EPIC-148(새 블록 팔레트)에 이어 "다음 phase 진행해 그냥 순서대로 알아서 전부"로 계속 자동 진행 — BuilderJS 레퍼런스의 "Page" 탭(container width/block gap/padding/기본 폰트/배경)에 대응하는 페이지 전역 설정을 신설.
+- **설계**: 지금까지 이 사이트의 모든 Craft 페이지(홈/사일로상점/온라인도슨트/살롱데상/스튜디오/마이페이지 6개 패밀리 + footer 캔버스, 총 7곳)가 `RootContainer.tsx` 딱 하나를 ROOT 노드로 공유하고 있었다(각 `defaultTree.tsx`가 전부 이 한 파일을 import) — 이 컴포넌트 하나에만 실제 props와 `related.settings`를 달아도 7곳 전체에 자동 적용된다는 걸 확인하고, 별도 신규 컴포넌트 없이 여기 하나만 고쳤다. `SettingsSidebar.tsx`는 원래부터 "선택된 노드의 `related.settings`를 그대로 렌더링"하는 범용 코드라(ROOT 전용 분기 없음) 캔버스 빈 곳(=ROOT)을 클릭하면 자동으로 이 새 패널이 뜬다 — `SettingsSidebar.tsx` 자체는 손대지 않음.
+- **신규 설정**: 블록 간 간격(`blockGapPx`, 자식들을 flex column + gap으로 감쌈), 콘텐츠 최대 너비(`containerWidthPx`, null이면 전체 너비), 4방향 페이지 패딩, 페이지 기본 폰트(`fontFamily` — 자식 블록이 자기 폰트를 안 정했으면 일반 CSS 상속으로 자동으로 물려받음, 자식 코드 수정 불필요), 배경(색상/이미지 업로드/채우기 방식/위치/반복/불투명도). 새 필드는 전부 기본값이 "아무 효과 없음"(null/0/빈 문자열)이라 기존에 저장된 모든 페이지(`page_builder.craft_state`의 ROOT 노드 props가 예전엔 `{}`였음)가 마이그레이션 없이도 시각적으로 그대로 유지된다.
+- **BuilderJS 대비 의도적으로 뺀 것**: "Default Block Background"(이메일 빌더에서 새 블록을 삽입할 때 쓰일 기본값 개념 — 이 프로젝트의 블록들은 이미 각자 `background`/`color` 등 자기 스타일을 갖고 있어 재현할 대상이 불명확), 배경 Gradient/Blend mode(정적 페이지 배경치고 과한 옵션, 필요해지면 이후 추가).
+- **실측 검증**: 로컬 dev 서버 + 관리자 세션으로 "혁명~제국" Craft 에디터의 캔버스 빈 곳을 클릭 → 새 "ROOTCONTAINER 설정" 패널(레이아웃/기본 폰트/배경 3개 섹션) 노출 확인 → 블록 간 간격 60px·상단 여백 40px·배경색 `#ffe9c7` 입력 → `getComputedStyle()`로 실제 DOM에 `gap:60px`/`padding-top:40px`/`background-color:rgb(255,233,199)`가 그대로 반영되는 것 확인. 콘솔에 새로운 종류의 에러 없음(React 19 ref 경고/HMR 웹소켓 등은 기존에도 있던 무관한 노이즈). 테스트 값은 저장하지 않고 되돌림.
+- `tsc` 0 errors, `lint` 0 errors(80 warnings, 기존 기준선 유지 — 새 경고 없음).
+
 ## 2026-08-27 (EPIC-148 — Craft 에디터 "요소" 팔레트를 BuilderJS 레퍼런스 수준으로 확장)
 - **사용자 지시**: HOTFIX-147.21(요소별 독립 설정)에 이어 "다음 phase 진행해 그냥 순서대로 알아서 전부"로 나머지 Phase(새 블록 팔레트/Page 전역 설정/Themes 시스템)를 순서대로 자동 진행 요청. 이번 EPIC은 그중 1번째 — BuilderJS(이메일 빌더) 레퍼런스의 Elements 팔레트를 이 Craft 에디터의 "요소" 패널에 통합.
 - **범위 판단**: BuilderJS의 Elements를 전부 그대로 가져오되(사용자가 앞서 "BuilderJS 전체 팔레트 그대로"를 선택), 이 사이트 구조와 명백히 충돌/중복되는 4가지는 새로 만들지 않고 기존 걸 재사용하도록 안내만 남겼다 — **Menu Bar**(이 사이트는 전역 Navbar가 이미 있어 페이지마다 또 다른 메뉴 블록을 꽂으면 충돌만 남음), **Slider**(기존 `SlideshowBlock`과 기능 동일), **Product List**(기존 `ShopItemsGridBlock`과 기능 동일), **Grid**(기존 `ContainerBlock`을 `layout="row"`로 쓰면 이미 N단 그리드로 감쌀 수 있음), **Welcome**(TextBlock에 다른 기본 문구를 넣은 것과 다를 게 없어 별도 블록 불필요). "Image & Text"/"Text" 두 섹션은 BuilderJS가 배치만 다른 레이아웃을 5종/3종 따로 뒀지만, 블록 하나에 배치 선택지를 둬(`ImageTextBlock`/`TextCTABlock`) 코드 중복 없이 캔버스에서 바로 레이아웃을 전환할 수 있게 만들었다.
@@ -7,7 +15,7 @@
 - **공용 헬퍼 신설**: `src/components/craft/shared/FieldControls.tsx` — 새 블록 21개 각각의 설정 패널에서 반복되는 "label+input" 마크업(text/textarea/number/color/select/checkbox + N개 항목 추가·삭제 리스트)을 공용 컴포넌트로 뽑아, 기존 블록들의 시각 스타일(text-xs 라벨, rounded border-gray-300 입력창)을 그대로 유지하면서 코드 중복을 크게 줄였다.
 - **신규 의존성**: `qrcode`(+`@types/qrcode`), `jsbarcode` — 둘 다 별도 서버 없이 브라우저에서 직접 QR/바코드를 그리는 정적 라이브러리(MIT, 널리 쓰임). `npm audit`로 확인한 기존 high severity 취약점(brace-expansion/js-yaml/nanoid/next/postcss/sharp)은 전부 이번 설치 이전부터 있던 무관한 전이 의존성.
 - **실측 검증**: 로컬 dev 서버 + 관리자 세션으로 "혁명~제국" Craft 에디터를 열어 새 "요소" 목록에 21개 항목이 모두 노출되는 것 확인, 그중 12개(구분선/알림/통계-KPI/후기/QR코드/별점/차트/데이터테이블/유튜브/소셜아이콘/이미지&텍스트/텍스트+버튼)를 실제로 캔버스에 추가해 콘솔 에러 없이 기본값대로 렌더링되는 것 확인 — QR 코드는 실제 base64 PNG 생성, 바코드는 26개 bar를 가진 SVG 생성까지 직접 확인. 테스트 데이터는 저장하지 않고 되돌림(프로덕션 데이터 변경 없음).
-- `tsc` 0 errors, `lint` 0 errors(80 warnings 기존 기준선에서 82로 — `ProductSpotlightBlock`/`QRCodeBlock`의 데이터 로딩 `useEffect`가 이 코드베이스 전반에 이미 널리 쓰이는 `setLoading(true)` 패턴을 그대로 따른 것으로, 새로운 종류의 경고가 아니라 기존 관용구가 2곳 더 늘어난 것).
+- `tsc` 0 errors, `lint` 0 errors(78 warnings 기존 기준선에서 80으로 — `ProductSpotlightBlock`/`QRCodeBlock`의 데이터 로딩 `useEffect`가 이 코드베이스 전반에 이미 널리 쓰이는 `setLoading(true)` 패턴을 그대로 따른 것으로, 새로운 종류의 경고가 아니라 기존 관용구가 2곳 더 늘어난 것).
 - **다음에 확인 필요**: (1) 관리자가 실제로 몇몇 블록(특히 이미지/아바타 업로드가 있는 ImageTextBlock/TestimonialBlock/ImageCollageBlock/SocialProofBlock, DB 연동인 ProductSpotlightBlock)을 실제 저장까지 해보고 새로고침 후에도 정상 유지되는지 확인 — 이번 세션은 프로덕션 데이터 훼손을 피하려 저장하지 않고 되돌렸다. (2) 남은 Phase(Page 전역 설정 탭, Themes 프리셋 시스템)는 이어서 진행 예정.
 
 ## 2026-08-27 (HOTFIX-147.21 — 타임라인 표지/이벤트 오버레이 "제목"과 "설명"이 정렬·굵기·크기·색상·폰트를 하나로 공유하던 문제 수정)

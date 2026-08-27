@@ -171,15 +171,24 @@ const COVER_ALIGN_CLASS: Record<CoverAlign, string> = {
 // 이동하는 모션이 있으면 좋겠어. 이걸 모든 '온라인 도슨트' 바로 아래
 // 하위 카테고리 페이지의 타임라인에 모두 적용해달라"): 표지/이벤트
 // 배경이 전부 이 컴포넌트 하나를 공유해 그리므로(다른 3개 카테고리와도
-// 동일), 여기 한 곳만 고치면 자동으로 전부 적용된다. object-fit: cover는
-// 컨테이너를 꽉 채우려고 이미지 비율에 따라 가로나 세로 중 한쪽을 실제로
-// 잘라내는데(그 잘린 만큼이 "여유분"), object-position을 애니메이션하면
-// 바로 그 잘린 영역 안에서 보이는 부분이 움직여 패닝 효과가 난다 —
-// "전체 보기"(contain)는 애초에 잘리는 부분이 없어(이미지 전체가 이미
-// 다 보임) 패닝할 여유분 자체가 없으므로 대상에서 제외.
+// 동일), 여기 한 곳만 고치면 자동으로 전부 적용된다.
+// HOTFIX-147.26(사용자 재신고 — "위 아래는 되고 있는데 왼쪽 오른쪽은 안
+// 되고 있어. 가로 이미지를 줌인해서 왼쪽에서 오른쪽으로 가는 모션으로
+// 해줘"): 처음엔 object-position만 애니메이션했는데(이 표지 영역 자체가
+// 가로로 아주 넓은 배너라서), 실측해보니 표준 사진 비율(예: 1280×808)의
+// "가로" 이미지조차 object-fit: cover가 실제로는 세로 방향만 넘치게
+// 잘라내고 가로는 이미 컨테이너 폭에 딱 맞아 잘리는 부분이 없는 경우가
+// 흔했다 — 그러면 가로축 object-position을 움직여도 잘릴 여유분 자체가
+// 없어 화면상 아무 움직임도 안 보인다(실제로 재현됨). 이미지 고유
+// 비율과 컨테이너 비율의 상대적 관계에 좌우되는 이 방식 대신, 이미지를
+// 강제로 확대(scale)해 항상 여유분을 만들어준 뒤 그 안에서 이동
+// (translate)하는 방식으로 교체 — 사용자가 요청한 "줌인해서 이동"과도
+// 정확히 일치하고, 이제 이미지/컨테이너 비율과 무관하게 항상 보인다.
+// 부모(TimelineCoverOverlay)가 이미 overflow-hidden이라 확대된 여유분이
+// 밖으로 새지 않는다.
 const PAN_KEYFRAMES = `
-  @keyframes silo-cover-pan-x { 0% { object-position: 0% 50%; } 100% { object-position: 100% 50%; } }
-  @keyframes silo-cover-pan-y { 0% { object-position: 50% 0%; } 100% { object-position: 50% 100%; } }
+  @keyframes silo-cover-pan-x { 0% { transform: scale(1.15) translateX(-4%); } 100% { transform: scale(1.15) translateX(4%); } }
+  @keyframes silo-cover-pan-y { 0% { transform: scale(1.15) translateY(-4%); } 100% { transform: scale(1.15) translateY(4%); } }
   .silo-cover-pan-x { animation: silo-cover-pan-x 18s ease-in-out infinite alternate; }
   .silo-cover-pan-y { animation: silo-cover-pan-y 18s ease-in-out infinite alternate; }
 `;

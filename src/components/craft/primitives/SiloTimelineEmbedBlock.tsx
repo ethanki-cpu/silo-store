@@ -8,7 +8,7 @@
 // 게시판 하나(mode="board")뿐 아니라, site_navigations의 한 branch(href)
 // 아래 모든 하위 게시판 글을 한 타임라인에 모으는 집계 모드(mode="group")도
 // 지원한다 — 온라인 도슨트 2단계 카테고리 페이지가 이 모드를 쓴다.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useNode } from "@craftjs/core";
 import { EditableBlockFrame, EditableText, useCraftEditable } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
@@ -336,6 +336,41 @@ function TimelineCoverOverlay({
   );
 }
 
+// HOTFIX-147.24(사용자 지시 — "'개별화면(이벤트) 자유편집'이 드롭다운으로
+// 아래로 펼쳐지는 게 비효율적이다, 캔버스에서 그 이벤트 화면으로 이동하면
+// 설정 패널이 자동으로 그 화면 설정을 보여주면 안 되냐"): 캔버스(타임라인
+// 대시보드)에서 "지금 보고 있는 슬라이드"(coverState)는 지금까지 렌더
+// 컴포넌트(SiloTimelineEmbedBlock)의 로컬 state였다 — 설정 패널
+// (SiloTimelineEmbedSettings)은 같은 Craft 노드를 보지만 완전히 별개의
+// React 컴포넌트 인스턴스라 이 값을 전혀 몰랐고, 그래서 관리자가 직접
+// 드롭다운에서 이벤트를 하나하나 찾아 골라야 했다. 노드 id별로 이 값을
+// 공유하는 아주 작은 외부 스토어 — DB에 저장할 필요 없는 순수 UI 상태라
+// setProp/setCustom(둘 다 Craft 히스토리/직렬화에 얽힘) 대신 이 스토어를
+// 쓴다.
+const activeSlideListeners = new Map<string, Set<() => void>>();
+const activeSlideStates = new Map<string, TimelineCoverState>();
+
+function publishActiveSlide(nodeId: string, state: TimelineCoverState) {
+  activeSlideStates.set(nodeId, state);
+  activeSlideListeners.get(nodeId)?.forEach((fn) => fn());
+}
+
+function useActiveSlide(nodeId: string): TimelineCoverState {
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      let set = activeSlideListeners.get(nodeId);
+      if (!set) {
+        set = new Set();
+        activeSlideListeners.set(nodeId, set);
+      }
+      set.add(onStoreChange);
+      return () => set!.delete(onStoreChange);
+    },
+    () => activeSlideStates.get(nodeId) ?? null,
+    () => null,
+  );
+}
+
 export function SiloTimelineEmbedBlock({
   mode,
   boardId,
@@ -364,11 +399,18 @@ export function SiloTimelineEmbedBlock({
   eventOverlays = {},
 }: SiloTimelineEmbedBlockProps) {
   const {
+    id: nodeId,
     connectors: { connect },
     setProp,
   } = useNode();
   const ready = mode === "group" ? !!groupHref : !!boardId;
   const [coverState, setCoverState] = useState<TimelineCoverState>(null);
+
+  // HOTFIX-147.24: 설정 패널이 이 노드의 coverState를 구독할 수 있도록 매번
+  // 공유 스토어에도 반영한다(위 useActiveSlide 참고).
+  useEffect(() => {
+    publishActiveSlide(nodeId, coverState);
+  }, [nodeId, coverState]);
 
   // HOTFIX-147.13: coverState는 이제 표지 전용 토글과 무관하게 항상
   // 추적한다 — 이벤트별 오버레이(eventOverlays)는 coverEnabled와 별개로
@@ -814,15 +856,17 @@ function SlideOverlayPositionFields({
 }
 
 function SiloTimelineEmbedSettings() {
-  const { props, setProp } = useNode((node) => ({ props: node.data.props as SiloTimelineEmbedBlockProps }));
+  const { id: nodeId, props, setProp } = useNode((node) => ({ props: node.data.props as SiloTimelineEmbedBlockProps }));
   const editable = useCraftEditable();
   const [boards, setBoards] = useState<BoardOption[]>([]);
   const [navGroups, setNavGroups] = useState<NavOption[]>([]);
-  // HOTFIX-147.13: "개별 화면 자유편집" 대상 이벤트 목록 — 표지 설정과
+  // HOTFIX-147.13: "화면 자유편집" 헤드라인 표시용 이벤트 목록 — 표지 설정과
   // 똑같은 /api/timeline/events를 그대로 불러 unique_id+headline만 뽑는다
   // (새 API를 안 만들고 이미 검증된 데이터 소스를 재사용).
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  // HOTFIX-147.24: 이벤트를 드롭다운에서 직접 고르는 대신, 캔버스(타임라인
+  // 대시보드)에서 지금 실제로 보고 있는 화면을 그대로 따라간다.
+  const activeSlide = useActiveSlide(nodeId);
 
   useEffect(() => {
     if (!editable) return;
@@ -962,113 +1006,106 @@ function SiloTimelineEmbedSettings() {
         </select>
       </label>
 
+      {/* HOTFIX-147.24(사용자 지시 — "'개별화면(이벤트) 자유편집'이 드롭다운
+          으로 아래로 펼쳐지는 게 비효율적이다, 캔버스에서 그 이벤트 화면으로
+          이동하면 설정 패널이 자동으로 그 화면 설정을 보여주면 안 되냐"):
+          "표지 자유편집"(항상 노출)과 "개별 화면 자유편집"(드롭다운으로
+          이벤트를 하나 찾아 골라야 그 아래로 폼이 펼쳐짐)이 따로 있던 것을,
+          캔버스에서 지금 실제로 보고 있는 화면(표지 또는 특정 이벤트)을
+          그대로 따라가는 단일 섹션으로 통합 — 캔버스에서 다른 화면을 클릭해
+          이동하면 이 패널도 자동으로 그 화면 설정으로 전환된다(긴 드롭다운을
+          뒤질 필요 없음). */}
       <div className="space-y-2 border-t border-gray-200 pt-3">
-        <label className="flex items-center gap-2 text-xs text-gray-700">
-          <input
-            type="checkbox"
-            checked={props.coverEnabled}
-            onChange={(e) => setProp((p) => { p.coverEnabled = e.target.checked; })}
-          />
-          표지(첫 화면) 자유 편집 — 텍스트/배경을 직접 꾸미기
-        </label>
-        {props.coverEnabled && (
+        <h4 className="text-xs font-semibold text-gray-500">지금 보고 있는 화면 자유 편집</h4>
+        {!activeSlide ? (
+          <p className="text-[10px] leading-relaxed text-gray-500">
+            캔버스의 타임라인이 로드되면, 지금 보고 있는 화면(표지 또는 이벤트)의 설정이 여기 나타나요.
+          </p>
+        ) : activeSlide.isTitle ? (
           <>
             <p className="text-[10px] leading-relaxed text-gray-500">
-              캔버스에서 표지 텍스트를 더블클릭하면 바로 고칠 수 있어요. 다른
-              역사적 사실을 클릭하면 이 표지는 사라지고 그 이벤트 화면이
-              보여요 — 대시보드에서 되돌아오면 다시 나타납니다.
+              지금 표지(첫 화면)를 보고 있어요 — 캔버스에서 다른 역사적 사실을 클릭하면 그 화면의 설정으로 자동 전환돼요.
             </p>
-            <SlideOverlayFieldsEditor
-              editable={editable}
-              value={{
-                enabled: props.coverEnabled,
-                text: props.coverText,
-                description: props.coverDescription,
-                fontSizePx: props.coverFontSizePx,
-                fontWeight: props.coverFontWeight,
-                align: props.coverAlign,
-                color: props.coverColor,
-                fontFamily: props.coverFontFamily,
-                descriptionFontSizePx: props.coverDescriptionFontSizePx,
-                descriptionFontWeight: props.coverDescriptionFontWeight,
-                descriptionAlign: props.coverDescriptionAlign,
-                descriptionColor: props.coverDescriptionColor,
-                descriptionFontFamily: props.coverDescriptionFontFamily,
-                backgroundFit: props.coverBackgroundFit,
-                slideUrls: props.coverSlideUrls,
-                autoAdvanceSeconds: props.coverAutoAdvanceSeconds,
-                position: props.position,
-                mobilePosition: props.mobilePosition,
-              }}
-              onChange={(patch) =>
-                setProp((p) => {
-                  if ("text" in patch) p.coverText = patch.text!;
-                  if ("description" in patch) p.coverDescription = patch.description!;
-                  if ("fontSizePx" in patch) p.coverFontSizePx = patch.fontSizePx!;
-                  if ("fontWeight" in patch) p.coverFontWeight = patch.fontWeight!;
-                  if ("align" in patch) p.coverAlign = patch.align!;
-                  if ("color" in patch) p.coverColor = patch.color!;
-                  if ("fontFamily" in patch) p.coverFontFamily = patch.fontFamily!;
-                  if ("descriptionFontSizePx" in patch) p.coverDescriptionFontSizePx = patch.descriptionFontSizePx!;
-                  if ("descriptionFontWeight" in patch) p.coverDescriptionFontWeight = patch.descriptionFontWeight!;
-                  if ("descriptionAlign" in patch) p.coverDescriptionAlign = patch.descriptionAlign!;
-                  if ("descriptionColor" in patch) p.coverDescriptionColor = patch.descriptionColor!;
-                  if ("descriptionFontFamily" in patch) p.coverDescriptionFontFamily = patch.descriptionFontFamily!;
-                  if ("backgroundFit" in patch) p.coverBackgroundFit = patch.backgroundFit!;
-                  if ("slideUrls" in patch) p.coverSlideUrls = patch.slideUrls!;
-                  if ("autoAdvanceSeconds" in patch) p.coverAutoAdvanceSeconds = patch.autoAdvanceSeconds!;
-                })
-              }
-            />
-            <FreePositionSettingsSection supportsMobileOverride />
+            <label className="flex items-center gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={props.coverEnabled}
+                onChange={(e) => setProp((p) => { p.coverEnabled = e.target.checked; })}
+              />
+              이 화면에 자유 편집 켜기
+            </label>
+            {props.coverEnabled && (
+              <>
+                <SlideOverlayFieldsEditor
+                  editable={editable}
+                  value={{
+                    enabled: props.coverEnabled,
+                    text: props.coverText,
+                    description: props.coverDescription,
+                    fontSizePx: props.coverFontSizePx,
+                    fontWeight: props.coverFontWeight,
+                    align: props.coverAlign,
+                    color: props.coverColor,
+                    fontFamily: props.coverFontFamily,
+                    descriptionFontSizePx: props.coverDescriptionFontSizePx,
+                    descriptionFontWeight: props.coverDescriptionFontWeight,
+                    descriptionAlign: props.coverDescriptionAlign,
+                    descriptionColor: props.coverDescriptionColor,
+                    descriptionFontFamily: props.coverDescriptionFontFamily,
+                    backgroundFit: props.coverBackgroundFit,
+                    slideUrls: props.coverSlideUrls,
+                    autoAdvanceSeconds: props.coverAutoAdvanceSeconds,
+                    position: props.position,
+                    mobilePosition: props.mobilePosition,
+                  }}
+                  onChange={(patch) =>
+                    setProp((p) => {
+                      if ("text" in patch) p.coverText = patch.text!;
+                      if ("description" in patch) p.coverDescription = patch.description!;
+                      if ("fontSizePx" in patch) p.coverFontSizePx = patch.fontSizePx!;
+                      if ("fontWeight" in patch) p.coverFontWeight = patch.fontWeight!;
+                      if ("align" in patch) p.coverAlign = patch.align!;
+                      if ("color" in patch) p.coverColor = patch.color!;
+                      if ("fontFamily" in patch) p.coverFontFamily = patch.fontFamily!;
+                      if ("descriptionFontSizePx" in patch) p.coverDescriptionFontSizePx = patch.descriptionFontSizePx!;
+                      if ("descriptionFontWeight" in patch) p.coverDescriptionFontWeight = patch.descriptionFontWeight!;
+                      if ("descriptionAlign" in patch) p.coverDescriptionAlign = patch.descriptionAlign!;
+                      if ("descriptionColor" in patch) p.coverDescriptionColor = patch.descriptionColor!;
+                      if ("descriptionFontFamily" in patch) p.coverDescriptionFontFamily = patch.descriptionFontFamily!;
+                      if ("backgroundFit" in patch) p.coverBackgroundFit = patch.backgroundFit!;
+                      if ("slideUrls" in patch) p.coverSlideUrls = patch.slideUrls!;
+                      if ("autoAdvanceSeconds" in patch) p.coverAutoAdvanceSeconds = patch.autoAdvanceSeconds!;
+                    })
+                  }
+                />
+                <FreePositionSettingsSection supportsMobileOverride />
+              </>
+            )}
           </>
-        )}
-      </div>
-
-      {/* HOTFIX-147.13(사용자 지시 — "그리스/르네상스/바로크/로코코 등
-          하위 이벤트 화면에도 같은 자유편집을, 다른 카테고리에도 적용"):
-          표지와 별개로, 이 타임라인의 개별 이벤트(하위 카테고리/게시글)
-          하나를 골라 그 화면에도 똑같은 자유편집을 켤 수 있다. */}
-      <div className="space-y-2 border-t border-gray-200 pt-3">
-        <h4 className="text-xs font-semibold text-gray-500">개별 화면(이벤트) 자유 편집</h4>
-        <label className="block text-xs text-gray-600">
-          이벤트 선택
-          <select
-            value={selectedEventId}
-            onChange={(e) => setSelectedEventId(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
-          >
-            <option value="">선택하세요 ({eventOptions.length}개)</option>
-            {eventOptions.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.headline}
-              </option>
-            ))}
-          </select>
-        </label>
-        {selectedEventId &&
+        ) : activeSlide.eventId ? (
           (() => {
-            const cfg = props.eventOverlays[selectedEventId] ?? DEFAULT_SLIDE_OVERLAY_CONFIG;
+            const eventId = activeSlide.eventId;
+            const headline = eventOptions.find((ev) => ev.id === eventId)?.headline ?? eventId;
+            const cfg = props.eventOverlays[eventId] ?? DEFAULT_SLIDE_OVERLAY_CONFIG;
             function updateEvent(patch: Partial<SlideOverlayConfig>) {
               setProp((p) => {
                 p.eventOverlays = {
                   ...p.eventOverlays,
-                  [selectedEventId]: { ...(p.eventOverlays[selectedEventId] ?? DEFAULT_SLIDE_OVERLAY_CONFIG), ...patch },
+                  [eventId]: { ...(p.eventOverlays[eventId] ?? DEFAULT_SLIDE_OVERLAY_CONFIG), ...patch },
                 };
               });
             }
             return (
               <>
+                <p className="text-[10px] leading-relaxed text-gray-500">
+                  지금 &ldquo;{headline}&rdquo; 화면을 보고 있어요 — 캔버스에서 다른 화면을 클릭하면 그 화면의 설정으로 자동 전환돼요.
+                </p>
                 <label className="flex items-center gap-2 text-xs text-gray-700">
                   <input type="checkbox" checked={cfg.enabled} onChange={(e) => updateEvent({ enabled: e.target.checked })} />
                   이 화면에 자유 편집 켜기
                 </label>
                 {cfg.enabled && (
                   <>
-                    <p className="text-[10px] leading-relaxed text-gray-500">
-                      캔버스에서 타임라인 대시보드로 이 이벤트를 클릭해 보면서
-                      텍스트를 더블클릭하면 바로 고칠 수 있어요.
-                    </p>
                     <SlideOverlayFieldsEditor value={cfg} onChange={updateEvent} editable={editable} />
                     <SlideOverlayPositionFields
                       position={cfg.position}
@@ -1080,7 +1117,8 @@ function SiloTimelineEmbedSettings() {
                 )}
               </>
             );
-          })()}
+          })()
+        ) : null}
       </div>
 
       <MotionSettingsSection />

@@ -1,16 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  customFontFromRow,
-  type CustomFont,
-  type CustomFontRow,
-  ALLOWED_FONT_EXTENSIONS,
-  FONT_PREVIEW_TEXT,
-  deriveFontNameFromFilename,
-} from "@/lib/media";
+import { ALLOWED_FONT_EXTENSIONS, FONT_PREVIEW_TEXT, deriveFontNameFromFilename } from "@/lib/media";
 import { uploadFontToR2 } from "@/lib/r2Upload";
+import { useCustomFonts } from "@/lib/useCustomFonts";
 
 // EPIC-083: Admin 전용 커스텀 폰트 업로드/관리 화면 — 에디터 툴바의
 // 폰트 드롭다운(src/lib/useCustomFonts.ts가 여기서 만든 목록을 그대로
@@ -27,29 +21,26 @@ import { uploadFontToR2 } from "@/lib/r2Upload";
 // FONT_PREVIEW_TEXT)로 바꿔 모든 폰트가 실제로 어떻게 보이는지 한눈에
 // 비교할 수 있게 했다.
 export default function AdminFontsPage() {
-  const [fonts, setFonts] = useState<CustomFont[]>([]);
-  const [loading, setLoading] = useState(true);
+  // HOTFIX(사용자 신고 — "'등록된 폰트'에 폰트 미리보기가 전혀 안 되는데
+  // 새로 올린것들이"): 이 페이지가 지금까지 자체 supabase 쿼리로만 목록을
+  // 채웠을 뿐, @font-face 규칙을 문서에 주입하는 건 전혀 하지 않았다 —
+  // 그동안 미리보기가 보였던 건 순전히 다른 곳(Navbar 등 useCustomFonts()를
+  // 부르는 전역 컴포넌트)이 페이지 로드 시점에 이미 있던 폰트들을 먼저
+  // 주입해준 덕분이었다. 그래서 "그 시점 이후 새로 올린 폰트"는 목록에는
+  // 뜨지만 실제 @font-face가 없어 미리보기가 항상 기본 글꼴로만 보였다 —
+  // useCustomFonts()(다른 화면들과 동일한 유일한 주입 경로)를 그대로
+  // 써서 업로드 직후 refetch()가 새 폰트까지 포함해 <style> 태그를
+  // 다시 써주게 한다.
+  const { fonts, loading, refetch } = useCustomFonts();
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadFonts = useCallback(async () => {
-    setLoading(true);
-    const { data, error: fetchError } = await supabase
-      .from("custom_fonts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .returns<CustomFontRow[]>();
-    if (!fetchError && data) {
-      setFonts(data.map(customFontFromRow));
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadFonts();
-  }, [loadFonts]);
+  // useCustomFonts()는 폰트 드롭다운(FontPicker) 용으로 이름 오름차순
+  // 정렬인데, 이 관리 화면은 방금 올린 폰트를 바로 확인하기 편하도록
+  // 기존처럼 최신순으로 보여준다 — 정렬만 이 화면 안에서 다시 한다.
+  const sortedFonts = [...fonts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   async function handleUploadFiles(files: FileList) {
     setError(null);
@@ -96,13 +87,13 @@ export default function AdminFontsPage() {
         `${succeeded.length}개 성공, ${failed.length}개 실패 — ${failed.join(", ")}`,
       );
     }
-    await loadFonts();
+    await refetch();
   }
 
   async function handleDelete(id: string) {
     if (!window.confirm("이 폰트를 삭제할까요? 이미 이 폰트를 쓰는 게시글은 기본 폰트로 대체돼요.")) return;
     await supabase.from("custom_fonts").delete().eq("id", id);
-    await loadFonts();
+    await refetch();
   }
 
   return (
@@ -132,14 +123,14 @@ export default function AdminFontsPage() {
         </div>
       </div>
 
-      <h2 className="text-sm font-medium mb-3">등록된 폰트 ({fonts.length}개)</h2>
+      <h2 className="text-sm font-medium mb-3">등록된 폰트 ({sortedFonts.length}개)</h2>
       {loading ? (
         <p className="text-sm text-gray-400">불러오는 중...</p>
-      ) : fonts.length === 0 ? (
+      ) : sortedFonts.length === 0 ? (
         <p className="text-sm text-gray-400">아직 등록된 폰트가 없어요.</p>
       ) : (
         <ul className="divide-y divide-gray-100 border border-gray-200 rounded-md">
-          {fonts.map((font) => (
+          {sortedFonts.map((font) => (
             <li key={font.id} className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-gray-500">

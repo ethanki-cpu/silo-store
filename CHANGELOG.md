@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-27 (HOTFIX-147.21 — 타임라인 표지/이벤트 오버레이 "제목"과 "설명"이 정렬·굵기·크기·색상·폰트를 하나로 공유하던 문제 수정)
+- **사용자 지시**: Craft 에디터를 BuilderJS(이메일 빌더) 레퍼런스와 비교하며, 캔버스에서 "Ancient ~ Monarchy"(제목)와 "___고대~왕정"(설명)을 위한 텍스트 설정이 서로 달라야 하는데 지금은 하나로 묶여 있다고 지적 — 나아가 이 "요소마다 완전히 독립된 설정" 원칙을 Craft 에디터 전체(및 "홈페이지 설정관리")에 적용해달라는 큰 요청. 코드베이스 전체를 감사한 결과 이 원칙을 위반하는 곳은 `SiloTimelineEmbedBlock.tsx`의 `SlideOverlayFieldsEditor`(표지 + 이벤트별 오버레이 둘 다에서 재사용) 단 한 곳뿐임을 확인 — 나머지 블록/설정 UI는 이미 필드별로 독립돼 있었다. 사용자가 1순위로 이 좁은 범위부터 처리하기로 확정(새 블록 팔레트/Page 전역 설정 탭/Themes 프리셋 시스템은 각각 별도 Phase로 보류).
+- **원인**: `SlideOverlayConfig`의 `fontSizePx`/`fontWeight`/`align`/`color`/`fontFamily`가 사실상 "제목" 전용 스타일이었는데, 렌더링(`TimelineCoverOverlay`)에서 설명도 그대로 물려받아 썼다(설명 크기만 `fontSizePx * 0.5`로 축소, 굵기는 애초에 클래스 자체가 안 붙어 있었음). 설정 패널(`SlideOverlayFieldsEditor`)도 정렬/굵기/크기/색상/폰트 컨트롤 5개를 제목·설명 구분 없이 하나로만 제공했다.
+- **수정**: `SlideOverlayConfig`/`SiloTimelineEmbedBlockProps`에 `description(Cover)FontSizePx`/`FontWeight`/`Align`/`Color`/`FontFamily` 5개를 각각 `| null`로 신설(기본값 `null` = "아직 커스터마이징 안 함" → 지금까지의 파생 기본값 그대로 유지, 마이그레이션 불필요). `SlideOverlayFieldsEditor`를 "제목 스타일"/"설명 스타일" 두 섹션으로 나눠 각각 독립된 정렬/굵기/크기/색상/폰트 컨트롤을 제공 — 설명 섹션은 커스터마이징 전엔 제목에서 파생된 유효값을 그대로 보여주다가(무엇이 적용 중인지 바로 알 수 있게), 값을 바꾸는 순간부터 독립적으로 저장된다.
+- **실측 검증**: 로컬 dev 서버 + 관리자 세션으로 "혁명~제국" Craft 에디터에서 타임라인 블록을 선택 → 표지 자유편집을 켜고 제목(빨강/32px)과 설명(파랑/14px/오른쪽 정렬)을 서로 다르게 설정 → 캔버스의 실제 `<p>` 엘리먼트 `getComputedStyle()`로 `color`/`fontSize`/`textAlign`이 완전히 독립적으로 반영되는 것을 직접 확인(테스트 값은 저장하지 않고 되돌림, 프로덕션 데이터 훼손 없음).
+- `tsc` 0 errors, `lint` 0 errors(78 warnings, 기존 기준선 유지).
+- **다음에 확인 필요**: 사용자가 언급한 나머지 Phase(BuilderJS 전체 팔레트에 준하는 새 블록 타입 추가, Page 전역 설정 탭 신설, Themes 프리셋 시스템 신설)는 각각 규모가 큰 별도 설계가 필요해 이번엔 포함하지 않음 — 사용자가 다음 지시할 때 순서대로 진행.
+
 ## 2026-08-27 (HOTFIX-147.20 — "온라인 도슨트" 드롭다운 줄바꿈이 PC에만 반영되던 문제 + 홈페이지 상단 메뉴가 20초 넘게 안 뜨던 문제 수정)
 - **사용자 신고 1**: "홈페이지 설정 관리"의 PC 미리보기에서는 "온라인 도슨트" 드롭다운의 "고대 ~ 왕정\nAncient ~ Monarchy" 줄바꿈이 잘 적용됐는데, 실제 웹사이트에서는 줄바꿈이 안 됐다.
 - **원인(실측)**: 이 최상위 카테고리(`site_navigations`, id `710a8240`)는 `target_types`에 `dropdown`과 `sidebar_right`가 함께 태그돼 있는데, `navConfig.ts`의 `mapTargetTypes()`는 여러 타입이 동시에 있으면 `sidebar_right`를 `dropdown`보다 먼저 확인해 **groups 구조**로 트리를 조립한다(과거 HOTFIX-144.2에서 "오른쪽 사이드바 노출"이 추가되며 이 우선순위 뒤로 조용히 바뀐 것으로 보임). 그 결과 `Navbar.tsx`의 실제 렌더 코드는 하위 카테고리 텍스트 오버라이드를 **그룹 라벨 키**(`group.groupLabel`, 원본 제목 그대로)로 조회하는데, `site_settings.top_tab_style`에는 PC 설정에만 이 그룹 라벨 키로 값이 저장돼 있었고 태블릿/모바일 설정에는 (예전 items/href 구조였던 시절에 저장된) **href 키**만 남아있어 — 태블릿/모바일에서는 오버라이드가 매칭되지 않고 원본 제목(줄바꿈 없음)이 그대로 노출됐다. Claude Browser 툴로 dev.silostore.net을 직접 열어 DOM 텍스트 노드를 검사해 실제로 PC 폭(1280px)에서는 `\n`이 포함되고 태블릿 폭(839px)에서는 빠지는 것을 확인해 특정.

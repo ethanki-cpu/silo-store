@@ -47,6 +47,18 @@ export type SlideOverlayConfig = {
   align: CoverAlign;
   color: string;
   fontFamily: string;
+  // HOTFIX(사용자 지시 — "'Ancient Monarchy'를 위한 텍스트 설정, '고대~왕정'을
+  // 위한 텍스트 설정이 달라야 해"): 위 5개(fontSizePx~fontFamily)는 사실상
+  // "제목" 전용 스타일이었는데 설명(description)도 그대로 물려 쓰고 있었다
+  // — 여기 5개를 새로 추가해 설명을 제목과 독립적으로 꾸밀 수 있게 한다.
+  // null이면 "아직 커스터마이징 안 함" = 지금까지의 기본 동작(크기는 제목의
+  // 50%, 색상/폰트/정렬은 제목과 동일, 굵기는 normal)을 그대로 유지해
+  // 기존 저장 데이터가 시각적으로 전혀 안 바뀐다.
+  descriptionFontSizePx: number | null;
+  descriptionFontWeight: CoverFontWeight | null;
+  descriptionAlign: CoverAlign | null;
+  descriptionColor: string | null;
+  descriptionFontFamily: string | null;
   slideUrls: string[];
   autoAdvanceSeconds: number;
   position: FreePosition;
@@ -62,6 +74,11 @@ export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   align: "center",
   color: "#ffffff",
   fontFamily: "",
+  descriptionFontSizePx: null,
+  descriptionFontWeight: null,
+  descriptionAlign: null,
+  descriptionColor: null,
+  descriptionFontFamily: null,
   slideUrls: [],
   autoAdvanceSeconds: 5,
   position: DEFAULT_FREE_POSITION,
@@ -99,6 +116,14 @@ export type SiloTimelineEmbedBlockProps = {
   coverAlign: CoverAlign;
   coverColor: string;
   coverFontFamily: string;
+  // 표지도 SlideOverlayConfig와 동일하게 설명 전용 스타일 5개를 별도로
+  // 갖는다 — 표지는 eventOverlays처럼 중첩 객체가 아니라 flat prop
+  // 패턴(기존 coverXxx와 동일)을 그대로 따른다.
+  coverDescriptionFontSizePx: number | null;
+  coverDescriptionFontWeight: CoverFontWeight | null;
+  coverDescriptionAlign: CoverAlign | null;
+  coverDescriptionColor: string | null;
+  coverDescriptionFontFamily: string | null;
   coverSlideUrls: string[];
   coverAutoAdvanceSeconds: number;
   // FreePositionSettingsSection/FreePositionHandles가 node.data.props의
@@ -169,6 +194,11 @@ function TimelineCoverOverlay({
   align,
   color,
   fontFamily,
+  descriptionFontSizePx,
+  descriptionFontWeight,
+  descriptionAlign,
+  descriptionColor,
+  descriptionFontFamily,
   slideUrls,
   autoAdvanceSeconds,
   position,
@@ -188,6 +218,11 @@ function TimelineCoverOverlay({
   align: CoverAlign;
   color: string;
   fontFamily: string;
+  descriptionFontSizePx: number | null;
+  descriptionFontWeight: CoverFontWeight | null;
+  descriptionAlign: CoverAlign | null;
+  descriptionColor: string | null;
+  descriptionFontFamily: string | null;
   slideUrls: string[];
   autoAdvanceSeconds: number;
   position: FreePosition;
@@ -200,6 +235,15 @@ function TimelineCoverOverlay({
   const boxRef = useRef<HTMLDivElement>(null);
   const { style, className } = freePositionResponsiveAttrs(position, mobilePosition);
   useCustomFonts();
+
+  // 설명 전용 스타일이 아직 커스터마이징 안 됐으면(null) 지금까지의 기본
+  // 동작 그대로 제목 스타일에서 파생시킨다 — 기존 저장 데이터의 시각적
+  // 회귀를 막는다.
+  const descFontSizePx = descriptionFontSizePx ?? Math.round(fontSizePx * 0.5);
+  const descFontWeight = descriptionFontWeight ?? "normal";
+  const descAlign = descriptionAlign ?? align;
+  const descColor = descriptionColor ?? color;
+  const descFontFamily = descriptionFontFamily ?? fontFamily;
 
   // 사용자 신고(2026-08-27, 스크린샷 — "표지가 깜빡이듯 바로 사라지고 흰
   // 배경이 나온다"): opacity는 실제로 1이었지만 눈엔 하나도 안 보였다 —
@@ -245,8 +289,8 @@ function TimelineCoverOverlay({
             as="p"
             value={description}
             onCommit={onDescriptionCommit}
-            className={COVER_ALIGN_CLASS[align]}
-            style={{ fontSize: Math.round(fontSizePx * 0.5), color, ...(fontFamily ? { fontFamily } : {}) }}
+            className={`${COVER_WEIGHT_CLASS[descFontWeight]} ${COVER_ALIGN_CLASS[descAlign]}`}
+            style={{ fontSize: descFontSizePx, color: descColor, ...(descFontFamily ? { fontFamily: descFontFamily } : {}) }}
             placeholder="설명을 입력하세요"
           />
         </div>
@@ -270,6 +314,11 @@ export function SiloTimelineEmbedBlock({
   coverAlign,
   coverColor,
   coverFontFamily,
+  coverDescriptionFontSizePx = null,
+  coverDescriptionFontWeight = null,
+  coverDescriptionAlign = null,
+  coverDescriptionColor = null,
+  coverDescriptionFontFamily = null,
   coverSlideUrls,
   coverAutoAdvanceSeconds,
   position = DEFAULT_FREE_POSITION,
@@ -318,6 +367,11 @@ export function SiloTimelineEmbedBlock({
           align: coverAlign,
           color: coverColor,
           fontFamily: coverFontFamily,
+          descriptionFontSizePx: coverDescriptionFontSizePx,
+          descriptionFontWeight: coverDescriptionFontWeight,
+          descriptionAlign: coverDescriptionAlign,
+          descriptionColor: coverDescriptionColor,
+          descriptionFontFamily: coverDescriptionFontFamily,
           slideUrls: coverSlideUrls,
           autoAdvanceSeconds: coverAutoAdvanceSeconds,
           position,
@@ -370,6 +424,11 @@ export function SiloTimelineEmbedBlock({
                   align={activeConfig.align}
                   color={activeConfig.color}
                   fontFamily={activeConfig.fontFamily}
+                  descriptionFontSizePx={activeConfig.descriptionFontSizePx}
+                  descriptionFontWeight={activeConfig.descriptionFontWeight}
+                  descriptionAlign={activeConfig.descriptionAlign}
+                  descriptionColor={activeConfig.descriptionColor}
+                  descriptionFontFamily={activeConfig.descriptionFontFamily}
                   slideUrls={activeConfig.slideUrls}
                   autoAdvanceSeconds={activeConfig.autoAdvanceSeconds}
                   position={activeConfig.position}
@@ -436,60 +495,132 @@ function SlideOverlayFieldsEditor({
           className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
         />
       </label>
-      <label className="block text-xs text-gray-600">
-        정렬
-        <select
-          value={value.align}
-          onChange={(e) => onChange({ align: e.target.value as CoverAlign })}
-          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
-        >
-          <option value="left">왼쪽</option>
-          <option value="center">가운데</option>
-          <option value="right">오른쪽</option>
-        </select>
-      </label>
-      <label className="block text-xs text-gray-600">
-        굵기
-        <select
-          value={value.fontWeight}
-          onChange={(e) => onChange({ fontWeight: e.target.value as CoverFontWeight })}
-          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
-        >
-          <option value="normal">보통</option>
-          <option value="medium">중간</option>
-          <option value="semibold">약간 굵게</option>
-          <option value="bold">굵게</option>
-        </select>
-      </label>
-      <label className="block text-xs text-gray-600">
-        크기(px)
-        <input
-          type="number"
-          min={8}
-          value={value.fontSizePx}
-          onChange={(e) => onChange({ fontSizePx: Number(e.target.value) || 16 })}
-          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+      {/* HOTFIX(사용자 지시 — "'Ancient Monarchy'를 위한 텍스트 설정,
+          '고대~왕정'을 위한 텍스트 설정이 달라야 해"): 지금까지 정렬/굵기/
+          크기/색상/폰트가 제목·설명 구분 없이 하나로 공유됐다 — "제목
+          스타일"/"설명 스타일" 두 섹션으로 나눈다. 설명 섹션은 아직
+          커스터마이징 안 했으면(null) 지금까지의 기본 동작(제목에서
+          파생된 값)을 그대로 보여줘, 무엇이 실제로 적용 중인지 바로
+          알 수 있게 한다 — 값을 바꾸는 순간부터 제목과 독립적으로
+          저장된다. */}
+      <div className="space-y-2 rounded border border-gray-200 p-2">
+        <h4 className="text-xs font-semibold text-gray-500">제목 스타일</h4>
+        <label className="block text-xs text-gray-600">
+          정렬
+          <select
+            value={value.align}
+            onChange={(e) => onChange({ align: e.target.value as CoverAlign })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="left">왼쪽</option>
+            <option value="center">가운데</option>
+            <option value="right">오른쪽</option>
+          </select>
+        </label>
+        <label className="block text-xs text-gray-600">
+          굵기
+          <select
+            value={value.fontWeight}
+            onChange={(e) => onChange({ fontWeight: e.target.value as CoverFontWeight })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="normal">보통</option>
+            <option value="medium">중간</option>
+            <option value="semibold">약간 굵게</option>
+            <option value="bold">굵게</option>
+          </select>
+        </label>
+        <label className="block text-xs text-gray-600">
+          크기(px)
+          <input
+            type="number"
+            min={8}
+            value={value.fontSizePx}
+            onChange={(e) => onChange({ fontSizePx: Number(e.target.value) || 16 })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+        <label className="block text-xs text-gray-600">
+          색상
+          <div className="mt-1 flex items-center gap-1.5">
+            <input
+              type="color"
+              value={/^#[0-9a-fA-F]{6}$/.test(value.color) ? value.color : "#ffffff"}
+              onChange={(e) => onChange({ color: e.target.value })}
+              className="h-7 w-9 shrink-0 cursor-pointer rounded border border-gray-300 p-0.5"
+            />
+            <input
+              type="text"
+              value={value.color}
+              placeholder="#ffffff"
+              onChange={(e) => onChange({ color: e.target.value })}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+            />
+          </div>
+        </label>
+        <FontPicker label="폰트" value={value.fontFamily} onChange={(fontFamily) => onChange({ fontFamily })} />
+      </div>
+      <div className="space-y-2 rounded border border-gray-200 p-2">
+        <h4 className="text-xs font-semibold text-gray-500">설명 스타일</h4>
+        <label className="block text-xs text-gray-600">
+          정렬
+          <select
+            value={value.descriptionAlign ?? value.align}
+            onChange={(e) => onChange({ descriptionAlign: e.target.value as CoverAlign })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="left">왼쪽</option>
+            <option value="center">가운데</option>
+            <option value="right">오른쪽</option>
+          </select>
+        </label>
+        <label className="block text-xs text-gray-600">
+          굵기
+          <select
+            value={value.descriptionFontWeight ?? "normal"}
+            onChange={(e) => onChange({ descriptionFontWeight: e.target.value as CoverFontWeight })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="normal">보통</option>
+            <option value="medium">중간</option>
+            <option value="semibold">약간 굵게</option>
+            <option value="bold">굵게</option>
+          </select>
+        </label>
+        <label className="block text-xs text-gray-600">
+          크기(px)
+          <input
+            type="number"
+            min={8}
+            value={value.descriptionFontSizePx ?? Math.round(value.fontSizePx * 0.5)}
+            onChange={(e) => onChange({ descriptionFontSizePx: Number(e.target.value) || 16 })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+        <label className="block text-xs text-gray-600">
+          색상
+          <div className="mt-1 flex items-center gap-1.5">
+            <input
+              type="color"
+              value={/^#[0-9a-fA-F]{6}$/.test(value.descriptionColor ?? "") ? value.descriptionColor! : (/^#[0-9a-fA-F]{6}$/.test(value.color) ? value.color : "#ffffff")}
+              onChange={(e) => onChange({ descriptionColor: e.target.value })}
+              className="h-7 w-9 shrink-0 cursor-pointer rounded border border-gray-300 p-0.5"
+            />
+            <input
+              type="text"
+              value={value.descriptionColor ?? value.color}
+              placeholder="#ffffff"
+              onChange={(e) => onChange({ descriptionColor: e.target.value })}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+            />
+          </div>
+        </label>
+        <FontPicker
+          label="폰트"
+          value={value.descriptionFontFamily ?? value.fontFamily}
+          onChange={(descriptionFontFamily) => onChange({ descriptionFontFamily })}
         />
-      </label>
-      <label className="block text-xs text-gray-600">
-        색상
-        <div className="mt-1 flex items-center gap-1.5">
-          <input
-            type="color"
-            value={/^#[0-9a-fA-F]{6}$/.test(value.color) ? value.color : "#ffffff"}
-            onChange={(e) => onChange({ color: e.target.value })}
-            className="h-7 w-9 shrink-0 cursor-pointer rounded border border-gray-300 p-0.5"
-          />
-          <input
-            type="text"
-            value={value.color}
-            placeholder="#ffffff"
-            onChange={(e) => onChange({ color: e.target.value })}
-            className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
-          />
-        </div>
-      </label>
-      <FontPicker label="폰트" value={value.fontFamily} onChange={(fontFamily) => onChange({ fontFamily })} />
+      </div>
       <label className="block text-xs text-gray-600">
         배경 자동 전환 간격(초)
         <input
@@ -802,6 +933,11 @@ function SiloTimelineEmbedSettings() {
                 align: props.coverAlign,
                 color: props.coverColor,
                 fontFamily: props.coverFontFamily,
+                descriptionFontSizePx: props.coverDescriptionFontSizePx,
+                descriptionFontWeight: props.coverDescriptionFontWeight,
+                descriptionAlign: props.coverDescriptionAlign,
+                descriptionColor: props.coverDescriptionColor,
+                descriptionFontFamily: props.coverDescriptionFontFamily,
                 slideUrls: props.coverSlideUrls,
                 autoAdvanceSeconds: props.coverAutoAdvanceSeconds,
                 position: props.position,
@@ -816,6 +952,11 @@ function SiloTimelineEmbedSettings() {
                   if ("align" in patch) p.coverAlign = patch.align!;
                   if ("color" in patch) p.coverColor = patch.color!;
                   if ("fontFamily" in patch) p.coverFontFamily = patch.fontFamily!;
+                  if ("descriptionFontSizePx" in patch) p.coverDescriptionFontSizePx = patch.descriptionFontSizePx!;
+                  if ("descriptionFontWeight" in patch) p.coverDescriptionFontWeight = patch.descriptionFontWeight!;
+                  if ("descriptionAlign" in patch) p.coverDescriptionAlign = patch.descriptionAlign!;
+                  if ("descriptionColor" in patch) p.coverDescriptionColor = patch.descriptionColor!;
+                  if ("descriptionFontFamily" in patch) p.coverDescriptionFontFamily = patch.descriptionFontFamily!;
                   if ("slideUrls" in patch) p.coverSlideUrls = patch.slideUrls!;
                   if ("autoAdvanceSeconds" in patch) p.coverAutoAdvanceSeconds = patch.autoAdvanceSeconds!;
                 })
@@ -906,6 +1047,11 @@ SiloTimelineEmbedBlock.craft = {
     coverAlign: "center",
     coverColor: "#ffffff",
     coverFontFamily: "",
+    coverDescriptionFontSizePx: null,
+    coverDescriptionFontWeight: null,
+    coverDescriptionAlign: null,
+    coverDescriptionColor: null,
+    coverDescriptionFontFamily: null,
     coverSlideUrls: [],
     coverAutoAdvanceSeconds: 5,
     position: DEFAULT_FREE_POSITION,

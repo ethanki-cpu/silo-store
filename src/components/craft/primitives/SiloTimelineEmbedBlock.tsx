@@ -29,9 +29,20 @@ import { supabase } from "@/lib/supabaseClient";
 type CoverFontWeight = "normal" | "medium" | "semibold" | "bold";
 type CoverAlign = "left" | "center" | "right";
 // HOTFIX-147.28(사용자 지시 — "가로 이미지는, 좌, 우도 있지만 대각선에서
-// 대각선으로 움직이는것도 추가해줘"): "auto"는 지금까지의 방식(가로
-// 이미지→좌우, 세로 이미지→상하) 그대로 — 직접 방향을 고르고 싶을 때만
-// 나머지 중 하나를 고른다.
+// 대각선으로 움직이는것도 추가해줘"): "auto"가 아닌 나머지는 직접 방향을
+// 고정하고 싶을 때 쓰는 수동 오버라이드.
+// HOTFIX-147.29(사용자 지시 — "자동으로 슬라이드 이미지의 구석구석을
+// 보도록 ... 왼쪽 위에서 오른쪽 아래로 갔다가 직선으로 위로 ... 같은
+// 랜덤 이미지 모션이 있으면 좋겠어. 알고리즘같이 생겨서 가로 세로 이미지에
+// 맞춰서 질리지 않는 모션이 되도록. 이미지의 일부분만 나오는게 아니라
+// 전체를 다 즐길 수 있도록"): 지금까지 "auto"는 좌우/상하 중 하나로만
+// 왕복하는 단순한 2점 모션이었다 — 이제 "auto"는 코너/모서리를 여러 개
+// 들르는 4단계 "투어" 모션(TOUR_TEMPLATES)으로 바뀐다. 어떤 투어를 쓸지는
+// 이미지 URL을 해시해 결정(hashString) — 매 렌더마다 안 바뀌고(애니메이션이
+// 매번 처음부터 다시 시작하는 뚝뚝 끊기는 현상 방지), 이미지마다 다른
+// 경로를 타 "질리지 않게" 자동으로 다양해진다. horizontal/vertical/
+// diagonal-*는 이제 "이 단순한 패턴 하나만 계속 반복하고 싶을 때"의 수동
+// 오버라이드로 남는다.
 type PanDirection = "auto" | "horizontal" | "vertical" | "diagonal-down" | "diagonal-up";
 
 // HOTFIX-147.13(사용자 지시 — "그리스/르네상스/바로크/로코코 같은 하위
@@ -92,9 +103,15 @@ export type SlideOverlayConfig = {
 };
 
 // HOTFIX-147.27: 패닝 모션 기본값 — 셋 다 null(미설정)이면 이 값을 쓴다.
-export const DEFAULT_PAN_SPEED_SECONDS = 8;
-export const DEFAULT_PAN_ZOOM_PCT = 15;
-export const DEFAULT_PAN_DISTANCE_PCT = 8;
+// HOTFIX-147.29: "auto"가 코너를 도는 투어로 바뀌면서 이동 폭이 더
+// 커져야 실제로 구석구석이 보인다 — 속도/확대/이동 거리 기본값을 더
+// 여유 있게 올림(8초→20초, 15%→40%, 8%→12%). 40%/12% 조합은 안전 여유분
+// 공식(|이동%| <= 50*(zoom-1)/zoom, HOTFIX-147.29 실측/계산으로 확정 —
+// 이 공식대로면 40% 확대에서 최대 14.29%까지 안전, 12%는 여유 있게 이내)
+// 을 만족해 화면 가장자리가 비어 보이지 않는다.
+export const DEFAULT_PAN_SPEED_SECONDS = 20;
+export const DEFAULT_PAN_ZOOM_PCT = 40;
+export const DEFAULT_PAN_DISTANCE_PCT = 12;
 
 export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   enabled: false,
@@ -231,6 +248,9 @@ const COVER_ALIGN_CLASS: Record<CoverAlign, string> = {
 // 추가 — 대각선도 x/y축 각각 같은 --silo-pan-dist 만큼만 움직이므로(더
 // 크게 늘리지 않음) 기존에 확인한 안전 여유분(확대 배율) 그대로 재사용
 // 가능하다.
+// HOTFIX-147.29: p0~p3 4개 정거장을 도는 "투어" 키프레임 — 정거장 좌표는
+// 이미지마다(TOUR_TEMPLATES에서 고른 경로 × 방향별 이동 거리) --silo-pan-p*
+// CSS 변수로 주입한다. 100%가 다시 0%(p0)로 돌아와 끊김 없이 반복된다.
 const PAN_KEYFRAMES = `
   @keyframes silo-cover-pan-x {
     0% { transform: scale(var(--silo-pan-zoom, 1.15)) translateX(calc(-1 * var(--silo-pan-dist, 8%))); }
@@ -248,11 +268,24 @@ const PAN_KEYFRAMES = `
     0% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(var(--silo-pan-dist, 8%), calc(-1 * var(--silo-pan-dist, 8%))); }
     100% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(calc(-1 * var(--silo-pan-dist, 8%)), var(--silo-pan-dist, 8%)); }
   }
+  @keyframes silo-cover-pan-tour {
+    0%   { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p0x, 0%), var(--silo-pan-p0y, 0%)); }
+    25%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p1x, 0%), var(--silo-pan-p1y, 0%)); }
+    50%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p2x, 0%), var(--silo-pan-p2y, 0%)); }
+    75%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p3x, 0%), var(--silo-pan-p3y, 0%)); }
+    100% { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p0x, 0%), var(--silo-pan-p0y, 0%)); }
+  }
   .silo-cover-pan-x, .silo-cover-pan-y, .silo-cover-pan-diag-down, .silo-cover-pan-diag-up {
     animation-timing-function: ease-in-out;
     animation-iteration-count: infinite;
     animation-direction: alternate;
-    animation-duration: var(--silo-pan-duration, 8s);
+    animation-duration: var(--silo-pan-duration, 20s);
+  }
+  .silo-cover-pan-tour {
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-duration: var(--silo-pan-duration, 20s);
+    animation-name: silo-cover-pan-tour;
   }
   .silo-cover-pan-x { animation-name: silo-cover-pan-x; }
   .silo-cover-pan-y { animation-name: silo-cover-pan-y; }
@@ -260,13 +293,61 @@ const PAN_KEYFRAMES = `
   .silo-cover-pan-diag-up { animation-name: silo-cover-pan-diag-up; }
 `;
 
-// HOTFIX-147.28: panDirection이 "auto"/null이면 기존처럼 이미지 원본
-// 비율로 좌우/상하를 자동 판정 — 그 외엔 사용자가 고른 방향을 그대로 쓴다.
+// HOTFIX-147.29: "auto"의 새 기본 동작 — 4개 정거장을 도는 투어 경로
+// 6종. 각 정거장은 (x, y) ∈ {-1, 0, 1}로, translate 방향(x: 1=오른쪽,
+// y: 1=아래)에 대응한다. 사용자가 예로 든 "오른쪽→아래→위→왼쪽"(모서리를
+// 도는 루프), "왼쪽위→오른쪽아래→(직선으로)위"(대각선+직선의 세모꼴 경로)
+// 같은 패턴들을 최대한 그대로 반영 — 마지막 정거장에서 다시 0번으로
+// 돌아오며 자연스럽게 닫힌다.
+type PanPoint = { x: -1 | 0 | 1; y: -1 | 0 | 1 };
+const TOUR_TEMPLATES: readonly [PanPoint, PanPoint, PanPoint, PanPoint][] = [
+  // 모서리(가장자리 중앙)를 시계방향으로: 오른쪽→아래→왼쪽→위
+  [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }],
+  // 모서리를 반시계방향으로: 오른쪽→위→왼쪽→아래
+  [{ x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }, { x: 0, y: 1 }],
+  // 네 귀퉁이를 시계방향으로
+  [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 1 }, { x: -1, y: 1 }],
+  // 네 귀퉁이를 반시계방향으로
+  [{ x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }],
+  // 왼쪽 위 → 오른쪽 아래(대각선) → 오른쪽 위(직선으로 위) → 되돌아감
+  [{ x: -1, y: -1 }, { x: 1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: -1 }],
+  // 오른쪽 아래 → 왼쪽 위(대각선) → 왼쪽 아래(직선으로 아래) → 되돌아감
+  [{ x: 1, y: 1 }, { x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }],
+  // 왼쪽 아래 → 오른쪽 위(대각선) → 왼쪽 위(직선으로 왼쪽) → 되돌아감
+  [{ x: -1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: -1 }, { x: -1, y: 1 }],
+];
+
+// HOTFIX-147.29: 이미지 URL을 정수 해시로 바꾼다(djb2) — 매 렌더마다
+// 다시 뽑으면 애니메이션이 처음부터 다시 시작하며 뚝뚝 끊겨 보이므로,
+// 같은 이미지는 항상 같은 투어 경로를 쓰도록 순수 함수로 결정한다.
+function hashString(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
+  return h >>> 0;
+}
+
+// HOTFIX-147.29: 가로 이미지는 좌우 폭을, 세로 이미지는 상하 폭을 더
+// 넉넉히 써서 "가로/세로 이미지에 맞춰서" 경로 모양 자체가 방향에 맞게
+// 눌리게 한다 — 짧은 축은 60%만 이동해 자연스러운 타원형에 가까운 투어가
+// 된다.
+function buildTourVars(url: string, orientation: "landscape" | "portrait", distancePct: number): CSSProperties {
+  const template = TOUR_TEMPLATES[hashString(url) % TOUR_TEMPLATES.length];
+  const distX = orientation === "landscape" ? distancePct : distancePct * 0.6;
+  const distY = orientation === "portrait" ? distancePct : distancePct * 0.6;
+  const vars: Record<string, string> = {};
+  template.forEach((p, i) => {
+    vars[`--silo-pan-p${i}x`] = `${p.x * distX}%`;
+    vars[`--silo-pan-p${i}y`] = `${p.y * distY}%`;
+  });
+  return vars as CSSProperties;
+}
+
+// HOTFIX-147.28: panDirection이 "auto"/null이면 HOTFIX-147.29의 투어
+// 모션 — 그 외엔 사용자가 고른 단순 패턴을 그대로 쓴다.
 function resolvePanClass(direction: PanDirection | null, orientation: "landscape" | "portrait" | undefined): string {
   if (!orientation) return "";
-  const effective: Exclude<PanDirection, "auto"> =
-    direction && direction !== "auto" ? direction : orientation === "landscape" ? "horizontal" : "vertical";
-  switch (effective) {
+  if (!direction || direction === "auto") return "silo-cover-pan-tour";
+  switch (direction) {
     case "horizontal":
       return "silo-cover-pan-x";
     case "vertical":
@@ -314,10 +395,11 @@ function CoverBackground({
   // 항상 깔아둔다 — object-contain만 쓰면 그 자리가 투명해져 바로 아래
   // TL3 콘텐츠가 비쳐 보인다.
   const effectiveFit = fit ?? "cover";
-  const panVars = {
+  const resolvedDistancePct = panDistancePct ?? DEFAULT_PAN_DISTANCE_PCT;
+  const baseVars = {
     "--silo-pan-duration": `${panSpeedSeconds ?? DEFAULT_PAN_SPEED_SECONDS}s`,
     "--silo-pan-zoom": 1 + (panZoomPct ?? DEFAULT_PAN_ZOOM_PCT) / 100,
-    "--silo-pan-dist": `${panDistancePct ?? DEFAULT_PAN_DISTANCE_PCT}%`,
+    "--silo-pan-dist": `${resolvedDistancePct}%`,
   } as CSSProperties;
   return (
     <>
@@ -326,9 +408,14 @@ function CoverBackground({
       {urls.map((url, i) => {
         const isVideo = /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
         const fitClass = effectiveFit === "contain" ? "object-contain" : "object-cover";
-        const panClass =
-          effectiveFit === "cover" && !isVideo ? resolvePanClass(panDirection, orientations[url]) : "";
+        const orientation = orientations[url];
+        const panClass = effectiveFit === "cover" && !isVideo ? resolvePanClass(panDirection, orientation) : "";
         const className = `absolute inset-0 h-full w-full ${fitClass} ${panClass} transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
+        const style = panClass
+          ? panClass === "silo-cover-pan-tour" && orientation
+            ? { ...baseVars, ...buildTourVars(url, orientation, resolvedDistancePct) }
+            : baseVars
+          : undefined;
         return isVideo ? (
           <video key={url + i} src={url} className={className} autoPlay muted loop playsInline />
         ) : (
@@ -338,7 +425,7 @@ function CoverBackground({
             src={url}
             alt=""
             className={className}
-            style={panClass ? panVars : undefined}
+            style={style}
             onLoad={(e) => {
               const { naturalWidth, naturalHeight } = e.currentTarget;
               setOrientations((prev) =>
@@ -902,13 +989,16 @@ function SlideOverlayFieldsEditor({
         />
       </label>
       {/* HOTFIX-147.27(사용자 신고 — "너무 느리고 움직임이 적어, 그걸
-          조절할 수 있게 해줘"): HOTFIX-147.26의 패닝(확대+이동) 모션이
-          고정값이었다 — 속도/확대/이동 거리 3개를 직접 조절 가능하게
-          뺀다. 비워두면(기본값) 속도 8초·확대 15%·이동 8%.
-          HOTFIX-147.28(사용자 지시 — "가로 이미지는 좌우도 있지만
-          대각선에서 대각선으로 움직이는것도 추가해줘"): 방향 선택 추가 —
-          기본은 지금까지처럼 가로 이미지는 좌우, 세로 이미지는 상하로
-          자동 판정, 대각선(↘/↙)을 직접 고를 수도 있다. */}
+          조절할 수 있게 해줘"): 속도/확대/이동 거리 3개를 직접 조절
+          가능하게 뺀다.
+          HOTFIX-147.29(사용자 지시 — "자동으로 슬라이드 이미지의
+          구석구석을 보도록 ... 랜덤 이미지 모션이 있으면 좋겠어. 알고리즘
+          같이 생겨서 가로 세로 이미지에 맞춰서 질리지 않는 모션이 되도록.
+          이미지의 일부분만 나오는게 아니라 전체를 다 즐길 수 있도록"):
+          "자동"의 기본 동작을 좌우/상하 단순 왕복에서, 모서리/귀퉁이를
+          여러 개 들르는 "투어" 모션으로 바꿈(이미지마다 다른 경로를 타
+          다양하게 보임) — 비워두면(기본값) 속도 20초·확대 40%·이동 12%.
+          단순한 패턴 하나만 고정하고 싶을 때는 아래에서 직접 골라도 된다. */}
       <div className="space-y-2 rounded border border-gray-200 p-2">
         <h4 className="text-xs font-semibold text-gray-500">배경 패닝 모션(서서히 확대+이동)</h4>
         <label className="block text-xs text-gray-600">
@@ -918,11 +1008,11 @@ function SlideOverlayFieldsEditor({
             onChange={(e) => onChange({ panDirection: e.target.value as PanDirection })}
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
           >
-            <option value="auto">자동(가로 이미지는 좌우, 세로 이미지는 상하)</option>
-            <option value="horizontal">좌우</option>
-            <option value="vertical">상하</option>
-            <option value="diagonal-down">대각선 ↘ (왼쪽 위 → 오른쪽 아래)</option>
-            <option value="diagonal-up">대각선 ↙ (오른쪽 위 → 왼쪽 아래)</option>
+            <option value="auto">자동(모서리를 도는 랜덤 투어 — 이미지 전체를 골고루)</option>
+            <option value="horizontal">좌우로만 왕복</option>
+            <option value="vertical">상하로만 왕복</option>
+            <option value="diagonal-down">대각선 ↘ 로만 왕복(왼쪽 위 → 오른쪽 아래)</option>
+            <option value="diagonal-up">대각선 ↙ 로만 왕복(오른쪽 위 → 왼쪽 아래)</option>
           </select>
         </label>
         <label className="block text-xs text-gray-600">

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { ALLOWED_FONT_EXTENSIONS, FONT_PREVIEW_TEXT, deriveFontNameFromFilename } from "@/lib/media";
 import { uploadFontToR2 } from "@/lib/r2Upload";
 import { useCustomFonts } from "@/lib/useCustomFonts";
+import { LazyFontPreview } from "@/components/admin/LazyFontPreview";
 
 // EPIC-083: Admin 전용 커스텀 폰트 업로드/관리 화면 — 에디터 툴바의
 // 폰트 드롭다운(src/lib/useCustomFonts.ts가 여기서 만든 목록을 그대로
@@ -136,9 +137,11 @@ export default function AdminFontsPage() {
                 <p className="text-xs font-medium text-gray-500">
                   {font.fontName} <span className="text-gray-300 uppercase">· {font.fileFormat}</span>
                 </p>
-                <p className="mt-1 truncate text-lg" style={{ fontFamily: font.fontName }}>
-                  {FONT_PREVIEW_TEXT}
-                </p>
+                <LazyFontPreview
+                  fontFamily={font.fontName}
+                  text={FONT_PREVIEW_TEXT}
+                  className="mt-1 block truncate text-lg"
+                />
               </div>
               <button
                 type="button"

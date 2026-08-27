@@ -5,6 +5,7 @@ import { useCustomFonts } from "@/lib/useCustomFonts";
 import { uploadFontToR2 } from "@/lib/r2Upload";
 import { supabase } from "@/lib/supabaseClient";
 import { ALLOWED_FONT_EXTENSIONS, FONT_PREVIEW_TEXT, deriveFontNameFromFilename } from "@/lib/media";
+import { LazyFontPreview } from "@/components/admin/LazyFontPreview";
 
 // 사용자 지시(2026-08-12): "게시물 출력방식"의 폰트 필드가 그냥 자유
 // 텍스트 입력이었던 것에 대해 "폰트를 추가할 수 있게 해달라"는 신고 —
@@ -154,9 +155,7 @@ export function FontPicker({
                   }`}
                 >
                   <span className="block text-[10px] text-gray-400">{font.fontName}</span>
-                  <span className="block text-base" style={{ fontFamily: font.fontName }}>
-                    {FONT_PREVIEW_TEXT}
-                  </span>
+                  <LazyFontPreview fontFamily={font.fontName} text={FONT_PREVIEW_TEXT} className="block text-base" />
                 </button>
               ))}
             </div>

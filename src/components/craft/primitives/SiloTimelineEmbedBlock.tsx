@@ -166,6 +166,24 @@ const COVER_ALIGN_CLASS: Record<CoverAlign, string> = {
 // 갖춘 무거운 컴포넌트라(제목을 자체적으로도 그려 이 블록의 자유배치
 // 텍스트와 중복됨, 높이도 vh 단위라 TL3 표지 영역의 실측 px 높이에 맞추기
 // 어려움) 재사용하지 않고, 배경 크로스페이드만 담당하는 최소 구현을 둔다.
+// HOTFIX-147.25(사용자 지시 — "각 이벤트의 배경이미지 슬라이드마다 이미지가
+// 가로이미지는 왼쪽에서 오른쪽으로, 세로이미지는 위에서 아래로 scope가
+// 이동하는 모션이 있으면 좋겠어. 이걸 모든 '온라인 도슨트' 바로 아래
+// 하위 카테고리 페이지의 타임라인에 모두 적용해달라"): 표지/이벤트
+// 배경이 전부 이 컴포넌트 하나를 공유해 그리므로(다른 3개 카테고리와도
+// 동일), 여기 한 곳만 고치면 자동으로 전부 적용된다. object-fit: cover는
+// 컨테이너를 꽉 채우려고 이미지 비율에 따라 가로나 세로 중 한쪽을 실제로
+// 잘라내는데(그 잘린 만큼이 "여유분"), object-position을 애니메이션하면
+// 바로 그 잘린 영역 안에서 보이는 부분이 움직여 패닝 효과가 난다 —
+// "전체 보기"(contain)는 애초에 잘리는 부분이 없어(이미지 전체가 이미
+// 다 보임) 패닝할 여유분 자체가 없으므로 대상에서 제외.
+const PAN_KEYFRAMES = `
+  @keyframes silo-cover-pan-x { 0% { object-position: 0% 50%; } 100% { object-position: 100% 50%; } }
+  @keyframes silo-cover-pan-y { 0% { object-position: 50% 0%; } 100% { object-position: 50% 100%; } }
+  .silo-cover-pan-x { animation: silo-cover-pan-x 18s ease-in-out infinite alternate; }
+  .silo-cover-pan-y { animation: silo-cover-pan-y 18s ease-in-out infinite alternate; }
+`;
+
 function CoverBackground({
   urls,
   autoAdvanceSeconds,
@@ -176,6 +194,10 @@ function CoverBackground({
   fit: "cover" | "contain" | null;
 }) {
   const [current, setCurrent] = useState(0);
+  // HOTFIX-147.25: 어느 방향으로 패닝할지(가로/세로)는 그 이미지의 실제
+  // 원본 비율을 봐야 알 수 있다 — URL만으로는 알 수 없어 로드 시
+  // naturalWidth/naturalHeight를 재서 기억해둔다.
+  const [orientations, setOrientations] = useState<Record<string, "landscape" | "portrait">>({});
   useEffect(() => {
     if (urls.length <= 1) return;
     const timer = setInterval(() => setCurrent((i) => (i + 1) % urls.length), Math.max(1, autoAdvanceSeconds) * 1000);
@@ -192,16 +214,34 @@ function CoverBackground({
   const effectiveFit = fit ?? "cover";
   return (
     <>
+      <style>{PAN_KEYFRAMES}</style>
       {effectiveFit === "contain" && <div className="absolute inset-0 bg-black" />}
       {urls.map((url, i) => {
         const isVideo = /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
         const fitClass = effectiveFit === "contain" ? "object-contain" : "object-cover";
-        const className = `absolute inset-0 h-full w-full ${fitClass} transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
+        const panClass =
+          effectiveFit === "cover" && !isVideo && orientations[url]
+            ? orientations[url] === "landscape"
+              ? "silo-cover-pan-x"
+              : "silo-cover-pan-y"
+            : "";
+        const className = `absolute inset-0 h-full w-full ${fitClass} ${panClass} transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
         return isVideo ? (
           <video key={url + i} src={url} className={className} autoPlay muted loop playsInline />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={url + i} src={url} alt="" className={className} />
+          <img
+            key={url + i}
+            src={url}
+            alt=""
+            className={className}
+            onLoad={(e) => {
+              const { naturalWidth, naturalHeight } = e.currentTarget;
+              setOrientations((prev) =>
+                prev[url] ? prev : { ...prev, [url]: naturalWidth >= naturalHeight ? "landscape" : "portrait" },
+              );
+            }}
+          />
         );
       })}
     </>

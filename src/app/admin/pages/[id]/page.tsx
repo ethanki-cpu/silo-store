@@ -62,6 +62,12 @@ const CRAFT_EDITORS: Record<string, CraftEditorComponent> = {
   "online-docent-revolution-empire": CraftDocentEditor,
   "online-docent-freud-pop": CraftDocentEditor,
   "online-docent-digital-ai": CraftDocentEditor,
+  // HOTFIX-151.5(사용자 지시 — "고대문명~침략 페이지에 craft 에디터
+  // 만들어줘"): 공개 렌더러(CRAFT_RENDERERS, src/app/[...slug]/page.tsx)는
+  // HOTFIX-151.3에서 등록했지만, 관리자 편집 화면의 이 별도 목록엔
+  // 빠뜨려서 화면엔 타임라인이 정상 노출돼도 "페이지 수정"에서는 편집을
+  // 못 하는 상태였다.
+  "online-docent-ancient-invade": CraftDocentEditor,
 };
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {

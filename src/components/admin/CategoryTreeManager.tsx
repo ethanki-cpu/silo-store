@@ -410,7 +410,26 @@ export function CategoryTreeManager({
     if (!over || active.id === over.id) return;
 
     if (isBoardDndId(String(active.id))) {
-      await handleBoardDragEnd(rawBoardId(String(active.id)), String(over.id));
+      const overIdStr = String(over.id);
+      const destBranchId = overIdStr.startsWith("boardlist-")
+        ? branchIdOfBoardListContainer(overIdStr)
+        : isBoardDndId(overIdStr)
+          ? (boardBranchMap.get(rawBoardId(overIdStr)) ?? null)
+          : overIdStr;
+      const activeBoardId = rawBoardId(String(active.id));
+      const destSiblings = allBoards.filter(
+        (b) => b.id !== activeBoardId && (boardBranchMap.get(b.id) ?? null) === destBranchId,
+      );
+      const overBoardId = isBoardDndId(overIdStr) ? rawBoardId(overIdStr) : null;
+      const destIndex = overBoardId
+        ? Math.max(
+            0,
+            destSiblings
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .findIndex((b) => b.id === overBoardId),
+          )
+        : destSiblings.length;
+      await handleBoardDragEnd(activeBoardId, destBranchId, destIndex);
       return;
     }
 
@@ -487,29 +506,13 @@ export function CategoryTreeManager({
   // 동일한 관례), 다른 분기로 넘겼으면 page_modules(module_type='board')
   // 연결 자체를 옮긴다(saveBoardLink()와 동일한 direct supabase 쓰기,
   // 새 API 라우트 추가하지 않음).
-  async function handleBoardDragEnd(activeBoardId: string, overIdStr: string) {
+  async function handleBoardDragEnd(activeBoardId: string, destBranchId: string | null, destIndex: number) {
     setBoardDragError(null);
     const sourceBranchId = boardBranchMap.get(activeBoardId) ?? null;
-
-    let destBranchId: string | null;
-    if (overIdStr.startsWith("boardlist-")) {
-      destBranchId = branchIdOfBoardListContainer(overIdStr);
-    } else if (isBoardDndId(overIdStr)) {
-      destBranchId = boardBranchMap.get(rawBoardId(overIdStr)) ?? null;
-    } else {
-      // 게시판 카드를 nav 행 자체(그 행의 게시판 목록 컨테이너가 아니라
-      // 행 카드 위) 위로 떨어뜨린 경우도 "그 분기로 배정"으로 취급한다.
-      destBranchId = overIdStr;
-    }
 
     const destSiblings = allBoards
       .filter((b) => b.id !== activeBoardId && (boardBranchMap.get(b.id) ?? null) === destBranchId)
       .sort((a, b) => a.sort_order - b.sort_order);
-
-    const overBoardId = isBoardDndId(overIdStr) ? rawBoardId(overIdStr) : null;
-    const destIndex = overBoardId
-      ? Math.max(0, destSiblings.findIndex((b) => b.id === overBoardId))
-      : destSiblings.length;
     destSiblings.splice(destIndex, 0, allBoards.find((b) => b.id === activeBoardId)!);
 
     if (destBranchId === sourceBranchId) {
@@ -585,15 +588,39 @@ export function CategoryTreeManager({
             if (deleteError) throw deleteError;
           }
         } else {
-          const { error: insertError } = await supabase.from("page_modules").insert({
-            page_id: destPageId,
-            module_type: "board",
-            board_id: activeBoardId,
-            settings: WIDGET_DEFAULT_SETTINGS.board ?? {},
-            sort_order: destIndex,
-            is_hidden: false,
-          });
-          if (insertError) throw insertError;
+          // HOTFIX-151.4(재발 방지 — 로마제국/비잔틴제국 등에서 게시판을
+          // 배정했더니 새 게시판 위젯이 하나 더 생기고 원래 빈 위젯은 그대로
+          // 남아 화면에 게시판이 두 개 보이던 버그): 목적지 페이지에 이미
+          // "게시판이 연결되지 않았어요" 빈 board 위젯(board_id=null)이 있으면
+          // 그 자리를 채우고, 없을 때만 새 위젯을 만든다.
+          const { data: emptySlot, error: emptySlotError } = await supabase
+            .from("page_modules")
+            .select("id")
+            .eq("page_id", destPageId)
+            .eq("module_type", "board")
+            .is("board_id", null)
+            .order("sort_order", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (emptySlotError) throw emptySlotError;
+
+          if (emptySlot) {
+            const { error: fillError } = await supabase
+              .from("page_modules")
+              .update({ board_id: activeBoardId })
+              .eq("id", (emptySlot as { id: string }).id);
+            if (fillError) throw fillError;
+          } else {
+            const { error: insertError } = await supabase.from("page_modules").insert({
+              page_id: destPageId,
+              module_type: "board",
+              board_id: activeBoardId,
+              settings: WIDGET_DEFAULT_SETTINGS.board ?? {},
+              sort_order: destIndex,
+              is_hidden: false,
+            });
+            if (insertError) throw insertError;
+          }
         }
       } else if (existingLinks && existingLinks.length > 0) {
         const { error: deleteError } = await supabase
@@ -609,6 +636,16 @@ export function CategoryTreeManager({
     }
 
     await load();
+  }
+
+  // HOTFIX-151.4(사용자 지시 — "'미분류 게시판'을 드래그해도 사이트메뉴로
+  // 드롭이 안 된다, 차라리 '추가' 버튼 옆에 '게시판 추가' 버튼을 만들어달라"):
+  // 드래그앤드롭과 똑같은 배정 로직(handleBoardDragEnd)을 클릭 한 번으로도
+  // 쓸 수 있게 하는 진입점 — 그 분기(branchId)의 게시판 목록 맨 끝에
+  // 추가하는 것으로 취급한다(destIndex = 현재 배정된 개수).
+  async function assignBoardToRow(boardId: string, branchId: string) {
+    const destIndex = allBoards.filter((b) => (boardBranchMap.get(b.id) ?? null) === branchId).length;
+    await handleBoardDragEnd(boardId, branchId, destIndex);
   }
 
   async function addChild(parentId: string | null, targetTypesForRow: TargetTypeLiteral[]) {
@@ -853,6 +890,7 @@ export function CategoryTreeManager({
             allBoards={allBoards}
             boardBranchMap={boardBranchMap}
             onManageBoard={setManagingBoardId}
+            onAssignBoard={assignBoardToRow}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
             collapsedIds={collapsedIds}
@@ -931,6 +969,7 @@ function TreeLevel({
   allBoards,
   boardBranchMap,
   onManageBoard,
+  onAssignBoard,
   selectedIds,
   onToggleSelect,
   collapsedIds,
@@ -950,6 +989,7 @@ function TreeLevel({
   allBoards: BoardRow[];
   boardBranchMap: Map<string, string>;
   onManageBoard: (id: string | null) => void;
+  onAssignBoard: (boardId: string, branchId: string) => void;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   collapsedIds: Set<string>;
@@ -960,6 +1000,9 @@ function TreeLevel({
   const children = rows
     .filter((r) => r.parent_id === parentId)
     .sort((a, b) => a.sort_order - b.sort_order);
+  // HOTFIX-151.4: "게시판 추가" 버튼의 선택지 — 어떤 분기에도 배정되지 않은
+  // 게시판(📋 미배정 게시판 목록과 동일한 기준).
+  const unassignedBoards = allBoards.filter((b) => !boardBranchMap.has(b.id));
 
   return (
     <div
@@ -997,6 +1040,8 @@ function TreeLevel({
               onUpdate={onUpdate}
               onDelete={onDelete}
               onAddChild={onAddChild}
+              unassignedBoards={unassignedBoards}
+              onAssignBoard={(boardId) => onAssignBoard(boardId, child.id)}
               isSelected={selectedIds.has(child.id)}
               onToggleSelect={onToggleSelect}
               hasChildren={hasChildren}
@@ -1020,6 +1065,7 @@ function TreeLevel({
                   allBoards={allBoards}
                   boardBranchMap={boardBranchMap}
                   onManageBoard={onManageBoard}
+                  onAssignBoard={onAssignBoard}
                   selectedIds={selectedIds}
                   onToggleSelect={onToggleSelect}
                   collapsedIds={collapsedIds}
@@ -1252,6 +1298,8 @@ function CategoryRow({
   onUpdate,
   onDelete,
   onAddChild,
+  unassignedBoards,
+  onAssignBoard,
   isSelected,
   onToggleSelect,
   hasChildren,
@@ -1269,6 +1317,10 @@ function CategoryRow({
   onUpdate: (id: string, patch: Partial<CategoryNavRow>) => Promise<boolean>;
   onDelete: (id: string) => void;
   onAddChild: (parentId: string | null, targetTypes: TargetTypeLiteral[]) => void;
+  // HOTFIX-151.4: "게시판 추가" 버튼 — 미배정 게시판 목록에서 골라 클릭
+  // 한 번으로 이 행에 배정한다(드래그앤드롭과 같은 결과, 다른 입력 경로).
+  unassignedBoards: BoardRow[];
+  onAssignBoard: (boardId: string) => void;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   // EPIC-088: 하위 nav 행/배정된 게시판이 하나라도 있으면 접기/펼치기
@@ -1454,6 +1506,7 @@ function CategoryRow({
           )}
 
           <div className="ml-auto flex gap-1">
+            <AssignBoardButton boards={unassignedBoards} onAssign={onAssignBoard} />
             <button
               type="button"
               onClick={() => onAddChild(row.id, row.target_types)}
@@ -1485,6 +1538,64 @@ function CategoryRow({
             </button>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// HOTFIX-151.4(사용자 지시 — "'미분류 게시판'을 사이트메뉴로 드래그해도
+// 배정이 안 된다, '추가' 버튼 옆에 '게시판 추가' 버튼을 만들어달라"):
+// 드래그앤드롭(handleBoardDragEnd)과 동일한 배정 로직을 클릭 한 번으로도
+// 쓸 수 있게 하는 대안 진입점. 미배정 게시판이 하나도 없으면 고를 게
+// 없으니 버튼 자체를 숨긴다.
+function AssignBoardButton({
+  boards,
+  onAssign,
+}: {
+  boards: BoardRow[];
+  onAssign: (boardId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  if (boards.length === 0) return null;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={smallButtonClass}
+      >
+        게시판 추가
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-10 mt-1 max-h-64 w-56 overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-lg">
+          {boards.map((board) => (
+            <button
+              key={board.id}
+              type="button"
+              onClick={() => {
+                onAssign(board.id);
+                setOpen(false);
+              }}
+              className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-gray-50"
+            >
+              📌 {board.name}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import { uploadFontToR2 } from "@/lib/r2Upload";
 import { supabase } from "@/lib/supabaseClient";
 import { ALLOWED_FONT_EXTENSIONS, FONT_PREVIEW_TEXT, deriveFontNameFromFilename } from "@/lib/media";
 import { LazyFontPreview } from "@/components/admin/LazyFontPreview";
+import { getRecentFontNames, recordFontUsage } from "@/lib/recentFonts";
 
 // 사용자 지시(2026-08-12): "게시물 출력방식"의 폰트 필드가 그냥 자유
 // 텍스트 입력이었던 것에 대해 "폰트를 추가할 수 있게 해달라"는 신고 —
@@ -32,6 +33,15 @@ export function FontPicker({
   const rootRef = useRef<HTMLDivElement>(null);
 
   const currentName = value.replace(/^'(.*)'$/, "$1");
+
+  // HOTFIX-151.3: localStorage 읽기는 동기라 effect/state 없이 열릴 때마다
+  // 그냥 다시 계산한다 — 다른 FontPicker 인스턴스에서 방금 고른 폰트도
+  // 바로 반영된다.
+  const recentFonts = open
+    ? getRecentFontNames()
+        .map((name) => fonts.find((f) => f.fontName === name))
+        .filter((f): f is NonNullable<typeof f> => !!f)
+    : [];
 
   // HOTFIX(사용자 신고 — "폰트 드롭다운을 누르는데, 자꾸 저절로 해제가
   // 돼"): 지금까지 이 드롭다운이 `onMouseLeave`로 닫혔다 — 버튼과 패널
@@ -109,6 +119,7 @@ export function FontPicker({
     // 선택할지 애매하므로 자동 선택하지 않고 목록에서 직접 고르게 둔다.
     if (files.length === 1 && lastSuccessName) {
       onChange(`'${lastSuccessName}'`);
+      recordFontUsage(lastSuccessName);
       setOpen(false);
     }
   }
@@ -138,6 +149,31 @@ export function FontPicker({
             기본값
           </button>
 
+          {/* HOTFIX-151.3: 최근 사용한 폰트를 맨 위에 고정 — 스크롤 없이
+              바로 보이고, 방금 고른 폰트부터 드롭다운이 "시작"되는 효과. */}
+          {recentFonts.length > 0 && (
+            <div className="mt-1 space-y-0.5 border-b border-gray-100 pb-1.5">
+              <p className="px-2 pt-1 text-[10px] font-medium text-gray-400">최근 사용</p>
+              {recentFonts.map((font) => (
+                <button
+                  key={`recent-${font.id}`}
+                  type="button"
+                  onClick={() => {
+                    onChange(`'${font.fontName}'`);
+                    recordFontUsage(font.fontName);
+                    setOpen(false);
+                  }}
+                  className={`block w-full rounded px-2 py-1.5 text-left hover:bg-gray-50 ${
+                    currentName === font.fontName ? "bg-gray-100" : ""
+                  }`}
+                >
+                  <span className="block text-[10px] text-gray-400">{font.fontName}</span>
+                  <LazyFontPreview fontFamily={font.fontName} text={FONT_PREVIEW_TEXT} className="block text-base" />
+                </button>
+              ))}
+            </div>
+          )}
+
           {fonts.length === 0 ? (
             <p className="px-2 py-1.5 text-xs text-gray-400">아직 업로드된 폰트가 없어요.</p>
           ) : (
@@ -148,6 +184,7 @@ export function FontPicker({
                   type="button"
                   onClick={() => {
                     onChange(`'${font.fontName}'`);
+                    recordFontUsage(font.fontName);
                     setOpen(false);
                   }}
                   className={`block w-full rounded px-2 py-1.5 text-left hover:bg-gray-50 ${

@@ -27,6 +27,33 @@ import { useRouter } from "next/navigation";
 const TL_BASE = "/vendor/timelinejs";
 let tlLoadPromise: Promise<void> | null = null;
 
+// HOTFIX-151.3(사용자 신고 — "타임라인이 로딩되면 첫 이벤트가 너무
+// 오른쪽에 있어, 나머지 이벤트들도 첫 화면부터 한눈에 보이게 해줘"):
+// TimelineJS3(벤더, node_modules/@knight-lab/timelinejs/src/js/timenav/
+// TimeNav.js의 animateMovement)는 항상 "현재 마커를 트랙 가운데 정렬"하는
+// 고정 공식(`slider.style.left = -markerLeft + width/2`)만 쓴다 — 표지에는
+// 마커가 없어 처음 로드 시에도 결국 마커 0(첫 이벤트)이 가운데로 온다.
+// 벤더 코드는 손대지 않고 직접 보정한다. 실측(2026-08-28) 결과, "이미 적용된
+// 가운데 정렬 값에서 width/2를 빼는" 역산 방식은 표지→goToStart() 경로에서
+// TL3가 매번 정확히 같은 "가운데 정렬" 공식을 타지 않아(경로에 따라 slider
+// 위치가 다르게 남는 경우 확인) 첫 마커가 오히려 화면 밖으로 나가버리는
+// 버그가 있었다 — 대신 첫 마커의 "지금 실제 화면 위치"를 직접 측정해서
+// 원하는 왼쪽 여백 위치로 정확히 옮기는 방식으로 교체(TL3 내부 공식에
+// 의존하지 않아 언제 호출해도 안전).
+const OVERVIEW_LEFT_PADDING_PX = 40;
+function alignTimeNavToOverview(container: HTMLElement) {
+  const timenav = container.querySelector<HTMLElement>(".tl-timenav");
+  const slider = container.querySelector<HTMLElement>(".tl-timenav-slider");
+  const firstMarker = container.querySelector<HTMLElement>(".tl-timemarker");
+  if (!timenav || !slider || !firstMarker) return;
+  const currentLeft = parseFloat(slider.style.left);
+  if (!Number.isFinite(currentLeft)) return;
+  const timenavLeft = timenav.getBoundingClientRect().left;
+  const markerLeft = firstMarker.getBoundingClientRect().left;
+  const delta = OVERVIEW_LEFT_PADDING_PX - (markerLeft - timenavLeft);
+  slider.style.left = `${currentLeft + delta}px`;
+}
+
 // HOTFIX-147.8(사용자 지시 — "타임라인 섹션이 처음 로딩되면 보이는 '혁명~
 // 제국' 부분을 내가 텍스트를 변형하고 배경도 넣고 싶다, 드래그앤드랍/사이즈
 // 조절을 자유롭게 하게 해달라" + 모바일에서 표지 텍스트가 화면보다 커서
@@ -227,11 +254,22 @@ export default function SiloTimelineInner({
         instanceRef.current = instance;
         isTitleRef.current = true;
         activeEventIdRef.current = null;
+        // HOTFIX-151.3: 최초 로드 시 딱 1번만 "전체 개요" 위치로 보정한다
+        // — TL3의 첫 배치 애니메이션(기본 ~1000ms)이 끝난 뒤 적용해야
+        // 덮어써지지 않는다. 이후 사용자가 마커를 직접 클릭할 땐 TL3의
+        // 원래 동작(클릭한 마커를 가운데 정렬)을 그대로 둔다.
+        let hasAlignedOverview = false;
         instance.on("change", (d) => {
           const isKnownEvent = knownEventIds.has(d?.unique_id);
           isTitleRef.current = !isKnownEvent;
           activeEventIdRef.current = isKnownEvent ? (d.unique_id as string) : null;
           emitCoverState();
+          if (!hasAlignedOverview) {
+            hasAlignedOverview = true;
+            setTimeout(() => {
+              if (!cancelled && container) alignTimeNavToOverview(container);
+            }, 1150);
+          }
         });
         emitCoverState();
       })
@@ -268,6 +306,31 @@ export default function SiloTimelineInner({
     container.addEventListener("click", handleClick);
     return () => container.removeEventListener("click", handleClick);
   }, [router]);
+
+  // HOTFIX-151.3(사용자 지시 — "대시보드의 이벤트가 없는 빈 영역을
+  // 클릭하면 맨 처음 표지 화면으로 이동하게 해줘"): TimeNav는 마커
+  // (.tl-timemarker) 클릭에만 반응하고(TimeNav.js _initEvents) 빈 트랙
+  // 영역엔 리스너가 없다 — 마커가 아닌 곳을 클릭하면 TL3 공식 API인
+  // goToStart()(표지가 있으면 표지로 이동)를 호출한다. goToStart()도
+  // 내부적으로 "가운데 정렬" 애니메이션을 다시 타므로, 끝난 뒤 위 개요
+  // 정렬을 재적용해 전체가 한눈에 보이는 상태로 돌아오게 한다.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function handleTrackClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest(".tl-timenav")) return;
+      if (target.closest(".tl-timemarker")) return;
+      instanceRef.current?.goToStart();
+      setTimeout(() => {
+        if (container) alignTimeNavToOverview(container);
+      }, 1150);
+    }
+
+    container.addEventListener("click", handleTrackClick);
+    return () => container.removeEventListener("click", handleTrackClick);
+  }, []);
 
   // EPIC-147-후속(사용자 지시 — "새로운 버전에서 좋은점은... 스크롤로 줌인
   // 줌아웃 할수 있다는거야... 여기에 단지 하단 줌인 줌아웃 기능이 추가된걸

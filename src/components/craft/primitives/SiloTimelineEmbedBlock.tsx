@@ -113,6 +113,18 @@ export const DEFAULT_PAN_SPEED_SECONDS = 20;
 export const DEFAULT_PAN_ZOOM_PCT = 40;
 export const DEFAULT_PAN_DISTANCE_PCT = 12;
 
+// HOTFIX-151.3(사용자 신고 — "제목 스타일을 바꾸면 설명 스타일도 같이
+// 바뀌는 것처럼 보인다, 둘이 분리되게 해달라"): description* 필드들이
+// null(아직 커스터마이징 안 함)일 때 지금까지 "제목의 현재 값"에서 실시간
+// 파생시켰다(크기는 제목의 50%, 색상/폰트/정렬은 제목과 동일) — 필드 자체는
+// 분리돼 있어도 기본값이 제목을 실시간으로 따라가니 체감상 "같이 바뀐다"로
+// 보였다. 제목과 완전히 무관한 고정 기본값으로 바꿔 진짜로 분리한다.
+const DEFAULT_DESCRIPTION_FONT_SIZE_PX = 24;
+const DEFAULT_DESCRIPTION_FONT_WEIGHT: CoverFontWeight = "normal";
+const DEFAULT_DESCRIPTION_ALIGN: CoverAlign = "center";
+const DEFAULT_DESCRIPTION_COLOR = "#ffffff";
+const DEFAULT_DESCRIPTION_FONT_FAMILY = "";
+
 export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   enabled: false,
   text: "",
@@ -502,14 +514,14 @@ function TimelineCoverOverlay({
   const { style, className } = freePositionResponsiveAttrs(position, mobilePosition);
   useCustomFonts();
 
-  // 설명 전용 스타일이 아직 커스터마이징 안 됐으면(null) 지금까지의 기본
-  // 동작 그대로 제목 스타일에서 파생시킨다 — 기존 저장 데이터의 시각적
-  // 회귀를 막는다.
-  const descFontSizePx = descriptionFontSizePx ?? Math.round(fontSizePx * 0.5);
-  const descFontWeight = descriptionFontWeight ?? "normal";
-  const descAlign = descriptionAlign ?? align;
-  const descColor = descriptionColor ?? color;
-  const descFontFamily = descriptionFontFamily ?? fontFamily;
+  // HOTFIX-151.3: 설명 전용 스타일이 아직 커스터마이징 안 됐으면(null)
+  // 제목과 무관한 고정 기본값을 쓴다 — 제목 스타일을 바꿔도 설명이 따라
+  // 바뀌지 않는다(위 DEFAULT_DESCRIPTION_* 상수 선언부 주석 참고).
+  const descFontSizePx = descriptionFontSizePx ?? DEFAULT_DESCRIPTION_FONT_SIZE_PX;
+  const descFontWeight = descriptionFontWeight ?? DEFAULT_DESCRIPTION_FONT_WEIGHT;
+  const descAlign = descriptionAlign ?? DEFAULT_DESCRIPTION_ALIGN;
+  const descColor = descriptionColor ?? DEFAULT_DESCRIPTION_COLOR;
+  const descFontFamily = descriptionFontFamily ?? DEFAULT_DESCRIPTION_FONT_FAMILY;
 
   // 사용자 신고(2026-08-27, 스크린샷 — "표지가 깜빡이듯 바로 사라지고 흰
   // 배경이 나온다"): opacity는 실제로 1이었지만 눈엔 하나도 안 보였다 —
@@ -906,7 +918,7 @@ function SlideOverlayFieldsEditor({
         <label className="block text-xs text-gray-600">
           정렬
           <select
-            value={value.descriptionAlign ?? value.align}
+            value={value.descriptionAlign ?? DEFAULT_DESCRIPTION_ALIGN}
             onChange={(e) => onChange({ descriptionAlign: e.target.value as CoverAlign })}
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
           >
@@ -918,7 +930,7 @@ function SlideOverlayFieldsEditor({
         <label className="block text-xs text-gray-600">
           굵기
           <select
-            value={value.descriptionFontWeight ?? "normal"}
+            value={value.descriptionFontWeight ?? DEFAULT_DESCRIPTION_FONT_WEIGHT}
             onChange={(e) => onChange({ descriptionFontWeight: e.target.value as CoverFontWeight })}
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
           >
@@ -933,7 +945,7 @@ function SlideOverlayFieldsEditor({
           <input
             type="number"
             min={8}
-            value={value.descriptionFontSizePx ?? Math.round(value.fontSizePx * 0.5)}
+            value={value.descriptionFontSizePx ?? DEFAULT_DESCRIPTION_FONT_SIZE_PX}
             onChange={(e) => onChange({ descriptionFontSizePx: Number(e.target.value) || 16 })}
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
           />
@@ -943,13 +955,13 @@ function SlideOverlayFieldsEditor({
           <div className="mt-1 flex items-center gap-1.5">
             <input
               type="color"
-              value={/^#[0-9a-fA-F]{6}$/.test(value.descriptionColor ?? "") ? value.descriptionColor! : (/^#[0-9a-fA-F]{6}$/.test(value.color) ? value.color : "#ffffff")}
+              value={/^#[0-9a-fA-F]{6}$/.test(value.descriptionColor ?? "") ? value.descriptionColor! : DEFAULT_DESCRIPTION_COLOR}
               onChange={(e) => onChange({ descriptionColor: e.target.value })}
               className="h-7 w-9 shrink-0 cursor-pointer rounded border border-gray-300 p-0.5"
             />
             <input
               type="text"
-              value={value.descriptionColor ?? value.color}
+              value={value.descriptionColor ?? DEFAULT_DESCRIPTION_COLOR}
               placeholder="#ffffff"
               onChange={(e) => onChange({ descriptionColor: e.target.value })}
               className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
@@ -958,7 +970,7 @@ function SlideOverlayFieldsEditor({
         </label>
         <FontPicker
           label="폰트"
-          value={value.descriptionFontFamily ?? value.fontFamily}
+          value={value.descriptionFontFamily ?? DEFAULT_DESCRIPTION_FONT_FAMILY}
           onChange={(descriptionFontFamily) => onChange({ descriptionFontFamily })}
         />
       </div>

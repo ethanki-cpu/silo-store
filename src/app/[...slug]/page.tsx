@@ -33,6 +33,11 @@ const CRAFT_RENDERERS: Record<string, React.ComponentType<{ craftState?: string 
   "online-docent-revolution-empire": CraftDocentRenderer,
   "online-docent-freud-pop": CraftDocentRenderer,
   "online-docent-digital-ai": CraftDocentRenderer,
+  // HOTFIX-151.3(사용자 지시 — 사이트 구성관리에서 새 카테고리 "고대 문명 ~
+  // 침략"을 만들고 craft_state를 채워줬는데, 이 목록에 등록하지 않으면
+  // builder_type='craft'여도 조용히 native로 폴백해(위 주석) 애써 만든
+  // 타임라인이 안 보인다.
+  "online-docent-ancient-invade": CraftDocentRenderer,
 };
 
 // EPIC-068: 이 파일 이전까지는 src/app 전체가 138개의 손으로 만든 정적

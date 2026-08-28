@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
-import { fetchNavTabs, getActiveNavTabKey, mergeSidebarTabs, type NavTab, type NavItem } from "@/lib/navConfig";
+import { fetchNavTabs, getActiveNavTabKey, type NavTab, type NavItem } from "@/lib/navConfig";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
@@ -511,14 +511,19 @@ export function Navbar({
   // navTabs가 최대 ~96개 항목을 갖는 배열이라(§15) find/filter/map을 매
   // 렌더마다 재계산하지 않도록 그 결과만 메모이즈한다(로직/출력은 동일).
   // HOTFIX-144.2: 여러 카테고리가 동시에 sidebar-left/sidebar-right로
-  // 태그될 수 있어(EPIC-138) find() 하나만으로는 나머지가 무시된다 —
-  // mergeSidebarTabs가 같은 슬롯을 공유하는 탭들의 groups를 전부 합친다.
-  const leftSidebarTab = useMemo(
-    () => mergeSidebarTabs(navTabs.filter((t) => t.type === "sidebar-left")),
+  // 태그될 수 있다(EPIC-138) — find() 하나만으로는 나머지가 무시된다.
+  // HOTFIX-151.6(사용자 지시 — "About Silo가 사이드바에 없잖아, 두
+  // 카테고리 모두 접고 펼 수 있게 해줘"): 이전엔 mergeSidebarTabs로 groups를
+  // 하나로 flatMap해 패널 헤더에 탭 하나의 이름만 남기고 나머지 탭
+  // 이름(About Silo 등) 자체가 사라졌다 — 이제 병합하지 않고 필터링만 한
+  // 배열을 그대로 LeftSidebar/RightSidebar에 넘겨, 탭마다 자기 이름을 단
+  // 접고 펼 수 있는 섹션으로 보이게 한다.
+  const leftSidebarTabs = useMemo(
+    () => navTabs.filter((t) => t.type === "sidebar-left"),
     [navTabs],
   );
-  const rightSidebarTab = useMemo(
-    () => mergeSidebarTabs(navTabs.filter((t) => t.type === "sidebar-right")),
+  const rightSidebarTabs = useMemo(
+    () => navTabs.filter((t) => t.type === "sidebar-right"),
     [navTabs],
   );
 
@@ -1706,7 +1711,7 @@ export function Navbar({
       )}
 
       <LeftSidebar
-        tab={leftSidebarTab}
+        tabs={leftSidebarTabs}
         open={leftOpen}
         onIconClick={() => {
           setLeftOpen(true);
@@ -1735,7 +1740,7 @@ export function Navbar({
         }
       />
       <RightSidebar
-        tab={rightSidebarTab}
+        tabs={rightSidebarTabs}
         open={rightOpen}
         onIconClick={() => {
           setRightOpen(true);

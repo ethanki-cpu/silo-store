@@ -47,7 +47,7 @@ const LEFT_SIDEBAR_LINK_CLASS = "silo-left-sidebar-link";
 // 단순화한다.
 
 export function LeftSidebar({
-  tab,
+  tabs,
   open,
   onIconClick,
   onClose,
@@ -63,7 +63,13 @@ export function LeftSidebar({
   onSelectSlot,
   panelStyle,
 }: {
-  tab?: NavTab;
+  // HOTFIX-151.6(사용자 지시 — "About Silo가 사이드바에 없잖아, About
+  // Silo를 열고 접을 수 있게 하고 사일로상점도 두 카테고리 모두 접어놔"):
+  // mergeSidebarTabs가 여러 탭의 groups를 하나로 flatMap해버려서 "About
+  // Silo"라는 이름 자체가 패널에서 완전히 사라졌었다 — 이제 같은 슬롯을
+  // 공유하는 탭들을 병합하지 않고 배열 그대로 받아, 탭마다 자기 이름을 단
+  // 접고 펼 수 있는 섹션으로 보여준다(기본 접힘).
+  tabs: NavTab[];
   open: boolean;
   onIconClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onClose: () => void;
@@ -127,6 +133,22 @@ export function LeftSidebar({
     }));
   }
 
+  // HOTFIX-151.6: 같은 슬롯(sidebar-left)을 공유하는 탭(예: About Silo,
+  // 사일로 상점) 각각을 여닫는 최상위 토글 — 그룹 토글(expandedOverrides)과
+  // 완전히 별개 레벨이며, 요구사항대로 전부 기본 접힘으로 시작한다.
+  const [topExpandedOverrides, setTopExpandedOverrides] = useState<
+    Record<string, boolean>
+  >({});
+  function isTopExpanded(tabKey: string): boolean {
+    return topExpandedOverrides[tabKey] ?? false;
+  }
+  function toggleTopExpanded(tabKey: string) {
+    setTopExpandedOverrides((prev) => ({
+      ...prev,
+      [tabKey]: !isTopExpanded(tabKey),
+    }));
+  }
+
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(e: KeyboardEvent) {
@@ -172,7 +194,8 @@ export function LeftSidebar({
   // HOTFIX-141.15: 같은 이유로 이 훅도 조건부 return 이전에 호출한다.
   const referenceWidth = useReferenceWidth();
 
-  if (!tab) return null;
+  if (tabs.length === 0) return null;
+  const combinedLabel = tabs.map((t) => t.label).join(" · ");
 
   // HOTFIX-141: dx/dy만큼 시각적으로 밀어주는 transform — 버튼 자신의
   // absolute/fixed 배치(top/left)는 그대로 두고 그 위에 얹는다. topOffsetPx가
@@ -242,7 +265,7 @@ export function LeftSidebar({
           onPointerMove={editable ? moveDrag : undefined}
           onPointerUp={editable ? endDrag : undefined}
           onPointerLeave={editable ? endDrag : undefined}
-          aria-label={`${tab.label} 메뉴 열기`}
+          aria-label={`${combinedLabel} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="left-sidebar-panel"
           className={`group ${editable ? "absolute cursor-move" : "fixed"} left-0 z-40 flex items-center justify-center rounded-r-md bg-transparent p-2 text-white ${
@@ -265,12 +288,12 @@ export function LeftSidebar({
             >
               <SidebarTriggerMedia
                 url={iconDefaultUrl ?? ""}
-                alt={tab.label}
+                alt={combinedLabel}
                 className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 group-hover:opacity-0"
               />
               <SidebarTriggerMedia
                 url={iconHoverUrl || iconDefaultUrl || ""}
-                alt={tab.label}
+                alt={combinedLabel}
                 className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               />
             </span>
@@ -311,18 +334,7 @@ export function LeftSidebar({
       >
         {motionCss && <style>{motionCss}</style>}
         <div className="flex items-center justify-between p-4 border-b border-white/20">
-          {tab.href ? (
-            <GatedNavLink
-              href={tab.href}
-              minRankToRead={tab.minRankToRead}
-              onClick={onClose}
-              className="font-semibold hover:underline"
-            >
-              {tab.label}
-            </GatedNavLink>
-          ) : (
-            <span className="font-semibold">{tab.label}</span>
-          )}
+          <span className="font-semibold">메뉴</span>
           <button
             type="button"
             data-panel-close
@@ -334,51 +346,90 @@ export function LeftSidebar({
           </button>
         </div>
         <nav className="p-2 overflow-y-auto max-h-[calc(100vh-64px)]">
-          {(tab.groups ?? []).map((group) => {
-            const expanded = isExpanded(group.groupLabel);
-            const hasItems = group.items.length > 0;
+          {tabs.map((t) => {
+            const topExpanded = isTopExpanded(t.key);
+            const hasGroups = (t.groups ?? []).length > 0;
             return (
-              <div key={group.groupLabel} className="mb-4">
+              <div key={t.key} className="mb-4">
                 <div className="flex items-center rounded-md hover:bg-white/10">
-                  {group.href ? (
+                  {t.href ? (
                     <GatedNavLink
-                      href={group.href}
-                      minRankToRead={group.minRankToRead}
+                      href={t.href}
+                      minRankToRead={t.minRankToRead}
                       onClick={onClose}
-                      className="flex-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white"
+                      className="flex-1 px-3 py-2 text-sm font-semibold text-white"
                     >
-                      {group.groupLabel}
+                      {t.label}
                     </GatedNavLink>
                   ) : (
-                    <p className="flex-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60 cursor-default">
-                      {group.groupLabel}
-                    </p>
+                    <span className="flex-1 px-3 py-2 text-sm font-semibold text-white/60">
+                      {t.label}
+                    </span>
                   )}
-                  {hasItems && (
+                  {hasGroups && (
                     <button
                       type="button"
-                      onClick={() => toggleExpanded(group.groupLabel)}
-                      aria-expanded={expanded}
-                      aria-label={`${group.groupLabel} 하위 메뉴 ${expanded ? "접기" : "펼치기"}`}
+                      onClick={() => toggleTopExpanded(t.key)}
+                      aria-expanded={topExpanded}
+                      aria-label={`${t.label} 메뉴 ${topExpanded ? "접기" : "펼치기"}`}
                       className="px-2 py-1 text-white/60 hover:text-white"
                     >
-                      {expanded ? "▼" : "▶"}
+                      {topExpanded ? "▼" : "▶"}
                     </button>
                   )}
                 </div>
-                {hasItems && expanded && (
-                  <div>
-                    {group.items.map((item, idx) => (
-                      <GatedNavLink
-                        key={`${item.href}-${idx}`}
-                        href={item.href}
-                        minRankToRead={item.minRankToRead}
-                        onClick={onClose}
-                        className={`block px-3 py-2 rounded-md text-sm text-white ${LEFT_SIDEBAR_LINK_CLASS}`}
-                      >
-                        {item.label}
-                      </GatedNavLink>
-                    ))}
+                {hasGroups && topExpanded && (
+                  <div className="pl-2">
+                    {(t.groups ?? []).map((group) => {
+                      const expanded = isExpanded(`${t.key}:${group.groupLabel}`);
+                      const hasItems = group.items.length > 0;
+                      return (
+                        <div key={group.groupLabel} className="mb-2">
+                          <div className="flex items-center rounded-md hover:bg-white/10">
+                            {group.href ? (
+                              <GatedNavLink
+                                href={group.href}
+                                minRankToRead={group.minRankToRead}
+                                onClick={onClose}
+                                className="flex-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white"
+                              >
+                                {group.groupLabel}
+                              </GatedNavLink>
+                            ) : (
+                              <p className="flex-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/60 cursor-default">
+                                {group.groupLabel}
+                              </p>
+                            )}
+                            {hasItems && (
+                              <button
+                                type="button"
+                                onClick={() => toggleExpanded(`${t.key}:${group.groupLabel}`)}
+                                aria-expanded={expanded}
+                                aria-label={`${group.groupLabel} 하위 메뉴 ${expanded ? "접기" : "펼치기"}`}
+                                className="px-2 py-1 text-white/60 hover:text-white"
+                              >
+                                {expanded ? "▼" : "▶"}
+                              </button>
+                            )}
+                          </div>
+                          {hasItems && expanded && (
+                            <div>
+                              {group.items.map((item, idx) => (
+                                <GatedNavLink
+                                  key={`${item.href}-${idx}`}
+                                  href={item.href}
+                                  minRankToRead={item.minRankToRead}
+                                  onClick={onClose}
+                                  className={`block px-3 py-2 rounded-md text-sm text-white ${LEFT_SIDEBAR_LINK_CLASS}`}
+                                >
+                                  {item.label}
+                                </GatedNavLink>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -805,34 +805,6 @@ function buildNavTree(rows: SiteNavRow[], slugToRank: Map<string, number>): NavD
   return { tabs, userMenuItems, topSidebarItems };
 }
 
-// HOTFIX-144.2(사용자 신고 — "About Silo를 왼쪽 사이드바에, 온라인 도슨트를
-// 오른쪽 사이드바에 노출시키는 체크를 눌렀는데 실제로 적용이 안 되고
-// 있어"): EPIC-138이 카테고리마다 sidebar_left/sidebar_right를 복수 선택
-// 가능하게 만들었지만, Navbar.tsx는 여전히
-// `navTabs.find(t => t.type === "sidebar-left")`로 딱 하나만 골라 썼다 —
-// 이미 sidebar_left였던 "사일로 상점"이 있는 상태에서 "About Silo"에도
-// 같은 태그를 추가로 체크하면, 화면엔 둘 중 sort_order가 더 낮은 쪽
-// 하나만 나타나고 다른 쪽은 완전히 무시됐다(체크박스는 저장됐지만 시각적
-// 효과가 없어 "적용이 안 된다"로 보임). 이 함수가 그 자리를 대신한다 —
-// 같은 슬롯을 공유하는 탭이 여럿이면 groups를 전부 합쳐 하나의 패널에서
-// 다 보이게 한다. "진짜 주인"(패널 헤더 라벨/링크)은 dropdown으로도
-// 동시에 노출되지 않는(target_types에 "dropdown"이 없는) 탭을 우선한다
-// — 이 사이드바 슬롯 하나만을 위해 만들어진 카테고리라는 뜻이라, "다른
-// 곳에도 이미 노출 중인데 이 사이드바에도 추가로 넣고 싶다"는 쪽(guest)과
-// 구분할 수 있는 유일한 신호이기 때문. 그런 탭이 없으면(전부 dropdown과
-// 겸용이거나 전부 전용이면) sort_order가 가장 낮은 첫 번째 탭을 그대로
-// 주인으로 둔다(기존 동작과 동일, 회귀 없음).
-export function mergeSidebarTabs(matches: NavTab[]): NavTab | undefined {
-  if (matches.length === 0) return undefined;
-  if (matches.length === 1) return matches[0];
-  const primary =
-    matches.find((t) => !(t.targetTypes ?? []).includes("dropdown")) ?? matches[0];
-  return {
-    ...primary,
-    groups: matches.flatMap((t) => t.groups ?? []),
-  };
-}
-
 // site_navigations(EPIC-023)에서 활성 상태인 탭/그룹/항목을 조회해 트리로 조립한다.
 // 실패하거나 아직 시드가 적용되지 않은 경우 FALLBACK_NAV_TABS를 반환한다.
 export async function fetchNavTabs(): Promise<NavData> {

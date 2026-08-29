@@ -91,6 +91,7 @@ import {
   defaultTopBarIconsValue,
   newTopBarIcon,
   DEFAULT_TOP_BAR_ICON_SIZE_PX,
+  DEFAULT_TOP_BAR_ICON_SIDEBAR_HEIGHT_PX,
   type TopBarIconsValue,
   type TopBarIcon,
 } from "@/lib/topBarIconsSettings";
@@ -1392,7 +1393,117 @@ function ControlsPanel({
           <span className="mb-1 block text-gray-600">대체 텍스트(선택)</span>
           <input value={icon.alt} onChange={(e) => patchIcon({ alt: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
         </label>
+        {/* 사용자 지시(2026-08-29 — "hover 하면 두번째 이미지가 나올지,
+            아니면 hover 없이 계속 두번째 이미지가 나올지, 두번째 이미지가
+            모션이라면 몇번 loop 할지"): 좌/우 사이드바 아이콘과 동일한 필드. */}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">두번째(hover) 이미지 표시 방식</span>
+          <select value={icon.hoverMode} onChange={(e) => patchIcon({ hoverMode: e.target.value as "hover" | "always" })} className="w-full rounded border border-gray-300 px-2 py-1">
+            <option value="hover">마우스를 올렸을 때만</option>
+            <option value="always">항상(hover 없이 계속 표시)</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">두번째 이미지가 영상일 때 반복 횟수(0=무한 반복)</span>
+          <input type="number" min={0} value={icon.hoverLoopCount} onChange={(e) => patchIcon({ hoverLoopCount: Math.max(0, Number(e.target.value) || 0) })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
         {positionSection}
+        {/* 사용자 지시(2026-08-29 — "각각의 상단 아이콘마다 새로운 상단
+            사이드바가 나오도록 해줘. 위아래 폭과 슬라이드쇼도 가능하게"):
+            켜면 이 아이콘이 링크 대신 이 슬라이드다운 패널을 여는 토글이
+            된다. */}
+        <div className="space-y-2 border-t border-gray-200 pt-3">
+          <label className="flex items-center gap-2 text-gray-600">
+            <input
+              type="checkbox"
+              checked={icon.sidebar.enabled}
+              onChange={(e) => patchIcon({ sidebar: { ...icon.sidebar, enabled: e.target.checked } })}
+            />
+            이 아이콘 클릭 시 상단 사이드바(슬라이드쇼 패널) 열기
+          </label>
+          {icon.sidebar.enabled && (
+            <>
+              <p className="text-[11px] text-gray-400">켜면 위 &ldquo;링크&rdquo;는 사용되지 않고, 클릭할 때마다 이 패널이 열리고 닫혀요.</p>
+              <label className="block">
+                <span className="mb-1 block text-gray-600">패널 높이(px)</span>
+                <input
+                  type="number"
+                  value={icon.sidebar.heightPx}
+                  onChange={(e) => patchIcon({ sidebar: { ...icon.sidebar, heightPx: Number(e.target.value) || DEFAULT_TOP_BAR_ICON_SIDEBAR_HEIGHT_PX } })}
+                  className="w-full rounded border border-gray-300 px-2 py-1"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-gray-600">자동 전환(초)</span>
+                <input
+                  type="number"
+                  value={icon.sidebar.autoAdvanceSeconds}
+                  onChange={(e) => patchIcon({ sidebar: { ...icon.sidebar, autoAdvanceSeconds: Number(e.target.value) || 5 } })}
+                  className="w-full rounded border border-gray-300 px-2 py-1"
+                />
+              </label>
+              <div className="space-y-2">
+                <p className="font-medium text-gray-600">슬라이드 ({icon.sidebar.slides.length}개)</p>
+                {icon.sidebar.slides.map((slide, idx) => (
+                  <div key={idx} className="space-y-1 rounded border border-gray-200 p-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-gray-400">#{idx + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => patchIcon({ sidebar: { ...icon.sidebar, slides: icon.sidebar.slides.filter((_, i) => i !== idx) } })}
+                        className="text-[11px] text-red-500 hover:underline"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <ImageThumb url={slide.imageUrl} alt={`슬라이드 ${idx + 1}`} />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingSlideIdx === idx}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setUploadingSlideIdx(idx);
+                            const { url } = await uploadImage(file, "top_bar_icon_sidebar_slides");
+                            setUploadingSlideIdx(null);
+                            if (url) {
+                              patchIcon({
+                                sidebar: { ...icon.sidebar, slides: icon.sidebar.slides.map((s, i) => (i === idx ? { ...s, imageUrl: url } : s)) },
+                              });
+                            }
+                          }}
+                          className="w-full text-[11px]"
+                        />
+                        <input
+                          value={slide.title}
+                          placeholder="제목(선택)"
+                          onChange={(e) => patchIcon({ sidebar: { ...icon.sidebar, slides: icon.sidebar.slides.map((s, i) => (i === idx ? { ...s, title: e.target.value } : s)) } })}
+                          className="w-full rounded border border-gray-300 px-2 py-1"
+                        />
+                        <input
+                          value={slide.description}
+                          placeholder="설명(선택)"
+                          onChange={(e) => patchIcon({ sidebar: { ...icon.sidebar, slides: icon.sidebar.slides.map((s, i) => (i === idx ? { ...s, description: e.target.value } : s)) } })}
+                          className="w-full rounded border border-gray-300 px-2 py-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => patchIcon({ sidebar: { ...icon.sidebar, slides: [...icon.sidebar.slides, { imageUrl: "", title: "", description: "" }] } })}
+                  className="w-full rounded border border-gray-300 py-1 text-gray-600 hover:bg-gray-50"
+                >
+                  + 슬라이드 추가
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -2344,6 +2455,30 @@ function ControlsPanel({
           <span className="mb-1 block text-gray-600">호버 이미지/영상 {uploadingSidebarField === hoverField && "(업로드 중...)"}</span>
           <input type="file" accept="image/*,video/webm,video/mp4" onChange={(e) => handleFile(hoverField, e.target.files?.[0] ?? null)} disabled={uploadingSidebarField !== null} className="w-full text-[11px]" />
           <ImageThumb url={value[hoverField]} alt="호버 아이콘 미리보기" />
+        </label>
+        {/* 사용자 지시(2026-08-29 — "hover 하면 두번째 이미지가 나올지,
+            아니면 hover 없이 계속 두번째 이미지가 나올지, 두번째 이미지가
+            모션이라면 몇번 loop 할지"): */}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">호버 이미지 표시 방식</span>
+          <select
+            value={value[side === "left" ? "leftIconHoverMode" : "rightIconHoverMode"]}
+            onChange={(e) => patch({ [side === "left" ? "leftIconHoverMode" : "rightIconHoverMode"]: e.target.value as "hover" | "always" } as Partial<SidebarIconsValue["pc"]>)}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          >
+            <option value="hover">마우스를 올렸을 때만</option>
+            <option value="always">항상(hover 없이 계속 표시)</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">호버 이미지가 영상일 때 반복 횟수(0=무한 반복)</span>
+          <input
+            type="number"
+            min={0}
+            value={value[side === "left" ? "leftIconHoverLoopCount" : "rightIconHoverLoopCount"]}
+            onChange={(e) => patch({ [side === "left" ? "leftIconHoverLoopCount" : "rightIconHoverLoopCount"]: Math.max(0, Number(e.target.value) || 0) } as Partial<SidebarIconsValue["pc"]>)}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">아이콘 크기(px, 좌우 공통)</span>

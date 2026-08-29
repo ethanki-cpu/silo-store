@@ -1,3 +1,5 @@
+import type { SlideItem } from "./heroSlideshow";
+
 // 사용자 지시(2026-08-29 — "'홈페이지 설정'에 상단에 아이콘을 추가하고
 // 페이지와 링크하는 기능을 만들어줘. 그리고 그 아이콘은 드래그앤드랍으로
 // 위치를 설정할수 있어야해"): 관리자가 자유롭게 추가하는 헤더 상단 아이콘
@@ -7,16 +9,43 @@
 // header_positions(HeaderSlot, slotKey=`top-bar-icon:${id}`)가 기기별로
 // 독립적으로 담당한다(다른 헤더 요소와 완전히 동일한 드래그 메커니즘 재사용,
 // 새 드래그 시스템을 따로 만들지 않음).
+//
+// 후속 사용자 지시(2026-08-29 — "각각의 상단 아이콘마다 새로운 상단
+// 사이드바가 나오도록 해줘. 위아래 폭과 슬라이드쇼도 가능하게" + "hover
+// 하면 두번째 이미지가 나올지, 계속 나올지, 몇번 loop 할지"):
+// - hoverMode/hoverLoopCount: SidebarTriggerMedia(default+hover 이미지
+//   크로스페이드)의 동작 방식 — "hover"(기존과 동일, 마우스 올려야 전환)
+//   또는 "always"(hover 없이 항상 두번째 이미지). hoverLoopCount는 두번째
+//   이미지가 영상(모션)일 때만 의미 있음(0=무한 반복, 기존과 동일).
+// - sidebar: 이 아이콘을 클릭하면 href로 이동하는 대신(sidebar.enabled일
+//   때) 화면 위에서 아래로 슬라이드하는 패널을 연다 — 기존 top_sidebar
+//   (Kinfolk형 메가 메뉴, 컬럼/링크 목록)와는 다른, 훨씬 단순한 형태다:
+//   높이(px)와 이미지 슬라이드쇼(HeroSlideshow 재사용, heroSlideshow.ts의
+//   SlideItem과 동일 모양)만 갖는다 — 아이콘마다 독립된 패널이라 여러 개를
+//   만들 수 있다(전역 top_sidebar는 하나뿐이었던 것과 다른 점).
+export type HoverMediaMode = "hover" | "always";
+
+export type TopBarIconSidebar = {
+  enabled: boolean;
+  heightPx: number;
+  slides: SlideItem[];
+  autoAdvanceSeconds: number;
+};
+
 export type TopBarIcon = {
   id: string;
   imageUrl: string;
   /** 마우스를 올렸을 때 나타날 이미지 — 비어 있으면 기본 이미지 고정(다른 이미지+hover 필드들과 동일 패턴). */
   hoverImageUrl: string;
-  /** 클릭 시 이동할 페이지 경로 — 예: "/shop", "/boards/xxx". */
+  /** 클릭 시 이동할 페이지 경로 — 예: "/shop", "/boards/xxx". sidebar.enabled면 무시되고 대신 패널이 열린다. */
   href: string;
   sizePx: number;
   /** 대체 텍스트(접근성) — 비워도 됨. */
   alt: string;
+  hoverMode: HoverMediaMode;
+  /** hoverImageUrl이 영상(mp4/webm)일 때만 적용 — 0이면 무한 반복. */
+  hoverLoopCount: number;
+  sidebar: TopBarIconSidebar;
 };
 
 export type TopBarIconsValue = {
@@ -24,6 +53,11 @@ export type TopBarIconsValue = {
 };
 
 export const DEFAULT_TOP_BAR_ICON_SIZE_PX = 28;
+export const DEFAULT_TOP_BAR_ICON_SIDEBAR_HEIGHT_PX = 480;
+
+export function defaultTopBarIconSidebar(): TopBarIconSidebar {
+  return { enabled: false, heightPx: DEFAULT_TOP_BAR_ICON_SIDEBAR_HEIGHT_PX, slides: [], autoAdvanceSeconds: 5 };
+}
 
 export function defaultTopBarIconsValue(): TopBarIconsValue {
   return { icons: [] };
@@ -37,6 +71,20 @@ export function newTopBarIcon(): TopBarIcon {
     href: "",
     sizePx: DEFAULT_TOP_BAR_ICON_SIZE_PX,
     alt: "",
+    hoverMode: "hover",
+    hoverLoopCount: 0,
+    sidebar: defaultTopBarIconSidebar(),
+  };
+}
+
+function normalizeSidebar(raw: unknown): TopBarIconSidebar {
+  const v = (raw as Partial<TopBarIconSidebar>) ?? {};
+  const fallback = defaultTopBarIconSidebar();
+  return {
+    enabled: v.enabled ?? fallback.enabled,
+    heightPx: v.heightPx || fallback.heightPx,
+    slides: Array.isArray(v.slides) ? (v.slides as SlideItem[]) : fallback.slides,
+    autoAdvanceSeconds: v.autoAdvanceSeconds || fallback.autoAdvanceSeconds,
   };
 }
 
@@ -49,6 +97,9 @@ function normalizeIcon(raw: unknown): TopBarIcon {
     href: v.href ?? "",
     sizePx: v.sizePx || DEFAULT_TOP_BAR_ICON_SIZE_PX,
     alt: v.alt ?? "",
+    hoverMode: v.hoverMode === "always" ? "always" : "hover",
+    hoverLoopCount: typeof v.hoverLoopCount === "number" ? v.hoverLoopCount : 0,
+    sidebar: normalizeSidebar(v.sidebar),
   };
 }
 

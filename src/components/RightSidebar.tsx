@@ -33,6 +33,8 @@ export function RightSidebar({
   onClose,
   iconDefaultUrl,
   iconHoverUrl,
+  iconHoverMode = "hover",
+  iconHoverLoopCount = 0,
   iconSizePx = 32,
   triggerMode = "click",
   topOffsetPx,
@@ -56,6 +58,11 @@ export function RightSidebar({
   // EPIC-078: 커서를 올렸을 때(group-hover) 크로스페이드로 드러나는 미디어.
   // 비어 있으면 기본 미디어로 폴백해 호버해도 아이콘이 사라지지 않는다.
   iconHoverUrl?: string;
+  // 사용자 지시(2026-08-29): LeftSidebar.tsx와 동일 — "always"면 크로스페이드
+  // 없이 iconHoverUrl(없으면 iconDefaultUrl)을 항상 고정으로 보여준다.
+  iconHoverMode?: "hover" | "always";
+  /** iconHoverUrl이 영상일 때만 적용 — 0이면 무한 반복. */
+  iconHoverLoopCount?: number;
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
   // EPIC-077: 여닫이 트리거 모드 — "click"이면 호버는 아르누보 애니메이션만
@@ -236,16 +243,28 @@ export function RightSidebar({
               className="relative block transition-transform duration-300 group-hover:scale-[1.2]"
               style={{ width: iconSizePx, height: iconSizePx }}
             >
-              <SidebarTriggerMedia
-                url={iconDefaultUrl ?? ""}
-                alt={combinedLabel}
-                className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 group-hover:opacity-0"
-              />
-              <SidebarTriggerMedia
-                url={iconHoverUrl || iconDefaultUrl || ""}
-                alt={combinedLabel}
-                className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-              />
+              {iconHoverMode === "always" ? (
+                <SidebarTriggerMedia
+                  url={iconHoverUrl || iconDefaultUrl || ""}
+                  alt={combinedLabel}
+                  className="absolute inset-0 h-full w-full object-contain"
+                  loopCount={iconHoverLoopCount}
+                />
+              ) : (
+                <>
+                  <SidebarTriggerMedia
+                    url={iconDefaultUrl ?? ""}
+                    alt={combinedLabel}
+                    className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 group-hover:opacity-0"
+                  />
+                  <SidebarTriggerMedia
+                    url={iconHoverUrl || iconDefaultUrl || ""}
+                    alt={combinedLabel}
+                    className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    loopCount={iconHoverLoopCount}
+                  />
+                </>
+              )}
             </span>
           ) : (
             <span className="text-lg">🚪</span>

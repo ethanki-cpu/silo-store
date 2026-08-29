@@ -50,6 +50,7 @@ import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 import { TopSidebarPanel } from "@/components/TopSidebarPanel";
 import { normalizeTopSidebar, type TopSidebarConfig, type TopSidebarLink } from "@/lib/topSidebarSettings";
 import { normalizeTopBarIcons, type TopBarIconsValue } from "@/lib/topBarIconsSettings";
+import { HeroSlideshow } from "@/components/HeroSlideshow";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -110,6 +111,74 @@ function renderMainLogoImage(mainLogo: MainLogoConfig) {
         className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
       />
     </span>
+  );
+}
+
+// 사용자 지시(2026-08-29 — "각각의 상단 아이콘마다 새로운 상단 사이드바가
+// 나오도록 해줘. 그 상단 사이드바의 위아래 폭과, 슬라이드쇼도 가능하게
+// 해줘"): TopSidebarPanel(컬럼형 메가 메뉴)과는 별개인, 아이콘마다 독립된
+// 단순한 슬라이드다운 패널 — 높이(px)와 이미지 슬라이드쇼만 갖는다. 열림/
+// 닫힘 애니메이션(absolute↔fixed, translate-y, transition-transform)은
+// TopSidebarPanel.tsx와 동일한 검증된 패턴을 그대로 재사용한다. Escape/
+// 바깥 클릭으로 닫히는 것도 TopSidebarPanel과 동일(트리거는
+// data-icon-sidebar-trigger 마커로 식별).
+function IconSidebarPanel({
+  heightPx,
+  slides,
+  autoAdvanceSeconds,
+  open,
+  onClose,
+  editable,
+}: {
+  heightPx: number;
+  slides: { imageUrl: string; title: string; description: string }[];
+  autoAdvanceSeconds: number;
+  open: boolean;
+  onClose: () => void;
+  editable: boolean;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    function handlePointerDown(e: PointerEvent) {
+      const target = e.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if ((target as HTMLElement).closest?.("[data-icon-sidebar-trigger]")) return;
+      onClose();
+    }
+    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [open, onClose]);
+
+  return (
+    <div
+      ref={panelRef}
+      className={`${editable ? "absolute" : "fixed"} inset-x-0 top-0 z-50 transform overflow-hidden border-b border-gray-200 bg-white shadow-xl transition-transform duration-300 ${
+        open ? "translate-y-0" : "-translate-y-full"
+      }`}
+      style={{ height: heightPx }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="닫기"
+        className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-gray-600 shadow hover:bg-white"
+      >
+        ✕
+      </button>
+      {slides.length > 0 ? (
+        <HeroSlideshow device="both" slides={slides} autoAdvanceSeconds={autoAdvanceSeconds} heightVh={null} />
+      ) : (
+        <div className="flex h-full items-center justify-center text-sm text-gray-400">슬라이드를 추가하세요</div>
+      )}
+    </div>
   );
 }
 
@@ -488,6 +557,12 @@ export function Navbar({
     return { ...resolvedTopSidebar, links: [...resolvedTopSidebar.links, ...derivedLinks] };
   }, [resolvedTopSidebar, topSidebarNavItems]);
   const [topSidebarOpen, setTopSidebarOpen] = useState(false);
+  // 사용자 지시(2026-08-29 — "각각의 상단 아이콘마다 새로운 상단 사이드바가
+  // 나오도록 해줘"): top_sidebar(TopSidebarPanel, 컬럼형 메가 메뉴)와는
+  // 별개인, 아이콘마다 독립적인 단순한 슬라이드다운 패널 — 한 번에 하나만
+  // 열린다(다른 아이콘을 클릭하면 이전 패널은 닫힘, 기존 top-sidebar-trigger와
+  // 동일한 단일 열림 UX).
+  const [openIconSidebarId, setOpenIconSidebarId] = useState<string | null>(null);
 
   function slotOffset(slotKey: string): HeaderSlotOffset {
     return getSlotOffset(resolvedPositions, slotKey);
@@ -1515,23 +1590,19 @@ export function Navbar({
         {resolvedTopBarIcons?.icons.map((icon) => {
           if (!editable && !icon.imageUrl) return null;
           const slotKey = `top-bar-icon:${icon.id}`;
-          return (
-            <HeaderSlot
-              key={icon.id}
-              slotKey={slotKey}
-              label="상단 아이콘"
-              offset={slotOffset(slotKey)}
-              editable={editable}
-              selected={selectedSlotKey === slotKey}
-              onSelect={handleSelectSlot}
-              onOffsetChange={handleSlotOffsetChange}
-              className="shrink-0 self-center"
-            >
-              <Link
-                href={icon.href || "#"}
-                className="group relative inline-block"
-                style={{ height: icon.sizePx, width: icon.sizePx }}
-              >
+          // 사용자 지시(2026-08-29 — "hover 하면 두번째 이미지가 나올지,
+          // 아니면 hover 없이 계속 두번째 이미지가 나올지"): "always"면
+          // 크로스페이드 없이 hoverImageUrl(없으면 imageUrl)을 고정으로.
+          const media =
+            icon.hoverMode === "always" ? (
+              <SidebarTriggerMedia
+                url={icon.hoverImageUrl || icon.imageUrl}
+                alt={icon.alt}
+                className="block h-full w-full object-contain"
+                loopCount={icon.hoverLoopCount}
+              />
+            ) : (
+              <>
                 <SidebarTriggerMedia
                   url={icon.imageUrl}
                   alt={icon.alt}
@@ -1544,9 +1615,49 @@ export function Navbar({
                     url={icon.hoverImageUrl}
                     alt={icon.alt}
                     className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    loopCount={icon.hoverLoopCount}
                   />
                 )}
-              </Link>
+              </>
+            );
+          // 사용자 지시(2026-08-29 — "각각의 상단 아이콘마다 새로운 상단
+          // 사이드바가 나오도록 해줘"): sidebar.enabled면 href로 이동하는
+          // 대신 이 아이콘 전용 슬라이드다운 패널을 열고/닫는 토글 버튼이
+          // 된다(top-sidebar-trigger와 동일한 interactive 패턴).
+          return (
+            <HeaderSlot
+              key={icon.id}
+              slotKey={slotKey}
+              label="상단 아이콘"
+              offset={slotOffset(slotKey)}
+              editable={editable}
+              selected={selectedSlotKey === slotKey}
+              onSelect={handleSelectSlot}
+              onOffsetChange={handleSlotOffsetChange}
+              className="shrink-0 self-center"
+              as="span"
+              interactive={icon.sidebar.enabled}
+            >
+              {icon.sidebar.enabled ? (
+                <button
+                  type="button"
+                  data-icon-sidebar-trigger
+                  onClick={() => setOpenIconSidebarId((cur) => (cur === icon.id ? null : icon.id))}
+                  aria-label={icon.alt || "메뉴 열기"}
+                  className="group relative inline-block"
+                  style={{ height: icon.sizePx, width: icon.sizePx }}
+                >
+                  {media}
+                </button>
+              ) : (
+                <Link
+                  href={icon.href || "#"}
+                  className="group relative inline-block"
+                  style={{ height: icon.sizePx, width: icon.sizePx }}
+                >
+                  {media}
+                </Link>
+              )}
             </HeaderSlot>
           );
         })}
@@ -1755,6 +1866,19 @@ export function Navbar({
           isMobileViewport={isMobileViewport}
         />
       )}
+      {resolvedTopBarIcons?.icons
+        .filter((icon) => icon.sidebar.enabled)
+        .map((icon) => (
+          <IconSidebarPanel
+            key={icon.id}
+            heightPx={icon.sidebar.heightPx}
+            slides={icon.sidebar.slides}
+            autoAdvanceSeconds={icon.sidebar.autoAdvanceSeconds}
+            open={openIconSidebarId === icon.id}
+            onClose={() => setOpenIconSidebarId(null)}
+            editable={editable}
+          />
+        ))}
       </div>
       {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이
           위로 붙지 않게 한다(topBarHeight는 ResizeObserver 실측값).
@@ -1795,6 +1919,8 @@ export function Navbar({
         onClose={() => setLeftOpen(false)}
         iconDefaultUrl={sidebarIcons?.leftIconDefaultUrl || undefined}
         iconHoverUrl={sidebarIcons?.leftIconHoverUrl || undefined}
+        iconHoverMode={sidebarIcons?.leftIconHoverMode}
+        iconHoverLoopCount={sidebarIcons?.leftIconHoverLoopCount}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
         triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
         topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
@@ -1824,6 +1950,8 @@ export function Navbar({
         onClose={() => setRightOpen(false)}
         iconDefaultUrl={sidebarIcons?.rightIconDefaultUrl || undefined}
         iconHoverUrl={sidebarIcons?.rightIconHoverUrl || undefined}
+        iconHoverMode={sidebarIcons?.rightIconHoverMode}
+        iconHoverLoopCount={sidebarIcons?.rightIconHoverLoopCount}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
         triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
         topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}

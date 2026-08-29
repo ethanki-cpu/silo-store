@@ -22,9 +22,16 @@ type VideoFrameCallbackVideo = HTMLVideoElement & {
 function TransparentVideo({
   src,
   className,
+  loopCount = 0,
 }: {
   src: string;
   className: string;
+  /** 사용자 지시(2026-08-29 — "두번째 이미지가 모션이라면 몇번 loop
+   *  할지 설정할수 있게"): 0(기본값)이면 기존과 동일하게 무한 반복. N이면
+   *  N번 재생 후 마지막 프레임에서 멈춘다(video.loop 대신 'ended' 이벤트를
+   *  직접 세어 재생 — 네이티브 loop=true는 'ended'가 아예 발생하지 않아
+   *  횟수를 셀 수 없다). */
+  loopCount?: number;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,6 +45,14 @@ function TransparentVideo({
     let rafId = 0;
     let vfcId = 0;
     let cancelled = false;
+    let playsRemaining = loopCount > 0 ? loopCount : Infinity;
+    function handleEnded() {
+      playsRemaining -= 1;
+      if (cancelled || playsRemaining <= 0) return;
+      video!.currentTime = 0;
+      tryPlay();
+    }
+    if (loopCount > 0) video.addEventListener("ended", handleEnded);
 
     // EPIC-079-PHASE-2: 지금까지 <video autoPlay muted>의 JSX 속성만 믿고
     // 재생을 시작했는데, React가 hydration 시점에 `muted`를 DOM
@@ -95,8 +110,9 @@ function TransparentVideo({
       video.removeEventListener("canplay", tryPlay);
       document.removeEventListener("pointerdown", tryPlay);
       document.removeEventListener("keydown", tryPlay);
+      if (loopCount > 0) video.removeEventListener("ended", handleEnded);
     };
-  }, [src]);
+  }, [src, loopCount]);
 
   return (
     <>
@@ -104,7 +120,7 @@ function TransparentVideo({
         ref={videoRef}
         src={src}
         autoPlay
-        loop
+        loop={loopCount <= 0}
         muted
         playsInline
         disablePictureInPicture
@@ -124,14 +140,17 @@ export function SidebarTriggerMedia({
   url,
   alt,
   className,
+  loopCount = 0,
 }: {
   url: string;
   alt: string;
   className: string;
+  /** 사용자 지시(2026-08-29): 영상일 때만 의미 있음 — 0(기본값)은 무한 반복. */
+  loopCount?: number;
 }) {
   if (!url) return null;
   if (isVideoUrl(url)) {
-    return <TransparentVideo src={url} className={className} />;
+    return <TransparentVideo src={url} className={className} loopCount={loopCount} />;
   }
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={url} alt={alt} className={className} />;

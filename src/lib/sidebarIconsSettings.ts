@@ -5,11 +5,24 @@ import { DEFAULT_TAB_HOVER_MOTION, type TabHoverMotion } from "./tabHoverMotion"
 // (site_settings.sidebar_icons)을 heroSlideshow.ts/mainLogoSettings.ts와
 // 동일한 { pc, mobile } 패턴으로 재구성 — 관리자 화면과 Navbar.tsx가
 // 이 파일 하나를 공유한다.
+// 사용자 지시(2026-08-29 — "좌, 우, 그리고 각각의 상단 아이콘 마다, hover
+// 하면 두번째 이미지가 나올지, 아니면 hover 없이 계속 두번째 이미지가
+// 나올지, 두번째 이미지가 모션이라면 몇번 loop 할지 설정할수 있게 해줘"):
+// topBarIconsSettings.ts의 HoverMediaMode/hoverLoopCount와 동일한 개념 —
+// 좌/우 각각 독립적으로 설정한다(이 파일이 이미 left/right를 전부 분리된
+// 필드로 다루는 관례를 그대로 따름).
+export type HoverMediaMode = "hover" | "always";
+
 export type SidebarIconsConfig = {
   leftIconDefaultUrl: string;
   leftIconHoverUrl: string;
   rightIconDefaultUrl: string;
   rightIconHoverUrl: string;
+  leftIconHoverMode: HoverMediaMode;
+  rightIconHoverMode: HoverMediaMode;
+  /** hover 이미지가 영상(mp4/webm)일 때만 적용 — 0이면 무한 반복. */
+  leftIconHoverLoopCount: number;
+  rightIconHoverLoopCount: number;
   iconSizePx: number;
   // EPIC-078: 실제 트리거 버튼에는 더 이상 적용하지 않는다(항상 완전
   // 투명 유지 요구사항과 충돌) — 다만 이 설정 자체를 지우면 그동안 저장된
@@ -50,6 +63,10 @@ export function defaultSidebarIconsConfig(): SidebarIconsConfig {
     leftIconHoverUrl: "",
     rightIconDefaultUrl: "",
     rightIconHoverUrl: "",
+    leftIconHoverMode: "hover",
+    rightIconHoverMode: "hover",
+    leftIconHoverLoopCount: 0,
+    rightIconHoverLoopCount: 0,
     iconSizePx: DEFAULT_ICON_SIZE_PX,
     backgroundColor: DEFAULT_ICON_BG_COLOR,
     triggerMode: DEFAULT_TRIGGER_MODE,

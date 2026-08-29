@@ -1239,6 +1239,18 @@ function SpaceObjectSprite({
   const { innerRef } = useObjectMotion(motion, `${obj.id}#${index}`, materialRef);
 
   const baseScale = obj.scale * 3 * scaleJitter;
+  // 사용자 신고(2026-08-30, 실제 모바일 크롬 스크린샷 — "오브제 이미지들이
+  // 이상하게 나와"): scale이 항상 정사각형([baseScale, baseScale, 1])이라
+  // 정사각형이 아닌 업로드 이미지(꽃/열쇠 아이콘 등)가 그 비율만큼
+  // 찌그러져 보이고 있었다 — 텍스처 로드 후 실제 픽셀 가로/세로 비율을
+  // 읽어 긴 쪽을 baseScale에 맞추고 짧은 쪽만 비율대로 줄인다(이미지가
+  // 더 커지지는 않음, 찌그러짐만 해소). 텍스처가 아직 준비 전이면(드묾,
+  // useTexture가 suspense로 로딩을 기다리므로 사실상 항상 준비돼 있음)
+  // 1(정사각형)로 안전하게 폴백.
+  const textureImage = texture.image as { width?: number; height?: number } | undefined;
+  const aspect = textureImage?.width && textureImage?.height ? textureImage.width / textureImage.height : 1;
+  const scaleX = aspect >= 1 ? baseScale : baseScale * aspect;
+  const scaleY = aspect >= 1 ? baseScale / aspect : baseScale;
   return (
     <group
       ref={registerRef}
@@ -1257,11 +1269,11 @@ function SpaceObjectSprite({
             — 텍스처의 알파(투명) 모양을 그대로 재사용해 이미지의 실제
             보이는 실루엣을 정확히 따라가는 얇은 테두리가 된다. */}
         {selected && (
-          <sprite scale={[baseScale * 1.18, baseScale * 1.18, 1]} renderOrder={-1}>
+          <sprite scale={[scaleX * 1.18, scaleY * 1.18, 1]} renderOrder={-1}>
             <spriteMaterial map={texture} color={PASTEL_SKY_BLUE} transparent opacity={glowOpacity} toneMapped={false} depthWrite={false} />
           </sprite>
         )}
-        <sprite scale={[baseScale, baseScale, 1]}>
+        <sprite scale={[scaleX, scaleY, 1]}>
           <spriteMaterial ref={materialRef} map={texture} transparent toneMapped={false} depthWrite={false} />
         </sprite>
       </group>

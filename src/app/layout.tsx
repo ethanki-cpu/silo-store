@@ -6,6 +6,7 @@ import { AuthProvider } from "@/lib/AuthProvider";
 import { Navbar } from "@/components/Navbar";
 import { GlobalFooter } from "@/components/GlobalFooter";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { NavbarBoundary } from "@/components/NavbarBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -61,9 +62,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <AuthProvider>
-          <Suspense fallback={null}>
-            <Navbar />
-          </Suspense>
+          <NavbarBoundary>
+            <Suspense fallback={null}>
+              <Navbar />
+            </Suspense>
+          </NavbarBoundary>
           <Breadcrumb />
           {children}
           {/* EPIC-105: 기존 Footer.tsx의 mt-auto(짧은 페이지에서 화면

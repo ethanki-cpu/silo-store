@@ -1212,6 +1212,39 @@ function ControlsPanel({
   const [uploadingTabDropdownFont, setUploadingTabDropdownFont] = useState(false);
   const [uploadingSideTextFont, setUploadingSideTextFont] = useState(false);
   const [uploadingIconField, setUploadingIconField] = useState<string | null>(null);
+  // 사용자 지시(2026-08-30 — "상단 아이콘을 눌렀을때 어떤 페이지로
+  // 연결될지 설정하는 것도 넣어줘"): 지금까지 상단 아이콘의 "링크"는
+  // 관리자가 정확한 경로("/shop" 등)를 직접 타이핑해야 하는 텍스트
+  // 입력창뿐이었다 — site_navigations(사이트 구성 관리가 이미 관리하는
+  // 카테고리/게시판 트리) 전체를 들여쓰기된 드롭다운으로 보여줘 목록에서
+  // 골라 채울 수 있게 한다. 목록에 없는 경로(예: /shop, /clubs 같은 최상위
+  // 탭 고정 페이지)는 기존 텍스트 입력으로 그대로 직접 타이핑 가능 —
+  // 드롭다운은 "편의 기능"으로 얹을 뿐 기존 자유 입력을 대체하지 않는다.
+  const [pageLinkOptions, setPageLinkOptions] = useState<{ href: string; label: string }[]>([]);
+  useEffect(() => {
+    supabase
+      .from("site_navigations")
+      .select("id, parent_id, title, href")
+      .order("sort_order")
+      .then(({ data }) => {
+        const rows = (data ?? []) as { id: string; parent_id: string | null; title: string; href: string | null }[];
+        const byParent = new Map<string | null, typeof rows>();
+        for (const r of rows) {
+          const list = byParent.get(r.parent_id) ?? [];
+          list.push(r);
+          byParent.set(r.parent_id, list);
+        }
+        const result: { href: string; label: string }[] = [];
+        function walk(parentId: string | null, depth: number) {
+          for (const r of byParent.get(parentId) ?? []) {
+            if (r.href) result.push({ href: r.href, label: `${"　".repeat(depth)}${r.title}` });
+            walk(r.id, depth + 1);
+          }
+        }
+        walk(null, 0);
+        setPageLinkOptions(result);
+      });
+  }, []);
 
   if (!selection) return <p className="text-xs text-gray-400">캔버스에서 요소를 클릭하면 설정이 여기 표시됩니다.</p>;
   if (selection.kind === "craft") return <FooterCraftControls />;
@@ -1380,6 +1413,19 @@ function ControlsPanel({
               hover 이미지 제거
             </button>
           )}
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">링크 — 목록에서 선택</span>
+          <select
+            value={pageLinkOptions.some((o) => o.href === icon.href) ? icon.href : ""}
+            onChange={(e) => { if (e.target.value) patchIcon({ href: e.target.value }); }}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          >
+            <option value="">— 목록에서 선택(또는 아래에 직접 입력) —</option>
+            {pageLinkOptions.map((o) => (
+              <option key={o.href} value={o.href}>{o.label}</option>
+            ))}
+          </select>
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">링크(클릭 시 이동할 페이지 경로 — 예: /shop)</span>

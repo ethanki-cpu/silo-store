@@ -40,6 +40,10 @@ export type TopBarIcon = {
   /** 클릭 시 이동할 페이지 경로 — 예: "/shop", "/boards/xxx". sidebar.enabled면 무시되고 대신 패널이 열린다. */
   href: string;
   sizePx: number;
+  /** 사용자 지시(2026-08-30 — "hover 했을때 이미지 크기를 조절하는 설정
+   *  만들어줘"): hover 이미지(hoverImageUrl)만 따로 크기를 조절 — 비워지지
+   *  않는 한 sizePx와 같은 값으로 시작해 기존 아이콘은 화면이 그대로다. */
+  hoverSizePx: number;
   /** 대체 텍스트(접근성) — 비워도 됨. */
   alt: string;
   hoverMode: HoverMediaMode;
@@ -70,6 +74,7 @@ export function newTopBarIcon(): TopBarIcon {
     hoverImageUrl: "",
     href: "",
     sizePx: DEFAULT_TOP_BAR_ICON_SIZE_PX,
+    hoverSizePx: DEFAULT_TOP_BAR_ICON_SIZE_PX,
     alt: "",
     hoverMode: "hover",
     hoverLoopCount: 0,
@@ -96,6 +101,7 @@ function normalizeIcon(raw: unknown): TopBarIcon {
     hoverImageUrl: v.hoverImageUrl ?? "",
     href: v.href ?? "",
     sizePx: v.sizePx || DEFAULT_TOP_BAR_ICON_SIZE_PX,
+    hoverSizePx: v.hoverSizePx || v.sizePx || DEFAULT_TOP_BAR_ICON_SIZE_PX,
     alt: v.alt ?? "",
     hoverMode: v.hoverMode === "always" ? "always" : "hover",
     hoverLoopCount: typeof v.hoverLoopCount === "number" ? v.hoverLoopCount : 0,

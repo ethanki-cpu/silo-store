@@ -24,6 +24,11 @@ export type SidebarIconsConfig = {
   leftIconHoverLoopCount: number;
   rightIconHoverLoopCount: number;
   iconSizePx: number;
+  /** 사용자 지시(2026-08-30 — "hover 했을때 이미지 크기를 조절하는 설정
+   *  만들어줘"): hover 이미지만 따로 크기 조절 — 기본값은 iconSizePx와
+   *  같은 DEFAULT_ICON_SIZE_PX라 기존 아이콘은 화면이 그대로다. */
+  leftIconHoverSizePx: number;
+  rightIconHoverSizePx: number;
   // EPIC-078: 실제 트리거 버튼에는 더 이상 적용하지 않는다(항상 완전
   // 투명 유지 요구사항과 충돌) — 다만 이 설정 자체를 지우면 그동안 저장된
   // 값이 사라지므로 필드/UI는 남겨두고 시각적 적용만 중단했다.
@@ -68,6 +73,8 @@ export function defaultSidebarIconsConfig(): SidebarIconsConfig {
     leftIconHoverLoopCount: 0,
     rightIconHoverLoopCount: 0,
     iconSizePx: DEFAULT_ICON_SIZE_PX,
+    leftIconHoverSizePx: DEFAULT_ICON_SIZE_PX,
+    rightIconHoverSizePx: DEFAULT_ICON_SIZE_PX,
     backgroundColor: DEFAULT_ICON_BG_COLOR,
     triggerMode: DEFAULT_TRIGGER_MODE,
     topOffsetPx: DEFAULT_TOP_OFFSET_PX,

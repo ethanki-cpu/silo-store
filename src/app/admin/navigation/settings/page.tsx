@@ -1389,6 +1389,12 @@ function ControlsPanel({
           <span className="mb-1 block text-gray-600">크기(px)</span>
           <input type="number" value={icon.sizePx} onChange={(e) => patchIcon({ sizePx: Number(e.target.value) || DEFAULT_TOP_BAR_ICON_SIZE_PX })} className="w-full rounded border border-gray-300 px-2 py-1" />
         </label>
+        {/* 사용자 지시(2026-08-30 — "hover 했을때 이미지 크기를 조절하는
+            설정 만들어줘"): 기본 이미지 크기와 별개로 hover 이미지만 따로. */}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">hover 이미지 크기(px)</span>
+          <input type="number" value={icon.hoverSizePx} onChange={(e) => patchIcon({ hoverSizePx: Number(e.target.value) || DEFAULT_TOP_BAR_ICON_SIZE_PX })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">대체 텍스트(선택)</span>
           <input value={icon.alt} onChange={(e) => patchIcon({ alt: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
@@ -2483,6 +2489,18 @@ function ControlsPanel({
         <label className="block">
           <span className="mb-1 block text-gray-600">아이콘 크기(px, 좌우 공통)</span>
           <input type="number" value={value.iconSizePx || DEFAULT_ICON_SIZE_PX} onChange={(e) => patch({ iconSizePx: Number(e.target.value) || DEFAULT_ICON_SIZE_PX })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        {/* 사용자 지시(2026-08-30 — "hover 했을때 이미지 크기를 조절하는
+            설정 만들어줘"): 기본 아이콘 크기와 별개로 hover 이미지만 따로,
+            좌/우 각각 독립 설정(hoverLoopCount와 동일한 패턴). */}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">호버 이미지 크기(px)</span>
+          <input
+            type="number"
+            value={value[side === "left" ? "leftIconHoverSizePx" : "rightIconHoverSizePx"] || DEFAULT_ICON_SIZE_PX}
+            onChange={(e) => patch({ [side === "left" ? "leftIconHoverSizePx" : "rightIconHoverSizePx"]: Number(e.target.value) || DEFAULT_ICON_SIZE_PX } as Partial<SidebarIconsValue["pc"]>)}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">여닫이 방식(좌우 공통)</span>

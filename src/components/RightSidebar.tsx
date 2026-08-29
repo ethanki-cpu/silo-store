@@ -36,6 +36,7 @@ export function RightSidebar({
   iconHoverMode = "hover",
   iconHoverLoopCount = 0,
   iconSizePx = 32,
+  iconHoverSizePx = 32,
   triggerMode = "click",
   topOffsetPx,
   editable = false,
@@ -65,6 +66,9 @@ export function RightSidebar({
   iconHoverLoopCount?: number;
   // EPIC-041: 관리자 설정 아이콘 크기(px) — 기본값은 기존 하드코딩이었던 32px(w-8 h-8).
   iconSizePx?: number;
+  // 사용자 지시(2026-08-30 — "hover 했을때 이미지 크기를 조절하는 설정
+  // 만들어줘"): hover 이미지(iconHoverUrl)만 따로 크기 조절.
+  iconHoverSizePx?: number;
   // EPIC-077: 여닫이 트리거 모드 — "click"이면 호버는 아르누보 애니메이션만
   // 재생하고 클릭해야 패널이 열린다. "hover"면 EPIC-063 이전 방식대로 호버
   // 즉시 열린다.
@@ -155,6 +159,10 @@ export function RightSidebar({
   );
   // HOTFIX-141.15: 같은 이유로 이 훅도 조건부 return 이전에 호출한다.
   const referenceWidth = useReferenceWidth();
+  // 버그 수정(2026-08-30) — LeftSidebar.tsx와 동일한 이유(Rules of Hooks +
+  // hover 재생 타이밍 버그): 실제 hover 상태를 state로 추적해
+  // SidebarTriggerMedia의 active prop으로 넘긴다.
+  const [isIconHovered, setIsIconHovered] = useState(false);
 
   if (tabs.length === 0) return null;
   const combinedLabel = tabs.map((t) => t.label).join(" · ");
@@ -217,7 +225,11 @@ export function RightSidebar({
           ref={triggerRef}
           type="button"
           onClick={handleClick}
-          onMouseEnter={triggerMode === "hover" ? onIconClick : undefined}
+          onMouseEnter={(e) => {
+            setIsIconHovered(true);
+            if (triggerMode === "hover") onIconClick(e);
+          }}
+          onMouseLeave={() => setIsIconHovered(false)}
           onPointerDown={editable ? startDrag : undefined}
           onPointerMove={editable ? moveDrag : undefined}
           onPointerUp={editable ? endDrag : undefined}
@@ -241,28 +253,44 @@ export function RightSidebar({
           {iconDefaultUrl || iconHoverUrl ? (
             <span
               className="relative block transition-transform duration-300 group-hover:scale-[1.2]"
-              style={{ width: iconSizePx, height: iconSizePx }}
+              style={{ width: Math.max(iconSizePx, iconHoverSizePx), height: Math.max(iconSizePx, iconHoverSizePx) }}
             >
               {iconHoverMode === "always" ? (
-                <SidebarTriggerMedia
-                  url={iconHoverUrl || iconDefaultUrl || ""}
-                  alt={combinedLabel}
-                  className="absolute inset-0 h-full w-full object-contain"
-                  loopCount={iconHoverLoopCount}
-                />
-              ) : (
-                <>
-                  <SidebarTriggerMedia
-                    url={iconDefaultUrl ?? ""}
-                    alt={combinedLabel}
-                    className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 group-hover:opacity-0"
-                  />
+                <span
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                  style={{ width: iconHoverSizePx, height: iconHoverSizePx }}
+                >
                   <SidebarTriggerMedia
                     url={iconHoverUrl || iconDefaultUrl || ""}
                     alt={combinedLabel}
-                    className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    className="h-full w-full object-contain"
                     loopCount={iconHoverLoopCount}
                   />
+                </span>
+              ) : (
+                <>
+                  <span
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-100 transition-opacity duration-300 group-hover:opacity-0"
+                    style={{ width: iconSizePx, height: iconSizePx }}
+                  >
+                    <SidebarTriggerMedia
+                      url={iconDefaultUrl ?? ""}
+                      alt={combinedLabel}
+                      className="h-full w-full object-contain"
+                    />
+                  </span>
+                  <span
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    style={{ width: iconHoverSizePx, height: iconHoverSizePx }}
+                  >
+                    <SidebarTriggerMedia
+                      url={iconHoverUrl || iconDefaultUrl || ""}
+                      alt={combinedLabel}
+                      className="h-full w-full object-contain"
+                      loopCount={iconHoverLoopCount}
+                      active={isIconHovered}
+                    />
+                  </span>
                 </>
               )}
             </span>

@@ -563,6 +563,10 @@ export function Navbar({
   // 열린다(다른 아이콘을 클릭하면 이전 패널은 닫힘, 기존 top-sidebar-trigger와
   // 동일한 단일 열림 UX).
   const [openIconSidebarId, setOpenIconSidebarId] = useState<string | null>(null);
+  // 버그 수정(2026-08-30, 사용자 신고 — "반복 횟수 설정이 제대로 작동
+  // 안하고 있어"): 좌/우 사이드바와 동일한 이유 — hover 이미지가 영상일 때
+  // 실제 hover 시작 시점에 처음부터 재생되도록 실제 hover 상태를 추적한다.
+  const [hoveredTopBarIconId, setHoveredTopBarIconId] = useState<string | null>(null);
 
   function slotOffset(slotKey: string): HeaderSlotOffset {
     return getSlotOffset(resolvedPositions, slotKey);
@@ -1593,30 +1597,48 @@ export function Navbar({
           // 사용자 지시(2026-08-29 — "hover 하면 두번째 이미지가 나올지,
           // 아니면 hover 없이 계속 두번째 이미지가 나올지"): "always"면
           // 크로스페이드 없이 hoverImageUrl(없으면 imageUrl)을 고정으로.
+          // 사용자 지시(2026-08-30 — "hover 했을때 이미지 크기를 조절하는
+          // 설정 만들어줘"): hover 이미지(hoverImageUrl)만 icon.hoverSizePx로
+          // 따로 크기를 준다 — 바깥 래퍼(버튼/링크)는 두 크기 중 큰 쪽으로
+          // 잡아 어느 쪽도 잘리지 않게 하고, 각 미디어는 그 안에서 자기
+          // 크기로 중앙 정렬한다.
+          const outerSizePx = Math.max(icon.sizePx, icon.hoverSizePx);
           const media =
             icon.hoverMode === "always" ? (
-              <SidebarTriggerMedia
-                url={icon.hoverImageUrl || icon.imageUrl}
-                alt={icon.alt}
-                className="block h-full w-full object-contain"
-                loopCount={icon.hoverLoopCount}
-              />
+              <span
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{ width: icon.hoverSizePx, height: icon.hoverSizePx }}
+              >
+                <SidebarTriggerMedia
+                  url={icon.hoverImageUrl || icon.imageUrl}
+                  alt={icon.alt}
+                  className="h-full w-full object-contain"
+                  loopCount={icon.hoverLoopCount}
+                />
+              </span>
             ) : (
               <>
-                <SidebarTriggerMedia
-                  url={icon.imageUrl}
-                  alt={icon.alt}
-                  className={`block h-full w-full object-contain ${
+                <span
+                  className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ${
                     icon.hoverImageUrl ? "opacity-100 transition-opacity duration-300 group-hover:opacity-0" : ""
                   }`}
-                />
+                  style={{ width: icon.sizePx, height: icon.sizePx }}
+                >
+                  <SidebarTriggerMedia url={icon.imageUrl} alt={icon.alt} className="h-full w-full object-contain" />
+                </span>
                 {icon.hoverImageUrl && (
-                  <SidebarTriggerMedia
-                    url={icon.hoverImageUrl}
-                    alt={icon.alt}
-                    className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                    loopCount={icon.hoverLoopCount}
-                  />
+                  <span
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    style={{ width: icon.hoverSizePx, height: icon.hoverSizePx }}
+                  >
+                    <SidebarTriggerMedia
+                      url={icon.hoverImageUrl}
+                      alt={icon.alt}
+                      className="h-full w-full object-contain"
+                      loopCount={icon.hoverLoopCount}
+                      active={hoveredTopBarIconId === icon.id}
+                    />
+                  </span>
                 )}
               </>
             );
@@ -1643,17 +1665,21 @@ export function Navbar({
                   type="button"
                   data-icon-sidebar-trigger
                   onClick={() => setOpenIconSidebarId((cur) => (cur === icon.id ? null : icon.id))}
+                  onMouseEnter={() => setHoveredTopBarIconId(icon.id)}
+                  onMouseLeave={() => setHoveredTopBarIconId((cur) => (cur === icon.id ? null : cur))}
                   aria-label={icon.alt || "메뉴 열기"}
                   className="group relative inline-block"
-                  style={{ height: icon.sizePx, width: icon.sizePx }}
+                  style={{ height: outerSizePx, width: outerSizePx }}
                 >
                   {media}
                 </button>
               ) : (
                 <Link
                   href={icon.href || "#"}
+                  onMouseEnter={() => setHoveredTopBarIconId(icon.id)}
+                  onMouseLeave={() => setHoveredTopBarIconId((cur) => (cur === icon.id ? null : cur))}
                   className="group relative inline-block"
-                  style={{ height: icon.sizePx, width: icon.sizePx }}
+                  style={{ height: outerSizePx, width: outerSizePx }}
                 >
                   {media}
                 </Link>
@@ -1922,6 +1948,7 @@ export function Navbar({
         iconHoverMode={sidebarIcons?.leftIconHoverMode}
         iconHoverLoopCount={sidebarIcons?.leftIconHoverLoopCount}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
+        iconHoverSizePx={sidebarIcons?.leftIconHoverSizePx || DEFAULT_ICON_SIZE_PX}
         triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
         topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
         editable={editable}
@@ -1953,6 +1980,7 @@ export function Navbar({
         iconHoverMode={sidebarIcons?.rightIconHoverMode}
         iconHoverLoopCount={sidebarIcons?.rightIconHoverLoopCount}
         iconSizePx={sidebarIcons?.iconSizePx || DEFAULT_ICON_SIZE_PX}
+        iconHoverSizePx={sidebarIcons?.rightIconHoverSizePx || DEFAULT_ICON_SIZE_PX}
         triggerMode={sidebarIcons?.triggerMode || DEFAULT_TRIGGER_MODE}
         topOffsetPx={sidebarIcons?.topOffsetPx || DEFAULT_TOP_OFFSET_PX}
         editable={editable}

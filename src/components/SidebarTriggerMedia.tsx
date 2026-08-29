@@ -23,6 +23,7 @@ function TransparentVideo({
   src,
   className,
   loopCount = 0,
+  active = true,
 }: {
   src: string;
   className: string;
@@ -32,10 +33,23 @@ function TransparentVideo({
    *  직접 세어 재생 — 네이티브 loop=true는 'ended'가 아예 발생하지 않아
    *  횟수를 셀 수 없다). */
   loopCount?: number;
+  /** 버그 수정(2026-08-30, 사용자 신고 — "반복 횟수 설정이 제대로 작동
+   *  안하고 있어"): 예전엔 hover 크로스페이드용 두번째 미디어도 항상
+   *  마운트와 동시에(=페이지 로드 시점) 재생을 시작했다 — 그래서 loopCount
+   *  가 작으면 사용자가 실제로 hover하기 한참 전에 이미 N번 재생이 끝나
+   *  마지막 프레임에 멈춰 있었고, hover해도 "반복이 아예 안 되는 것"처럼
+   *  보였다. active=false면 재생하지 않고 대기하다가, true로 바뀌는
+   *  순간(=실제 hover 시작)에만 처음부터 loopCount 번 재생한다. "always"
+   *  모드나 좌우 사이드바의 기본 이미지처럼 hover와 무관하게 항상 보이는
+   *  미디어는 그냥 기본값 true를 쓰면 기존과 동일하게 동작한다. */
+  active?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // 캔버스에 현재 프레임을 계속 그리는 루프 — 재생 중이든 정지 상태든(예:
+  // loopCount 소진 후, 혹은 active=false로 대기 중) 항상 돌아가야 마지막
+  // 프레임이 계속 보인다. 재생 제어(아래 두번째 effect)와는 독립적.
   useEffect(() => {
     const video = videoRef.current as VideoFrameCallbackVideo | null;
     const canvas = canvasRef.current;
@@ -45,39 +59,6 @@ function TransparentVideo({
     let rafId = 0;
     let vfcId = 0;
     let cancelled = false;
-    let playsRemaining = loopCount > 0 ? loopCount : Infinity;
-    function handleEnded() {
-      playsRemaining -= 1;
-      if (cancelled || playsRemaining <= 0) return;
-      video!.currentTime = 0;
-      tryPlay();
-    }
-    if (loopCount > 0) video.addEventListener("ended", handleEnded);
-
-    // EPIC-079-PHASE-2: 지금까지 <video autoPlay muted>의 JSX 속성만 믿고
-    // 재생을 시작했는데, React가 hydration 시점에 `muted`를 DOM
-    // "속성"(attribute)이 아니라 "프로퍼티"로 정확히 반영하는 타이밍이
-    // 브라우저의 autoplay 정책(음소거 상태여야 autoplay 허용) 판정보다
-    // 늦으면 play()가 조용히 reject되고, videoWidth/height가 계속 0으로
-    // 남아 draw()가 canvas에 아무것도 그리지 못한다 — 그 결과 CSS
-    // scale(hover 확대)만 눈에 보이고 애니메이션 자체는 재생되지 않는
-    // 것처럼 보였다. muted를 프로퍼티로 명시적으로 먼저 설정한 뒤 직접
-    // play()를 호출하고, 실패하면 사용자가 실제로 hover(마우스 진입)할
-    // 때 한 번 더 재시도한다.
-    video.muted = true;
-    const tryPlay = () => {
-      video.play().catch(() => {
-        /* 자동재생이 거부됐다면 아래 canplay/사용자 상호작용 재시도로 넘어간다. */
-      });
-    };
-    tryPlay();
-    // <video>는 pointerEvents: "none"이라 자신에게는 hover가 닿지 않으므로,
-    // canplay(디코딩 준비 완료)와 문서 전역의 최초 사용자 상호작용 시점에도
-    // 한 번씩 더 재생을 시도한다 — 브라우저가 처음엔 autoplay를 거부했더라도
-    // 실제 상호작용이 있었다는 신호가 생기면 재생이 허용되는 경우가 많다.
-    video.addEventListener("canplay", tryPlay);
-    document.addEventListener("pointerdown", tryPlay, { once: true });
-    document.addEventListener("keydown", tryPlay, { once: true });
 
     function draw() {
       if (cancelled || !video || !canvas || !ctx) return;
@@ -107,20 +88,64 @@ function TransparentVideo({
       if (vfcId && typeof video.cancelVideoFrameCallback === "function") {
         video.cancelVideoFrameCallback(vfcId);
       }
+    };
+  }, [src]);
+
+  // 재생 제어 — active가 true인 동안만 처음부터 loopCount 번 재생한다.
+  // active/loopCount/src가 바뀔 때마다(예: hover 진입) 처음부터 다시 센다.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    // EPIC-079-PHASE-2: React가 hydration 시점에 `muted`를 DOM "속성"이
+    // 아니라 "프로퍼티"로 정확히 반영하는 타이밍이 브라우저의 autoplay
+    // 정책(음소거 상태여야 autoplay 허용) 판정보다 늦으면 play()가 조용히
+    // reject되므로, 프로퍼티로 먼저 명시한다.
+    video.muted = true;
+
+    if (!active) {
+      video.pause();
+      return;
+    }
+
+    let cancelled = false;
+    let playsRemaining = loopCount > 0 ? loopCount : Infinity;
+    function handleEnded() {
+      playsRemaining -= 1;
+      if (cancelled || playsRemaining <= 0) return;
+      video!.currentTime = 0;
+      tryPlay();
+    }
+    if (loopCount > 0) video.addEventListener("ended", handleEnded);
+
+    const tryPlay = () => {
+      video.play().catch(() => {
+        /* 자동재생이 거부됐다면 아래 canplay/사용자 상호작용 재시도로 넘어간다. */
+      });
+    };
+    video.currentTime = 0;
+    tryPlay();
+    // <video>는 pointerEvents: "none"이라 자신에게는 hover가 닿지 않으므로,
+    // canplay(디코딩 준비 완료)와 문서 전역의 최초 사용자 상호작용 시점에도
+    // 한 번씩 더 재생을 시도한다 — 브라우저가 처음엔 autoplay를 거부했더라도
+    // 실제 상호작용이 있었다는 신호가 생기면 재생이 허용되는 경우가 많다.
+    video.addEventListener("canplay", tryPlay);
+    document.addEventListener("pointerdown", tryPlay, { once: true });
+    document.addEventListener("keydown", tryPlay, { once: true });
+
+    return () => {
+      cancelled = true;
       video.removeEventListener("canplay", tryPlay);
       document.removeEventListener("pointerdown", tryPlay);
       document.removeEventListener("keydown", tryPlay);
       if (loopCount > 0) video.removeEventListener("ended", handleEnded);
     };
-  }, [src, loopCount]);
+  }, [active, loopCount]);
 
   return (
     <>
       <video
         ref={videoRef}
         src={src}
-        autoPlay
-        loop={loopCount <= 0}
         muted
         playsInline
         disablePictureInPicture
@@ -141,16 +166,20 @@ export function SidebarTriggerMedia({
   alt,
   className,
   loopCount = 0,
+  active = true,
 }: {
   url: string;
   alt: string;
   className: string;
   /** 사용자 지시(2026-08-29): 영상일 때만 의미 있음 — 0(기본값)은 무한 반복. */
   loopCount?: number;
+  /** 버그 수정(2026-08-30): hover 크로스페이드용 두번째 미디어는 실제
+   *  hover 상태를 그대로 넘긴다 — TransparentVideo 주석 참고. */
+  active?: boolean;
 }) {
   if (!url) return null;
   if (isVideoUrl(url)) {
-    return <TransparentVideo src={url} className={className} loopCount={loopCount} />;
+    return <TransparentVideo src={url} className={className} loopCount={loopCount} active={active} />;
   }
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={url} alt={alt} className={className} />;

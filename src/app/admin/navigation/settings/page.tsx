@@ -1425,11 +1425,34 @@ function ControlsPanel({
               checked={icon.sidebar.enabled}
               onChange={(e) => patchIcon({ sidebar: { ...icon.sidebar, enabled: e.target.checked } })}
             />
-            이 아이콘 클릭 시 상단 사이드바(슬라이드쇼 패널) 열기
+            이 아이콘 클릭 시 상단 사이드바 열기
           </label>
           {icon.sidebar.enabled && (
             <>
               <p className="text-[11px] text-gray-400">켜면 위 &ldquo;링크&rdquo;는 사용되지 않고, 클릭할 때마다 이 패널이 열리고 닫혀요.</p>
+              {/* 사용자 지시(2026-08-30 — "새로 만들어진 아이콘과 연결된
+                  독립된 각각의 상단 사이드바를 설정할수 있게 해줘" → 슬라이드쇼가
+                  아니라 기존 Kinfolk형 메가 메뉴를 원한다는 확인): 이 패널의
+                  성격 자체를 고를 수 있게 — "슬라이드쇼"(기존, 아래 높이/
+                  슬라이드 설정)와 "메가 메뉴"(전역 "상단 사이드바"와 동일한
+                  컬럼/링크형 메뉴, 아이콘마다 독립). */}
+              <label className="block">
+                <span className="mb-1 block text-gray-600">패널 종류</span>
+                <select
+                  value={icon.sidebar.panelType}
+                  onChange={(e) => patchIcon({ sidebar: { ...icon.sidebar, panelType: e.target.value as "slideshow" | "megaMenu" } })}
+                  className="w-full rounded border border-gray-300 px-2 py-1"
+                >
+                  <option value="slideshow">슬라이드쇼(이미지, 단순)</option>
+                  <option value="megaMenu">메가 메뉴(컬럼/링크, 기존 &ldquo;상단 사이드바&rdquo;와 동일한 형태)</option>
+                </select>
+              </label>
+              {icon.sidebar.panelType === "megaMenu" ? (
+                <p className="text-[11px] text-gray-400">
+                  캔버스에서 이 아이콘을 클릭해 패널을 연 다음, 패널 안(배경/링크/컬럼 등)을 클릭하면 여기 이 자리에 편집 화면이 나타나요 — 전역 &ldquo;상단 사이드바&rdquo;와 똑같은 편집기예요.
+                </p>
+              ) : (
+              <>
               <label className="block">
                 <span className="mb-1 block text-gray-600">패널 높이(px)</span>
                 <input
@@ -1507,9 +1530,40 @@ function ControlsPanel({
                   + 슬라이드 추가
                 </button>
               </div>
+              </>
+              )}
             </>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (selectedSlotKey.startsWith("top-bar-icon-megamenu:")) {
+    const iconId = selectedSlotKey.slice("top-bar-icon-megamenu:".length);
+    const iconIdx = topBarIconsValue.icons.findIndex((i) => i.id === iconId);
+    const icon = topBarIconsValue.icons[iconIdx];
+    if (!icon) return <p className="text-xs text-gray-400">삭제된 아이콘이에요.</p>;
+    function setMegaMenuValue(updater: React.SetStateAction<TopSidebarValue>) {
+      setTopBarIconsValue((prev) => ({
+        icons: prev.icons.map((i) =>
+          i.id === iconId
+            ? {
+                ...i,
+                sidebar: {
+                  ...i.sidebar,
+                  megaMenu: typeof updater === "function" ? (updater as (p: TopSidebarValue) => TopSidebarValue)(i.sidebar.megaMenu) : updater,
+                },
+              }
+            : i,
+        ),
+      }));
+    }
+    return (
+      <div className="space-y-3 text-xs">
+        <p className="text-sm font-semibold text-gray-700">상단 아이콘 {iconIdx + 1} &mdash; 메가 메뉴</p>
+        <p className="text-[11px] text-gray-400">이 아이콘 전용 메가 메뉴예요 — 전역 &ldquo;상단 사이드바&rdquo;와 독립적으로 자체 링크/컬럼/스타일을 가져요.</p>
+        <TopSidebarControls value={icon.sidebar.megaMenu} setValue={setMegaMenuValue} deviceTab={deviceTab} hideIntro />
       </div>
     );
   }
@@ -2570,10 +2624,18 @@ function TopSidebarControls({
   value,
   setValue,
   deviceTab,
+  hideIntro = false,
 }: {
   value: TopSidebarValue;
   setValue: React.Dispatch<React.SetStateAction<TopSidebarValue>>;
   deviceTab: "pc" | "tablet" | "mobile";
+  /** 사용자 지시(2026-08-30 — 상단 아이콘별 독립 메가 메뉴): 이 컴포넌트는
+   *  원래 전역 "상단 사이드바" 하나만 편집하던 것을 그대로 재사용한
+   *  것이라, 아래 소개 문구가 "헤더 우측의 상단 사이드바 열기 버튼"을
+   *  언급한다 — 아이콘별 메가 메뉴 컨텍스트에서는 그 트리거가 이 아이콘
+   *  자신이라 문구가 어긋난다. true면 그 소개 블록을 생략(호출부가 이미
+   *  자기 맥락에 맞는 소개를 따로 보여줌). */
+  hideIntro?: boolean;
 }) {
   const [uploadingLinkId, setUploadingLinkId] = useState<string | null>(null);
   const [uploadingBankImage, setUploadingBankImage] = useState(false);
@@ -2790,10 +2852,19 @@ function TopSidebarControls({
 
   return (
     <div className="space-y-3 text-xs">
-      <p className="text-sm font-semibold text-gray-700">상단 사이드바</p>
-      <p className="text-[11px] text-gray-400">
-        헤더 우측의 &ldquo;상단 사이드바 열기 버튼&rdquo;은 다른 헤더 요소처럼 항상 표시돼요(따로 켜고 끄지 않아요). 클릭하면 화면 위에서 아래로 슬라이드해 열려요(캔버스에서 직접 클릭해 열고 닫아 미리볼 수 있어요). 왼쪽 이름/등급/팔로워/최근 활동/Mind Diary·Studio·Silo Planet은 실제 로그인 정보 + 고정 바로가기라 여기서 편집할 수 없어요 — 아래는 그 옆(column 2) 링크 목록과 패널 전체 스타일이에요.
-      </p>
+      {!hideIntro && (
+        <>
+          <p className="text-sm font-semibold text-gray-700">상단 사이드바</p>
+          <p className="text-[11px] text-gray-400">
+            헤더 우측의 &ldquo;상단 사이드바 열기 버튼&rdquo;은 다른 헤더 요소처럼 항상 표시돼요(따로 켜고 끄지 않아요). 클릭하면 화면 위에서 아래로 슬라이드해 열려요(캔버스에서 직접 클릭해 열고 닫아 미리볼 수 있어요). 왼쪽 이름/등급/팔로워/최근 활동/Mind Diary·Studio·Silo Planet은 실제 로그인 정보 + 고정 바로가기라 여기서 편집할 수 없어요 — 아래는 그 옆(column 2) 링크 목록과 패널 전체 스타일이에요.
+          </p>
+        </>
+      )}
+      {hideIntro && (
+        <p className="text-[11px] text-gray-400">
+          왼쪽 이름/등급/팔로워/최근 활동/Mind Diary·Studio·Silo Planet은 실제 로그인 정보 + 고정 바로가기라 여기서 편집할 수 없어요 — 아래는 그 옆(column 2) 링크 목록과 패널 전체 스타일이에요.
+        </p>
+      )}
 
       <div className="space-y-2 border-t border-gray-200 pt-3">
         <p className="font-medium text-gray-600">패널 스타일</p>

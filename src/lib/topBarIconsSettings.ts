@@ -1,4 +1,5 @@
 import type { SlideItem } from "./heroSlideshow";
+import { normalizeTopSidebar, defaultTopSidebarValue, type TopSidebarValue } from "./topSidebarSettings";
 
 // 사용자 지시(2026-08-29 — "'홈페이지 설정'에 상단에 아이콘을 추가하고
 // 페이지와 링크하는 기능을 만들어줘. 그리고 그 아이콘은 드래그앤드랍으로
@@ -23,13 +24,28 @@ import type { SlideItem } from "./heroSlideshow";
 //   높이(px)와 이미지 슬라이드쇼(HeroSlideshow 재사용, heroSlideshow.ts의
 //   SlideItem과 동일 모양)만 갖는다 — 아이콘마다 독립된 패널이라 여러 개를
 //   만들 수 있다(전역 top_sidebar는 하나뿐이었던 것과 다른 점).
+//
+// 사용자 지시(2026-08-30 — "새로 만들어진 아이콘과 연결된 독립된 각각의
+// 상단 사이드바를 설정할수 있게 해줘" → 후속 확인: "슬라이드쇼가 아니라
+// 더 복잡한 메뉴(기존 Kinfolk형 메가 메뉴)를 원함"): panelType으로 두
+// 모드 중 선택 — "slideshow"(기존, 위 설명)와 "megaMenu"(전역 상단
+// 사이드바 TopSidebarPanel.tsx와 완전히 동일한 컬럼/링크형 메가 메뉴를
+// 아이콘마다 독립적으로). TopSidebarPanel이 이미 config prop 하나로
+// 동작하는 범용 컴포넌트라 새로 만들지 않고 그대로 재사용 — megaMenu
+// 필드에 site_settings.top_sidebar와 동일한 모양(TopSidebarValue,
+// pc/tablet/mobile 3단)을 통째로 넣어 관리자 화면의 기존
+// TopSidebarControls 에디터도 그대로 재사용한다(새 에디터 UI를 따로
+// 만들지 않음 — value/setValue만 이 아이콘의 megaMenu로 바꿔 넘긴다).
 export type HoverMediaMode = "hover" | "always";
+export type TopBarIconPanelType = "slideshow" | "megaMenu";
 
 export type TopBarIconSidebar = {
   enabled: boolean;
+  panelType: TopBarIconPanelType;
   heightPx: number;
   slides: SlideItem[];
   autoAdvanceSeconds: number;
+  megaMenu: TopSidebarValue;
 };
 
 export type TopBarIcon = {
@@ -60,7 +76,14 @@ export const DEFAULT_TOP_BAR_ICON_SIZE_PX = 28;
 export const DEFAULT_TOP_BAR_ICON_SIDEBAR_HEIGHT_PX = 480;
 
 export function defaultTopBarIconSidebar(): TopBarIconSidebar {
-  return { enabled: false, heightPx: DEFAULT_TOP_BAR_ICON_SIDEBAR_HEIGHT_PX, slides: [], autoAdvanceSeconds: 5 };
+  return {
+    enabled: false,
+    panelType: "slideshow",
+    heightPx: DEFAULT_TOP_BAR_ICON_SIDEBAR_HEIGHT_PX,
+    slides: [],
+    autoAdvanceSeconds: 5,
+    megaMenu: defaultTopSidebarValue(),
+  };
 }
 
 export function defaultTopBarIconsValue(): TopBarIconsValue {
@@ -87,9 +110,11 @@ function normalizeSidebar(raw: unknown): TopBarIconSidebar {
   const fallback = defaultTopBarIconSidebar();
   return {
     enabled: v.enabled ?? fallback.enabled,
+    panelType: v.panelType === "megaMenu" ? "megaMenu" : "slideshow",
     heightPx: v.heightPx || fallback.heightPx,
     slides: Array.isArray(v.slides) ? (v.slides as SlideItem[]) : fallback.slides,
     autoAdvanceSeconds: v.autoAdvanceSeconds || fallback.autoAdvanceSeconds,
+    megaMenu: normalizeTopSidebar(v.megaMenu),
   };
 }
 

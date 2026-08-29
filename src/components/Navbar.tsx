@@ -1892,19 +1892,38 @@ export function Navbar({
           isMobileViewport={isMobileViewport}
         />
       )}
+      {/* 사용자 지시(2026-08-30 — "새로 만들어진 아이콘과 연결된 독립된
+          각각의 상단 사이드바를 설정할수 있게 해줘" → 슬라이드쇼가 아니라
+          기존 Kinfolk형 메가 메뉴를 원한다는 확인): panelType이
+          "megaMenu"면 전역 상단 사이드바와 똑같은 TopSidebarPanel을 이
+          아이콘 자신의 megaMenu 설정으로 그대로 재사용한다 — 컬럼형
+          메뉴 렌더링 로직 자체를 복제하지 않음. */}
       {resolvedTopBarIcons?.icons
         .filter((icon) => icon.sidebar.enabled)
-        .map((icon) => (
-          <IconSidebarPanel
-            key={icon.id}
-            heightPx={icon.sidebar.heightPx}
-            slides={icon.sidebar.slides}
-            autoAdvanceSeconds={icon.sidebar.autoAdvanceSeconds}
-            open={openIconSidebarId === icon.id}
-            onClose={() => setOpenIconSidebarId(null)}
-            editable={editable}
-          />
-        ))}
+        .map((icon) =>
+          icon.sidebar.panelType === "megaMenu" ? (
+            <TopSidebarPanel
+              key={icon.id}
+              config={icon.sidebar.megaMenu[deviceKey]}
+              open={openIconSidebarId === icon.id}
+              onClose={() => setOpenIconSidebarId(null)}
+              editable={editable}
+              selected={selectedSlotKey === `top-bar-icon-megamenu:${icon.id}`}
+              onSelect={() => handleSelectSlot(`top-bar-icon-megamenu:${icon.id}`)}
+              isMobileViewport={isMobileViewport}
+            />
+          ) : (
+            <IconSidebarPanel
+              key={icon.id}
+              heightPx={icon.sidebar.heightPx}
+              slides={icon.sidebar.slides}
+              autoAdvanceSeconds={icon.sidebar.autoAdvanceSeconds}
+              open={openIconSidebarId === icon.id}
+              onClose={() => setOpenIconSidebarId(null)}
+              editable={editable}
+            />
+          ),
+        )}
       </div>
       {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이
           위로 붙지 않게 한다(topBarHeight는 ResizeObserver 실측값).

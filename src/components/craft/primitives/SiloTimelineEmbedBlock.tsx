@@ -522,6 +522,7 @@ function TimelineCoverOverlay({
   panDirection,
   position,
   mobilePosition,
+  href,
   onTextCommit,
   onDescriptionCommit,
   onPositionChange,
@@ -551,6 +552,9 @@ function TimelineCoverOverlay({
   panDirection: PanDirection | null;
   position: FreePosition;
   mobilePosition: FreePosition | null;
+  // HOTFIX-151.11: 이 이벤트가 연결된 실제 페이지 경로 — 있으면 "자세히
+  // 보기" 링크를 오버레이 안에도 그린다(표지 슬라이드는 보통 undefined).
+  href?: string;
   onTextCommit: (next: string) => void;
   onDescriptionCommit: (next: string) => void;
   onPositionChange: (next: FreePosition) => void;
@@ -634,6 +638,19 @@ function TimelineCoverOverlay({
             style={{ fontSize: descFontSizePx, color: descColor, ...(descFontFamily ? { fontFamily: descFontFamily } : {}) }}
             placeholder="설명을 입력하세요"
           />
+          {/* HOTFIX-151.11(사용자 신고 — "이집트/바빌론/그리스 이벤트에서
+              그 페이지로 넘어가는 버튼이 없어"): 이 오버레이가 켜지면
+              native TL3 슬라이드 안의 "자세히 보기" 링크가 완전히 가려져
+              클릭할 수 없었다 — 같은 링크를 오버레이 안에도 그린다. */}
+          {href && (
+            <a
+              href={href}
+              className={`pointer-events-auto mt-1 block underline underline-offset-4 ${COVER_ALIGN_CLASS[align]}`}
+              style={{ fontSize: Math.max(14, fontSizePx * 0.35), color }}
+            >
+              자세히 보기
+            </a>
+          )}
         </div>
         </div>
       </div>
@@ -714,6 +731,38 @@ export function SiloTimelineEmbedBlock({
   } = useNode();
   const ready = mode === "group" ? !!groupHref : !!boardId;
   const [coverState, setCoverState] = useState<TimelineCoverState>(null);
+
+  // HOTFIX-151.11(사용자 신고 — "이집트/바빌론/그리스 이벤트에서 그
+  // 페이지로 넘어가는 버튼이 없어"): 이벤트별 "자유 편집" 오버레이가
+  // 켜지면 native TL3 슬라이드(및 그 안의 "자세히 보기" 링크)가 화면에서
+  // 완전히 가려진다 — 오버레이에도 같은 링크를 그릴 수 있도록 이벤트별
+  // href를 따로 불러온다(API가 이제 각 이벤트에 href를 함께 내려줌).
+  const [eventHrefs, setEventHrefs] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!ready) return;
+    const url =
+      mode === "group"
+        ? `/api/timeline/events?group=${encodeURIComponent(groupHref)}`
+        : `/api/timeline/events?board=${encodeURIComponent(boardId)}`;
+    let cancelled = false;
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const events = Array.isArray(data?.events) ? data.events : [];
+        const map: Record<string, string> = {};
+        for (const e of events as { unique_id?: string; href?: string }[]) {
+          if (e.unique_id && e.href) map[e.unique_id] = e.href;
+        }
+        setEventHrefs(map);
+      })
+      .catch(() => {
+        if (!cancelled) setEventHrefs({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, mode, groupHref, boardId]);
 
   // HOTFIX-147.24: 설정 패널이 이 노드의 coverState를 구독할 수 있도록 매번
   // 공유 스토어에도 반영한다(위 useActiveSlide 참고).
@@ -832,6 +881,7 @@ export function SiloTimelineEmbedBlock({
                   panDirection={activeConfig.panDirection}
                   position={activeConfig.position}
                   mobilePosition={activeConfig.mobilePosition}
+                  href={coverState.eventId ? eventHrefs[coverState.eventId] : undefined}
                   onTextCommit={(next) => commitActiveConfig({ text: next })}
                   onDescriptionCommit={(next) => commitActiveConfig({ description: next })}
                   onPositionChange={(next) => commitActiveConfig({ position: next })}

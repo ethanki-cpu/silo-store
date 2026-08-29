@@ -140,6 +140,14 @@ export async function GET(request: NextRequest) {
             text: `${excerpt ? `<p>${excerpt}</p>` : ""}<p><a href="${child.href}">자세히 보기</a></p>`,
           },
           ...(mediaUrl ? { media: { url: mediaUrl, thumbnail: mediaUrl, caption: headline } } : {}),
+          // HOTFIX-151.11(사용자 신고 — "이집트/바빌론/그리스 이벤트에서
+          // 그 페이지로 넘어가는 버튼이 없어"): 이 링크는 위 text.text에
+          // 이미 있지만, 그 native 텍스트는 이벤트별 "자유 편집"(커스텀
+          // 오버레이, SlideOverlayFieldsEditor)이 켜지면 화면에서 완전히
+          // 가려진다 — TL3 표준 스키마엔 없는 필드지만(TL3는 무시) 클라
+          // 이언트가 이 값으로 오버레이에도 같은 링크를 따로 그릴 수 있게
+          // 별도로 노출한다(SiloTimelineEmbedBlock.tsx의 eventHrefs).
+          href: child.href,
         };
       }),
     );
@@ -272,5 +280,8 @@ function buildEvent({
     // 없으면 마커에 아무것도 안 그려진다. 같은 이미지를 썸네일로도 함께 준다.
     ...(mediaUrl ? { media: { url: mediaUrl, thumbnail: mediaUrl, caption: title ?? undefined } } : {}),
     ...(category ? { group: category } : {}),
+    // HOTFIX-151.11: group 모드와 동일하게, 이벤트별 자유 편집 오버레이가
+    // 이 링크를 가리는 경우에도 클라이언트가 별도로 그릴 수 있게 노출.
+    href: detailHref,
   };
 }

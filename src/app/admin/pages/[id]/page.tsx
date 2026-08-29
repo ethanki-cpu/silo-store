@@ -68,6 +68,13 @@ const CRAFT_EDITORS: Record<string, CraftEditorComponent> = {
   // 빠뜨려서 화면엔 타임라인이 정상 노출돼도 "페이지 수정"에서는 편집을
   // 못 하는 상태였다.
   "online-docent-ancient-invade": CraftDocentEditor,
+  // HOTFIX-151.12: 공개 렌더러(CRAFT_RENDERERS, src/app/[...slug]/page.tsx)와
+  // 동일한 5개 리프 카테고리 페이지 — 상세 사유는 그쪽 주석 참고.
+  "online-docent-ancient-invade-egyptians": CraftDocentEditor,
+  "online-docent-ancient-invade-babylon": CraftDocentEditor,
+  "online-docent-ancient-invade-greeks": CraftDocentEditor,
+  "online-docent-empire-monarchy-romans": CraftDocentEditor,
+  "online-docent-empire-monarchy-byzantine": CraftDocentEditor,
 };
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {

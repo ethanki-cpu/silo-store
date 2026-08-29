@@ -38,6 +38,17 @@ const CRAFT_RENDERERS: Record<string, React.ComponentType<{ craftState?: string 
   // builder_type='craft'여도 조용히 native로 폴백해(위 주석) 애써 만든
   // 타임라인이 안 보인다.
   "online-docent-ancient-invade": CraftDocentRenderer,
+  // HOTFIX-151.12(사용자 지시 — "5개 카테고리의 '페이지 수정'에 craft
+  // 에디터가 없잖아"): 지금까지 리프(하위) 카테고리 페이지는 전부
+  // builder_type='native'라 애초에 Craft 에디터 자체가 없었다(허브
+  // 페이지만 craft였음) — 이 5개를 craft로 전환하고 기존 게시판 임베드는
+  // SiloTimelineEmbedBlock(mode="board")로 그대로 옮겨 시각적으로 동일하게
+  // 유지하면서 자유편집(배경/모션/자세히 보기 등)을 쓸 수 있게 했다.
+  "online-docent-ancient-invade-egyptians": CraftDocentRenderer,
+  "online-docent-ancient-invade-babylon": CraftDocentRenderer,
+  "online-docent-ancient-invade-greeks": CraftDocentRenderer,
+  "online-docent-empire-monarchy-romans": CraftDocentRenderer,
+  "online-docent-empire-monarchy-byzantine": CraftDocentRenderer,
 };
 
 // EPIC-068: 이 파일 이전까지는 src/app 전체가 138개의 손으로 만든 정적

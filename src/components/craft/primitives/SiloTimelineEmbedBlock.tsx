@@ -1196,28 +1196,54 @@ function SlideOverlayFieldsEditor({
           ))}
         </div>
         <label className="mt-1.5 block w-full rounded border border-dashed border-gray-300 py-1.5 text-center text-xs text-gray-500 hover:border-gray-400">
-          {uploadStatus ?? "+ 배경 이미지/영상 추가"}
+          {uploadStatus ?? "+ 배경 이미지/영상 추가(여러 개 한번에 선택 가능)"}
           <input
             type="file"
             accept="image/*,video/*"
+            multiple
             className="hidden"
             disabled={!editable || uploadStatus !== null}
             onChange={async (e) => {
-              const file = e.target.files?.[0];
+              // 사용자 지시(2026-08-30 — "이벤트 부분에 슬라이드쇼를 위한
+              // 이미지 또는 영상을 여러개 한번에 일괄로 올릴수 있게 해줘"):
+              // 파일을 하나씩 순차 처리(ffmpeg.wasm 영상 압축을 동시에
+              // 여러 개 돌리면 메모리/속도 문제가 있어 순차가 안전)하고,
+              // 업로드된 URL을 로컬 배열에 모아뒀다가 마지막에 한 번만
+              // onChange한다 — 매 파일마다 onChange를 부르면 이 클로저가
+              // 캡처한 옛 value.slideUrls를 계속 스프레드해 이전 파일의
+              // 추가분을 덮어써버리는 버그(부모 state 업데이트는 비동기라
+              // 이 함수 안에서는 value가 갱신되지 않음)가 생긴다.
+              const files = Array.from(e.target.files ?? []);
               e.target.value = "";
-              if (!file) return;
+              if (files.length === 0) return;
+              const uploadedUrls: string[] = [];
+              const failed: string[] = [];
               try {
-                // 사용자 지시(2026-08-29 — "50mb 이상의 영상이 업로드
-                // 되면, 30mb 아래로 변환해서 업로드되도록" + 후속 지시
-                // "'압축 목표 mb'를 설정할 수 있게 해달라"): 목표 용량
-                // 이하거나 영상이 아니면 즉시 원본 그대로 반환된다.
-                const uploadable = await compressVideoIfNeeded(file, setUploadStatus, compressTargetMb);
-                setUploadStatus("업로드 중...");
-                const { url, error } = await uploadFile(uploadable, "post-images", "craft-timeline-cover");
-                if (!error && url) onChange({ slideUrls: [...value.slideUrls, url] });
-                else if (error) window.alert(`업로드 실패: ${error}`);
-              } catch (err) {
-                window.alert(err instanceof Error ? err.message : "영상 압축 중 오류가 발생했습니다");
+                for (let i = 0; i < files.length; i++) {
+                  const file = files[i];
+                  const progressPrefix = files.length > 1 ? `[${i + 1}/${files.length}] ` : "";
+                  try {
+                    // 사용자 지시(2026-08-29 — "50mb 이상의 영상이 업로드
+                    // 되면, 30mb 아래로 변환해서 업로드되도록" + 후속 지시
+                    // "'압축 목표 mb'를 설정할 수 있게 해달라"): 목표 용량
+                    // 이하거나 영상이 아니면 즉시 원본 그대로 반환된다.
+                    const uploadable = await compressVideoIfNeeded(
+                      file,
+                      (status) => setUploadStatus(status ? `${progressPrefix}${status}` : null),
+                      compressTargetMb,
+                    );
+                    setUploadStatus(`${progressPrefix}업로드 중...`);
+                    const { url, error } = await uploadFile(uploadable, "post-images", "craft-timeline-cover");
+                    if (!error && url) uploadedUrls.push(url);
+                    else failed.push(`${file.name}${error ? `: ${error}` : ""}`);
+                  } catch (err) {
+                    failed.push(`${file.name}: ${err instanceof Error ? err.message : "처리 중 오류"}`);
+                  }
+                }
+                if (uploadedUrls.length > 0) onChange({ slideUrls: [...value.slideUrls, ...uploadedUrls] });
+                if (failed.length > 0) {
+                  window.alert(`${uploadedUrls.length}개 업로드 완료, ${failed.length}개 실패:\n${failed.join("\n")}`);
+                }
               } finally {
                 setUploadStatus(null);
               }

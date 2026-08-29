@@ -24,6 +24,7 @@ import { DEFAULT_FREE_POSITION, freePositionResponsiveAttrs, type FreePosition }
 import { SiloTimeline } from "@/components/timeline/SiloTimeline";
 import type { TimelineCoverState } from "@/components/timeline/SiloTimelineInner";
 import { uploadFile } from "@/lib/storage";
+import { compressVideoIfNeeded } from "@/lib/videoCompress";
 import { supabase } from "@/lib/supabaseClient";
 
 type CoverFontWeight = "normal" | "medium" | "semibold" | "bold";
@@ -421,7 +422,10 @@ function CoverBackground({
         const isVideo = /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
         const fitClass = effectiveFit === "contain" ? "object-contain" : "object-cover";
         const orientation = orientations[url];
-        const panClass = effectiveFit === "cover" && !isVideo ? resolvePanClass(panDirection, orientation) : "";
+        // HOTFIX(사용자 지시 — "영상 슬라이드에도 이미지처럼 확대/이동
+        // 모션을 넣어달라"): 이전엔 영상은 항상 !isVideo 조건에 걸려 패닝
+        // 클래스가 아예 안 붙었다 — 영상도 이미지와 동일하게 pan/zoom을 탄다.
+        const panClass = effectiveFit === "cover" ? resolvePanClass(panDirection, orientation) : "";
         const className = `absolute inset-0 h-full w-full ${fitClass} ${panClass} transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
         const style = panClass
           ? panClass === "silo-cover-pan-tour" && orientation
@@ -429,7 +433,22 @@ function CoverBackground({
             : baseVars
           : undefined;
         return isVideo ? (
-          <video key={url + i} src={url} className={className} autoPlay muted loop playsInline />
+          <video
+            key={url + i}
+            src={url}
+            className={className}
+            style={style}
+            autoPlay
+            muted
+            loop
+            playsInline
+            onLoadedMetadata={(e) => {
+              const { videoWidth, videoHeight } = e.currentTarget;
+              setOrientations((prev) =>
+                prev[url] ? prev : { ...prev, [url]: videoWidth >= videoHeight ? "landscape" : "portrait" },
+              );
+            }}
+          />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -820,6 +839,7 @@ function SlideOverlayFieldsEditor({
   onChange: (patch: Partial<SlideOverlayConfig>) => void;
   editable: boolean;
 }) {
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   return (
     <>
       {/* HOTFIX-147.18(사용자 지시 — "'표지에 보여줄 텍스트를 입력하세요'
@@ -1072,8 +1092,17 @@ function SlideOverlayFieldsEditor({
         <div className="grid grid-cols-2 gap-2">
           {value.slideUrls.map((url, i) => (
             <div key={url + i} className="space-y-1 rounded border border-gray-200 p-1.5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="" className="h-24 w-full rounded object-cover" />
+              {/* HOTFIX(사용자 신고 — "영상을 업로드하면 preview 썸네일이 안
+                  나온다"): 확장자와 무관하게 항상 <img>로 그려 .mp4 URL은
+                  깨진 이미지 아이콘이 됐다 — CoverBackground의 isVideo
+                  판정을 그대로 재사용해 영상이면 <video>(재생 없이 첫
+                  프레임이 정지 썸네일로 보임)를 그린다. */}
+              {/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url) ? (
+                <video src={url} muted playsInline className="h-24 w-full rounded object-cover" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={url} alt="" className="h-24 w-full rounded object-cover" />
+              )}
               <div className="flex items-center justify-between gap-1">
                 <span className="min-w-0 flex-1 truncate text-[10px] text-gray-400">{url.split("/").pop()}</span>
                 <button
@@ -1088,17 +1117,30 @@ function SlideOverlayFieldsEditor({
           ))}
         </div>
         <label className="mt-1.5 block w-full rounded border border-dashed border-gray-300 py-1.5 text-center text-xs text-gray-500 hover:border-gray-400">
-          + 배경 이미지/영상 추가
+          {uploadStatus ?? "+ 배경 이미지/영상 추가"}
           <input
             type="file"
             accept="image/*,video/*"
             className="hidden"
-            disabled={!editable}
+            disabled={!editable || uploadStatus !== null}
             onChange={async (e) => {
               const file = e.target.files?.[0];
+              e.target.value = "";
               if (!file) return;
-              const { url, error } = await uploadFile(file, "post-images", "craft-timeline-cover");
-              if (!error && url) onChange({ slideUrls: [...value.slideUrls, url] });
+              try {
+                // 사용자 지시(2026-08-29 — "50mb 이상의 영상이 업로드
+                // 되면, 30mb 아래로 변환해서 업로드되도록"): 50MB 이하거나
+                // 영상이 아니면 즉시 원본 그대로 반환된다.
+                const uploadable = await compressVideoIfNeeded(file, setUploadStatus);
+                setUploadStatus("업로드 중...");
+                const { url, error } = await uploadFile(uploadable, "post-images", "craft-timeline-cover");
+                if (!error && url) onChange({ slideUrls: [...value.slideUrls, url] });
+                else if (error) window.alert(`업로드 실패: ${error}`);
+              } catch (err) {
+                window.alert(err instanceof Error ? err.message : "영상 압축 중 오류가 발생했습니다");
+              } finally {
+                setUploadStatus(null);
+              }
             }}
           />
         </label>

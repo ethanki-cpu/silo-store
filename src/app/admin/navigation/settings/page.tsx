@@ -86,6 +86,14 @@ import {
   type TopSidebarChildLink,
 } from "@/lib/topSidebarSettings";
 import { FIXED_LINKS as TOP_SIDEBAR_FIXED_LINKS } from "@/components/TopSidebarPanel";
+import {
+  normalizeTopBarIcons,
+  defaultTopBarIconsValue,
+  newTopBarIcon,
+  DEFAULT_TOP_BAR_ICON_SIZE_PX,
+  type TopBarIconsValue,
+  type TopBarIcon,
+} from "@/lib/topBarIconsSettings";
 import { TAB_HOVER_MOTIONS, TAB_HOVER_MOTION_LABELS, DEFAULT_TAB_HOVER_MOTION, tabHoverMotionCss, type TabHoverMotion } from "@/lib/tabHoverMotion";
 import { measureReferenceWidth } from "@/lib/useReferenceWidth";
 
@@ -475,6 +483,16 @@ export default function AdminNavigationSettingsPage() {
     setSelection({ kind: "craft" });
     setLeftTab("controls");
   }
+  // 사용자 지시(2026-08-29 — "'홈페이지 설정'에 상단에 아이콘을 추가하고
+  // 페이지와 링크하는 기능을 만들어줘"): accountMenuStyleValue.extraItems와
+  // 동일한 패턴 — DB 왕복 없이 로컬 편집 상태에 바로 추가하고, "저장하기"를
+  // 눌러야 site_settings.top_bar_icons에 실제로 반영된다. 새로 만든 아이콘을
+  // 바로 선택해 Controls 패널에서 이미지/링크를 채우도록 이어준다.
+  function addTopBarIcon() {
+    const icon = newTopBarIcon();
+    setTopBarIconsValue((prev) => ({ icons: [...prev.icons, icon] }));
+    selectSlot(`top-bar-icon:${icon.id}`);
+  }
 
   const [mainLogoValue, setMainLogoValue] = useState<MainLogoValue>(() => defaultMainLogoValue());
   const [sidebarIconsValue, setSidebarIconsValue] = useState<SidebarIconsValue>(() => defaultSidebarIconsValue());
@@ -483,6 +501,7 @@ export default function AdminNavigationSettingsPage() {
   const [heroSlideshowValue, setHeroSlideshowValue] = useState<HeroSlideshowValue>(() => defaultHeroSlideshowValue());
   const [headerPositionsValue, setHeaderPositionsValue] = useState<HeaderPositionsValue>(() => defaultHeaderPositionsValue());
   const [topSidebarValue, setTopSidebarValue] = useState<TopSidebarValue>(() => defaultTopSidebarValue());
+  const [topBarIconsValue, setTopBarIconsValue] = useState<TopBarIconsValue>(() => defaultTopBarIconsValue());
   const [topNavRows, setTopNavRows] = useState<NavTab[]>([]);
 
   const [footerPageId, setFooterPageId] = useState<string | null>(null);
@@ -505,6 +524,7 @@ export default function AdminNavigationSettingsPage() {
     heroSlideshow: HeroSlideshowValue;
     headerPositions: HeaderPositionsValue;
     topSidebar: TopSidebarValue;
+    topBarIcons: TopBarIconsValue;
   };
   function currentSettingsSnapshot(): SettingsSnapshot {
     return {
@@ -515,6 +535,7 @@ export default function AdminNavigationSettingsPage() {
       heroSlideshow: heroSlideshowValue,
       headerPositions: headerPositionsValue,
       topSidebar: topSidebarValue,
+      topBarIcons: topBarIconsValue,
     };
   }
   const settingsHistoryRef = useRef<{ past: SettingsSnapshot[]; future: SettingsSnapshot[] }>({ past: [], future: [] });
@@ -542,7 +563,7 @@ export default function AdminNavigationSettingsPage() {
     settingsHistoryRef.current.future = [];
     lastSnapshotJsonRef.current = serialized;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetching, mainLogoValue, sidebarIconsValue, topTabStyleValue, accountMenuStyleValue, heroSlideshowValue, headerPositionsValue, topSidebarValue]);
+  }, [fetching, mainLogoValue, sidebarIconsValue, topTabStyleValue, accountMenuStyleValue, heroSlideshowValue, headerPositionsValue, topSidebarValue, topBarIconsValue]);
 
   function applySettingsSnapshot(snap: SettingsSnapshot) {
     isRestoringSnapshotRef.current = true;
@@ -553,6 +574,7 @@ export default function AdminNavigationSettingsPage() {
     setHeroSlideshowValue(snap.heroSlideshow);
     setHeaderPositionsValue(snap.headerPositions);
     setTopSidebarValue(snap.topSidebar);
+    setTopBarIconsValue(snap.topBarIcons);
   }
   function undoSettings() {
     const { past } = settingsHistoryRef.current;
@@ -581,7 +603,7 @@ export default function AdminNavigationSettingsPage() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainLogoValue, sidebarIconsValue, topTabStyleValue, accountMenuStyleValue, heroSlideshowValue, headerPositionsValue, topSidebarValue]);
+  }, [mainLogoValue, sidebarIconsValue, topTabStyleValue, accountMenuStyleValue, heroSlideshowValue, headerPositionsValue, topSidebarValue, topBarIconsValue]);
 
   useEffect(() => {
     async function load() {
@@ -589,7 +611,7 @@ export default function AdminNavigationSettingsPage() {
         supabase
           .from("site_settings")
           .select("setting_key, setting_value")
-          .in("setting_key", ["main_logo", "hero_slideshow", "sidebar_icons", "top_tab_style", "account_menu_style", "header_positions", "top_sidebar"]),
+          .in("setting_key", ["main_logo", "hero_slideshow", "sidebar_icons", "top_tab_style", "account_menu_style", "header_positions", "top_sidebar", "top_bar_icons"]),
         fetchNavTabs(),
         supabase.from("page_builder").select("id, craft_state").eq("slug", "footer").maybeSingle(),
       ]);
@@ -606,6 +628,7 @@ export default function AdminNavigationSettingsPage() {
         else if (row.setting_key === "account_menu_style") setAccountMenuStyleValue(normalizeAccountMenuStyle(row.setting_value));
         else if (row.setting_key === "header_positions") setHeaderPositionsValue(normalizeHeaderPositions(row.setting_value));
         else if (row.setting_key === "top_sidebar") setTopSidebarValue(normalizeTopSidebar(row.setting_value));
+        else if (row.setting_key === "top_bar_icons") setTopBarIconsValue(normalizeTopBarIcons(row.setting_value));
       }
       // HOTFIX-141.12(사용자 지시 — "사일로상점/살롱데상 같은 다른 탭들도
       // about silo/온라인 도슨트처럼 세부 설정 가능하게 해줘"): 예전엔
@@ -741,6 +764,7 @@ export default function AdminNavigationSettingsPage() {
       upsertSetting("hero_slideshow", heroSlideshowValue),
       upsertSetting("header_positions", headerPositionsValue),
       upsertSetting("top_sidebar", topSidebarValue),
+      upsertSetting("top_bar_icons", topBarIconsValue),
       upsertSetting("unified_header_layout", { pc: { items: [] }, mobile: { items: [] } }),
       footerPageId && footerSerialized
         ? supabase.from("page_builder").update({ craft_state: footerSerialized, updated_at: new Date().toISOString() }).eq("id", footerPageId)
@@ -967,6 +991,28 @@ export default function AdminNavigationSettingsPage() {
                     </div>
                   </div>
                   <div className="border-t border-gray-200 pt-3">
+                    <p className="mb-2 font-semibold text-gray-500">상단 아이콘 (이미지 + 페이지 링크, 드래그로 위치 이동)</p>
+                    <div className="space-y-1">
+                      {topBarIconsValue.icons.map((icon, i) => (
+                        <button
+                          key={icon.id}
+                          type="button"
+                          onClick={() => selectSlot(`top-bar-icon:${icon.id}`)}
+                          className="block w-full rounded border border-gray-200 px-2 py-1.5 text-left hover:bg-gray-50"
+                        >
+                          아이콘 {i + 1}{icon.href ? ` → ${icon.href}` : ""}{!icon.imageUrl ? " (이미지 미설정)" : ""}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={addTopBarIcon}
+                        className="block w-full rounded border border-dashed border-gray-300 px-2 py-1.5 text-left text-blue-600 hover:bg-blue-50"
+                      >
+                        + 아이콘 추가
+                      </button>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200 pt-3">
                     <p className="mb-2 font-semibold text-gray-500">하단 메뉴에 새 블록 추가</p>
                     <FooterElementsSection />
                   </div>
@@ -996,6 +1042,8 @@ export default function AdminNavigationSettingsPage() {
                   onOffsetChange={handleOffsetChange}
                   topSidebarValue={topSidebarValue}
                   setTopSidebarValue={setTopSidebarValue}
+                  topBarIconsValue={topBarIconsValue}
+                  setTopBarIconsValue={setTopBarIconsValue}
                 />
               )}
 
@@ -1067,6 +1115,7 @@ export default function AdminNavigationSettingsPage() {
                 sidebarIconsOverride={sidebarIconsValue}
                 topTabStyleOverride={topTabStyleValue}
                 accountMenuStyleOverride={accountMenuStyleValue}
+                topBarIconsOverride={topBarIconsValue}
               />
 
               <ClickSelectSlot slotKey="slideshow" label="슬라이드쇼" selected={selection?.kind === "slot" && selection.key === "slideshow"} onSelect={selectSlot}>
@@ -1126,6 +1175,8 @@ function ControlsPanel({
   onOffsetChange,
   topSidebarValue,
   setTopSidebarValue,
+  topBarIconsValue,
+  setTopBarIconsValue,
 }: {
   selection: Selection;
   deviceTab: "pc" | "tablet" | "mobile";
@@ -1148,6 +1199,8 @@ function ControlsPanel({
   onOffsetChange: (slotKey: string, next: HeaderSlotOffset) => void;
   topSidebarValue: TopSidebarValue;
   setTopSidebarValue: React.Dispatch<React.SetStateAction<TopSidebarValue>>;
+  topBarIconsValue: TopBarIconsValue;
+  setTopBarIconsValue: React.Dispatch<React.SetStateAction<TopBarIconsValue>>;
 }) {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingLogoHover, setUploadingLogoHover] = useState(false);
@@ -1157,6 +1210,7 @@ function ControlsPanel({
   const [uploadingSidebarField, setUploadingSidebarField] = useState<string | null>(null);
   const [uploadingTabDropdownFont, setUploadingTabDropdownFont] = useState(false);
   const [uploadingSideTextFont, setUploadingSideTextFont] = useState(false);
+  const [uploadingIconField, setUploadingIconField] = useState<string | null>(null);
 
   if (!selection) return <p className="text-xs text-gray-400">캔버스에서 요소를 클릭하면 설정이 여기 표시됩니다.</p>;
   if (selection.kind === "craft") return <FooterCraftControls />;
@@ -1270,6 +1324,77 @@ function ControlsPanel({
       const entry: CustomFontEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, isActive: true };
       patchLogo({ customFonts: [...mainLogo.customFonts, entry] });
     }
+  }
+
+  // 사용자 지시(2026-08-29 — "'홈페이지 설정'에 상단에 아이콘을 추가하고
+  // 페이지와 링크하는 기능을 만들어줘. 그 아이콘은 드래그앤드랍으로 위치를
+  // 설정할수 있어야해"): "로고" Controls 섹션(바로 아래)의 이미지+hover
+  // 이미지 업로드 패턴을 그대로 따르되, 링크(href)와 개별 삭제가 추가로
+  // 있다. 위치(positionSection)는 다른 모든 헤더 요소와 완전히 동일하게
+  // 재사용 — 새 드래그 시스템을 만들지 않는다.
+  if (selectedSlotKey.startsWith("top-bar-icon:")) {
+    const iconId = selectedSlotKey.slice("top-bar-icon:".length);
+    const iconIndex = topBarIconsValue.icons.findIndex((i) => i.id === iconId);
+    const icon = topBarIconsValue.icons[iconIndex];
+    if (!icon) return <p className="text-xs text-gray-400">삭제된 아이콘이에요.</p>;
+    function patchIcon(patch: Partial<TopBarIcon>) {
+      setTopBarIconsValue((prev) => ({
+        icons: prev.icons.map((i) => (i.id === iconId ? { ...i, ...patch } : i)),
+      }));
+    }
+    function deleteIcon() {
+      setTopBarIconsValue((prev) => ({ icons: prev.icons.filter((i) => i.id !== iconId) }));
+    }
+    async function handleIconFile(file: File | null) {
+      if (!file) return;
+      setUploadingIconField("default");
+      const { url } = await uploadImage(file, "top_bar_icons");
+      setUploadingIconField(null);
+      if (url) patchIcon({ imageUrl: url });
+    }
+    async function handleIconHoverFile(file: File | null) {
+      if (!file) return;
+      setUploadingIconField("hover");
+      const { url } = await uploadImage(file, "top_bar_icons_hover");
+      setUploadingIconField(null);
+      if (url) patchIcon({ hoverImageUrl: url });
+    }
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">상단 아이콘 {iconIndex + 1}</p>
+          <button type="button" onClick={deleteIcon} className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50">삭제</button>
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">이미지 {uploadingIconField === "default" && "(업로드 중...)"}</span>
+          <input type="file" accept="image/*" disabled={uploadingIconField === "default"} onChange={(e) => handleIconFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <ImageThumb url={icon.imageUrl} alt="아이콘 미리보기" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">마우스를 올렸을 때 나타날 이미지(선택, {uploadingIconField === "hover" && "업로드 중... "}비우면 기본 이미지 고정)</span>
+          <input type="file" accept="image/*" disabled={uploadingIconField === "hover"} onChange={(e) => handleIconHoverFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <ImageThumb url={icon.hoverImageUrl} alt="아이콘 hover 미리보기" />
+          {icon.hoverImageUrl && (
+            <button type="button" onClick={() => patchIcon({ hoverImageUrl: "" })} className="mt-1 text-[11px] text-red-500 hover:underline">
+              hover 이미지 제거
+            </button>
+          )}
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">링크(클릭 시 이동할 페이지 경로 — 예: /shop)</span>
+          <input value={icon.href} onChange={(e) => patchIcon({ href: e.target.value })} placeholder="/shop" className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">크기(px)</span>
+          <input type="number" value={icon.sizePx} onChange={(e) => patchIcon({ sizePx: Number(e.target.value) || DEFAULT_TOP_BAR_ICON_SIZE_PX })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">대체 텍스트(선택)</span>
+          <input value={icon.alt} onChange={(e) => patchIcon({ alt: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />
+        </label>
+        {positionSection}
+      </div>
+    );
   }
 
   if (selectedSlotKey === "logo") {

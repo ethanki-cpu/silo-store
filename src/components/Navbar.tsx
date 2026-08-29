@@ -49,6 +49,7 @@ import { HeaderSlot } from "@/components/HeaderSlot";
 import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 import { TopSidebarPanel } from "@/components/TopSidebarPanel";
 import { normalizeTopSidebar, type TopSidebarConfig, type TopSidebarLink } from "@/lib/topSidebarSettings";
+import { normalizeTopBarIcons, type TopBarIconsValue } from "@/lib/topBarIconsSettings";
 
 const TAB_BUTTON_BASE =
   "px-3 py-2 text-sm border-b-2 -mb-px transition-colors";
@@ -132,6 +133,7 @@ export function Navbar({
   sidebarIconsOverride,
   topTabStyleOverride,
   accountMenuStyleOverride,
+  topBarIconsOverride,
 }: {
   editable?: boolean;
   selectedSlotKey?: string | null;
@@ -158,6 +160,10 @@ export function Navbar({
   sidebarIconsOverride?: SidebarIconsValue;
   topTabStyleOverride?: TopTabStyleValue;
   accountMenuStyleOverride?: AccountMenuStyleValue;
+  // 사용자 지시(2026-08-29 — "홈페이지 설정에 상단에 아이콘을 추가하고
+  // 페이지와 링크하는 기능을 만들어줘"): positionsOverride와 동일한
+  // 이유 — 관리자 화면이 아직 저장 전인 편집 중 값을 즉시 반영.
+  topBarIconsOverride?: TopBarIconsValue;
 } = {}) {
   const { session, member, loading } = useAuth();
   const router = useRouter();
@@ -442,6 +448,28 @@ export function Navbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topSidebarOverride, deviceKey]);
   const resolvedTopSidebar = topSidebarOverride ?? topSidebarValue ?? undefined;
+
+  // 사용자 지시(2026-08-29): 상단 아이콘 목록 — 다른 site_settings 기반
+  // 오버레이와 동일한 override-우선 패턴. 목록 자체는 기기별로 나뉘지
+  // 않는다(topBarIconsSettings.ts 참고) — 아이콘의 위치만 기존
+  // header_positions가 slotKey=`top-bar-icon:${id}`로 기기별 독립 관리.
+  const [topBarIconsValue, setTopBarIconsValue] = useState<TopBarIconsValue | null>(null);
+  useEffect(() => {
+    if (topBarIconsOverride) return;
+    let cancelled = false;
+    supabase
+      .from("site_settings")
+      .select("setting_value")
+      .eq("setting_key", "top_bar_icons")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setTopBarIconsValue(normalizeTopBarIcons(data?.setting_value));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [topBarIconsOverride]);
+  const resolvedTopBarIcons = topBarIconsOverride ?? topBarIconsValue ?? undefined;
   // HOTFIX-141.1(사용자 지시 — "'노출위치'에 '상단 사이드바'도
   // 포함해줘"): "상단 사이드바"로 태그된 site_navigations 카테고리를
   // admin이 수동으로 만든 links 뒤에 이어붙인다 — 저장된 topSidebarValue
@@ -1475,6 +1503,53 @@ export function Navbar({
             )}
           </>
         )}
+
+        {/* 사용자 지시(2026-08-29 — "'홈페이지 설정'에 상단에 아이콘을
+            추가하고 페이지와 링크하는 기능을 만들어줘. 그 아이콘은
+            드래그앤드랍으로 위치를 설정할수 있어야해"): 관리자가 자유롭게
+            추가한 아이콘들 — 로고와 동일하게 기본/hover 이미지 크로스페이드를
+            지원하고, 다른 헤더 요소와 완전히 같은 HeaderSlot 드래그로
+            위치를 옮긴다. 공개 화면에서는 이미지가 아직 없는(설정 중인)
+            아이콘은 그리지 않는다(빈 클릭 영역 방지) — 편집 모드에서는
+            선택/설정할 수 있도록 항상 그린다. */}
+        {resolvedTopBarIcons?.icons.map((icon) => {
+          if (!editable && !icon.imageUrl) return null;
+          const slotKey = `top-bar-icon:${icon.id}`;
+          return (
+            <HeaderSlot
+              key={icon.id}
+              slotKey={slotKey}
+              label="상단 아이콘"
+              offset={slotOffset(slotKey)}
+              editable={editable}
+              selected={selectedSlotKey === slotKey}
+              onSelect={handleSelectSlot}
+              onOffsetChange={handleSlotOffsetChange}
+              className="shrink-0 self-center"
+            >
+              <Link
+                href={icon.href || "#"}
+                className="group relative inline-block"
+                style={{ height: icon.sizePx, width: icon.sizePx }}
+              >
+                <SidebarTriggerMedia
+                  url={icon.imageUrl}
+                  alt={icon.alt}
+                  className={`block h-full w-full object-contain ${
+                    icon.hoverImageUrl ? "opacity-100 transition-opacity duration-300 group-hover:opacity-0" : ""
+                  }`}
+                />
+                {icon.hoverImageUrl && (
+                  <SidebarTriggerMedia
+                    url={icon.hoverImageUrl}
+                    alt={icon.alt}
+                    className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  />
+                )}
+              </Link>
+            </HeaderSlot>
+          );
+        })}
 
         {/* EPIC-118(사용자 지시): 이전엔 이 자리를 absolute+right-4로 페이지
             맨 오른쪽에 고정했는데, 로그인 상태(관리자/등급/이름/로그아웃

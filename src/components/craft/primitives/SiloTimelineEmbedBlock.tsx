@@ -396,7 +396,20 @@ function CoverBackground({
   const [orientations, setOrientations] = useState<Record<string, "landscape" | "portrait">>({});
   useEffect(() => {
     if (urls.length <= 1) return;
-    const timer = setInterval(() => setCurrent((i) => (i + 1) % urls.length), Math.max(1, autoAdvanceSeconds) * 1000);
+    // 사용자 지시(2026-08-29 — "이벤트 슬라이드의 이미지가 순서대로만
+    // 넘어가는데, 랜덤으로 넘어가게 해달라"): 이전엔 항상 i+1 순환이었다 —
+    // 매번 무작위 인덱스를 고르되 방금 본 슬라이드가 바로 다시 나오는 건
+    // 어색해 직전 인덱스는 제외하고 뽑는다.
+    const timer = setInterval(
+      () =>
+        setCurrent((i) => {
+          if (urls.length <= 1) return i;
+          let next = Math.floor(Math.random() * urls.length);
+          while (next === i) next = Math.floor(Math.random() * urls.length);
+          return next;
+        }),
+      Math.max(1, autoAdvanceSeconds) * 1000,
+    );
     return () => clearInterval(timer);
   }, [urls.length, autoAdvanceSeconds]);
 

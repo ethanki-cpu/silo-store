@@ -20,6 +20,26 @@
 // 사이트를 완전히 못 쓰게 만들지 않도록 홈 링크만이라도 보여준다.
 import React from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
+
+// HOTFIX-152.4: 이 Error Boundary가 실제로 뭔가를 잡는 순간이 온다면(지금까지
+// 관찰된 원래 버그는 componentDidCatch가 한 번도 안 불렸을 가능성이 높다 —
+// 콘솔에 에러가 안 찍혔다는 사용자 신고와 일치) client_error_logs에 남겨
+// src/instrumentation.ts의 서버측 onRequestError와 짝을 이루는 클라이언트측
+// 증거를 확보한다.
+function reportClientError(error: unknown, componentStack: string | null | undefined) {
+  const message = error instanceof Error ? error.message : String(error);
+  supabase
+    .from("client_error_logs")
+    .insert({
+      source: "client-boundary",
+      message,
+      path: typeof window !== "undefined" ? window.location.pathname : null,
+      user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+      extra: { componentStack: componentStack ?? null },
+    })
+    .then(() => {}, () => {});
+}
 
 export class NavbarBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
@@ -29,9 +49,10 @@ export class NavbarBoundary extends React.Component<{ children: React.ReactNode 
   static getDerivedStateFromError() {
     return { hasError: true };
   }
-  componentDidCatch(error: unknown) {
+  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
     // eslint-disable-next-line no-console
     console.error("NavbarBoundary caught an error while rendering the header:", error);
+    reportClientError(error, errorInfo.componentStack);
   }
   render() {
     if (this.state.hasError) {

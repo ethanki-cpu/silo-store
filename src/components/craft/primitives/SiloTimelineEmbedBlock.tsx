@@ -209,12 +209,26 @@ export type SiloTimelineEmbedBlockProps = {
   // HOTFIX-147.13: 이벤트 unique_id → 그 이벤트 화면에 적용할 자유편집
   // 설정. 표지와 달리 이벤트는 개수가 정해져 있지 않아 맵으로 둔다.
   eventOverlays: Record<string, SlideOverlayConfig>;
+  // HOTFIX-151.9(사용자 지시 — "'압축 목표 mb' 를 설정할수 있게 해줘. 30
+  // mb 도 굉장히 높은 거 아니야? 웹사이트 로딩에"): 표지/이벤트 배경
+  // 슬라이드 영상 업로드 시 자동 압축(compressVideoIfNeeded)의 목표
+  // 용량을 이 타임라인 블록 단위로 조절 가능하게 함 — 이전엔 30MB
+  // 고정값이었다. Supabase Storage 실 상한(50MB, HOTFIX-144.5)보다
+  // 반드시 낮아야 압축의 의미가 있어 UI에서 45로 상한을 둔다.
+  videoCompressTargetMb: number;
 };
 
 // HOTFIX-147.19: TL3(TimelineJS3) 자체가 정의한 `zoom_sequence` 기본값
 // 그대로(node_modules/@knight-lab/timelinejs/src/js/timenav/TimeNav.js) —
 // TimeNav 확대는 이 이산 단계 사이에서만 오간다(피보나치 수열).
 const ZOOM_SEQUENCE = [0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
+
+// HOTFIX-151.9: SlideOverlayFieldsEditor의 배경 영상 자동 압축 목표
+// 용량 기본값 — src/lib/videoCompress.ts의 DEFAULT_TARGET_MB와 동일한
+// 값이지만, 그쪽은 이 prop이 없을 때(구 저장 데이터)의 함수 인자
+// 기본값이고 이건 새 노드를 만들 때 craft.props에 실제로 저장되는
+// 값이라 두 상수를 따로 둔다(의미가 달라 하나로 합치면 오히려 혼동).
+const DEFAULT_VIDEO_COMPRESS_TARGET_MB = 8;
 
 const COVER_WEIGHT_CLASS: Record<CoverFontWeight, string> = {
   normal: "font-normal",
@@ -847,10 +861,12 @@ function SlideOverlayFieldsEditor({
   value,
   onChange,
   editable,
+  compressTargetMb,
 }: {
   value: SlideOverlayConfig;
   onChange: (patch: Partial<SlideOverlayConfig>) => void;
   editable: boolean;
+  compressTargetMb: number;
 }) {
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   return (
@@ -1142,9 +1158,10 @@ function SlideOverlayFieldsEditor({
               if (!file) return;
               try {
                 // 사용자 지시(2026-08-29 — "50mb 이상의 영상이 업로드
-                // 되면, 30mb 아래로 변환해서 업로드되도록"): 50MB 이하거나
-                // 영상이 아니면 즉시 원본 그대로 반환된다.
-                const uploadable = await compressVideoIfNeeded(file, setUploadStatus);
+                // 되면, 30mb 아래로 변환해서 업로드되도록" + 후속 지시
+                // "'압축 목표 mb'를 설정할 수 있게 해달라"): 목표 용량
+                // 이하거나 영상이 아니면 즉시 원본 그대로 반환된다.
+                const uploadable = await compressVideoIfNeeded(file, setUploadStatus, compressTargetMb);
                 setUploadStatus("업로드 중...");
                 const { url, error } = await uploadFile(uploadable, "post-images", "craft-timeline-cover");
                 if (!error && url) onChange({ slideUrls: [...value.slideUrls, url] });
@@ -1253,6 +1270,11 @@ function SlideOverlayPositionFields({
 function SiloTimelineEmbedSettings() {
   const { id: nodeId, props, setProp } = useNode((node) => ({ props: node.data.props as SiloTimelineEmbedBlockProps }));
   const editable = useCraftEditable();
+  // HOTFIX-151.9: 이 필드가 생기기 전에 저장된 기존 5개 카테고리 페이지의
+  // craft_state에는 videoCompressTargetMb가 없다(undefined) — 입력창이
+  // 빈 칸으로 보이지 않도록, 그리고 아래로 넘기는 값이 항상 실제 숫자가
+  // 되도록 여기서 한 번만 기본값으로 채운다.
+  const compressTargetMb = props.videoCompressTargetMb ?? DEFAULT_VIDEO_COMPRESS_TARGET_MB;
   const [boards, setBoards] = useState<BoardOption[]>([]);
   const [navGroups, setNavGroups] = useState<NavOption[]>([]);
   // HOTFIX-147.13: "화면 자유편집" 헤드라인 표시용 이벤트 목록 — 표지 설정과
@@ -1380,6 +1402,30 @@ function SiloTimelineEmbedSettings() {
         />
       </label>
 
+      {/* HOTFIX-151.9(사용자 지시 — "압축 목표 mb를 설정할 수 있게 해줘.
+          30mb 도 굉장히 높은 거 아니야? 웹사이트 로딩에"): 배경 슬라이드
+          영상 업로드 자동 압축의 목표 용량 — 값을 넘는 영상만 압축되고,
+          그 아래로는 원본 그대로 올라간다. Supabase Storage 실 상한이
+          50MB라 그보다 낮게(45 이하로) 두지 않으면 압축의 의미가 없다. */}
+      <label className="block text-xs text-gray-600">
+        배경 영상 자동 압축 목표 용량(MB) — 이보다 큰 영상만 압축됨
+        <input
+          type="number"
+          min={2}
+          max={45}
+          value={compressTargetMb}
+          onChange={(e) =>
+            setProp((p) => {
+              p.videoCompressTargetMb = Math.max(2, Math.min(45, Number(e.target.value) || DEFAULT_VIDEO_COMPRESS_TARGET_MB));
+            })
+          }
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        />
+        <span className="mt-0.5 block text-[10px] text-gray-400">
+          기본 8MB — 웹 로딩 속도를 위해 낮게 유지하는 걸 권장해요(짧게 반복 재생되는 배경 영상엔 충분한 화질이에요).
+        </span>
+      </label>
+
       {/* HOTFIX-147.19(사용자 지시 — "대시보드가 전체를 한눈에 볼 수
           없도록 줌인되어있다, 조절할 수 있는 기능을 넣고 전체를 한눈에
           볼 수 있도록 줌을 조절해달라"): TL3 공식 zoom_sequence 값
@@ -1433,6 +1479,7 @@ function SiloTimelineEmbedSettings() {
               <>
                 <SlideOverlayFieldsEditor
                   editable={editable}
+                  compressTargetMb={compressTargetMb}
                   value={{
                     enabled: props.coverEnabled,
                     text: props.coverText,
@@ -1509,7 +1556,7 @@ function SiloTimelineEmbedSettings() {
                 </label>
                 {cfg.enabled && (
                   <>
-                    <SlideOverlayFieldsEditor value={cfg} onChange={updateEvent} editable={editable} />
+                    <SlideOverlayFieldsEditor value={cfg} onChange={updateEvent} editable={editable} compressTargetMb={compressTargetMb} />
                     <SlideOverlayPositionFields
                       position={cfg.position}
                       mobilePosition={cfg.mobilePosition}
@@ -1561,6 +1608,9 @@ SiloTimelineEmbedBlock.craft = {
     position: DEFAULT_FREE_POSITION,
     mobilePosition: null,
     eventOverlays: {},
+    // 웹 로딩 속도를 우선해 30MB보다 훨씬 작은 값을 기본값으로 — 짧게
+    // 반복 재생되는 배경 영상이라 8MB면 충분히 여유 있다.
+    videoCompressTargetMb: DEFAULT_VIDEO_COMPRESS_TARGET_MB,
   } satisfies SiloTimelineEmbedBlockProps,
   related: { settings: SiloTimelineEmbedSettings },
 };

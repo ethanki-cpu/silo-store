@@ -11,8 +11,7 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
-const MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
-const TARGET_BYTES = 30 * 1024 * 1024;
+const DEFAULT_TARGET_MB = 8;
 const AUDIO_BITRATE_KBPS = 96;
 const CORE_BASE_PATH = "/vendor/ffmpeg";
 
@@ -54,15 +53,18 @@ function readVideoDurationSeconds(file: File): Promise<number> {
 }
 
 /**
- * 50MB를 넘는 영상 파일을 30MB 아래로 재인코딩한다. 50MB 이하거나
- * 동영상이 아니면 원본을 그대로 반환한다(불필요한 재인코딩 방지).
- * onProgress는 사람이 읽을 수 있는 상태 문구를 순차적으로 전달한다.
+ * 목표 용량(targetMb, 기본 8MB)을 넘는 영상 파일을 그 아래로 재인코딩한다.
+ * 목표 용량 이하거나 동영상이 아니면 원본을 그대로 반환한다(불필요한
+ * 재인코딩 방지). onProgress는 사람이 읽을 수 있는 상태 문구를 순차적으로
+ * 전달한다.
  */
 export async function compressVideoIfNeeded(
   file: File,
   onProgress?: (status: string) => void,
+  targetMb: number = DEFAULT_TARGET_MB,
 ): Promise<File> {
-  if (!file.type.startsWith("video/") || file.size <= MAX_UNCOMPRESSED_BYTES) return file;
+  const targetBytes = Math.max(1, targetMb) * 1024 * 1024;
+  if (!file.type.startsWith("video/") || file.size <= targetBytes) return file;
 
   onProgress?.("영상 길이 확인 중...");
   const durationSeconds = await readVideoDurationSeconds(file);
@@ -73,10 +75,10 @@ export async function compressVideoIfNeeded(
   onProgress?.("압축 엔진 로딩 중... (처음 한 번만, 수십 MB)");
   const ffmpeg = await getFFmpeg();
 
-  // 목표 용량(30MB)을 영상 길이로 나눠 총 비트레이트를 역산하고, 오디오
-  // 몫을 뺀 나머지를 비디오 비트레이트로 쓴다. 컨테이너 오버헤드 대비
-  // 8% 여유를 둔다.
-  const targetTotalKbps = (TARGET_BYTES * 8) / 1000 / durationSeconds;
+  // 목표 용량을 영상 길이로 나눠 총 비트레이트를 역산하고, 오디오 몫을
+  // 뺀 나머지를 비디오 비트레이트로 쓴다. 컨테이너 오버헤드 대비 8%
+  // 여유를 둔다.
+  const targetTotalKbps = (targetBytes * 8) / 1000 / durationSeconds;
   const videoKbps = Math.max(300, Math.floor(targetTotalKbps * 0.92 - AUDIO_BITRATE_KBPS));
 
   const inputName = "input" + (file.name.match(/\.[a-zA-Z0-9]+$/)?.[0] ?? ".mp4");

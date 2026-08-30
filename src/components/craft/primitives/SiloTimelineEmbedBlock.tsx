@@ -106,13 +106,17 @@ export type SlideOverlayConfig = {
 // HOTFIX-147.27: 패닝 모션 기본값 — 셋 다 null(미설정)이면 이 값을 쓴다.
 // HOTFIX-147.29: "auto"가 코너를 도는 투어로 바뀌면서 이동 폭이 더
 // 커져야 실제로 구석구석이 보인다 — 속도/확대/이동 거리 기본값을 더
-// 여유 있게 올림(8초→20초, 15%→40%, 8%→12%). 40%/12% 조합은 안전 여유분
-// 공식(|이동%| <= 50*(zoom-1)/zoom, HOTFIX-147.29 실측/계산으로 확정 —
-// 이 공식대로면 40% 확대에서 최대 14.29%까지 안전, 12%는 여유 있게 이내)
-// 을 만족해 화면 가장자리가 비어 보이지 않는다.
+// 여유 있게 올림(8초→20초, 15%→40%, 8%→12%).
+// HOTFIX-152.19(사용자 지시 — 온라인 도슨트 타임라인 이벤트 '화면
+// 자유편집'(이하 OTE) "지금 너무 조금만 움직이니까 답답해, 어떤
+// 미디어는 모션이 없으면 뭔지 모르겠어"): 12%/40% 조합이 여전히 너무
+// 미묘해 체감이 안 됐다 — 이동 거리를 12%→18%로, 그만큼 화면 가장자리가
+// 비어 보이지 않도록 확대 배율도 40%→65%로 함께 올렸다. 안전 여유분
+// 공식(|이동%| <= 50*(zoom-1)/zoom)대로면 65% 확대에서 최대 19.7%까지
+// 안전 — 18%는 그 안에 여유 있게 들어간다(가장자리 안 빔).
 export const DEFAULT_PAN_SPEED_SECONDS = 20;
-export const DEFAULT_PAN_ZOOM_PCT = 40;
-export const DEFAULT_PAN_DISTANCE_PCT = 12;
+export const DEFAULT_PAN_ZOOM_PCT = 65;
+export const DEFAULT_PAN_DISTANCE_PCT = 18;
 
 // HOTFIX-151.3(사용자 신고 — "제목 스타일을 바꾸면 설명 스타일도 같이
 // 바뀌는 것처럼 보인다, 둘이 분리되게 해달라"): description* 필드들이
@@ -355,12 +359,18 @@ function hashString(s: string): number {
 
 // HOTFIX-147.29: 가로 이미지는 좌우 폭을, 세로 이미지는 상하 폭을 더
 // 넉넉히 써서 "가로/세로 이미지에 맞춰서" 경로 모양 자체가 방향에 맞게
-// 눌리게 한다 — 짧은 축은 60%만 이동해 자연스러운 타원형에 가까운 투어가
-// 된다.
+// 눌리게 한다.
+// HOTFIX-152.19(사용자 지시 — OTE "세로 미디어는 위 아래 움직임을 더
+// 중요시 하고(대각선도 됨), 가로 미디어는 왼쪽 오른쪽 움직임을 더
+// 중요시하길 원해"): 짧은 축 비율이 60%면 긴 축과 차이가 크지 않아
+// "가로/세로에 따라 방향이 다르다"는 게 잘 안 느껴졌다 — 35%로 낮춰
+// 긴 축 방향(가로→좌우, 세로→상하)이 뚜렷하게 우세하도록 했다(완전히
+// 0으로 없애지 않은 건 대각선 정거장이 섞인 투어 경로의 자연스러운
+// 곡선 느낌을 유지하기 위함).
 function buildTourVars(url: string, orientation: "landscape" | "portrait", distancePct: number): CSSProperties {
   const template = TOUR_TEMPLATES[hashString(url) % TOUR_TEMPLATES.length];
-  const distX = orientation === "landscape" ? distancePct : distancePct * 0.6;
-  const distY = orientation === "portrait" ? distancePct : distancePct * 0.6;
+  const distX = orientation === "landscape" ? distancePct : distancePct * 0.35;
+  const distY = orientation === "portrait" ? distancePct : distancePct * 0.35;
   const vars: Record<string, string> = {};
   template.forEach((p, i) => {
     vars[`--silo-pan-p${i}x`] = `${p.x * distX}%`;

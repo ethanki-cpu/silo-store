@@ -13,7 +13,7 @@ import { UserMenuDropdown } from "@/components/UserMenuDropdown";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { useHideOnScroll } from "@/lib/useHideOnScroll";
 import { tabHoverMotionCss, DEFAULT_TAB_HOVER_MOTION } from "@/lib/tabHoverMotion";
-import { useIsMobileViewport, useDeviceTier } from "@/lib/useIsMobileViewport";
+import { useIsMobileViewport, useDeviceTier, type DeviceTier } from "@/lib/useIsMobileViewport";
 import {
   normalizeMainLogo,
   DEFAULT_LOGO_HEIGHT_PX,
@@ -43,6 +43,8 @@ import {
   normalizeHeaderPositions,
   getSlotOffset,
   PC_HEADER_REFERENCE_WIDTH_PX,
+  TABLET_HEADER_REFERENCE_WIDTH_PX,
+  MOBILE_HEADER_REFERENCE_WIDTH_PX,
   type HeaderPositionsConfig,
   type HeaderSlotOffset,
 } from "@/lib/headerLayoutPositions";
@@ -355,25 +357,37 @@ export function Navbar({
   const deviceKey = deviceOverride ?? deviceTierReal;
 
   // HOTFIX-152.14(사용자 지시 — "창의 크기가 줄어들더라도, 로고, 아이콘의
-  // 간격이 유지가 되면서 줄어들어야지"): PC 계층(1024px~, 태블릿으로
-  // 전환되기 직전까지)에서 실제 화면 폭이 PC_HEADER_REFERENCE_WIDTH_PX
-  // (1440, "홈페이지 설정 관리" PC 탭 캔버스와 동일한 기준 — HOTFIX-152.13)
-  // 보다 좁아지면 그 비율만큼 헤더 전체를 CSS zoom으로 축소한다 — 로고
-  // 이미지 크기, 아이콘 크기, 글자 크기, 드래그로 옮긴 간격까지 안의
-  // 모든 것이 하나의 비율로 함께 줄어들어(개별 요소를 따로 계산해 줄이는
-  // 대신) "간격이 그대로 유지된 채 축소"된 것처럼 보인다. useReferenceWidth
-  // 는 admin 캔버스 안에서는 그 캔버스 폭(PC 탭은 항상 1440 고정)을,
-  // 실제 공개 사이트에서는 window.innerWidth를 반환한다 — 그래서 admin
-  // PC 탭 편집 중에는 zoom이 항상 1(1440/1440)로 고정돼 편집 배율이
-  // 흔들리지 않고, 실제 방문자 화면에서만 폭에 따라 줄어든다. 1440보다
-  // 넓은 화면에서는 더 커지지 않고 1로 고정(원래 크기 그대로, 남는
-  // 공간은 자연스럽게 여백).
+  // 간격이 유지가 되면서 줄어들어야지")/HOTFIX-152.15(사용자 재지시 —
+  // "pc -> 탭 -> 모바일 순으로 줄여보니 탭 -> 모바일 할때 간격 유지가
+  // 안되고 있어"): 처음엔 PC 계층에만 적용했다가, 태블릿→모바일 경계도
+  // 똑같이 어색하다는 신고를 받아 PC/태블릿/모바일 세 계층 전부로
+  // 일반화했다. 각 계층은 "홈페이지 설정 관리"의 해당 탭 캔버스 고정폭
+  // (PC 1440/태블릿 820/모바일 390, headerLayoutPositions.ts 참고)보다
+  // 실제 화면이 좁아지면 그 비율만큼 헤더 전체를 CSS zoom으로 축소한다
+  // — 로고 이미지 크기, 아이콘 크기, 글자 크기, 드래그로 옮긴 간격까지
+  // 안의 모든 것이 하나의 비율로 함께 줄어들어(개별 요소를 따로 계산해
+  // 줄이는 대신) "간격이 그대로 유지된 채 축소"된 것처럼 보인다.
+  // useReferenceWidth는 admin 캔버스 안에서는 그 캔버스 폭(각 탭 모두
+  // 고정값)을, 실제 공개 사이트에서는 window.innerWidth를 반환한다 —
+  // 그래서 admin의 세 탭 전부 편집 중에는 zoom이 항상 1로 고정돼 편집
+  // 배율이 흔들리지 않고, 실제 방문자 화면에서만 폭에 따라 줄어든다.
+  // 각 계층 기준폭보다 넓은 화면에서는 더 커지지 않고 1로 고정(원래
+  // 크기 그대로, 남는 공간은 자연스럽게 여백) — 예: 태블릿 820px 이상
+  // (~1023px까지)에서는 축소 없이 100%, 820px 밑으로 내려갈 때만 줄고,
+  // 768px에서 모바일로 전환되는 순간 모바일 쪽도 자기 기준(390) 대비
+  // 축소를 이어받아 두 계층 다 "그 안에서는" 매끄럽게 줄어든다(다만
+  // 태블릿/모바일은 애초에 완전히 독립된 설정이라, 경계를 넘는 순간
+  // 아이콘 구성 자체가 바뀌는 것까지 없앨 수는 없다 — 그 부분은 각
+  // 탭에서 관리자가 직접 맞춰야 하는 영역).
+  const HEADER_REFERENCE_WIDTH_BY_TIER: Record<DeviceTier, number> = {
+    pc: PC_HEADER_REFERENCE_WIDTH_PX,
+    tablet: TABLET_HEADER_REFERENCE_WIDTH_PX,
+    mobile: MOBILE_HEADER_REFERENCE_WIDTH_PX,
+  };
   const headerReferenceWidth = useReferenceWidth();
+  const headerTargetWidth = HEADER_REFERENCE_WIDTH_BY_TIER[deviceKey];
   const headerZoomScale =
-    deviceKey === "pc" && headerReferenceWidth > 0
-      ? Math.min(1, headerReferenceWidth / PC_HEADER_REFERENCE_WIDTH_PX)
-      : 1;
-  const headerScaleMode: "dynamic" | "fixed" = deviceKey === "pc" ? "fixed" : "dynamic";
+    headerReferenceWidth > 0 ? Math.min(1, headerReferenceWidth / headerTargetWidth) : 1;
 
   // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
   // site_settings.main_logo를 조회해 로고를 대체한다. 값이 비어 있으면
@@ -1410,7 +1424,7 @@ export function Navbar({
         }`}
         style={{ zoom: headerZoomScale }}
       >
-      <HeaderScaleModeContext.Provider value={headerScaleMode}>
+      <HeaderScaleModeContext.Provider value={headerTargetWidth}>
       {/* EPIC-043: "적용" 켜진 커스텀 폰트마다 각각 @font-face를 동적 주입 —
           로고 좌/우 텍스트가 즉시 이 서체들을(폴백 체인으로) 쓸 수 있게 한다. */}
       {activeCustomFonts.length > 0 && (

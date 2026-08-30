@@ -44,13 +44,22 @@ export type HeaderSlotOffset = {
 export const DEFAULT_HEADER_SLOT_OFFSET: HeaderSlotOffset = { dxPx: 0, dyPx: 0, raised: false, locked: false };
 
 // HOTFIX-152.14(사용자 지시 — "창의 크기가 줄어들더라도, 로고, 아이콘의
-// 간격이 유지가 되면서 줄어들어야지"): PC 계층("홈페이지 설정 관리"의
-// PC 탭과 동일한 기준, HOTFIX-152.13에서 admin 캔버스에도 이미 고정
-// 적용됨)에서 헤더 전체를 이 폭 기준으로 CSS zoom 축소한다(Navbar.tsx
-// 참고) — HeaderSlot.tsx는 이 폭을 dx 오프셋의 "고정 정규화 기준"으로
-// 함께 써서, zoom이 이미 화면 폭 비율만큼 전체를 줄여주는데 dx까지
-// 또 화면 폭 비율로 줄이는 이중 축소를 피한다.
+// 간격이 유지가 되면서 줄어들어야지")/HOTFIX-152.15(후속 지시 — "탭 ->
+// 모바일 할때 간격 유지가 안되고 있어"): PC/태블릿/모바일 세 계층 각각
+// "홈페이지 설정 관리"의 해당 탭 캔버스 고정폭과 동일한 기준으로 헤더
+// 전체를 이 폭 기준 CSS zoom으로 축소한다(Navbar.tsx 참고) — 처음엔
+// PC만 적용했다가(HOTFIX-152.14) 태블릿→모바일 경계에서도 똑같이
+// "간격 유지하며 축소"가 안 되고 있다는 신고를 받아 세 계층 전부로
+// 일반화했다. HeaderSlot.tsx는 이 폭을 dx 오프셋의 "고정 정규화 기준"
+// 으로 함께 써서, zoom이 이미 화면 폭 비율만큼 전체를 줄여주는데 dx까지
+// 또 화면 폭 비율로 줄이는 이중 축소를 피한다. 태블릿(820)/모바일(390)
+// 값은 admin 캔버스가 이미 오래전부터(HOTFIX-146) 쓰던 고정 시뮬레이션
+// 폭과 동일 — `src/app/admin/navigation/settings/page.tsx`의
+// `w-[820px]`/`w-[390px]`(Tailwind JIT가 문자열 그대로 스캔해야 하는
+// 클래스라 그쪽은 리터럴을 유지하고, 값만 여기 상수와 일치시킨다).
 export const PC_HEADER_REFERENCE_WIDTH_PX = 1440;
+export const TABLET_HEADER_REFERENCE_WIDTH_PX = 820;
+export const MOBILE_HEADER_REFERENCE_WIDTH_PX = 390;
 
 export type HeaderPositionsConfig = {
   slots: Record<string, HeaderSlotOffset>;

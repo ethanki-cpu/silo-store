@@ -309,15 +309,17 @@ export function TopSidebarPanel({
           스크롤(overflow-y-auto)만 있고 가로는 그냥 잘렸기 때문. 이제
           가로도 자체적으로 스크롤(overflow-x-auto)돼 좁은 화면에서도
           옆으로 밀어서 모든 컬럼에 닿을 수 있다.
-          HOTFIX-141.21(사용자 신고 — "모바일에 세션정보 컬럼만 나오고
-          있어, 모든 컬럼이 나오게 해줘"): 가로 스크롤만으로는 나머지
-          컬럼의 존재 자체를 발견하기 어려웠다 — isMobileViewport가 true면
-          가로로 나란히 두는 대신 4개 컬럼을 세로로 쌓아(flex-col) 스크롤
-          없이 전부 눈에 보이게 한다. */}
+          HOTFIX-152.11(사용자 신고 — "모바일에서도 이미지|세션정보 /
+          링크목록|하위목록 이렇게 왼쪽 오른쪽으로 칼럼이 나올수 있게
+          해줘야지"): HOTFIX-141.21은 4개 컬럼을 전부 세로 한 줄씩(1열)
+          쌓았는데, 이는 "적어도 뭔가는 보이게" 하려던 임시 대응이었고
+          사용자가 원한 건 처음부터 2열(가로 두 칸씩 짝지어 2행) 배치였다
+          — 세로 한 줄만 쌓는 대신 columnOrder를 앞에서부터 2개씩 짝지어
+          한 행에 나란히 놓는다(기본 순서라면 0·1이 1행, 2·3이 2행). */}
       <div
         className={
           isMobileViewport
-            ? "mx-auto flex w-full flex-col gap-6 overflow-y-auto px-4 py-8"
+            ? "mx-auto flex w-full flex-col gap-4 overflow-y-auto px-4 py-8"
             : "mx-auto flex max-w-5xl gap-10 overflow-x-auto overflow-y-auto px-8 py-12"
         }
         style={{ maxHeight: "80vh", color: config.textColor || undefined, fontFamily: resolvedFontFamily }}
@@ -327,100 +329,143 @@ export function TopSidebarPanel({
             변경가능하게 해줘"): 4개 컬럼을 배열로 만들어 config.columnOrder
             순서대로, config.columnWidthsPx 너비로 그린다 — 기본값은 원래
             하드코딩이었던 w-40/w-48/w-56/w-56(160/192/224/224px)과
-            동일해 무변화 마이그레이션. HOTFIX-141.21: 세로로 쌓을 때는
-            고정 너비 대신 꽉 채운다(각 컬럼 너비 설정은 가로 배치 전용).
-            column 0(이미지)도 더 이상 `hidden md:block`(실제 브라우저 창
-            폭만 보고 판단 — "홈페이지 설정 관리"의 390px 시뮬레이션과
-            무관하게 반응해 관리자가 설정한 이미지가 늘 안 보였다)이
-            아니라 이 명시적 isMobileViewport로 판단한다. */}
+            동일해 무변화 마이그레이션.
+            HOTFIX-152.11: 컬럼 내용 자체(columnContents)는 데스크톱/모바일이
+            공유하고, 바깥 래퍼(너비 방식)만 갈라진다 — 데스크톱은 기존처럼
+            컬럼 하나당 지정 px 너비를 그대로 쓰고, 모바일은 2개씩 묶은 행
+            안에서 그 두 컬럼의 px 값을 비율(%)로 환산해 나눠 가진다(예:
+            100px/224px 두 컬럼이면 약 31%/69%) — 실제 픽셀값은 390px
+            프레임에 다 안 들어가 그대로 못 쓰지만, 관리자가 설정한 "상대적
+            비중"은 이렇게 반영된다. */}
         {(() => {
-          const columnNodes = [
+          const columnContents: Record<number, React.ReactNode> = {
             // column 0: 이미지 뱅크에서 무작위로 고른 이미지(hover/클릭 시마다 갱신).
-            <div key="col-0" className={isMobileViewport ? "shrink-0" : "hidden shrink-0 md:block"} style={isMobileViewport ? undefined : { width: config.columnWidthsPx[0] }}>
-              {displayImageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={displayImageUrl} alt="" className="h-56 rounded object-cover" style={isMobileViewport ? { width: "100%" } : { width: config.columnWidthsPx[0] }} />
-              )}
-            </div>,
+            0: displayImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={displayImageUrl}
+                alt=""
+                className="w-full rounded object-cover"
+                style={{ height: isMobileViewport ? 160 : 224, width: isMobileViewport ? "100%" : config.columnWidthsPx[0] }}
+              />
+            ) : null,
             // column 1: 실제 세션 데이터 + 고정 바로가기.
-            <div key="col-1" className="shrink-0 space-y-3 text-sm" style={isMobileViewport ? undefined : { width: config.columnWidthsPx[1] }}>
-              {/* HOTFIX-141.2(사용자 지시 — "지금 현재 '로그인/로그아웃'
-                  버튼을 없애고 '상단 사이드바' 에 로그인 / 로그아웃 버튼이
-                  보이면 좋겠어"): 계정 영역에 있던 로그인/로그아웃 버튼을
-                  여기로 옮겼다 — 로그인 여부와 무관하게 항상 column 1 맨
-                  위에 보인다. */}
-              {loginLogoutButton}
-              {session && member ? (
-            <>
-              <p className="font-medium" style={{ color: config.textColor || "#111827" }}>{member.name}</p>
-              <p className="text-gray-500">{member.tier_name}</p>
-              <div className="flex gap-3">
-                <Link href="/mypage/follow" onClick={onClose} className="hover:underline">
-                  팔로잉 {followingCount ?? "-"}
-                </Link>
-                <Link href="/mypage/follow" onClick={onClose} className="hover:underline">
-                  팔로워 {followerCount ?? "-"}
-                </Link>
-              </div>
-              <div className="space-y-1 border-t border-gray-100 pt-2">
-                <p className="text-xs text-gray-400">최근 활동</p>
-                {activity.length === 0 ? (
-                  <p className="text-xs text-gray-300">아직 활동이 없어요.</p>
-                ) : (
-                  <ul className="space-y-0.5">
-                    {activity.map((a) => (
-                      <li key={a.id} className="flex items-center justify-between text-xs">
-                        <span>{a.label}</span>
-                        <span className="text-gray-400">{a.detail}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <Link href="/mypage/timeline" onClick={onClose} className="inline-block text-xs text-blue-600 hover:underline">
-                  전체보기
-                </Link>
-              </div>
-              <p className="text-gray-400">메시지 (준비 중)</p>
-            </>
-          ) : null}
-          <div className="space-y-1.5 border-t border-gray-100 pt-2">
-            {/* HOTFIX-141.1: column 2로 옮긴(hiddenFixedLinkHrefs에 포함된)
-                항목은 여기서 더 이상 그리지 않는다 — column 2 쪽에 관리자가
-                만든 사본이 대신 나타난다. */}
-            {FIXED_LINKS.filter((f) => !config.hiddenFixedLinkHrefs.includes(f.href)).map((f) => (
-              <Link key={f.href} href={f.href} onClick={onClose} className="block hover:underline">
-                {f.label}
-              </Link>
-            ))}
-          </div>
-            </div>,
-            // column 2: 관리자가 등록한 링크 목록.
-            <div key="col-2" className="shrink-0 space-y-2 text-sm" style={isMobileViewport ? undefined : { width: config.columnWidthsPx[2] }}>
-              {config.links.map((link) => (
-                <div key={link.id} onMouseEnter={() => handleLinkHover(link.id)}>
-                  {/* HOTFIX-141(사용자 지시 — "상단 사이드바의 '링크 hover
-                      모션'을 다른걸로 바꿧는데도 적용이 안되고 있어"): 이
-                      hover:underline이 어떤 모션을 골라도 항상 똑같이 밑줄을
-                      그려 실제 모션 CSS(motionCss, 아래 <style>)를 가리고
-                      있었다 — 이 자리의 hover 표현은 이제 전적으로 config.
-                      hoverMotion이 담당한다(기본값 underline-glow가 이미
-                      비슷한 밑줄 효과를 준다). */}
-                  <Link href={link.href} onClick={onClose} className={`block ${LINK_HOVER_CLASS}`}>
-                    {link.label}
-                  </Link>
+            1: (
+              <div className="space-y-3 text-sm">
+                {/* HOTFIX-141.2(사용자 지시 — "지금 현재 '로그인/로그아웃'
+                    버튼을 없애고 '상단 사이드바' 에 로그인 / 로그아웃 버튼이
+                    보이면 좋겠어"): 계정 영역에 있던 로그인/로그아웃 버튼을
+                    여기로 옮겼다 — 로그인 여부와 무관하게 항상 column 1 맨
+                    위에 보인다. */}
+                {loginLogoutButton}
+                {session && member ? (
+                  <>
+                    <p className="font-medium" style={{ color: config.textColor || "#111827" }}>{member.name}</p>
+                    <p className="text-gray-500">{member.tier_name}</p>
+                    <div className="flex gap-3">
+                      <Link href="/mypage/follow" onClick={onClose} className="hover:underline">
+                        팔로잉 {followingCount ?? "-"}
+                      </Link>
+                      <Link href="/mypage/follow" onClick={onClose} className="hover:underline">
+                        팔로워 {followerCount ?? "-"}
+                      </Link>
+                    </div>
+                    <div className="space-y-1 border-t border-gray-100 pt-2">
+                      <p className="text-xs text-gray-400">최근 활동</p>
+                      {activity.length === 0 ? (
+                        <p className="text-xs text-gray-300">아직 활동이 없어요.</p>
+                      ) : (
+                        <ul className="space-y-0.5">
+                          {activity.map((a) => (
+                            <li key={a.id} className="flex items-center justify-between text-xs">
+                              <span>{a.label}</span>
+                              <span className="text-gray-400">{a.detail}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <Link href="/mypage/timeline" onClick={onClose} className="inline-block text-xs text-blue-600 hover:underline">
+                        전체보기
+                      </Link>
+                    </div>
+                    <p className="text-gray-400">메시지 (준비 중)</p>
+                  </>
+                ) : null}
+                <div className="space-y-1.5 border-t border-gray-100 pt-2">
+                  {/* HOTFIX-141.1: column 2로 옮긴(hiddenFixedLinkHrefs에 포함된)
+                      항목은 여기서 더 이상 그리지 않는다 — column 2 쪽에 관리자가
+                      만든 사본이 대신 나타난다. */}
+                  {FIXED_LINKS.filter((f) => !config.hiddenFixedLinkHrefs.includes(f.href)).map((f) => (
+                    <Link key={f.href} href={f.href} onClick={onClose} className="block hover:underline">
+                      {f.label}
+                    </Link>
+                  ))}
                 </div>
-              ))}
-            </div>,
+              </div>
+            ),
+            // column 2: 관리자가 등록한 링크 목록.
+            2: (
+              <div className="space-y-2 text-sm">
+                {config.links.map((link) => (
+                  <div key={link.id} onMouseEnter={() => handleLinkHover(link.id)}>
+                    {/* HOTFIX-141(사용자 지시 — "상단 사이드바의 '링크 hover
+                        모션'을 다른걸로 바꿧는데도 적용이 안되고 있어"): 이
+                        hover:underline이 어떤 모션을 골라도 항상 똑같이 밑줄을
+                        그려 실제 모션 CSS(motionCss, 아래 <style>)를 가리고
+                        있었다 — 이 자리의 hover 표현은 이제 전적으로 config.
+                        hoverMotion이 담당한다(기본값 underline-glow가 이미
+                        비슷한 밑줄 효과를 준다). */}
+                    <Link href={link.href} onClick={onClose} className={`block ${LINK_HOVER_CLASS}`}>
+                      {link.label}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            ),
             // column 3: hover 중인 column2 링크의 하위 목록.
-            <div key="col-3" className="shrink-0 space-y-2 text-sm" style={isMobileViewport ? undefined : { width: config.columnWidthsPx[3] }}>
-              {hoveredLink?.children.map((child) => (
-                <Link key={child.id} href={child.href} onClick={onClose} className={`block ${LINK_HOVER_CLASS}`}>
-                  {child.label}
-                </Link>
-              ))}
-            </div>,
-          ];
-          return config.columnOrder.map((idx) => columnNodes[idx]);
+            3: (
+              <div className="space-y-2 text-sm">
+                {hoveredLink?.children.map((child) => (
+                  <Link key={child.id} href={child.href} onClick={onClose} className={`block ${LINK_HOVER_CLASS}`}>
+                    {child.label}
+                  </Link>
+                ))}
+              </div>
+            ),
+          };
+
+          if (!isMobileViewport) {
+            return config.columnOrder.map((idx) => (
+              <div
+                key={`col-${idx}`}
+                className={idx === 0 ? "hidden shrink-0 md:block" : "shrink-0"}
+                style={{ width: config.columnWidthsPx[idx] }}
+              >
+                {columnContents[idx]}
+              </div>
+            ));
+          }
+
+          // HOTFIX-152.11: columnOrder를 앞에서부터 2개씩 묶어 한 행(가로
+          // flex)으로 그린다 — 각 컬럼은 그 행 안 두 컬럼의 px 너비 비율만큼
+          // flex-basis를 가져가 "너비 설정이 상대적으로는 반영"되게 한다.
+          const rows: number[][] = [];
+          for (let i = 0; i < config.columnOrder.length; i += 2) {
+            rows.push(config.columnOrder.slice(i, i + 2));
+          }
+          return rows.map((row, rowIdx) => (
+            <div key={`row-${rowIdx}`} className="flex gap-4">
+              {row.map((idx) => {
+                const rowTotalPx = row.reduce((sum, i) => sum + (config.columnWidthsPx[i] || 1), 0);
+                const pct = ((config.columnWidthsPx[idx] || 1) / rowTotalPx) * 100;
+                return (
+                  <div key={`col-${idx}`} className="min-w-0" style={{ flexBasis: `${pct}%`, flexGrow: 0, flexShrink: 1 }}>
+                    {columnContents[idx]}
+                  </div>
+                );
+              })}
+            </div>
+          ));
         })()}
       </div>
     </div>

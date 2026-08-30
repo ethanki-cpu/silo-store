@@ -3080,6 +3080,19 @@ function TopSidebarControls({
       <div className="space-y-2 border-t border-gray-200 pt-3">
         <p className="font-medium text-gray-600">컬럼 너비·순서</p>
         <p className="text-[11px] text-gray-400">0=왼쪽 이미지 / 1=이름·등급·활동 / 2=링크 목록 / 3=hover 하위 목록. 지금 화면상 왼쪽부터의 순서예요.</p>
+        {/* 사용자 신고(2026-08-30 — "모바일 버전 설정할때 '컬럼 너비순서'
+            설정이 아직도 적용 안되는데?"): 버그가 아니라 의도된 동작 —
+            HOTFIX-141.21(모바일에서 컬럼 4개가 옆으로 잘려 안 보이던 문제
+            수정)부터 모바일 탭은 너비값과 무관하게 컬럼을 세로로 쌓아
+            항상 꽉 채운다(TopSidebarPanel.tsx의 isMobileViewport 분기).
+            즉 이 입력창들 자체는 저장되지만 모바일 화면에는 반영되지
+            않는다 — 코드를 고치는 대신 왜 안 바뀌는지 여기서 바로
+            설명해 혼란을 줄인다. */}
+        {deviceTab === "mobile" && (
+          <p className="rounded border border-amber-200 bg-amber-50 p-2 text-[11px] leading-relaxed text-amber-700">
+            ⚠️ 모바일에서는 이 너비 설정이 적용되지 않아요 — 화면이 좁아 컬럼을 옆으로 나열할 수 없어서, 모바일은 항상 4개 컬럼을 세로로 쌓아 폭 전체를 채워요(순서는 아래에서 여전히 바꿀 수 있어요). 너비는 PC/태블릿에서만 의미가 있어요.
+          </p>
+        )}
         {config.columnOrder.map((colIdx, orderIdx) => (
           <div key={colIdx} className="flex items-center gap-2 rounded border border-gray-200 p-1.5">
             <span className="w-24 shrink-0 text-gray-500">{COLUMN_LABELS[colIdx]}</span>

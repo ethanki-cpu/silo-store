@@ -1135,7 +1135,25 @@ export default function AdminNavigationSettingsPage() {
             {/* HOTFIX-146: 태블릿 프레임 폭(820px)은 실제 공개 사이트의
                 태블릿 판정 구간(768~1023px, useDeviceTier 참고) 한가운데
                 값이다 — 이 폭에서 편집한 오프셋(refWidthPx)이 그 구간
-                전체에서 비율 스케일링으로 자연스럽게 맞는다. */}
+                전체에서 비율 스케일링으로 자연스럽게 맞는다.
+                HOTFIX-152.13(사용자 신고 — "pc 버전의 '홈페이지 설정'의
+                아이콘들 위치가 계속 내가 정한 위치에서 바뀌는건데?"):
+                PC 탭만 태블릿/모바일과 달리 고정 시뮬레이션 폭이 없이
+                "관리자 자신의 브라우저 창 폭 그대로"(bg-white만, 폭 제약
+                없음)를 썼다 — HeaderSlot.tsx의 드래그 오프셋은 "드래그
+                당시 기준 폭(refWidthPx) 대비 지금 기준 폭 비율"로
+                스케일링되므로, 관리자가 창 크기를 바꾸거나(최대화/축소,
+                다른 모니터, 다른 컴퓨터로 접속 — 이 프로젝트는 실제로
+                회사/개인 컴퓨터를 오가며 작업한다) 다시 열 때마다 기준
+                폭이 달라져 저장된 위치가 매번 다르게 재계산되며 어긋나
+                보였다(실측: 같은 세션 안에서도 저장된 refWidthPx가
+                1415~1423px로 세션마다 흔들려 있었음). 태블릿/모바일처럼
+                PC도 고정 폭(1440px, 흔한 데스크톱 기준폭 — 기존에 저장된
+                값들의 refWidthPx와도 거의 일치해 시각적 변화 최소화)을
+                줘서 관리자의 실제 창 크기와 무관하게 항상 동일한 기준
+                폭으로 측정·저장되게 한다. 창이 1440px보다 좁으면 바깥
+                overflow-auto가 가로 스크롤을 제공(태블릿/모바일도 이미
+                같은 방식). */}
             <div
               data-admin-canvas
               className={
@@ -1143,7 +1161,7 @@ export default function AdminNavigationSettingsPage() {
                   ? "mx-auto w-[390px] overflow-hidden border-x border-gray-300 bg-white shadow-lg"
                   : deviceTab === "tablet"
                     ? "mx-auto w-[820px] overflow-hidden border-x border-gray-300 bg-white shadow-lg"
-                    : "bg-white"
+                    : "mx-auto w-[1440px] bg-white"
               }
             >
               <Navbar

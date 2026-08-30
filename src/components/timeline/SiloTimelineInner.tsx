@@ -142,6 +142,20 @@ export default function SiloTimelineInner({
   const instanceRef = useRef<InstanceType<NonNullable<Window["TL"]>["Timeline"]> | null>(null);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  // HOTFIX-152.20(사용자 지시 — "'온라인 도슨트'의 타임라인 이벤트의
+  // '화면 자유편집'을 앞으로 OTE라고 지칭할게" 세션에서 "'/online-docent/
+  // digital-ai'에 timeline_ng를 만들어줘. 그리고 게시판도 만들어줘"를
+  // 실행하던 중 발견): 새로 만든 게시판처럼 게시글이 0개면 TimelineJS3가
+  // `events` 배열이 비어있다는 이유로(표지 title 슬라이드가 있어도) 자체
+  // DOM에 영어 원시 에러("ERROR: Timeline configuration has no
+  // events...")를 그대로 그려버린다 — 우리 쪽 error state(React가 관리)를
+  // 거치지 않는 라이브러리 내부 동작이라 지금까지는 매번 "샘플 게시글을
+  // 채워 넣는" 임시방편(HOTFIX-151.10/151.11)으로만 피해왔다. 게시글이
+  // 0개인 게시판/집계가 아예 정상적인 상태(콘텐츠를 아직 안 쓴 것뿐)이므로,
+  // TL3 생성자를 호출하기 전에 이벤트 개수를 먼저 확인해 0개면 아예
+  // 생성하지 않고 우리 자체 안내 문구로 대체한다 — 앞으로 새 타임라인
+  // 게시판을 만들 때마다 이 문제가 재발하지 않는다.
+  const [isEmpty, setIsEmpty] = useState(false);
   const onCoverStateChangeRef = useRef(onCoverStateChange);
   useEffect(() => {
     onCoverStateChangeRef.current = onCoverStateChange;
@@ -219,6 +233,14 @@ export default function SiloTimelineInner({
           setError(data.error);
           return;
         }
+        // HOTFIX-152.20: TL3는 events가 0개면(표지 title만 있어도) 자기
+        // DOM에 직접 영어 원시 에러를 그려버린다 — 생성자를 아예 부르지
+        // 않고 우리 안내 문구로 대체한다.
+        if (!Array.isArray(data?.events) || data.events.length === 0) {
+          setIsEmpty(true);
+          return;
+        }
+        setIsEmpty(false);
         const TimelineCtor = window.TL?.Timeline;
         if (!TimelineCtor) {
           setError("TimelineJS3 스크립트를 불러오지 못했어요.");
@@ -362,6 +384,20 @@ export default function SiloTimelineInner({
 
   if (error) {
     return <p className="p-6 text-sm text-red-600">타임라인을 불러오지 못했어요: {error}</p>;
+  }
+
+  // HOTFIX-152.20: TL3 생성 자체를 건너뛴 상태 — containerRef를 그대로
+  // 쓰는 대신 안내 문구만 그린다(다음에 게시글이 생겨 새로고침하면 이
+  // 컴포넌트가 다시 mount/effect 재실행되며 정상적으로 TL3가 뜬다).
+  if (isEmpty) {
+    return (
+      <div
+        className="flex items-center justify-center bg-gray-50 text-sm text-gray-400"
+        style={{ height: stageHeightPx ? stageHeightPx + 260 : 650 }}
+      >
+        아직 게시글이 없어요.
+      </div>
+    );
   }
 
   return <div ref={containerRef} className="tl-silo-container" style={{ height: stageHeightPx ? stageHeightPx + 260 : 650 }} />;

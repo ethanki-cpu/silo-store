@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-30 (HOTFIX-152.20 — "디지털~A.i 문화" 페이지에 timeline_ng 게시판 신설 + 게시글 0개일 때 TL3 원시 에러 노출 버그 근본 수정)
+- **사용자 지시**: "https://dev.silostore.net/online-docent/digital-ai 이 페이지에 timeline_ng를 만들어줘. 그리고 게시판도 만들어줘."
+- **조사**: 이 페이지(`online-docent-digital-ai`, 이미 `builder_type='craft'`)는 `SiloTimelineEmbedBlock`이 `mode="group"`(하위 카테고리를 모아 보여주는 집계 모드, `groupHref="/online-docent/digital-ai"`)으로 설정돼 있었는데, 이 카테고리엔 하위(리프) 카테고리가 하나도 없어 집계할 대상 자체가 없었다 — 다른 4개 허브(고대 문명~침략/제국~군주/혁명~식민지/프로이트~대중문화)와 달리 "디지털~A.i 문화"는 세분화할 하위 시대가 없는, 그 자체로 완결된 하나의 구간으로 판단해 단일 게시판을 직접 연결하는 `mode="board"`로 전환.
+- **구현(DB, Management API)**: `boards` 테이블에 새 게시판("디지털~A.i 문화", `category`/`slug`="digital-ai", `group_key`="docent", `render_type`="timeline_ng", 다른 도슨트 게시판과 동일한 옵션 — 르네상스 게시판 설정을 그대로 참고) 생성 후, 해당 페이지의 `craft_state`에서 `SiloTimelineEmbedBlock`의 `mode`를 `"board"`로, `boardId`를 새 게시판 id로 바꿔 직접 연결(`groupHref`는 비움).
+- **부수 발견 및 근본 수정(코드)**: 새로 만든 게시판이라 게시글이 0개인 상태로 페이지를 열어보니, TimelineJS3(TL3) 라이브러리가 "events 배열이 비어있다"는 이유로(표지 title 슬라이드가 있어도) 우리 React의 error state를 거치지 않고 **자기 DOM에 직접 영어 원시 에러**("ERROR: Timeline configuration has no events...")를 그려버렸다 — 지금까지는 이 문제를 매번 "샘플 게시글을 채워 넣는" 임시방편(HOTFIX-151.10/151.11)으로만 피해왔는데, 이번에 근본 원인을 확인해 `SiloTimelineInner.tsx`에서 API 응답의 `events` 배열이 비어있으면 TL3 생성자를 아예 호출하지 않고 "아직 게시글이 없어요" 안내 문구로 대체하도록 수정 — 앞으로 새 타임라인 게시판을 만들 때마다 이 문제가 재발하지 않는다.
+- **검증**: 로컬 dev 서버에서 실제 공개 페이지가 원시 에러 대신 "아직 게시글이 없어요."를 정상적으로 보여주는 것 확인, 관리자 Craft 에디터 캔버스 미리보기 안에서도 같은 안내가 뜨는 것 확인. `tsc`/`lint` 0 errors(80 warnings, 기존 기준선 유지).
+- **브랜치**: `feature/EPIC-153`에 이어서 커밋(EPIC-152 계열 HOTFIX 넘버링 규칙 적용).
+
 ## 2026-08-30 (HOTFIX-152.19 — OTE 배경 패닝 모션: 가로/세로 방향성 강화 + 이동량 확대)
 - **용어 정의(사용자 지시)**: "'온라인 도슨트'의 타임라인 이벤트의 '화면 자유편집'을 앞으로 OTE라고 지칭할게" — 이후 이 문서에서도 이 축약어(Online docent Timeline event free-Edit)를 그대로 쓴다. `SiloTimelineEmbedBlock.tsx`의 `SlideOverlayConfig`(표지/이벤트 공용) 중 배경 패닝 모션 관련 필드(`panSpeedSeconds`/`panZoomPct`/`panDistancePct`/`panDirection`)가 대상.
 - **사용자 신고**: "세로 미디어는 위 아래 움직임을 더 중요시 하고(대각선도 됨), 가로 미디어는 왼쪽 오른쪽 움직임을 더 중요시하길 원해. 지금 너무 조금만 움직이니까 답답해 어떤 미디어는, 모션이 없으면 뭔지 모르겠어."

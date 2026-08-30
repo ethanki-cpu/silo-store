@@ -406,20 +406,47 @@ export function TopSidebarPanel({
             // column 2: 관리자가 등록한 링크 목록.
             2: (
               <div className="space-y-2 text-sm">
-                {config.links.map((link) => (
-                  <div key={link.id} onMouseEnter={() => handleLinkHover(link.id)}>
-                    {/* HOTFIX-141(사용자 지시 — "상단 사이드바의 '링크 hover
-                        모션'을 다른걸로 바꿧는데도 적용이 안되고 있어"): 이
-                        hover:underline이 어떤 모션을 골라도 항상 똑같이 밑줄을
-                        그려 실제 모션 CSS(motionCss, 아래 <style>)를 가리고
-                        있었다 — 이 자리의 hover 표현은 이제 전적으로 config.
-                        hoverMotion이 담당한다(기본값 underline-glow가 이미
-                        비슷한 밑줄 효과를 준다). */}
-                    <Link href={link.href} onClick={onClose} className={`block ${LINK_HOVER_CLASS}`}>
-                      {link.label}
-                    </Link>
-                  </div>
-                ))}
+                {config.links.map((link) => {
+                  const hasChildren = link.children.length > 0;
+                  const isArmed = hoveredLinkId === link.id;
+                  return (
+                    <div key={link.id} onMouseEnter={() => handleLinkHover(link.id)}>
+                      {/* HOTFIX-141(사용자 지시 — "상단 사이드바의 '링크 hover
+                          모션'을 다른걸로 바꿧는데도 적용이 안되고 있어"): 이
+                          hover:underline이 어떤 모션을 골라도 항상 똑같이 밑줄을
+                          그려 실제 모션 CSS(motionCss, 아래 <style>)를 가리고
+                          있었다 — 이 자리의 hover 표현은 이제 전적으로 config.
+                          hoverMotion이 담당한다(기본값 underline-glow가 이미
+                          비슷한 밑줄 효과를 준다).
+                          HOTFIX-152.12(사용자 지시 — "탭(터치)으로도 갱신되게
+                          바꿔줘"): 모바일은 마우스가 없어 onMouseEnter가 한
+                          번도 안 일어난다 — 하위 목록이 있는 링크는 첫 탭에서
+                          곧장 이동하지 않고 handleLinkHover만 실행해(column 0
+                          이미지·column 3 하위 목록이 즉시 갱신) "미리 보기"
+                          상태로 만들고, 이미 미리 보기 중인(같은 링크를 다시
+                          탭한) 경우에만 실제로 이동한다. 하위 목록이 없는
+                          링크·데스크톱(마우스로 이미 hover를 마쳤을 것)은
+                          기존처럼 탭/클릭 즉시 이동. */}
+                      <Link
+                        href={link.href}
+                        onClick={(e) => {
+                          if (isMobileViewport && hasChildren && !isArmed) {
+                            e.preventDefault();
+                            handleLinkHover(link.id);
+                            return;
+                          }
+                          onClose();
+                        }}
+                        className={`flex items-center justify-between gap-2 ${LINK_HOVER_CLASS}`}
+                      >
+                        <span>{link.label}</span>
+                        {isMobileViewport && hasChildren && (
+                          <span className="shrink-0 text-xs text-gray-400">{isArmed ? "▾" : "▸"}</span>
+                        )}
+                      </Link>
+                    </div>
+                  );
+                })}
               </div>
             ),
             // column 3: hover 중인 column2 링크의 하위 목록.

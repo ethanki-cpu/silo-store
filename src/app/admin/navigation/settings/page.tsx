@@ -421,21 +421,47 @@ function FooterCraftControls() {
 // 썸네일이 공유하는 곳이라 여기 한 곳만 고치면 전부 적용된다. 확대
 // 미리보기는 position:fixed로 뷰포트 기준 중앙에 띄운다 — 이 패널
 // 자체가 overflow-y-auto라 absolute였다면 스크롤 클리핑에 잘렸을 것.
+// 버그 수정(2026-08-30, 사용자 신고 — "사이드바 hover 이미지의 preview가
+// 제대로 안나오고 있어"): 좌/우 사이드바 기본/호버 미디어(그리고 로고
+// hover, 상단 아이콘 hover 등 이 컴포넌트를 공유하는 다른 필드들)는
+// image/*뿐 아니라 video/webm·video/mp4도 업로드 가능한데, 이 컴포넌트는
+// 항상 <img>만 그려 영상 URL은 깨진 이미지 아이콘으로만 보였다.
+// SiloTimelineEmbedBlock.tsx의 배경 슬라이드 썸네일이 이미 쓰던 것과
+// 동일한 확장자 판정으로 영상이면 <video>(재생 없이 첫 프레임이 정지
+// 썸네일로 보임)를 그린다.
+const IMAGE_THUMB_VIDEO_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
+
 function ImageThumb({ url, alt }: { url: string; alt: string }) {
   const [hovering, setHovering] = useState(false);
   if (!url) return null;
+  const isVideo = IMAGE_THUMB_VIDEO_RE.test(url);
   return (
     <div
       className="relative mt-1 inline-block"
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt={alt} className="h-14 w-14 rounded border border-gray-200 object-cover" />
+      {isVideo ? (
+        <video src={url} muted playsInline className="h-14 w-14 rounded border border-gray-200 object-cover" />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={alt} className="h-14 w-14 rounded border border-gray-200 object-cover" />
+      )}
       {hovering && (
         <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt={alt} className="max-h-[80vh] max-w-[80vw] rounded-lg border-4 border-white object-contain shadow-2xl" />
+          {isVideo ? (
+            <video
+              src={url}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="max-h-[80vh] max-w-[80vw] rounded-lg border-4 border-white object-contain shadow-2xl"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt={alt} className="max-h-[80vh] max-w-[80vw] rounded-lg border-4 border-white object-contain shadow-2xl" />
+          )}
         </div>
       )}
     </div>

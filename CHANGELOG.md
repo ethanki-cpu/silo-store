@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-30 (HOTFIX-152.16 — "사이트 메뉴"에서 href(슬러그)를 수정하면 기존 페이지가 고아가 되고 빈 페이지가 새로 생기던 버그 수정)
+- **사용자 신고**: "'사이트 메뉴' 설정에서 '온라인 도슨트 -> 제국~군주 -> 수정'을 눌러서 slug를 /online-docent/Empire-monarchy로 바꿨더니, 상단 탭의 '온라인 도슨트 -> 제국~군주'를 눌렀더니 타임라인이 없어졌어. 사이트메뉴에서 수정을 했더니, '수정'이 아니라, 아예 새로운 페이지가 생겨버리는데 아주 불편해 죽겠다."
+- **원인 조사**: DB 직접 조회로 확인한 결과, "제국~군주" 허브 페이지의 진짜 콘텐츠(타임라인, `SiloTimelineEmbedBlock` 포함 Craft `craft_state`)는 `page_builder.slug = 'online-docent-ancient-monarchy'`에 있었다. `site_navigations`의 href를 `/online-docent/Empire-monarchy`로 바꾸자 `hrefToSlug()`가 계산하는 slug가 `online-docent-empire-monarchy`로 완전히 달라졌고, `CategoryTreeManager.tsx`의 `updateRow`는 href가 바뀔 때마다 `ensurePageForSlug(새 slug, ...)`만 불러 "그 slug에 페이지가 없으면 새로 만든다"만 했지 **원래 페이지를 새 자리로 옮기지는 않았다** — 그 결과 `site_navigations`는 새 href를 가리키게 되지만 그 slug엔(공교롭게도 이미 이틀 전부터 존재하던, tier2_tab 중복 항목용 빈 페이지가 있어) 빈 기본 템플릿만 보였고, 원래 타임라인 페이지는 그 어떤 메뉴도 가리키지 않는 고아로 남았다. 즉 href 수정 = "새 slug로 갈아타기"였지 "같은 페이지를 옮기기"가 아니었던 게 근본 구조 문제.
+- **즉시 복구(DB 전용)**: "제국~군주"(`site_navigations` id `f7008a1a`)의 href를 원래 값 `/online-docent/ancient-monarchy`로 되돌려 타임라인이 다시 보이도록 함(craft_state가 있는 원본 페이지와 slug 일치 확인 후 복구).
+- **근본 수정**: `src/lib/pageTemplates.ts`에 `renamePageSlugIfPossible(oldSlug, newSlug)` 신규 — 새 slug 자리가 비어 있으면 옛 slug의 기존 `page_builder` 행 자체를 새 slug로 UPDATE(진짜 "이동")하고, 이미 다른 페이지가 차 있으면 안전하게 건드리지 않는다. `CategoryTreeManager.tsx`의 `updateRow`가 href 변경 시 `ensurePageForSlug`를 부르기 전에 이 함수를 먼저 `await`로 호출하도록 수정(순서가 바뀌면 경쟁 상태로 ensurePageForSlug가 먼저 "없다"고 판단해 새로 만들어버릴 수 있어 순서 보장이 중요) — 이제 href(슬러그)를 몇 번을 고쳐도 같은 페이지가 계속 따라간다.
+- **검증**: 관리자 화면에서 테스트 카테고리를 만들어 실제 "수정" 폼으로 href를 두 번 변경(`/rename-test-a` → `/rename-test-b`)하며 `page_builder` 행의 `id`가 그대로 유지된 채 `slug`만 이동하고(마커로 남긴 `title`도 그대로 보존, 새 빈 페이지가 추가로 생기지 않음) 확인 — 테스트 데이터는 검증 후 정리. `tsc`/`lint` 0 errors(80 warnings, 기존 기준선 유지).
+- **남은 부수 이슈(이번 범위 밖, 손대지 않음)**: "제국~군주"가 서로 다른 href 관례(`/online-docent/...` 슬래시식 vs `/online-docent-...` 대시식)를 쓰는 두 개의 독립된 `site_navigations` 행(sidebar_left용/tier2_tab용)으로 중복 존재하고 있고, 그중 tier2_tab용(`dacf883f`, href `/online-docent-empire-monarchy`)이 가리키는 페이지는 여전히 빈 기본 템플릿이다 — 오늘 사고와는 별개로 이미 있던 구조라 이번엔 손대지 않았다.
+- **브랜치**: `feature/EPIC-153`에 이어서 커밋(EPIC-152 계열 HOTFIX 넘버링 규칙 적용).
+
 ## 2026-08-30 (HOTFIX-152.15 — 헤더 비율 축소를 태블릿·모바일 계층까지 확대)
 - **사용자 신고**: "pc -> 탭 -> 모바일 순으로 되도록 크롬 윈도우 창을 점점 줄여보니, 탭 -> 모바일 할때 간격 유지가 안되고 있어" — HOTFIX-152.14는 PC 계층(1024px~)에만 CSS zoom 축소를 적용했었고, 태블릿(768~1023px)/모바일(~767px) 계층은 여전히 예전처럼 위치(dx)만 화면 폭 비례로 옮겨질 뿐 크기 자체는 고정이라(요소 크기는 그대로인데 배치만 이동) 그 구간에서 로고·아이콘이 창 폭에 맞춰 "정말로 작아지지" 않고 있었다.
 - **구현**: HOTFIX-152.14의 PC 전용 zoom 로직을 태블릿(기준폭 820px)/모바일(기준폭 390px) 계층까지 일반화 — 세 계층 모두 "홈페이지 설정 관리"의 해당 탭 캔버스 고정폭과 동일한 기준으로, 그보다 실제 화면이 좁아지면 그 비율만큼 헤더 전체가 CSS zoom으로 축소된다(기준폭보다 넓으면 1로 고정, 더 커지지 않음). `HeaderScaleModeContext`를 문자열(`"dynamic"`/`"fixed"`) 대신 "지금 계층의 고정 기준폭" 숫자값을 직접 전달하도록 일반화해 `HeaderSlot.tsx`의 dx 오프셋도 각 계층의 고정폭 기준으로만 정규화(이중 축소 방지, HOTFIX-152.14와 동일한 원리를 세 계층에 공통 적용).

@@ -22,6 +22,39 @@ export function hrefToSlug(href: string): string {
   return trimmed || "home";
 }
 
+// HOTFIX-152.16(사용자 신고 — "'사이트메뉴'에서 수정을 했더니, '수정'이
+// 아니라, 아예 새로운 페이지가 생겨버리는데 아주 불편해 죽겠다"): 카테고리의
+// href를 바꾸면(예: "온라인 도슨트 > 제국~군주"의 슬러그를 손보다가) 여기
+// 정의된 hrefToSlug 규칙상 page_builder.slug도 통째로 달라진다 — 지금까지
+// updateRow는 새 slug에 대해 ensurePageForSlug만 불러 "그 자리에 페이지가
+// 없으면 새로 만든다"만 했지, 원래 그 카테고리가 쓰던 옛 slug의 기존 페이지
+// (Craft 캔버스/타임라인 등 실제 콘텐츠가 들어있는)를 새 자리로 옮기지는
+// 않았다 — 그 결과 관리자 눈에는 "수정"이지만 실제로는 원래 페이지가
+// 아무도 안 가리키는 고아로 남고, 새 slug 자리엔 빈 기본 템플릿이 새로
+// 생기는 것으로 보였다(실제 사례: online-docent-ancient-monarchy에 있던
+// 타임라인 Craft 페이지가 href 수정 한 번으로 완전히 안 보이게 됨). href가
+// 바뀔 때 옛 slug의 페이지를 "옮기는" 이 함수를 ensurePageForSlug보다
+// 먼저 호출해 실제로 "수정"(같은 페이지가 새 위치로 이동)이 되게 한다 —
+// 새 slug 자리에 이미 다른(무관한) 페이지가 있으면 안전하게 건드리지
+// 않는다(그 경우 어느 쪽이 "진짜" 페이지인지 코드가 판단할 수 없어
+// 자동으로 덮어쓰면 오히려 다른 사고를 낼 수 있다).
+export async function renamePageSlugIfPossible(oldSlug: string, newSlug: string): Promise<void> {
+  if (!oldSlug || !newSlug || oldSlug === newSlug) return;
+  const { data: existingAtOld } = await supabase
+    .from("page_builder")
+    .select("id")
+    .eq("slug", oldSlug)
+    .maybeSingle();
+  if (!existingAtOld) return;
+  const { data: conflictAtNew } = await supabase
+    .from("page_builder")
+    .select("id")
+    .eq("slug", newSlug)
+    .maybeSingle();
+  if (conflictAtNew) return;
+  await supabase.from("page_builder").update({ slug: newSlug }).eq("id", existingAtOld.id);
+}
+
 export async function ensurePageForSlug(
   slug: string,
   title: string,

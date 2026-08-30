@@ -20,7 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import { ensurePageForSlug, hrefToSlug } from "@/lib/pageTemplates";
+import { ensurePageForSlug, hrefToSlug, renamePageSlugIfPossible } from "@/lib/pageTemplates";
 import { WIDGET_DEFAULT_SETTINGS } from "@/lib/pageBuilder";
 import { fetchNavBranches, fetchBoardBranchMap } from "@/lib/adminTreeGrouping";
 import { RENDER_TYPE_OPTIONS, RANK_OPTIONS } from "@/components/admin/BoardForm";
@@ -698,11 +698,28 @@ export function CategoryTreeManager({
     // 갖게 된" 시점이다 — 그때 page_builder 행 + 기본 위젯 템플릿을 자동
     // 생성한다(이미 있으면 손대지 않음, ensurePageForSlug 참고). 페이지
     // 생성 실패는 카테고리 저장 자체를 막지 않도록 조용히 무시한다.
+    // HOTFIX-152.16(사용자 신고 — "'사이트메뉴'에서 수정을 했더니 아예
+    // 새로운 페이지가 생겨버린다"): href를 바꾸면 hrefToSlug 결과(=
+    // page_builder.slug)도 통째로 달라져, ensurePageForSlug만으로는 옛
+    // slug에 있던 기존 페이지(Craft 타임라인 등 실제 콘텐츠)를 못 찾고
+    // 새 slug 자리에 빈 페이지를 새로 만들어버렸다 — renamePageSlugIfPossible
+    // 로 먼저 "옛 slug의 기존 페이지를 새 slug로 그대로 옮긴" 다음에야
+    // ensurePageForSlug를 부른다(이미 옮겨졌으면 그 페이지를 그대로 찾아
+    // 아무 것도 새로 안 만듦). 순서가 뒤바뀌면 경쟁 상태로 ensurePageForSlug가
+    // 먼저 "없다"고 판단해 새로 만들어버릴 수 있어 반드시 옮기기부터
+    // await로 끝낸 뒤 진행한다.
     if (patch.href) {
       const current = rows.find((r) => r.id === id);
       const nextTitle = patch.title ?? current?.title ?? "";
       const nextDescription = patch.description ?? current?.description ?? null;
-      ensurePageForSlug(hrefToSlug(patch.href), nextTitle, nextDescription).catch(() => {});
+      const nextSlug = hrefToSlug(patch.href);
+      const prevSlug = current?.href ? hrefToSlug(current.href) : null;
+      (async () => {
+        if (prevSlug && prevSlug !== nextSlug) {
+          await renamePageSlugIfPossible(prevSlug, nextSlug).catch(() => {});
+        }
+        await ensurePageForSlug(nextSlug, nextTitle, nextDescription).catch(() => {});
+      })();
     }
 
     return true;

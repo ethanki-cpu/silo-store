@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-30 (DB 전용 — "상단 사이드바" 모바일 탭에 "My Page/My Collection/My Story/My Timeline" 링크 누락 보완)
+- **사용자 신고**: "왜 '모바일' 버전의 '상단 사이드바'에는 My page ~, 그리고 그 하위 카테고리가 안 보이는건데?"
+- **원인**: 상단 사이드바의 링크 목록(`site_settings.top_sidebar.<device>.links`)은 PC/태블릿/모바일 탭마다 완전히 독립된 설정 — PC 탭에는 "My Page/My Collection(하위 8개)/My Story(하위 5개)/My Timeline(하위 6개)"가 등록돼 있었지만, 모바일 탭 링크 목록은 처음부터 별개로 "Mind Diary/Studio" 2개만 있었다(이 2개는 원래 고정 바로가기였는데 관리자가 column 2 사본으로 옮겨온 것). HOTFIX-152.6(아이콘별 메가 메뉴)/HOTFIX-152.10(모바일 이미지 뱅크)에서도 반복된 것과 같은 "디바이스 탭 = 완전히 독립된 데이터" 패턴.
+- **조치**: PC 탭의 "My Page/My Collection/My Story/My Timeline" 4개 링크(하위 목록 포함)를 모바일 탭 링크 목록 맨 앞에 복사(Management API, `jsonb`로 배열 병합) — 기존 모바일의 Mind Diary/Studio는 그대로 유지.
+- **검증**: 로컬 dev 서버에서 실제 공개 홈페이지를 375px 모바일 뷰포트로 열어 상단 사이드바를 실제로 열고 "My Page/My Collection▸/My Story▸/My Timeline▸/Mind Diary/Studio" 6개 항목이 전부 나타나는 것 DOM으로 확인(하위 목록 있는 3개는 HOTFIX-152.12의 화살표 표시까지 정상). 코드 변경 없음(DB 전용) — `tsc`/`lint` 재실행 불필요.
+- **참고**: 태블릿 탭도 PC와 같은 4개 링크를 이미 갖고 있어(추가로 Silo Planet 1개 더) 이번 조치가 필요 없었음 — 확인만 하고 손대지 않음.
+
 ## 2026-08-30 (HOTFIX-152.12 — "상단 사이드바" 모바일: 하위 목록 있는 링크를 탭하면 즉시 이동 대신 먼저 미리보기)
 - **사용자 지시("그래 그렇게해", HOTFIX-152.11 완료 보고에서 남긴 "모바일은 터치라 hover가 없어 이미지/하위 목록이 갱신될 계기가 없다"는 한계 제안에 대한 승인)**: column 2 링크에 마우스를 올려야만(`onMouseEnter`) column 0 이미지·column 3 하위 목록이 갱신되는데, 터치 기기는 hover 자체가 없어 곧장 탭 → 이동으로 끝나버려 하위 목록을 browsing할 기회가 전혀 없었다.
 - **구현**: `TopSidebarPanel.tsx`의 column 2 링크에 `isMobileViewport`일 때만 적용되는 탭 로직 추가 — 하위 목록이 있는 링크(`link.children.length > 0`)를 처음 탭하면 `e.preventDefault()`로 이동을 막고 `handleLinkHover(link.id)`만 실행해(기존 hover 핸들러 재사용) column 0/3이 그 자리에서 갱신되게 하고, 이미 그 링크가 "미리보기 중"(`hoveredLinkId === link.id`)인 상태에서 다시 탭하면 그때는 막지 않고 정상 이동한다. 하위 목록이 없는 링크는 기존과 동일하게 첫 탭에 바로 이동(막을 이유가 없음). 링크 텍스트 끝에 상태 표시용 화살표(▸ 미리보기 전 / ▾ 미리보기 중)도 모바일에서만 추가.

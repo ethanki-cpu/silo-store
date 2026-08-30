@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-30 (DB 전용 — "제국~군주" 중복 메뉴 항목 정리)
+- **사용자 지시**: "그 두 개 중복 항목 정리해줘. 어찌되었든, 상단 탭의 '온라인 도슨트' -> '제국~군주' 페이지에 전에 설정한 타임라인이 나오기만 하면 돼."
+- **조사**: 직전 HOTFIX-152.16에서 발견한 중복 항목(`dacf883f`, href `/online-docent-empire-monarchy`)을 다시 확인한 결과, 사용자가 만든 진짜 카테고리가 아니라 **`is_active: false`(이미 비활성)** 상태였고 부모가 "온라인 도슨트"가 아니라 **"미분류 페이지" 버킷**이었다 — `page_builder`에는 있지만 그 어떤 메뉴에도 안 걸린 페이지를 관리자가 나중에 찾아 배정할 수 있도록 시스템이 자동으로 만들어 둔 placeholder 항목(EPIC-084 `ensureUnassignedPagesInTree`)이었다. 즉 실제 방문자에게는 원래부터 노출된 적이 없는 죽은 데이터였다.
+- **조치(Management API)**: 이 placeholder 항목(`site_navigations` id `dacf883f`)과 그것이 가리키던 빈 페이지(`page_builder` id `e9baf784`, 완전히 비어있는 기본 5-위젯 템플릿, `page_modules` 포함) 전부 삭제. "제국 ~ 군주"는 이제 실제 타임라인 콘텐츠를 가진 진짜 항목(`f7008a1a`, href `/online-docent/ancient-monarchy`) 하나만 남았다.
+- **검증**: 실제 사이트에서 온라인 도슨트 페이지의 상단 탭 드롭다운·`EraGridBlock`·`TextDirectoryBlock` 3곳의 "제국 ~ 군주" 링크가 전부 같은 href(`/online-docent/ancient-monarchy`)로 일치하는 것 확인, 그 페이지를 직접 열어 로마제국/비잔틴제국/르네상스/바로크/로코코 5개 시대 타임라인이 정상 렌더링되는 것 확인. 코드 변경 없음(DB 전용) — `tsc`/`lint` 재실행 불필요.
+- **남은 사소한 항목(이번 요청과 무관, 참고용)**: 이 페이지의 breadcrumb이 "홈›미분류 페이지›고대 ~ 왕정..."으로 표시된다 — `site_navigations` 트리 자체는 이제 정상(미분류 아님)인데 breadcrumb 로직이 다른 기준으로 판단하는 것으로 보임, 실제 콘텐츠 노출에는 영향 없어 이번엔 손대지 않음.
+
 ## 2026-08-30 (HOTFIX-152.16 — "사이트 메뉴"에서 href(슬러그)를 수정하면 기존 페이지가 고아가 되고 빈 페이지가 새로 생기던 버그 수정)
 - **사용자 신고**: "'사이트 메뉴' 설정에서 '온라인 도슨트 -> 제국~군주 -> 수정'을 눌러서 slug를 /online-docent/Empire-monarchy로 바꿨더니, 상단 탭의 '온라인 도슨트 -> 제국~군주'를 눌렀더니 타임라인이 없어졌어. 사이트메뉴에서 수정을 했더니, '수정'이 아니라, 아예 새로운 페이지가 생겨버리는데 아주 불편해 죽겠다."
 - **원인 조사**: DB 직접 조회로 확인한 결과, "제국~군주" 허브 페이지의 진짜 콘텐츠(타임라인, `SiloTimelineEmbedBlock` 포함 Craft `craft_state`)는 `page_builder.slug = 'online-docent-ancient-monarchy'`에 있었다. `site_navigations`의 href를 `/online-docent/Empire-monarchy`로 바꾸자 `hrefToSlug()`가 계산하는 slug가 `online-docent-empire-monarchy`로 완전히 달라졌고, `CategoryTreeManager.tsx`의 `updateRow`는 href가 바뀔 때마다 `ensurePageForSlug(새 slug, ...)`만 불러 "그 slug에 페이지가 없으면 새로 만든다"만 했지 **원래 페이지를 새 자리로 옮기지는 않았다** — 그 결과 `site_navigations`는 새 href를 가리키게 되지만 그 slug엔(공교롭게도 이미 이틀 전부터 존재하던, tier2_tab 중복 항목용 빈 페이지가 있어) 빈 기본 템플릿만 보였고, 원래 타임라인 페이지는 그 어떤 메뉴도 가리키지 않는 고아로 남았다. 즉 href 수정 = "새 slug로 갈아타기"였지 "같은 페이지를 옮기기"가 아니었던 게 근본 구조 문제.

@@ -139,12 +139,15 @@ export function RightSidebar({
   }, [open]);
 
   // HOTFIX-141: LeftSidebar.tsx와 동일한 이유/패턴 — 자세한 배경은 그쪽 주석 참고.
+  // 버그 수정(2026-08-30) — LeftSidebar.tsx와 동일한 이유: Controls/
+  // Elements 패널(data-admin-controls-panel)만 예외로 취급.
   useEffect(() => {
     if (!open || !editable) return;
     function handlePointerDown(e: PointerEvent) {
       const target = e.target as Node;
       if (panelRef.current?.contains(target)) return;
       if (triggerRef.current?.contains(target)) return;
+      if ((target as HTMLElement).closest?.("[data-admin-controls-panel]")) return;
       onClose();
     }
     document.addEventListener("pointerdown", handlePointerDown);

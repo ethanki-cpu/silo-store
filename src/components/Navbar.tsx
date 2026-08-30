@@ -143,10 +143,13 @@ function IconSidebarPanel({
     function handleEscape(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
+    // 버그 수정(2026-08-30) — LeftSidebar.tsx와 동일한 이유: Controls/
+    // Elements 패널(data-admin-controls-panel)만 예외로 취급.
     function handlePointerDown(e: PointerEvent) {
       const target = e.target as Node;
       if (panelRef.current?.contains(target)) return;
       if ((target as HTMLElement).closest?.("[data-icon-sidebar-trigger]")) return;
+      if ((target as HTMLElement).closest?.("[data-admin-controls-panel]")) return;
       onClose();
     }
     document.addEventListener("keydown", handleEscape);

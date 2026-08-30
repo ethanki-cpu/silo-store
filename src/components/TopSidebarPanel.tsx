@@ -125,12 +125,21 @@ export function TopSidebarPanel({
   // 지금까지 ✕ 버튼/Escape 말고는 닫는 방법이 아예 없었다(L/R 사이드바와
   // 달리 backdrop도 없었음). 트리거 버튼은 이 컴포넌트가 직접 렌더링하지
   // 않으므로(Navbar.tsx) ref 대신 data-top-sidebar-trigger 마커로 식별.
+  // 버그 수정(2026-08-30, 사용자 신고 — "사이드바 설정을 바꾸기 위해
+  // 어딘가를 클릭하는 순간 사이드바가 닫혀"): Controls/Elements
+  // 패널(data-admin-controls-panel)을 클릭해도 이 패널은 열린 채로
+  // 유지 — LeftSidebar.tsx와 동일한 이유(자세한 배경은 그쪽 주석 참고).
+  // 이 컴포넌트는 전역 "상단 사이드바"(data-top-sidebar-trigger)와
+  // HOTFIX-152.6의 아이콘별 메가 메뉴(data-icon-sidebar-trigger) 둘 다
+  // 재사용하므로 두 트리거 마커 모두 예외 처리한다.
   useEffect(() => {
     if (!open) return;
     function handlePointerDown(e: PointerEvent) {
       const target = e.target as Node;
       if (panelRef.current?.contains(target)) return;
       if ((target as HTMLElement).closest?.("[data-top-sidebar-trigger]")) return;
+      if ((target as HTMLElement).closest?.("[data-icon-sidebar-trigger]")) return;
+      if ((target as HTMLElement).closest?.("[data-admin-controls-panel]")) return;
       onClose();
     }
     document.addEventListener("pointerdown", handlePointerDown);

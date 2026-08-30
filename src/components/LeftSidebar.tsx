@@ -184,13 +184,23 @@ export function LeftSidebar({
   // 가려버리므로 — HOTFIX-140.2 주석 참고). pointerdown은 패널의
   // onClickCapture(click 이벤트만 가로챔)와 다른 이벤트라 안전하게
   // 별도로 감지할 수 있다 — 패널/트리거 버튼 내부 클릭은 그대로 두고,
-  // 그 바깥(Controls 패널 포함)을 클릭하면 닫는다.
+  // 그 바깥을 클릭하면 닫는다.
+  // 버그 수정(2026-08-30, 사용자 신고 — "사이드바 설정을 바꾸기 위해
+  // 어딘가를 클릭하는 순간 사이드바가 닫혀"): 위 주석은 원래 "바깥(Controls
+  // 패널 포함)을 클릭하면 닫는다"였는데, 이게 실제로는 문제였다 — 패널을
+  // 열어둔 채 Controls의 배경색/폰트/hover 모션 등을 조정하려고 그 입력창을
+  // 클릭할 때마다 즉시 패널이 닫혀버려, 미리보기를 보면서 값을 조정하는
+  // 것 자체가 불가능했다. Controls/Elements 패널(data-admin-controls-panel
+  // 마커, admin/navigation/settings/page.tsx)만 예외로 취급 — 그 안을
+  // 클릭해도 이 사이드바 패널은 계속 열려 있는다. 진짜 "캔버스 바깥"(예:
+  // 다른 요소, 빈 캔버스 영역)을 클릭하면 여전히 닫힌다.
   useEffect(() => {
     if (!open || !editable) return;
     function handlePointerDown(e: PointerEvent) {
       const target = e.target as Node;
       if (panelRef.current?.contains(target)) return;
       if (triggerRef.current?.contains(target)) return;
+      if ((target as HTMLElement).closest?.("[data-admin-controls-panel]")) return;
       onClose();
     }
     document.addEventListener("pointerdown", handlePointerDown);

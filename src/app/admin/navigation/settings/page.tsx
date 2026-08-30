@@ -886,7 +886,7 @@ export default function AdminNavigationSettingsPage() {
               ▶ 패널 보기
             </button>
           ) : (
-          <div className="absolute inset-y-0 left-0 z-[100] flex w-80 flex-col border-r border-gray-200 bg-white shadow-xl">
+          <div data-admin-controls-panel className="absolute inset-y-0 left-0 z-[100] flex w-80 flex-col border-r border-gray-200 bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-200 pl-1">
               <div className="flex flex-1 text-xs">
                 {([
@@ -1077,7 +1077,23 @@ export default function AdminNavigationSettingsPage() {
           {/* HOTFIX-141.9: 더 이상 flex-1(패널과 폭을 나눠 씀)이 아니라
               항상 이 컨테이너의 전체 폭 — 패널은 위에서 absolute로 겹쳐
               뜰 뿐 이 폭 계산에 관여하지 않는다. */}
-          <div className="overflow-auto bg-gray-100 p-4" style={{ minHeight: 900 }}>
+          {/* 버그 수정(2026-08-30, 사용자 신고 — "설정 패널을 아래로
+              스크롤 다운하면, 사이드바가 위로 올라가 버리고 있어"):
+              여기가 실제 홈페이지 전체(헤더+본문+푸터)를 그대로 렌더링하다
+              보니 minHeight만 있고 상한이 없어 이 div가 실제 페이지
+              높이만큼(수천 px) 그냥 자라버렸다 — overflow-auto는 있었지만
+              "부모보다 큰 콘텐츠를 자를 상한" 자체가 없어 한 번도 작동하지
+              않았던 것. 그 결과 캔버스 안 어딘가(설정 패널의 아래쪽 입력창
+              등)를 보려면 이 div가 아니라 페이지 전체(= 위의 absolute
+              Controls 패널과 캔버스 안에 열린 좌/우 사이드바 패널까지
+              포함하는 공통 조상)가 스크롤됐고, 그 바람에 캔버스 안에 열어둔
+              사이드바 패널도 함께 위로 밀려 올라가 화면 밖으로 사라졌다.
+              minHeight를 고정 height로 바꿔 이 div 자체를 실제로
+              캔버스만큼의 높이로 제한하면, overflow-auto가 이제 이
+              div 내부에서만 스크롤을 만들어내고(캔버스 밖의 Controls
+              패널/사이드바 패널은 전혀 안 움직임) 페이지 전체 스크롤은
+              사라진다. */}
+          <div className="overflow-auto bg-gray-100 p-4" style={{ height: 900 }}>
             {/* HOTFIX-141(사용자 지시 — "모바일 화면에서, 좌 우 사이드바가
                 활성화 되어있지 않은데 왼쪽으로 밀려나기만해 아예 안보이게
                 해줘"): 이 390px 프레임에 overflow-hidden이 없어서, 닫힌

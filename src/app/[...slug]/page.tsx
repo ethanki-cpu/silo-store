@@ -49,6 +49,25 @@ const CRAFT_RENDERERS: Record<string, React.ComponentType<{ craftState?: string 
   "online-docent-ancient-invade-greeks": CraftDocentRenderer,
   "online-docent-empire-monarchy-romans": CraftDocentRenderer,
   "online-docent-empire-monarchy-byzantine": CraftDocentRenderer,
+  // HOTFIX-152.17(사용자 신고 — "온라인 도슨트의 최하위 카테고리중에
+  // 르네상스/바로크/로코코가 craft 에디터가 연결이 안되어있어, 그리고
+  // 혁명~식민지의 하위 카테고리부터 craft 에디터가 안나와 전부"):
+  // HOTFIX-151.12가 "제국~군주"/"고대 문명~침략" 밑 5개 리프만 craft로
+  // 전환하고 나머지 두 허브("혁명~식민지"/"프로이트~대중문화") 밑 리프
+  // 12개는 그대로 native로 남겨뒀던 것 — 같은 패턴(기존 board 위젯을
+  // SiloTimelineEmbedBlock mode="board"로 그대로 옮김)으로 전부 전환.
+  "online-docent-empire-monarchy-renaissance": CraftDocentRenderer,
+  "online-docent-empire-monarchy-baroque": CraftDocentRenderer,
+  "online-docent-empire-monarchy-rococo": CraftDocentRenderer,
+  "online-docent-revolution-colonial-neoclassicism": CraftDocentRenderer,
+  "online-docent-revolution-colonial-regency": CraftDocentRenderer,
+  "online-docent-revolution-colonial-victorian": CraftDocentRenderer,
+  "online-docent-revolution-colonial-impressionism": CraftDocentRenderer,
+  "online-docent-freud-pop-art-nouveau": CraftDocentRenderer,
+  "online-docent-freud-pop-art-deco": CraftDocentRenderer,
+  "online-docent-freud-pop-beat-generation": CraftDocentRenderer,
+  "online-docent-freud-pop-counterculture": CraftDocentRenderer,
+  "online-docent-freud-pop-pop-culture": CraftDocentRenderer,
 };
 
 // EPIC-068: 이 파일 이전까지는 src/app 전체가 138개의 손으로 만든 정적

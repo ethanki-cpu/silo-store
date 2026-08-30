@@ -75,6 +75,20 @@ const CRAFT_EDITORS: Record<string, CraftEditorComponent> = {
   "online-docent-ancient-invade-greeks": CraftDocentEditor,
   "online-docent-empire-monarchy-romans": CraftDocentEditor,
   "online-docent-empire-monarchy-byzantine": CraftDocentEditor,
+  // HOTFIX-152.17: 공개 렌더러(CRAFT_RENDERERS, src/app/[...slug]/page.tsx)와
+  // 동일한 12개 리프 카테고리 페이지 — 상세 사유는 그쪽 주석 참고.
+  "online-docent-empire-monarchy-renaissance": CraftDocentEditor,
+  "online-docent-empire-monarchy-baroque": CraftDocentEditor,
+  "online-docent-empire-monarchy-rococo": CraftDocentEditor,
+  "online-docent-revolution-colonial-neoclassicism": CraftDocentEditor,
+  "online-docent-revolution-colonial-regency": CraftDocentEditor,
+  "online-docent-revolution-colonial-victorian": CraftDocentEditor,
+  "online-docent-revolution-colonial-impressionism": CraftDocentEditor,
+  "online-docent-freud-pop-art-nouveau": CraftDocentEditor,
+  "online-docent-freud-pop-art-deco": CraftDocentEditor,
+  "online-docent-freud-pop-beat-generation": CraftDocentEditor,
+  "online-docent-freud-pop-counterculture": CraftDocentEditor,
+  "online-docent-freud-pop-pop-culture": CraftDocentEditor,
 };
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import {

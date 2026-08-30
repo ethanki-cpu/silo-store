@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-30 (HOTFIX-152.18 — 새 페이지 생성 시 Craft 에디터를 기본값으로)
+- **사용자 지시**: "페이지가 만들어질때 craft 에디터를 default 로 깔아" — HOTFIX-152.17까지는 이미 있는 리프 카테고리를 하나씩 Craft로 전환했지만, 앞으로 새로 만드는 카테고리는 여전히 `builder_type='native'`(page_modules 위젯 목록)로 시작해 같은 문제(Craft 에디터 없음)가 계속 반복될 구조였다.
+- **원인/구조 조사**: 새 페이지는 `ensurePageForSlug()`(`src/lib/pageTemplates.ts`, 사이트 메뉴에서 카테고리를 만들거나 href를 채울 때마다 자동 호출)가 만든다 — 이제까지 `builder_type`을 명시하지 않아 DB 기본값 `'native'`로 생성됐다. `builder_type`을 그냥 `'craft'`로 바꾸는 것만으로는 부족했는데, 공개 렌더러(`CRAFT_RENDERERS`)/관리자 에디터(`CRAFT_EDITORS`) 둘 다 **화이트리스트** 방식이라(등록 안 된 slug는 "조용히 native로 폴백") 새 slug를 코드에 매번 등록해줘야 하는 구조였다 — 이 프로젝트의 "코드 배포 없이 DB에서 새 카테고리를 만들면 즉시 페이지가 생긴다"(EPIC-068)는 설계 철학과 정면으로 부딪히는 지점이었다.
+- **구현**: `src/components/craft/generic/`(신규) — 페이지 전용 블록 없이 범용 요소(Text Directory/Newsletter/Footer + `PRIMITIVE_RESOLVER`의 30여 종, 게시판 연동·사일로 타임라인 연동 포함)만 쓰는 `CraftGenericRenderer`(공개)/`CraftGenericEditor`(관리자)를 새로 만들고, 화이트리스트에 없는 slug의 "조용히 native 폴백"을 **"CraftGeneric으로 폴백"**으로 바꿨다(`src/app/[...slug]/page.tsx`, `src/app/admin/pages/[id]/page.tsx`) — 이제 어떤 새 slug든 코드에 한 줄도 안 등록해도 즉시 Craft 에디터로 열린다. 새 페이지의 시작 화면은 빈 `RootContainer`(강제로 얹는 Hero 없이 관리자가 "+ 요소 추가"로 직접 채움). `ensurePageForSlug()`는 `builder_type: 'craft'`로 삽입하고, 더 이상 안 쓰일 native 5-위젯 기본 템플릿(hero/quote/slide/board/gallery) 자동 생성 로직은 제거(HOTFIX-152.17에서 정리한 것과 같은 "미연결 빈 위젯만 쌓인 페이지"가 다시 생기지 않도록) — 이제 안 쓰이는 `WIDGET_DEFAULT_SETTINGS`/`DEFAULT_TEMPLATE_TYPES` import도 함께 정리.
+- **검증**: 관리자 화면에서 실제로 새 최상위 탭을 만들어 (1) DB에 `builder_type='craft'`로 즉시 생성되는 것, (2) 실제 공개 페이지가 CraftGenericRenderer로 오류 없이 렌더링되는 것(빈 화면, breadcrumb 정상), (3) "페이지 수정"에 곧바로 "Craft 에디터 열기" 버튼이 뜨는 것, (4) 실제로 에디터를 열어 "텍스트" 요소를 추가하고 저장 → `craft_state`에 `TextBlock` 노드가 정확히 반영되는 것까지 엔드투엔드 확인 — 검증 후 테스트 데이터 삭제. `tsc`/`lint` 0 errors(80 warnings, 기존 기준선 유지).
+- **부수 사고 처리**: 검증 도중 실제 코드 문제가 아니라 이 컴퓨터의 Turbopack dev 서버가 여러 시간·수십 번의 HMR을 거치며 완전히 꼬여(`Navbar.tsx` 파싱 에러 + 이미 제거된 변수명(`headerScaleMode` 등) 참조 에러가 동시에 뜸 — 소스 자체는 `tsc` 통과로 이미 깨끗함을 확인) 페이지가 하얗게 깨지는 증상을 겪음 — `.next` 캐시 삭제 + dev 서버 재시작으로 해결(코드 변경 아님, CLAUDE.md에 이미 기록된 "설명 안 되는 컴파일 에러는 `.next` 삭제로 먼저 의심" 패턴과 동일).
+- **브랜치**: `feature/EPIC-153`에 이어서 커밋(EPIC-152 계열 HOTFIX 넘버링 규칙 적용).
+
 ## 2026-08-30 (HOTFIX-152.17 — 온라인 도슨트 리프 카테고리 12개 Craft 에디터 연결)
 - **사용자 신고**: "온라인 도슨트의 최하위 카테고리중에, '르네상스' '바로크' '로코코'가 craft 에디터가 연결이 안되어있어. 그리고 '혁명~식민지'의 하위 카테고리부터 craft 에디터가 안나와 전부. craft 에디터 연결하고, 그리고 스크린샷의 '위젯' 시스템도 융합할 방법을 찾아."
 - **조사**: 사이트 트리를 전수 조사한 결과, HOTFIX-151.12가 "고대 문명~침략"/"제국~군주" 밑 5개 리프(이집트/바빌론/그리스/로마제국/비잔틴 제국)만 Craft로 전환했고, 같은 "제국~군주" 밑 나머지 3개(르네상스/바로크/로코코)와 "혁명~식민지"/"프로이트~대중문화" 두 허브 밑 리프 전체(신고전주의/리전시/빅토리안/인상파/아르누보/아르데코/비트 세대/반문화/대중문화, 총 9개)는 그대로 `builder_type='native'`로 남아있었다 — 사용자가 명시한 3개 외에 "프로이트~대중문화" 밑 5개도 동일한 문제라 함께 전환(언급은 없었지만 정확히 같은 증상이라 일관되게 처리).

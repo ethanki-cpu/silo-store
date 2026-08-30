@@ -1,14 +1,4 @@
 import { supabase } from "@/lib/supabaseClient";
-import { WIDGET_DEFAULT_SETTINGS, type PageModuleType } from "@/lib/widgetSchema";
-
-// EPIC-068: 카테고리(site_navigations)를 만들 때 page_builder/page_modules를
-// 자동으로 함께 만들어 "페이지가 없다"는 상태 자체를 없앤다 — 관리자가
-// "+ 위젯 추가"를 5번 눌러 만드는 것과 동일한 기본 템플릿(제목/설명 Hero +
-// 인용 + 최근 글(Slide) + 게시판(Board) + 갤러리, board_id는 전부 미연결)을
-// 자동 생성한다. 이미 page_builder 행이 있으면 title/description/status는
-// 건드리지 않고(관리자가 Page Builder에서 따로 편집했을 수 있음), 이미
-// 위젯이 하나라도 있으면 모듈도 손대지 않는다 — 항상 "없을 때만 채운다".
-const DEFAULT_TEMPLATE_TYPES: PageModuleType[] = ["hero", "quote", "slide", "board", "gallery"];
 
 // site_navigations.href("/community/general" 등)를 기존 page_builder.slug
 // 관례("community-general")로 변환한다 — 이 프로젝트의 138개 기존 slug 전부가
@@ -55,6 +45,19 @@ export async function renamePageSlugIfPossible(oldSlug: string, newSlug: string)
   await supabase.from("page_builder").update({ slug: newSlug }).eq("id", existingAtOld.id);
 }
 
+// HOTFIX-152.18(사용자 지시 — "페이지가 만들어질때 craft 에디터를
+// default로 깔아"): 새로 만들어지는 페이지는 이제 처음부터
+// builder_type='craft'로 시작한다(DB 컬럼 기본값은 여전히 'native'라
+// 여기서 명시해야 함) — CraftGenericRenderer/CraftGenericEditor(둘 다
+// src/components/craft/generic/)가 화이트리스트(CRAFT_RENDERERS/
+// CRAFT_EDITORS)에 없는 어떤 slug도 곧바로 받아 그려주므로, 코드 배포 없이
+// DB에서 새 카테고리를 만들어도 즉시 Craft 에디터로 열린다. 기존 native
+// 5-위젯 기본 템플릿(hero/quote/slide/board/gallery, DEFAULT_TEMPLATE_TYPES)
+// 자동 생성은 이제 만들지 않는다 — craft가 기본이 되면 어차피 렌더링에
+//안 쓰이고, HOTFIX-152.17에서 정리한 것처럼 "미연결 빈 위젯만 잔뜩 쌓인
+// 페이지"가 새로 생길 이유가 없다. 관리자가 나중에 이 페이지를 다시
+// native로 되돌리면(사이트 구성 관리) 그때부터 "+ 위젯 추가"로 직접
+// 채우면 된다.
 export async function ensurePageForSlug(
   slug: string,
   title: string,
@@ -66,36 +69,9 @@ export async function ensurePageForSlug(
     .eq("slug", slug)
     .maybeSingle();
 
-  let pageId = existing?.id as string | undefined;
+  if (existing?.id) return;
 
-  if (!pageId) {
-    const { data: inserted, error: insertError } = await supabase
-      .from("page_builder")
-      .insert({ slug, title, description: description ?? "", status: "published" })
-      .select("id")
-      .single();
-    if (insertError || !inserted) return;
-    pageId = inserted.id as string;
-  }
-
-  const { count } = await supabase
-    .from("page_modules")
-    .select("id", { count: "exact", head: true })
-    .eq("page_id", pageId);
-
-  if (count && count > 0) return;
-
-  await supabase.from("page_modules").insert(
-    DEFAULT_TEMPLATE_TYPES.map((type, i) => ({
-      page_id: pageId,
-      module_type: type,
-      board_id: null,
-      settings:
-        type === "hero"
-          ? { ...WIDGET_DEFAULT_SETTINGS.hero, title, description: description ?? "" }
-          : WIDGET_DEFAULT_SETTINGS[type],
-      sort_order: i,
-      is_hidden: false,
-    })),
-  );
+  await supabase
+    .from("page_builder")
+    .insert({ slug, title, description: description ?? "", status: "published", builder_type: "craft" });
 }

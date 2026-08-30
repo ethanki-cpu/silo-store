@@ -39,6 +39,7 @@ import { CraftDocentEditor } from "@/components/admin/craft/CraftDocentEditor";
 import { CraftSalonEditor } from "@/components/admin/craft/CraftSalonEditor";
 import { CraftStudioEditor } from "@/components/admin/craft/CraftStudioEditor";
 import { CraftMypageEditor } from "@/components/admin/craft/CraftMypageEditor";
+import { CraftGenericEditor } from "@/components/admin/craft/CraftGenericEditor";
 
 // EPIC-099(항목 3, Phase 2): 페이지 slug별로 어느 Craft 에디터를 열지 —
 // src/app/[...slug]/page.tsx의 CRAFT_RENDERERS와 같은 목적의 목록, 새 허브
@@ -691,27 +692,21 @@ function AdminPageEditorPageInner() {
           {isCraft ? (
             <section className="space-y-3 rounded-lg border border-gray-200 p-4">
               <h2 className="text-sm font-semibold text-gray-700">Craft 에디터</h2>
-              {CRAFT_EDITORS[page.slug] ? (
-                <>
-                  <p className="text-xs text-gray-500">
-                    이 페이지는 Craft.js 에디토리얼 빌더로 렌더링돼요(EPIC-098/099) —
-                    일반 위젯 목록 대신 전체화면 에디터에서 텍스트/이미지를 더블클릭으로 바꿉니다.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setCraftEditorOpen(true)}
-                    className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
-                  >
-                    Craft 에디터 열기
-                  </button>
-                </>
-              ) : (
-                <p className="text-xs text-amber-600">
-                  이 페이지는 빌더 엔진이 &apos;craft&apos;로 설정돼 있지만, 아직 이 slug(&quot;{page.slug}&quot;)
-                  전용 Craft 에디터가 없어요 — 사이트 구성 관리에서 다시 &apos;native&apos;로 되돌리거나,
-                  전용 블록/에디터를 먼저 만들어야 해요.
-                </p>
-              )}
+              <p className="text-xs text-gray-500">
+                이 페이지는 Craft.js 에디토리얼 빌더로 렌더링돼요(EPIC-098/099) —
+                일반 위젯 목록 대신 전체화면 에디터에서 텍스트/이미지를 더블클릭으로 바꿉니다.
+                {/* HOTFIX-152.18: 이 slug 전용 에디터(CRAFT_EDITORS)가 없으면
+                    범용 CraftGenericEditor로 대신 열린다 — 더 이상 "전용
+                    에디터가 없어 편집 불가" 상태가 없다. */}
+                {!CRAFT_EDITORS[page.slug] && " (이 페이지는 전용 블록 없이 범용 요소로 편집돼요.)"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setCraftEditorOpen(true)}
+                className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm hover:bg-gray-700"
+              >
+                Craft 에디터 열기
+              </button>
             </section>
           ) : (
             <section className="space-y-3">
@@ -817,9 +812,9 @@ function AdminPageEditorPageInner() {
         <WidgetPalette onSelect={handleSelectWidget} onClose={() => setPaletteOpen(false)} />
       )}
 
-      {isCraft && craftEditorOpen && CRAFT_EDITORS[page.slug] && (
+      {isCraft && craftEditorOpen && (
         (() => {
-          const CraftEditor = CRAFT_EDITORS[page.slug];
+          const CraftEditor = CRAFT_EDITORS[page.slug] ?? CraftGenericEditor;
           return (
             <CraftEditor
               pageId={page.id}

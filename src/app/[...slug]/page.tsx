@@ -9,6 +9,7 @@ import { usePageRankGate } from "@/lib/pageRankGate";
 import { CraftShopRenderer } from "@/components/craft/shop/CraftShopRenderer";
 import { CraftDocentRenderer } from "@/components/craft/docent/CraftDocentRenderer";
 import { CraftSalonRenderer } from "@/components/craft/salon/CraftSalonRenderer";
+import { CraftGenericRenderer } from "@/components/craft/generic/CraftGenericRenderer";
 
 // EPIC-099(항목 3, Phase 2): 이 catch-all이 담당하는 slug 중 일부는
 // builder_type='craft'일 수 있다 — 슬러그별로 어느 Craft 렌더러를 쓸지
@@ -143,10 +144,17 @@ export default function DynamicPage() {
 
   // EPIC-099(항목 3, Phase 2): builder_type이 'craft'고 이 slug용 Craft
   // 렌더러가 등록돼 있으면(CRAFT_RENDERERS) 그 렌더러 하나가 페이지 전체를
-  // 그린다 — 홈페이지(src/app/page.tsx)와 동일한 분기 원칙. 등록되지 않은
-  // slug가 실수로 'craft'가 되면(아직 이 catch-all에 렌더러를 안 붙인 페이지)
-  // 조용히 native로 폴백해 빈 화면 대신 기존 위젯이 그대로 보이게 한다.
-  const CraftRenderer = state.builderType === "craft" ? CRAFT_RENDERERS[slug] : undefined;
+  // 그린다 — 홈페이지(src/app/page.tsx)와 동일한 분기 원칙.
+  // HOTFIX-152.18(사용자 지시 — "페이지가 만들어질때 craft 에디터를
+  // default로 깔아"): 이전엔 화이트리스트에 없는 slug가 'craft'면 "조용히
+  // native로 폴백"했다 — 이제 새 카테고리는 전부 craft로 만들어지므로(아래
+  // ensurePageForSlug), 화이트리스트에 없는 대부분의 새 페이지가 이 폴백을
+  // 타게 된다. native로 폴백하는 대신 CraftGenericRenderer(페이지 전용
+  // 블록 없이 범용 요소만 쓰는 Craft 렌더러)로 폴백해, 굳이 이 파일에
+  // 한 줄씩 등록하지 않아도 모든 새 페이지가 곧바로 Craft로 보인다.
+  // 특정 섹션 전용 블록(SiloTimelineEmbedBlock 등 특별한 조합)이 필요해지면
+  // 그때 CraftDocentRenderer 같은 전용 렌더러를 만들어 여기 등록하면 된다.
+  const CraftRenderer = state.builderType === "craft" ? (CRAFT_RENDERERS[slug] ?? CraftGenericRenderer) : undefined;
 
   if (CraftRenderer) {
     return (

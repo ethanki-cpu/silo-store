@@ -3,12 +3,18 @@
 // EPIC-099(항목 3, Phase 2): 마이 페이지 전용 히어로 — ShopHeroBlock 계열과
 // 같은 좌측 정렬 태그+타이틀+CTA 레이아웃, 톤만 "나의 기록"에 맞춤(사용자
 // 지시: "페이지별 전용 블록 새로 제작").
+//
+// 사용자 지시(2026-08-30 — "모든 craft의 hero 요소에 똑같은 슬라이드
+// 기능 넣어줘"): 배경(정지 이미지 한 장 → 이미지/영상 슬라이드쇼)은
+// shared/HeroSlides.tsx로 뽑아 모든 페이지 히어로 블록이 공유한다 —
+// 자세한 배경은 그 파일 주석 참고.
 import { useNode } from "@craftjs/core";
-import { EditableText, EditableResponsiveImage, EditableBlockFrame } from "@/components/craft/home/editable";
+import { EditableText, EditableBlockFrame } from "@/components/craft/home/editable";
+import { HeroSlidesBackground, HeroSlidesSettings, type HeroSlide } from "@/components/craft/shared/HeroSlides";
 
 export type MypageHeroProps = {
-  imageUrl: string;
-  imageUrlMobile?: string;
+  slides: HeroSlide[];
+  autoAdvanceSeconds: number;
   tag: string;
   title: string;
   subtitle: string;
@@ -16,7 +22,15 @@ export type MypageHeroProps = {
   ctaHref: string;
 };
 
-export function MypageHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle, ctaText, ctaHref }: MypageHeroProps) {
+export function MypageHeroBlock({
+  slides,
+  autoAdvanceSeconds,
+  tag,
+  title,
+  subtitle,
+  ctaText,
+  ctaHref,
+}: MypageHeroProps) {
   const {
     connectors: { connect },
     setProp,
@@ -26,15 +40,7 @@ export function MypageHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle
     <div ref={(dom) => { if (dom) connect(dom); }}>
       <EditableBlockFrame label="Mypage Hero">
         <section className="relative h-[80vh] min-h-[480px] w-full overflow-hidden bg-gray-900">
-          <EditableResponsiveImage
-            srcDesktop={imageUrl}
-            srcMobile={imageUrlMobile}
-            alt={title}
-            priority
-            className="absolute inset-0 h-full w-full object-cover"
-            onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
-            onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
-          />
+          <HeroSlidesBackground slides={slides} autoAdvanceSeconds={autoAdvanceSeconds} />
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
           <div className="absolute inset-y-0 left-0 flex max-w-lg flex-col justify-center gap-4 px-8 text-white @[768px]:px-16">
             <EditableText
@@ -75,11 +81,15 @@ export function MypageHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle
 MypageHeroBlock.craft = {
   displayName: "MypageHeroBlock",
   props: {
-    imageUrl: "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=1600&q=80&auto=format",
+    slides: [
+      { url: "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=1600&q=80&auto=format" },
+    ],
+    autoAdvanceSeconds: 5,
     tag: "My Page",
     title: "나만의 기록이 쌓이는 곳",
     subtitle: "수집한 것들, 남긴 글, 지나온 시간들을 한곳에서 만나보세요.",
     ctaText: "나의 수집품 보기",
     ctaHref: "/mypage/my-collections",
   } satisfies MypageHeroProps,
+  related: { settings: HeroSlidesSettings },
 };

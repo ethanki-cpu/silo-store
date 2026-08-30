@@ -35,6 +35,7 @@ import type { SortOption } from "@/lib/boardLayout";
 import { CraftWidgetShell } from "@/components/craft/shared/CraftWidgetShell";
 import { RootContainer } from "@/components/craft/home/RootContainer";
 import { EditorialHeroBlock, type EditorialHeroProps } from "@/components/craft/home/blocks/EditorialHeroBlock";
+import type { HeroSlide } from "@/components/craft/shared/HeroSlides";
 import { TextDirectoryBlock, type TextDirectoryItem } from "@/components/craft/home/blocks/TextDirectoryBlock";
 import { NewsletterBlock } from "@/components/craft/home/blocks/NewsletterBlock";
 import { MinimalFooterBlock, type MinimalFooterItem } from "@/components/craft/home/blocks/MinimalFooterBlock";
@@ -193,11 +194,27 @@ function SpacerFromSettings({ settings }: { settings: Record<string, unknown> })
 // EPIC-099(Phase 3): Craft.js 공용 블록 4종을 Native 위젯으로 노출 — 각
 // 블록은 CraftWidgetShell(단일 블록용 Editor+Frame 컨텍스트) 안에서만
 // useNode()가 정상 동작하므로 반드시 그 안에서 렌더링해야 한다.
+function heroSlidesFromSettings(settings: Record<string, unknown>, defaults: HeroSlide[]): HeroSlide[] {
+  const rawSlides = settings.slides;
+  if (Array.isArray(rawSlides) && rawSlides.length > 0) {
+    const parsed = rawSlides
+      .map((s) => (s && typeof s === "object" ? str((s as Record<string, unknown>).url) : ""))
+      .filter((url) => url.length > 0)
+      .map((url) => ({ url }));
+    if (parsed.length > 0) return parsed;
+  }
+  // 2026-08-30 이전에 저장된 구형 데이터( imageUrl 단일 문자열)를 위한 하위 호환 경로
+  if (typeof settings.imageUrl === "string" && settings.imageUrl.length > 0) {
+    return [{ url: settings.imageUrl }];
+  }
+  return defaults;
+}
+
 function CraftHeroFromSettings({ settings }: { settings: Record<string, unknown> }) {
   const defaults = EditorialHeroBlock.craft.props;
   const props: EditorialHeroProps = {
-    imageUrl: str(settings.imageUrl, defaults.imageUrl),
-    imageUrlMobile: settings.imageUrlMobile ? str(settings.imageUrlMobile) : undefined,
+    slides: heroSlidesFromSettings(settings, defaults.slides),
+    autoAdvanceSeconds: num(settings.autoAdvanceSeconds, defaults.autoAdvanceSeconds),
     eyebrow: str(settings.eyebrow, defaults.eyebrow),
     title: str(settings.title, defaults.title),
     subtitle: str(settings.subtitle, defaults.subtitle),

@@ -4,12 +4,18 @@
 // ShopHeroBlock(좌측 정렬 + CTA 버튼)과 구조는 비슷하지만, 도슨트는 상품이
 // 아니라 "시대를 안내한다"는 톤이라 태그를 시대 구간 라벨로, CTA를 시대
 // 둘러보기로 바꿨다(사용자 지시: "페이지별 전용 블록 새로 제작").
+//
+// 사용자 지시(2026-08-30 — "모든 craft의 hero 요소에 똑같은 슬라이드
+// 기능 넣어줘"): 배경(정지 이미지 한 장 → 이미지/영상 슬라이드쇼)은
+// shared/HeroSlides.tsx로 뽑아 모든 페이지 히어로 블록이 공유한다 —
+// 자세한 배경은 그 파일 주석 참고.
 import { useNode } from "@craftjs/core";
-import { EditableText, EditableResponsiveImage, EditableBlockFrame } from "@/components/craft/home/editable";
+import { EditableText, EditableBlockFrame } from "@/components/craft/home/editable";
+import { HeroSlidesBackground, HeroSlidesSettings, type HeroSlide } from "@/components/craft/shared/HeroSlides";
 
 export type DocentHeroProps = {
-  imageUrl: string;
-  imageUrlMobile?: string;
+  slides: HeroSlide[];
+  autoAdvanceSeconds: number;
   tag: string;
   title: string;
   subtitle: string;
@@ -17,7 +23,15 @@ export type DocentHeroProps = {
   ctaHref: string;
 };
 
-export function DocentHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle, ctaText, ctaHref }: DocentHeroProps) {
+export function DocentHeroBlock({
+  slides,
+  autoAdvanceSeconds,
+  tag,
+  title,
+  subtitle,
+  ctaText,
+  ctaHref,
+}: DocentHeroProps) {
   const {
     connectors: { connect },
     setProp,
@@ -27,15 +41,7 @@ export function DocentHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle
     <div ref={(dom) => { if (dom) connect(dom); }}>
       <EditableBlockFrame label="Docent Hero">
         <section className="relative h-[80vh] min-h-[480px] w-full overflow-hidden bg-gray-900">
-          <EditableResponsiveImage
-            srcDesktop={imageUrl}
-            srcMobile={imageUrlMobile}
-            alt={title}
-            priority
-            className="absolute inset-0 h-full w-full object-cover"
-            onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
-            onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
-          />
+          <HeroSlidesBackground slides={slides} autoAdvanceSeconds={autoAdvanceSeconds} />
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
           <div className="absolute inset-y-0 left-0 flex max-w-lg flex-col justify-center gap-4 px-8 text-white @[768px]:px-16">
             <EditableText
@@ -76,11 +82,15 @@ export function DocentHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle
 DocentHeroBlock.craft = {
   displayName: "DocentHeroBlock",
   props: {
-    imageUrl: "https://images.unsplash.com/photo-1541961017774-22349e4a1262?w=1600&q=80&auto=format",
+    slides: [
+      { url: "https://images.unsplash.com/photo-1541961017774-22349e4a1262?w=1600&q=80&auto=format" },
+    ],
+    autoAdvanceSeconds: 5,
     tag: "BC 1100 ~ 현재",
     title: "시대를 거니는 안내, 온라인 도슨트",
     subtitle: "고대부터 오늘까지, 사일로가 골라 들려주는 시대별 이야기입니다.",
     ctaText: "시대 둘러보기",
     ctaHref: "/online-docent/ancient-monarchy",
   } satisfies DocentHeroProps,
+  related: { settings: HeroSlidesSettings },
 };

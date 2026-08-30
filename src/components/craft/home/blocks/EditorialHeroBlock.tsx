@@ -4,18 +4,31 @@
 // 트래킹이 넓은 세리프 캡션+타이틀이 얹히는 매거진 커버 레이아웃. 킨포크
 // 실제 사진/문구는 쓰지 않고 구조(전면 이미지, 좌하단 소형 텍스트 오버레이,
 // 그라디언트로 가독성 확보)만 재현한다.
+//
+// 사용자 지시(2026-08-30 — "모든 craft의 hero 요소에 똑같은 슬라이드
+// 기능 넣어줘"): 배경(정지 이미지 한 장 → 이미지/영상 슬라이드쇼)은
+// shared/HeroSlides.tsx로 뽑아 다른 페이지 전용 히어로 블록들과 공유한다
+// (이 블록만 태그/CTA가 없는 다른 텍스트 오버레이 레이아웃을 쓰지만,
+// 배경 부분은 완전히 동일) — 자세한 배경은 그 파일 주석 참고.
 import { useNode } from "@craftjs/core";
-import { EditableText, EditableResponsiveImage, EditableBlockFrame } from "../editable";
+import { EditableText, EditableBlockFrame } from "../editable";
+import { HeroSlidesBackground, HeroSlidesSettings, type HeroSlide } from "@/components/craft/shared/HeroSlides";
 
 export type EditorialHeroProps = {
-  imageUrl: string;
-  imageUrlMobile?: string;
+  slides: HeroSlide[];
+  autoAdvanceSeconds: number;
   eyebrow: string;
   title: string;
   subtitle: string;
 };
 
-export function EditorialHeroBlock({ imageUrl, imageUrlMobile, eyebrow, title, subtitle }: EditorialHeroProps) {
+export function EditorialHeroBlock({
+  slides,
+  autoAdvanceSeconds,
+  eyebrow,
+  title,
+  subtitle,
+}: EditorialHeroProps) {
   const {
     connectors: { connect },
     setProp,
@@ -25,15 +38,7 @@ export function EditorialHeroBlock({ imageUrl, imageUrlMobile, eyebrow, title, s
     <div ref={(dom) => { if (dom) connect(dom); }}>
       <EditableBlockFrame label="Hero">
         <section className="relative h-[92vh] min-h-[560px] w-full overflow-hidden bg-gray-900">
-          <EditableResponsiveImage
-            srcDesktop={imageUrl}
-            srcMobile={imageUrlMobile}
-            alt={title}
-            priority
-            className="absolute inset-0 h-full w-full object-cover"
-            onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
-            onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
-          />
+          <HeroSlidesBackground slides={slides} autoAdvanceSeconds={autoAdvanceSeconds} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 px-6 pb-16 text-center text-white">
             <EditableText
@@ -64,9 +69,13 @@ export function EditorialHeroBlock({ imageUrl, imageUrlMobile, eyebrow, title, s
 EditorialHeroBlock.craft = {
   displayName: "EditorialHeroBlock",
   props: {
-    imageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&q=80&auto=format",
+    slides: [
+      { url: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&q=80&auto=format" },
+    ],
+    autoAdvanceSeconds: 5,
     eyebrow: "Silo Store — Issue No. 01",
     title: "물건이 아니라 이야기를 팝니다",
     subtitle: "취향과 사람이 오가는 멤버십 커뮤니티, 사일로 스토어",
   } satisfies EditorialHeroProps,
+  related: { settings: HeroSlidesSettings },
 };

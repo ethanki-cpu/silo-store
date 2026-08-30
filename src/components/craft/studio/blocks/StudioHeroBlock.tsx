@@ -3,12 +3,18 @@
 // EPIC-099(항목 3, Phase 2): 스튜디오 전용 히어로 — ShopHeroBlock/DocentHeroBlock과
 // 같은 좌측 정렬 태그+타이틀+CTA 레이아웃, 톤만 공간/촬영 대관에 맞춤(사용자
 // 지시: "페이지별 전용 블록 새로 제작").
+//
+// 사용자 지시(2026-08-30 — "모든 craft의 hero 요소에 똑같은 슬라이드
+// 기능 넣어줘"): 배경(정지 이미지 한 장 → 이미지/영상 슬라이드쇼)은
+// shared/HeroSlides.tsx로 뽑아 모든 페이지 히어로 블록이 공유한다 —
+// 자세한 배경은 그 파일 주석 참고.
 import { useNode } from "@craftjs/core";
-import { EditableText, EditableResponsiveImage, EditableBlockFrame } from "@/components/craft/home/editable";
+import { EditableText, EditableBlockFrame } from "@/components/craft/home/editable";
+import { HeroSlidesBackground, HeroSlidesSettings, type HeroSlide } from "@/components/craft/shared/HeroSlides";
 
 export type StudioHeroProps = {
-  imageUrl: string;
-  imageUrlMobile?: string;
+  slides: HeroSlide[];
+  autoAdvanceSeconds: number;
   tag: string;
   title: string;
   subtitle: string;
@@ -16,7 +22,15 @@ export type StudioHeroProps = {
   ctaHref: string;
 };
 
-export function StudioHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle, ctaText, ctaHref }: StudioHeroProps) {
+export function StudioHeroBlock({
+  slides,
+  autoAdvanceSeconds,
+  tag,
+  title,
+  subtitle,
+  ctaText,
+  ctaHref,
+}: StudioHeroProps) {
   const {
     connectors: { connect },
     setProp,
@@ -26,15 +40,7 @@ export function StudioHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle
     <div ref={(dom) => { if (dom) connect(dom); }}>
       <EditableBlockFrame label="Studio Hero">
         <section className="relative h-[80vh] min-h-[480px] w-full overflow-hidden bg-gray-900">
-          <EditableResponsiveImage
-            srcDesktop={imageUrl}
-            srcMobile={imageUrlMobile}
-            alt={title}
-            priority
-            className="absolute inset-0 h-full w-full object-cover"
-            onCommitDesktop={(next) => setProp((p) => (p.imageUrl = next))}
-            onCommitMobile={(next) => setProp((p) => (p.imageUrlMobile = next))}
-          />
+          <HeroSlidesBackground slides={slides} autoAdvanceSeconds={autoAdvanceSeconds} />
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
           <div className="absolute inset-y-0 left-0 flex max-w-lg flex-col justify-center gap-4 px-8 text-white @[768px]:px-16">
             <EditableText
@@ -75,11 +81,15 @@ export function StudioHeroBlock({ imageUrl, imageUrlMobile, tag, title, subtitle
 StudioHeroBlock.craft = {
   displayName: "StudioHeroBlock",
   props: {
-    imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80&auto=format",
+    slides: [
+      { url: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80&auto=format" },
+    ],
+    autoAdvanceSeconds: 5,
     tag: "Space & Rental",
     title: "사일로의 공간을 빌려드립니다",
     subtitle: "촬영 대관부터 물품 대여, 공간 스타일링까지 — 필요한 만큼만 빌려 쓰세요.",
     ctaText: "공간 문의하기",
     ctaHref: "/studio/rental_1f_silostore",
   } satisfies StudioHeroProps,
+  related: { settings: HeroSlidesSettings },
 };

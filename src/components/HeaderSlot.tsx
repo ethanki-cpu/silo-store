@@ -10,10 +10,21 @@
 // inline으로 정의하면 매 렌더마다 새 컴포넌트 타입이 만들어져 리액트가
 // 매번 마운트/언마운트로 취급해(드래그 중 포인터 캡처가 끊기는 등) 버그가
 // 나므로 모듈 최상위에 독립 컴포넌트로 둔다.
-import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { createContext, useContext, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { SelectionOverlay } from "@/components/SelectionOverlay";
-import { DEFAULT_HEADER_SLOT_OFFSET, type HeaderSlotOffset } from "@/lib/headerLayoutPositions";
+import { DEFAULT_HEADER_SLOT_OFFSET, PC_HEADER_REFERENCE_WIDTH_PX, type HeaderSlotOffset } from "@/lib/headerLayoutPositions";
 import { measureReferenceWidth, useReferenceWidth } from "@/lib/useReferenceWidth";
+
+// HOTFIX-152.14(사용자 지시 — "창의 크기가 줄어들더라도, 로고, 아이콘의
+// 간격이 유지가 되면서 줄어들어야지"): PC 계층에서는 Navbar.tsx가 헤더
+// 전체를 CSS zoom으로 화면 폭 비율만큼 통째로 축소한다 — 그 안의 각
+// HeaderSlot까지 자기 dx를 "지금 화면 폭" 기준으로 또 스케일링하면
+// zoom과 이중으로 곱해져 실제보다 훨씬 더 작아진다. "fixed" 모드에서는
+// dx를 PC_HEADER_REFERENCE_WIDTH_PX라는 고정 기준으로만 정규화하고,
+// 화면 폭에 따른 축소는 전적으로 zoom에 맡긴다. 태블릿/모바일 탭은
+// 이런 전체 zoom이 없으므로("dynamic", 기존과 동일) 지금 화면 폭
+// 기준 스케일링을 그대로 유지한다.
+export const HeaderScaleModeContext = createContext<"dynamic" | "fixed">("dynamic");
 
 type DragState = { startX: number; startY: number; startDx: number; startDy: number; baseLeft: number; baseTop: number; width: number; height: number; refWidthPx: number };
 type Guides = { v: number[]; h: number[] };
@@ -111,8 +122,10 @@ export function HeaderSlot({
   // 훨씬 낫다. 새로 드래그하면 refWidthPx가 항상 함께 저장되니(위 startDrag
   // 참고) 이 경로를 다시 타지 않는다.
   const referenceWidth = useReferenceWidth();
+  const scaleMode = useContext(HeaderScaleModeContext);
   const hasKnownRefWidth = typeof value.refWidthPx === "number" && value.refWidthPx > 0;
-  const scaleFactor = hasKnownRefWidth && referenceWidth > 0 ? referenceWidth / value.refWidthPx! : 1;
+  const targetWidth = scaleMode === "fixed" ? PC_HEADER_REFERENCE_WIDTH_PX : referenceWidth;
+  const scaleFactor = hasKnownRefWidth && targetWidth > 0 ? targetWidth / value.refWidthPx! : 1;
   const effectiveDx = hasKnownRefWidth ? value.dxPx * scaleFactor : 0;
 
   function startDrag(e: ReactPointerEvent<HTMLElement>) {

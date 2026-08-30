@@ -43,6 +43,15 @@ export type HeaderSlotOffset = {
 
 export const DEFAULT_HEADER_SLOT_OFFSET: HeaderSlotOffset = { dxPx: 0, dyPx: 0, raised: false, locked: false };
 
+// HOTFIX-152.14(사용자 지시 — "창의 크기가 줄어들더라도, 로고, 아이콘의
+// 간격이 유지가 되면서 줄어들어야지"): PC 계층("홈페이지 설정 관리"의
+// PC 탭과 동일한 기준, HOTFIX-152.13에서 admin 캔버스에도 이미 고정
+// 적용됨)에서 헤더 전체를 이 폭 기준으로 CSS zoom 축소한다(Navbar.tsx
+// 참고) — HeaderSlot.tsx는 이 폭을 dx 오프셋의 "고정 정규화 기준"으로
+// 함께 써서, zoom이 이미 화면 폭 비율만큼 전체를 줄여주는데 dx까지
+// 또 화면 폭 비율로 줄이는 이중 축소를 피한다.
+export const PC_HEADER_REFERENCE_WIDTH_PX = 1440;
+
 export type HeaderPositionsConfig = {
   slots: Record<string, HeaderSlotOffset>;
 };

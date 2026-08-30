@@ -42,10 +42,12 @@ import {
 import {
   normalizeHeaderPositions,
   getSlotOffset,
+  PC_HEADER_REFERENCE_WIDTH_PX,
   type HeaderPositionsConfig,
   type HeaderSlotOffset,
 } from "@/lib/headerLayoutPositions";
-import { HeaderSlot } from "@/components/HeaderSlot";
+import { HeaderSlot, HeaderScaleModeContext } from "@/components/HeaderSlot";
+import { useReferenceWidth } from "@/lib/useReferenceWidth";
 import { SidebarTriggerMedia } from "@/components/SidebarTriggerMedia";
 import { TopSidebarPanel } from "@/components/TopSidebarPanel";
 import { normalizeTopSidebar, type TopSidebarConfig, type TopSidebarLink } from "@/lib/topSidebarSettings";
@@ -351,6 +353,27 @@ export function Navbar({
   // sidebarIcons/topTabStyle/accountMenuStyle 4개 설정을 고르는 데만 쓴다.
   const deviceTierReal = useDeviceTier();
   const deviceKey = deviceOverride ?? deviceTierReal;
+
+  // HOTFIX-152.14(사용자 지시 — "창의 크기가 줄어들더라도, 로고, 아이콘의
+  // 간격이 유지가 되면서 줄어들어야지"): PC 계층(1024px~, 태블릿으로
+  // 전환되기 직전까지)에서 실제 화면 폭이 PC_HEADER_REFERENCE_WIDTH_PX
+  // (1440, "홈페이지 설정 관리" PC 탭 캔버스와 동일한 기준 — HOTFIX-152.13)
+  // 보다 좁아지면 그 비율만큼 헤더 전체를 CSS zoom으로 축소한다 — 로고
+  // 이미지 크기, 아이콘 크기, 글자 크기, 드래그로 옮긴 간격까지 안의
+  // 모든 것이 하나의 비율로 함께 줄어들어(개별 요소를 따로 계산해 줄이는
+  // 대신) "간격이 그대로 유지된 채 축소"된 것처럼 보인다. useReferenceWidth
+  // 는 admin 캔버스 안에서는 그 캔버스 폭(PC 탭은 항상 1440 고정)을,
+  // 실제 공개 사이트에서는 window.innerWidth를 반환한다 — 그래서 admin
+  // PC 탭 편집 중에는 zoom이 항상 1(1440/1440)로 고정돼 편집 배율이
+  // 흔들리지 않고, 실제 방문자 화면에서만 폭에 따라 줄어든다. 1440보다
+  // 넓은 화면에서는 더 커지지 않고 1로 고정(원래 크기 그대로, 남는
+  // 공간은 자연스럽게 여백).
+  const headerReferenceWidth = useReferenceWidth();
+  const headerZoomScale =
+    deviceKey === "pc" && headerReferenceWidth > 0
+      ? Math.min(1, headerReferenceWidth / PC_HEADER_REFERENCE_WIDTH_PX)
+      : 1;
+  const headerScaleMode: "dynamic" | "fixed" = deviceKey === "pc" ? "fixed" : "dynamic";
 
   // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
   // site_settings.main_logo를 조회해 로고를 대체한다. 값이 비어 있으면
@@ -1385,7 +1408,9 @@ export function Navbar({
         className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} border-b border-gray-200 bg-white transition-transform duration-300 ${
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
+        style={{ zoom: headerZoomScale }}
       >
+      <HeaderScaleModeContext.Provider value={headerScaleMode}>
       {/* EPIC-043: "적용" 켜진 커스텀 폰트마다 각각 @font-face를 동적 주입 —
           로고 좌/우 텍스트가 즉시 이 서체들을(폴백 체인으로) 쓸 수 있게 한다. */}
       {activeCustomFonts.length > 0 && (
@@ -1927,6 +1952,7 @@ export function Navbar({
             />
           ),
         )}
+      </HeaderScaleModeContext.Provider>
       </div>
       {/* fixed로 뜬 topBarRef 만큼 문서 흐름에서 빈 공간을 대신 채워 본문이
           위로 붙지 않게 한다(topBarHeight는 ResizeObserver 실측값).

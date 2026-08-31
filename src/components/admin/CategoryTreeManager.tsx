@@ -253,13 +253,47 @@ export function CategoryTreeManager({
       ((moduleRows ?? []) as { page_id: string }[]).map((m) => m.page_id),
     );
 
+    // HOTFIX-152.21(사용자 신고 — "제국~군주"/"혁명~식민지" 페이지 콘텐츠가
+    // 통째로 삭제된 사고 조사): "미분류" 판정용 linkedSlugs를 계산할 때
+    // 미분류 버킷 자기 자신의 자식들(href=`/${slug}`, 즉 자기 자신과
+    // 매칭돼버림)까지 섞여 있었다 — 실제로 다른 진짜 메뉴가 그 slug를
+    // 가리키게 된 뒤에도(예: href 오타를 나중에 고친 뒤) 이 계산에서
+    // 그 사실을 알아챌 방법이 없어, 한 번 잘못 흡수된 "미분류" 유령
+    // 항목이 영원히 그 자리에 남아 있었다(자기 자신의 href가 스스로를
+    // "이미 연결됨"으로 착각하게 만드는 자기참조 오염). 버킷 자식은
+    // 제외한 "진짜" 연결 목록만으로 판정한다.
+    const bucketIdForCheck = existingRows.find((r) => r.key === UNASSIGNED_BUCKET_KEY)?.id;
     const linkedSlugs = new Set(
-      existingRows.filter((r) => r.href).map((r) => hrefToSlug(r.href!)),
+      existingRows
+        .filter((r) => r.href && r.parent_id !== bucketIdForCheck)
+        .map((r) => hrefToSlug(r.href!)),
     );
+
+    // 위와 같은 이유로, 이미 미분류 버킷에 들어간 항목 중 지금은 실제로
+    // 다른 메뉴가 가리키는(=linkedSlugs에 있는) 유령 항목을 정리한다 —
+    // 이 유령을 그대로 방치하면 관리자가 "중복 같으니 지워야겠다"고
+    // 삭제할 때 deleteRow가 "미분류 버킷 = 진짜 미분류"로 오판해 실제
+    // 페이지 콘텐츠까지 함께 지워버리는 사고로 이어진다(HOTFIX-152.16/
+    // 152.17 세션에서 실제로 겪음, 이후 DELETE API 자체에도 같은 이유의
+    // 안전장치를 추가했지만 — 애초에 유령이 안 쌓이는 게 더 낫다).
+    let cleanedGhosts = false;
+    if (bucketIdForCheck) {
+      const staleGhostIds = existingRows
+        .filter((r) => r.parent_id === bucketIdForCheck && r.href && linkedSlugs.has(hrefToSlug(r.href)))
+        .map((r) => r.id);
+      if (staleGhostIds.length > 0) {
+        const { error: cleanupError } = await supabase
+          .from("site_navigations")
+          .delete()
+          .in("id", staleGhostIds);
+        cleanedGhosts = !cleanupError;
+      }
+    }
+
     const unassigned = (
       pagesData as { id: string; slug: string; title: string; description: string | null }[]
     ).filter((p) => !linkedSlugs.has(p.slug) && pageIdsWithWidgets.has(p.id));
-    if (unassigned.length === 0) return false;
+    if (unassigned.length === 0) return cleanedGhosts;
 
     let bucketId = existingRows.find((r) => r.key === UNASSIGNED_BUCKET_KEY)?.id;
     if (!bucketId) {
@@ -291,7 +325,7 @@ export function CategoryTreeManager({
         sort_order: siblingCount + i,
       })),
     );
-    return !insertError;
+    return !insertError || cleanedGhosts;
   }
 
   async function load() {
@@ -747,6 +781,20 @@ export function CategoryTreeManager({
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
+          // HOTFIX-152.21(사용자 신고 — "제국~군주"/"혁명~식민지" 페이지
+          // 콘텐츠가 통째로 삭제된 사고): 이 API가 409(stillLinked)를
+          // 반환하면 이 항목은 "미분류 페이지" 버킷에 잘못 흡수된 유령
+          // 중복일 뿐, 실제로는 다른 메뉴 항목이 지금 이 순간도 가리키고
+          // 있는 진짜 페이지다 — 실제 페이지는 그대로 두고 이 유령 링크
+          // (site_navigations 행)만 지운다.
+          if (data.stillLinked) {
+            await supabase.from("site_navigations").delete().eq("id", id);
+            await load();
+            alert(
+              "이 항목은 이미 다른 메뉴에서 실제로 쓰이고 있는 페이지였어요 — 실제 페이지 콘텐츠는 그대로 두고, 중복된 링크만 지웠어요.",
+            );
+            return;
+          }
           setError(data.error ?? "페이지 삭제에 실패했어요.");
           return;
         }
@@ -793,21 +841,37 @@ export function CategoryTreeManager({
     const boardIds = Array.from(selectedIds).filter(isBoardDndId).map(rawBoardId);
 
     const unassignedBucketId = rows.find((r) => r.key === UNASSIGNED_BUCKET_KEY)?.id ?? null;
+    // HOTFIX-152.21: /api/admin/pages/[id]가 409(stillLinked)를 반환하면
+    // 그 항목은 "미분류" 버킷에 잘못 흡수된 유령 중복일 뿐 실제로는 다른
+    // 메뉴가 지금도 가리키는 진짜 페이지다 — 실제 페이지는 API가 알아서
+    // 지우지 않고 지켜주므로, 여기선 그 개수만 세어 관리자에게 알린다
+    // (navIds는 실패 여부와 무관하게 아래에서 일괄 삭제 — 유령 링크
+    // 자체는 지워도 안전).
+    let stillLinkedCount = 0;
     for (const id of navIds) {
       const row = rows.find((r) => r.id === id);
       if (row && unassignedBucketId && row.parent_id === unassignedBucketId && row.href && session) {
         const pageId = pageIdBySlug.get(hrefToSlug(row.href));
         if (pageId) {
-          await fetch(`/api/admin/pages/${pageId}`, {
+          const res = await fetch(`/api/admin/pages/${pageId}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${session.access_token}` },
-          }).catch(() => {});
+          }).catch(() => null);
+          if (res && !res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data.stillLinked) stillLinkedCount += 1;
+          }
         }
       }
     }
     if (navIds.length > 0) {
       const { error: navDeleteError } = await supabase.from("site_navigations").delete().in("id", navIds);
       if (navDeleteError) setError(navDeleteError.message);
+    }
+    if (stillLinkedCount > 0) {
+      alert(
+        `${stillLinkedCount}개 항목은 이미 다른 메뉴에서 실제로 쓰이고 있는 페이지였어요 — 실제 페이지 콘텐츠는 그대로 두고, 중복된 링크만 지웠어요.`,
+      );
     }
 
     if (boardIds.length > 0 && session) {

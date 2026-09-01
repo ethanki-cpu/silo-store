@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-09-02 (Security Advisor 점검 — 뷰 3개 과다 권한 회수 + 함수 search_path 고정, DB 전용)
+- **사용자 신고**: Supabase Security Advisor에 error 3건/warning 다수 — 다 고쳐야 하는지 문의.
+- **실제 위험도 확인 결과(하나씩 원인 조회 후 판단)**:
+  - **[실제 버그, 즉시 수정]** `public_profiles`/`poll_option_counts`/`docent_content_popularity` 3개 뷰 모두 `anon`/`authenticated`에 SELECT뿐 아니라 **INSERT/UPDATE/DELETE/TRUNCATE까지 GRANT되어 있었음**(언제 생겼는지는 불명, 아마 뷰 생성 시 기본 권한이 그대로 남은 것으로 추정) — 그중 `public_profiles`는 `SELECT id, name, avatar_url FROM members` 단순 단일 테이블 뷰라 Postgres가 자동으로 "updatable view"로 취급해, `anon`이 `/rest/v1/public_profiles`에 직접 PATCH/DELETE를 보내면 뷰 소유자(postgres) 권한으로 `members`의 RLS(본인 행만)를 우회해 **다른 회원의 이름/아바타를 수정하거나 삭제할 수 있는 실제 권한 상승 취약점**이었다. 코드 전체를 확인해 이 3개 뷰는 어디서도 write하지 않음(전부 `.select()`)을 확인 후, `anon`/`authenticated`의 write 계열 권한을 전부 REVOKE(SELECT만 남김) — Management API로 즉시 적용, 애플리케이션 동작 변화 없음(원래도 안 쓰던 권한).
+  - **[의도된 설계, 그대로 둠]** 위 3개 뷰의 "SECURITY DEFINER View" 자체(뷰가 RLS를 우회하는 것)는 각각 의도된 동작 — `public_profiles`는 다른 회원 이름 노출용(`members` 직접 노출 대신 쓰는 문서화된 패턴), `poll_option_counts`/`docent_content_popularity`는 개별 투표/구매 행을 노출하지 않고 집계 숫자만 보여주기 위해 RLS를 우회해야 함. `security_invoker`로 바꾸면 기능 자체가 깨짐(본인 것만 보이게 됨) — 손대지 않음.
+  - **[의도된 설계, 그대로 둠]** `is_current_user_admin()`이 `anon`/`authenticated`에 EXECUTE 권한이 열려있다는 warning — EPIC-071에서 RLS 정책 자기참조 무한 재귀를 피하려고 일부러 이렇게 설계한 함수(RLS 정책이 호출하는 role 자신이 EXECUTE 권한을 가져야 정책 평가가 됨). 여기서 EXECUTE를 뺏으면 `members` admin 우회 정책이 전부 깨져 사이트 전역 렌더링 장애(EPIC-071 사고 재현) 위험 — 손대지 않음.
+  - **[실제 위험 없음, 손 안 댐]** `handle_new_user()`/`posts_protect_content_columns()`도 같은 warning(anon/authenticated가 SECURITY DEFINER 함수를 RPC로 실행 가능) — 다만 둘 다 반환 타입이 `trigger`라 Postgres가 트리거 컨텍스트 밖에서 호출 자체를 거부한다(권한 여부와 무관하게 직접 호출 불가능). 실제 악용 경로가 없어 시급하지 않고, 트리거 실행 메커니즘에 원치 않는 영향을 줄 수 있어 이번엔 EXECUTE를 건드리지 않음.
+  - **[안전하게 수정]** `handle_new_user`/`slugify` 함수의 `search_path`가 고정 안 돼 있던 warning(스키마 재정의를 이용한 공격 방지 목적) — `alter function ... set search_path = public`으로 즉시 수정, 동작 변화 없음.
+  - **[Free 플랜 제약, 보류]** "유출된 비밀번호 검사"(HaveIBeenPwned 연동) 활성화는 Supabase Pro 플랜부터 지원 — 현재 Free 플랜이라 API가 402로 거부함. Pro로 업그레이드하면 바로 켤 수 있음.
+  - **[INFO, 기능 영향 없음, 방치]** `docent_tour_bookings`/`docent_tours`/`drink_menu`/`drink_orders`/`member_profiles`/`salon_event_rsvps`/`salon_events`/`salon_room_access`/`salon_rooms` 9개 테이블이 RLS는 켜져 있는데 정책이 하나도 없음(항상 빈 배열 반환) — 코드 전체 검색 결과 이 9개 테이블을 참조하는 곳이 하나도 없어(아직 안 만든 기능이거나 폐기된 기능의 잔재로 추정) 현재 기능 영향 0건, 이번엔 손대지 않음.
+- **검증**: 3개 뷰 재조회로 `anon`/`authenticated` 권한이 SELECT만 남은 것 확인. 코드 전체에서 이 3개 뷰에 대한 write 호출이 없음을 grep으로 재확인(회귀 없음).
+- **다음에 확인 필요**: (1) 9개 미사용 테이블 — 곧 쓸 예정이면 RLS 정책 추가, 폐기됐으면 테이블 자체를 삭제할지 결정, (2) Pro 플랜으로 업그레이드하면 유출 비밀번호 검사도 켤 것.
+
 ## 2026-09-02 (HOTFIX-154.2 — `public-assets` 버킷도 Cloudflare R2로 마이그레이션, DB 전용)
 - **배경**: EPIC-154가 게시글/Craft 타임라인/Silo Planet은 R2로 옮겼지만 `public-assets`(로고/히어로 슬라이드쇼/좌우·상단 사이드바 아이콘/커스텀 폰트 등 "홈페이지 설정 관리"의 업로드)는 범위 밖으로 남겨뒀었다 — 사이트 모든 페이지에서 매번 로드되는 자산이라 Cached Egress 기여도가 가장 큰데도 빠져있었던 것으로 판단, 사용자 승인 하에 진행.
 - **실측**: `storage.objects`로 버킷 전체 88개 파일 확인, `site_settings`(hero_slideshow/main_logo/sidebar_icons/top_bar_icons/top_sidebar 5개 키)와 `custom_fonts`를 전수 조회해 실제 참조되는 URL 56개 추출 — 그중 55개는 정상 참조, 1개(`sidebar_icons.rightIconUrl`이 가리키는 `logos/bg-a759e5a8-....png`)는 **이미 이번 작업 이전부터 깨져있던 참조**(다운로드 시도 시 400, 버킷에 파일 자체가 없음 — 마이그레이션과 무관한 기존 버그, 아래 "다음에 확인 필요" 참고). `custom_fonts`는 전부 R2 URL만 있어 손댈 것 없음.

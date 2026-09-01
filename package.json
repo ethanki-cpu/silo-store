@@ -45,6 +45,7 @@
     "@tiptap/starter-kit": "^3.29.1",
     "@types/three": "^0.185.4",
     "embla-carousel-react": "^8.6.0",
+    "framer-motion": "^13.1.1",
     "grapesjs": "^0.23.5",
     "jsbarcode": "^3.12.3",
     "leva": "^0.10.1",

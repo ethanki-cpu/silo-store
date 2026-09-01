@@ -413,7 +413,12 @@ function CoverBackground({
   panDistancePct: number | null;
   panDirection: PanDirection | null;
 }) {
-  const [current, setCurrent] = useState(0);
+  // 사용자 지시(2026-09-02 — "배경슬라이드가 제일 첫번째로 업로드한
+  // 파일부터 시작하는데, 그러지 않고 랜덤으로 첫 슬라이드가 나가게
+  // 해달라"): 자동 전환 순서는 HOTFIX(2026-08-29)에서 이미 무작위화됐지만
+  // 최초 마운트 시 보여주는 슬라이드는 여전히 항상 인덱스 0(첫 업로드
+  // 파일) 고정이었다 — 초기 state를 마운트 시점에 한 번만 무작위로 고른다.
+  const [current, setCurrent] = useState(() => (urls.length > 0 ? Math.floor(Math.random() * urls.length) : 0));
   // HOTFIX-147.25: 어느 방향으로 패닝할지(가로/세로)는 그 이미지의 실제
   // 원본 비율을 봐야 알 수 있다 — URL만으로는 알 수 없어 로드 시
   // naturalWidth/naturalHeight를 재서 기억해둔다.

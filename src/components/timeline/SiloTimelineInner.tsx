@@ -54,6 +54,173 @@ function alignTimeNavToOverview(container: HTMLElement) {
   slider.style.left = `${currentLeft + delta}px`;
 }
 
+// 사용자 지시(2026-09-02 — "제국~군주" 타임라인에서 르네상스/바로크/로코코
+// 처럼 짧은 시대 여러 개가 몰려있으면 라벨이 서로 겹쳐 보이는 문제,
+// "촘촘한 연대의 경우 좀 더 unit을 넓게 보였으면 좋겠다"): TimelineJS3의
+// TimeNav는 순수 선형 축이라(TimeScale.getPosition = (t - earliest) *
+// pixels_per_milli, node_modules/@knight-lab/timelinejs/src/js/timenav/
+// TimeScale.js 확인) 실제 연대 비율 그대로 그린다 — 로마제국(BC146~AD476,
+// 622년)/비잔틴(AD476~1453, 977년) 같은 긴 시대 옆에 르네상스(250년)/
+// 바로크(150년)/로코코(65년)가 붙으면 뒤쪽 세 시대가 극단적으로 눌린다.
+// 실측(2026-09-02, 로컬 dev 서버) 결과 "전체를 한 화면에" 보여주는 현재
+// 뷰포트엔 여유 공간이 사실상 없어(로코코 끝이 이미 화면 오른쪽 경계에
+// 거의 닿아있음), 촘촘한 구간만 넓히려면 반드시 어딘가(성긴 구간)에서
+// 그만큼을 가져와야 한다 — 사용자 승인(2026-09-02, "성긴 구간은 8.7%
+// 정도 줄어도 되니 촘촘한 구간을 30% 넓혀줘")에 따라 다음 알고리즘을
+// 적용한다.
+//
+// 1. TimeScale이 이미 계산해둔 이벤트별 픽셀 위치(_positions, 순수
+//    선형값)에서 "구간 경계"(각 이벤트의 시작/끝 픽셀 좌표) 목록을 뽑는다.
+// 2. 경계 사이 각 구간의 길이를 평균과 비교해 "촘촘함"(평균의 60% 미만)과
+//    "성김"(평균의 150% 초과)을 분류한다.
+// 3. 촘촘한 구간은 30% 늘리고, 늘어난 만큼을 성긴 구간에서 "평균 길이까지만"
+//    줄여 되찾아온다(평균보다 더 줄이지 않음 — 정상 밀도 구간은 절대
+//    안 건드림). 되찾을 수 있는 양이 필요한 양보다 적으면 촘촘한 구간의
+//    확대율도 비례해서 낮춰 전체 폭(마지막 경계까지의 총합)이 정확히
+//    보존되도록 한다.
+// 4. 위 경계별 배율로 구간별 선형 보간하는 "warp(x)" 함수를 만들어, 마커의
+//    시작/끝 픽셀값(→ TimeNav.positionMarkers가 읽는 _positions[i].start/
+//    width)과 축 눈금 라벨의 픽셀값(→ TimeScale.getPosition, TimeAxis가
+//    직접 호출)에 동일하게 적용한다 — 둘 다 같은 warp를 거치므로 눈금과
+//    마커가 계속 서로 일치해 보인다.
+//
+// 이벤트 3개 미만이거나 촘촘한/성긴 구간이 뚜렷하지 않으면(늘릴 곳이 없거나
+// 안전하게 되찾아올 곳이 없으면) 아무것도 바꾸지 않고 원래 선형 그대로
+// 둔다 — 이 보정은 "전부 한 화면에 보이는 초기 개요" 렌더링 1회에만
+// 적용되고(줌/리사이즈 시 TimeNav가 TimeScale을 통째로 새로 만들어 이
+// 보정은 자연히 사라진다 — alignTimeNavToOverview와 동일한 범위), 이미
+// 그 시점 이후의 정상적인 확대/축소 동작에는 관여하지 않는다.
+type TLPositionInfo = { start: number; width: number; [key: string]: unknown };
+
+const DENSE_RATIO = 0.6;
+const SPARSE_RATIO = 1.5;
+const DENSE_EXPAND = 1.3;
+
+function buildDensityWarp(positions: TLPositionInfo[]): ((x: number) => number) | null {
+  if (positions.length < 3) return null;
+
+  const boundarySet = new Set<number>();
+  for (const p of positions) {
+    if (!Number.isFinite(p.start) || !Number.isFinite(p.width)) continue;
+    boundarySet.add(p.start);
+    boundarySet.add(p.start + p.width);
+  }
+  const boundaries = [...boundarySet].sort((a, b) => a - b);
+  if (boundaries.length < 3) return null;
+
+  const segLens = boundaries.slice(1).map((b, i) => b - boundaries[i]);
+  const mean = segLens.reduce((a, b) => a + b, 0) / segLens.length;
+  if (!Number.isFinite(mean) || mean <= 0) return null;
+
+  const scales: number[] = segLens.map((len) => (len < mean * DENSE_RATIO ? DENSE_EXPAND : 1));
+  const totalExpand = segLens.reduce((sum, len, i) => sum + (scales[i] > 1 ? len * (scales[i] - 1) : 0), 0);
+  if (totalExpand <= 0) return null;
+
+  const sparseIdx: number[] = [];
+  let reclaimPool = 0;
+  segLens.forEach((len, i) => {
+    if (len > mean * SPARSE_RATIO) {
+      reclaimPool += len - mean;
+      sparseIdx.push(i);
+    }
+  });
+  if (sparseIdx.length === 0) return null;
+
+  const shrinkRatio = Math.min(1, totalExpand / reclaimPool);
+  let actualReclaimed = 0;
+  sparseIdx.forEach((i) => {
+    const available = segLens[i] - mean;
+    const taken = available * shrinkRatio;
+    scales[i] = (segLens[i] - taken) / segLens[i];
+    actualReclaimed += taken;
+  });
+
+  // 되찾은 양이 필요한 양보다 적으면, 총 폭이 보존되도록 확대율 자체를 낮춘다.
+  const fitRatio = Math.min(1, actualReclaimed / totalExpand);
+  if (fitRatio < 1) {
+    for (let i = 0; i < scales.length; i++) {
+      if (scales[i] === DENSE_EXPAND) scales[i] = 1 + (DENSE_EXPAND - 1) * fitRatio;
+    }
+  }
+
+  const newBoundaries = [boundaries[0]];
+  for (let i = 0; i < segLens.length; i++) newBoundaries.push(newBoundaries[i] + segLens[i] * scales[i]);
+
+  const first = boundaries[0];
+  const last = boundaries[boundaries.length - 1];
+  const newFirst = newBoundaries[0];
+  const newLast = newBoundaries[newBoundaries.length - 1];
+
+  return (x: number): number => {
+    if (x <= first) return x - (first - newFirst);
+    if (x >= last) return newLast + (x - last);
+    for (let i = 0; i < boundaries.length - 1; i++) {
+      if (x >= boundaries[i] && x <= boundaries[i + 1]) {
+        const span = boundaries[i + 1] - boundaries[i];
+        const t = span > 0 ? (x - boundaries[i]) / span : 0;
+        return newBoundaries[i] + t * (newBoundaries[i + 1] - newBoundaries[i]);
+      }
+    }
+    return x;
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function warpTimeScale(timescale: any): void {
+  const positions: TLPositionInfo[] | undefined = timescale?._positions;
+  if (!timescale || typeof timescale.getPosition !== "function" || !Array.isArray(positions)) return;
+  // 실측(2026-09-02): 이 timescale이 컨테이너가 아직 레이아웃되기 전(폭 0)에
+  // 만들어졌으면 모든 위치가 0으로 퇴화한다 — 그런 경우는 조용히 건너뛴다.
+  // TL3가 나중에 실제 폭을 알고 나서 _getTimeScale()을 다시 부르면(초기
+  // 동기 생성 시 폭이 이미 있었다면 그 즉시, 아니라면 재계산 시점에) 이
+  // 함수도 감싸둔 래퍼를 통해 다시 호출되어 그때 정상 적용된다.
+  const warp = buildDensityWarp(positions);
+  if (!warp) return;
+
+  for (const p of positions) {
+    if (!Number.isFinite(p.start) || !Number.isFinite(p.width)) continue;
+    const originalEnd = p.start + p.width;
+    const newStart = warp(p.start);
+    p.start = newStart;
+    p.width = Math.max(0, warp(originalEnd) - newStart);
+  }
+
+  const originalGetPosition = timescale.getPosition.bind(timescale);
+  timescale.getPosition = (t: number) => warp(originalGetPosition(t));
+}
+
+// 실측(2026-09-02, 로컬 dev 서버): TimeNav._getTimeScale()은 최초 생성
+// 시점뿐 아니라 컨테이너 크기가 나중에 확정될 때(리사이즈/재레이아웃)마다
+// 다시 호출되어 this.timescale을 완전히 새 객체로 교체한다 — 한 번만
+// warpTimeScale을 호출해두면 그 뒤에 일어나는 재계산에서 원래(선형) 축으로
+// 되돌아가 버린다. _getTimeScale 자체를 감싸 호출될 때마다 매번 새
+// timescale에 다시 적용되도록 한다(호출부인 TimeNav 자신이 그 직후
+// positionMarkers/drawTicks·positionTicks를 이어서 부르므로, 여기서 마커/
+// 눈금을 직접 다시 그릴 필요는 없다 — timescale 객체 자체를 반환 전에
+// 미리 바꿔두기만 하면 된다).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function installDensityWarp(instance: any) {
+  const timenav = instance?._timenav;
+  if (!timenav || typeof timenav._getTimeScale !== "function") return;
+  if (timenav.__siloDensityWarpInstalled) return;
+  timenav.__siloDensityWarpInstalled = true;
+
+  const originalGetTimeScale = timenav._getTimeScale.bind(timenav);
+  timenav._getTimeScale = () => {
+    const ts = originalGetTimeScale();
+    warpTimeScale(ts);
+    return ts;
+  };
+
+  // 생성자가 이미 한 번(원래 함수로) 호출해 만들어둔 현재 timescale에도
+  // 소급 적용 + 화면에 반영.
+  warpTimeScale(timenav.timescale);
+  if (typeof timenav.positionMarkers === "function") timenav.positionMarkers();
+  if (typeof timenav.timeaxis?.positionTicks === "function") {
+    timenav.timeaxis.positionTicks(timenav.timescale, timenav.options?.optimal_tick_width);
+  }
+}
+
 // HOTFIX-147.8(사용자 지시 — "타임라인 섹션이 처음 로딩되면 보이는 '혁명~
 // 제국' 부분을 내가 텍스트를 변형하고 배경도 넣고 싶다, 드래그앤드랍/사이즈
 // 조절을 자유롭게 하게 해달라" + 모바일에서 표지 텍스트가 화면보다 커서
@@ -288,8 +455,23 @@ export default function SiloTimelineInner({
           emitCoverState();
           if (!hasAlignedOverview) {
             hasAlignedOverview = true;
+            // 실측(2026-09-02): `new TL.Timeline(...)`이 반환된 시점엔
+            // `instance._timenav`가 아직 Timeline.js 생성자 맨 앞에서 잡아둔
+            // 빈 자리표(`{}`)뿐이고, "change" 이벤트가 막 도착한 시점에도
+            // 컨테이너가 아직 레이아웃 폭을 못 얻어 timescale의 모든 위치가
+            // 0으로 퇴화해 있는 경우가 있다(실측 로그로 확인) — TL3의 첫
+            // 배치 애니메이션이 끝나는 이 시점(1150ms 뒤, alignTimeNavToOverview와
+            // 동일 타이밍)에는 항상 실제 폭을 가진 상태였다.
             setTimeout(() => {
-              if (!cancelled && container) alignTimeNavToOverview(container);
+              if (cancelled || !container) return;
+              // 촘촘한 시대 구간 확대 보정 — TimeNav가 자기 컨테이너 크기를
+              // 다시 알게 될 때마다(리사이즈 등) timescale을 통째로 새로
+              // 만들기 때문에, 한 번만 적용하지 않고 그 재계산 지점 자체를
+              // 감싸 매번 다시 적용되도록 설치한다(installDensityWarp 주석
+              // 참고) — alignTimeNavToOverview보다 먼저 호출해 마커가 이미
+              // 보정된 최종 위치에 있는 상태로 개요 정렬이 이뤄지게 한다.
+              installDensityWarp(instance);
+              alignTimeNavToOverview(container);
             }, 1150);
           }
         });

@@ -137,7 +137,7 @@ export function FontPicker({
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
+        <div className="absolute z-30 mt-1 w-[26rem] rounded-md border border-gray-200 bg-white p-2 shadow-lg">
           <button
             type="button"
             onClick={() => {
@@ -177,7 +177,7 @@ export function FontPicker({
           {fonts.length === 0 ? (
             <p className="px-2 py-1.5 text-xs text-gray-400">아직 업로드된 폰트가 없어요.</p>
           ) : (
-            <div className="max-h-48 overflow-y-auto">
+            <div className="max-h-[30rem] overflow-y-auto">
               {fonts.map((font) => (
                 <button
                   key={font.id}

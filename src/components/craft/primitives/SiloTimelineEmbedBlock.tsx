@@ -121,7 +121,13 @@ export type SlideOverlayConfig = {
 // 20초→6초로 크게 줄이고, 이동 거리/확대 배율도 같은 안전 공식 안에서
 // 최대한 크게(32%/220%, 최대 안전값 50*2.2/3.2≈34.4%) 올려 실제로 각
 // 모서리 근처까지 이동하도록 했다.
-export const DEFAULT_PAN_SPEED_SECONDS = 6;
+// HOTFIX(사용자 지시 2026-09-02, 재신고 — "이야 이건 너무 빠르다 ㅋㅋㅋ
+// 속도를 절반으로 줄여봐"): 6초는 과했다 — 절반 느리게(12초)로 되돌림.
+// 확대/이동 거리는 그대로 두되(모서리에 닿는 크기 자체는 유지), 아래
+// 편집 UI의 min/max도 이 새 기본값 범위를 담을 수 있도록 함께 넓혔다
+// (편집 화면에서 이미 속도/확대/이동 거리를 슬라이드별로 직접 조절
+// 가능 — "배경 패닝 모션" 섹션, HOTFIX-147.27부터 있던 기능).
+export const DEFAULT_PAN_SPEED_SECONDS = 12;
 export const DEFAULT_PAN_ZOOM_PCT = 220;
 export const DEFAULT_PAN_DISTANCE_PCT = 32;
 
@@ -1136,7 +1142,8 @@ function SlideOverlayFieldsEditor({
           이미지의 일부분만 나오는게 아니라 전체를 다 즐길 수 있도록"):
           "자동"의 기본 동작을 좌우/상하 단순 왕복에서, 모서리/귀퉁이를
           여러 개 들르는 "투어" 모션으로 바꿈(이미지마다 다른 경로를 타
-          다양하게 보임) — 비워두면(기본값) 속도 20초·확대 40%·이동 12%.
+          다양하게 보임) — 비워두면(기본값) 속도 12초·확대 220%·이동 32%
+          (2026-09-02 재조정, DEFAULT_PAN_* 참고).
           단순한 패턴 하나만 고정하고 싶을 때는 아래에서 직접 골라도 된다. */}
       <div className="space-y-2 rounded border border-gray-200 p-2">
         <h4 className="text-xs font-semibold text-gray-500">배경 패닝 모션(서서히 확대+이동)</h4>
@@ -1170,7 +1177,7 @@ function SlideOverlayFieldsEditor({
           <input
             type="number"
             min={0}
-            max={80}
+            max={400}
             placeholder={String(DEFAULT_PAN_ZOOM_PCT)}
             value={value.panZoomPct ?? ""}
             onChange={(e) => onChange({ panZoomPct: e.target.value === "" ? null : Number(e.target.value) || DEFAULT_PAN_ZOOM_PCT })}
@@ -1182,7 +1189,7 @@ function SlideOverlayFieldsEditor({
           <input
             type="number"
             min={0}
-            max={30}
+            max={45}
             placeholder={String(DEFAULT_PAN_DISTANCE_PCT)}
             value={value.panDistancePct ?? ""}
             onChange={(e) => onChange({ panDistancePct: e.target.value === "" ? null : Number(e.target.value) || DEFAULT_PAN_DISTANCE_PCT })}

@@ -114,9 +114,16 @@ export type SlideOverlayConfig = {
 // 비어 보이지 않도록 확대 배율도 40%→65%로 함께 올렸다. 안전 여유분
 // 공식(|이동%| <= 50*(zoom-1)/zoom)대로면 65% 확대에서 최대 19.7%까지
 // 안전 — 18%는 그 안에 여유 있게 들어간다(가장자리 안 빔).
-export const DEFAULT_PAN_SPEED_SECONDS = 20;
-export const DEFAULT_PAN_ZOOM_PCT = 65;
-export const DEFAULT_PAN_DISTANCE_PCT = 18;
+// HOTFIX(사용자 지시 2026-09-02 — 첨부 스크린샷처럼 "왼쪽 상단 모서리
+// 끝에서 시작해서 오른쪽 하단 모서리 끝으로 갔다가 위로 올라오는" 식으로
+// "이미지 전체를 6초 안에" 다 보여줄 만큼 크게 움직여달라는 재요청):
+// 18%/65% 조합도 여전히 "모서리에 닿는다"고 느끼기엔 부족했다 — 속도를
+// 20초→6초로 크게 줄이고, 이동 거리/확대 배율도 같은 안전 공식 안에서
+// 최대한 크게(32%/220%, 최대 안전값 50*2.2/3.2≈34.4%) 올려 실제로 각
+// 모서리 근처까지 이동하도록 했다.
+export const DEFAULT_PAN_SPEED_SECONDS = 6;
+export const DEFAULT_PAN_ZOOM_PCT = 220;
+export const DEFAULT_PAN_DISTANCE_PCT = 32;
 
 // HOTFIX-151.3(사용자 신고 — "제목 스타일을 바꾸면 설명 스타일도 같이
 // 바뀌는 것처럼 보인다, 둘이 분리되게 해달라"): description* 필드들이
@@ -367,10 +374,16 @@ function hashString(s: string): number {
 // 긴 축 방향(가로→좌우, 세로→상하)이 뚜렷하게 우세하도록 했다(완전히
 // 0으로 없애지 않은 건 대각선 정거장이 섞인 투어 경로의 자연스러운
 // 곡선 느낌을 유지하기 위함).
+// HOTFIX(사용자 지시 2026-09-02 — "왼쪽 상단 모서리 끝에서 오른쪽 하단
+// 모서리 끝으로" 처럼 실제 모서리에 닿길 원함): 대각선 정거장(x,y 둘 다
+// ±1)에서 짧은 축을 35%까지 죽여버리면 그 정거장이 더 이상 "모서리"가
+// 아니라 긴 축 쪽으로 치우친 애매한 지점이 돼버린다 — 65%로 올려 가로/
+// 세로 구분(긴 축이 여전히 살짝 우세)은 남기되 대각선 정거장이 실제
+// 모서리에 훨씬 가깝게 닿도록 했다.
 function buildTourVars(url: string, orientation: "landscape" | "portrait", distancePct: number): CSSProperties {
   const template = TOUR_TEMPLATES[hashString(url) % TOUR_TEMPLATES.length];
-  const distX = orientation === "landscape" ? distancePct : distancePct * 0.35;
-  const distY = orientation === "portrait" ? distancePct : distancePct * 0.35;
+  const distX = orientation === "landscape" ? distancePct : distancePct * 0.65;
+  const distY = orientation === "portrait" ? distancePct : distancePct * 0.65;
   const vars: Record<string, string> = {};
   template.forEach((p, i) => {
     vars[`--silo-pan-p${i}x`] = `${p.x * distX}%`;

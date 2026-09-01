@@ -9,7 +9,7 @@
 // 위해 useNode()도 직접 부른다(아래 해당 함수 주석 참고).
 import { useEditor, useNode } from "@craftjs/core";
 import { createElement, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 
 export function useCraftEditable(): boolean {
   const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
@@ -78,7 +78,6 @@ export function EditableImage({
   onCommit,
   alt = "",
   className,
-  uploadFolder = "craft-home",
   priority = false,
   fit = "cover",
 }: {
@@ -101,7 +100,7 @@ export function EditableImage({
   async function handleFile(file: File | null) {
     if (!file) return;
     setUploading(true);
-    const { url, error } = await uploadFile(file, "post-images", uploadFolder);
+    const { url, error } = await uploadFileToR2(file);
     setUploading(false);
     if (!error && url) onCommit(url);
   }
@@ -144,7 +143,6 @@ export function EditableResponsiveImage({
   onCommitMobile,
   alt = "",
   className,
-  uploadFolder = "craft-home",
   priority = false,
   fit = "cover",
 }: {
@@ -170,7 +168,7 @@ export function EditableResponsiveImage({
     if (!file) return;
     const setUploading = target === "desktop" ? setUploadingDesktop : setUploadingMobile;
     setUploading(true);
-    const { url, error } = await uploadFile(file, "post-images", uploadFolder);
+    const { url, error } = await uploadFileToR2(file);
     setUploading(false);
     if (error || !url) return;
     if (target === "desktop") onCommitDesktop(url);

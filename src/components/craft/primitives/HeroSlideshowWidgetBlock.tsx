@@ -24,7 +24,7 @@ import { EditableBlockFrame, useCraftEditable } from "@/components/craft/home/ed
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeHeroSlideshow, type HeroSlideshowConfig } from "@/lib/heroSlideshow";
 
@@ -147,13 +147,13 @@ function HeroSlideshowWidgetSettings() {
   }
   async function uploadSlideImage(index: number, file: File | null) {
     if (!file) return;
-    const { url, error } = await uploadFile(file, "post-images", "craft-hero-slideshow");
+    const { url, error } = await uploadFileToR2(file);
     if (!error && url) updateSlide(index, { imageUrl: url });
   }
 
   function addWallpaper(file: File | null) {
     if (!file) return;
-    uploadFile(file, "post-images", "craft-hero-slideshow-wallpaper").then(({ url, error }) => {
+    uploadFileToR2(file).then(({ url, error }) => {
       if (error || !url) return;
       const next = [...props.wallpaperUrls, url].slice(0, 10);
       setProp((p) => { p.wallpaperUrls = next; });

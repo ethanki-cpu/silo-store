@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-09-01 (EPIC-154 — Supabase Storage → Cloudflare R2 마이그레이션, 앞으로의 업로드도 전부 R2로 전환)
+- **배경**: Supabase 무료 플랜의 Cached Egress가 한도(5GB) 대비 155%(7.74GB)로 초과된 상태에서, 실제로 뭐가 얼마나 차지하는지 확인하고 Supabase(DB/텍스트)와 Cloudflare(미디어)로 역할을 정리해달라는 사용자 요청.
+- **실측 결과**: `storage.objects`를 직접 조회해 버킷별 실제 용량 확인 — `post-images` 944MB(354개, 예상보다 압도적으로 큼), `public-assets` 130MB(88개), `attachments` 106MB(20개), `gallery` 12MB(24개).
+- **Silo Planet 3D 마이그레이션**: `site_settings.about_silo_universe`에 박혀있던 레거시 Supabase Storage URL 19개(모델 9개 .glb + 배경/우주 이미지 10개, ~61MB) 전부 다운로드→R2 재업로드→URL 교체(HTTP 200/바이트수 일치 확인) 후, 원본은 관리자 세션으로 Storage API를 통해 정식 삭제(`attachments` 106MB→47MB, `gallery` 12MB→9.6MB로 감소 확인).
+- **post-images 실사용 콘텐츠 마이그레이션(256개 파일)**: 354개 중 실제로 살아있는 콘텐츠에서 참조되는 파일만 골라 이전 —
+  - `posts` 테이블(본문 HTML/`body_json`/대표 이미지)에서 실제 참조되는 34개 파일이 걸린 게시글 8개를 찾아 마이그레이션. Management API(SQL)로는 `posts_protect_content_columns()` 트리거(HOTFIX-152.21에서 추가된 콘텐츠 보호 장치)에 막혀, 브라우저에 이미 로그인된 관리자 세션의 access token을 그대로 재사용해 정식 REST API(PostgREST) 경로로 수정.
+  - `page_builder.craft_state`에서 참조되는 222개 파일(온라인 도슨트 타임라인 배경/표지 이미지 13개 페이지 분, 오늘 만든 타임라인 배경 패닝 기능이 쓰는 바로 그 이미지들)도 동일한 방식으로 마이그레이션.
+  - 두 그룹 합쳐 256개 전부 R2 재업로드 + DB 참조 교체 + 잔여 legacy URL 0건 확인.
+- **앞으로 업로드되는 모든 파일이 R2로 가도록 전환**: `src/lib/storage.ts`(Supabase Storage)의 `uploadFile`/`uploadPostImage`/`uploadMultipleFiles`를 여전히 쓰던 호출부 14곳(게시글 대표 이미지 `PostForm.tsx`, 게시판 썸네일 `BoardForm.tsx`, 네이티브 타임라인 위젯 `TimelineWidgetEditor.tsx`, 갤러리 다중 업로드 `GalleryConfigModal.tsx`, Craft 블록 9종 — 히어로/배경/슬라이드쇼/이미지+텍스트/콜라주/타임라인 표지/소셜프루프/테스티모니얼)를 전부 `src/lib/r2Upload.ts`의 새 `uploadFileToR2`/`uploadMultipleFilesToR2`(기존 `storage.ts`의 `{url, path, error}` 반환 모양을 그대로 맞춘 드롭인 대체)로 교체. `BlockEditor.tsx`의 게시글 본문 이미지 업로드는 이미 R2(EPIC-082/083)였으므로 변경 없음.
+- **덤으로 확인/해결한 것**: 사용자가 "홈페이지 설정에 추가한 상단 아이콘 2개가 안 보인다"고 신고 — 코드 버그가 아니라 로컬 dev 서버가 그 기능이 없는 옛 브랜치(`feature/EPIC-151`)를 보고 있던 것이었고, `main`으로 전환해 즉시 해결 확인.
+- `tsc` 0 errors, `lint` 0 errors(80 warnings — 기존 `main` 기준선, 이번 변경으로 추가된 경고 없음: `editable.tsx`의 이제 안 쓰는 `uploadFolder` prop은 destructuring에서 제거해 경고 없이 정리).
+- **다음에 확인 필요**: 관리자가 실제 화면에서 새 게시글 작성/게시판 썸네일/Craft 블록 이미지 업로드를 한 번씩 해보고 R2에 정상 저장되는지 육안 확인(이번 세션은 코드 경로 검증까지만 하고 실제 파일 업로드 UI 클릭 테스트는 못 함). `post-images`에 남은 나머지 98개 파일(코드 전체를 훑어도 참조를 못 찾음 — 삭제된 게시글의 잔재로 추정)은 삭제 전 재확인 필요.
+
 ## 2026-08-31 (HOTFIX-152.21 — "제국~군주"/"혁명~식민지" 페이지 콘텐츠 통째 삭제 사고 복구 + 재발 방지 안전장치 2중 추가)
 - **사용자 신고**: "'온라인 도슨트'의 바로 아래 카테고리에서 타임라인을 보면... 왜 '제국~군주' 페이지에 타임라인이 없고, '혁명~식민지' 페이지에도 타임라인이 없는거지?" — 이어서 사고 경위를 설명하자 "내가 그런일 나타나게 하지 말라고 수정을 요청한건데... 이런일이 안생기려면 어떻게 하냐고 분석해. 기본 타임 라인 다시 만들어. 형제 허브 구조 참고해서."
 - **실제로 벌어진 일**: `site_navigations`(메뉴 항목)는 멀쩡했지만 그게 가리키던 실제 `page_builder` 행(craft_state 포함 타임라인 설정)이 두 페이지 다 DB에서 완전히 삭제돼 있었다 — 단순 설정 문제가 아니라 데이터 삭제 사고였다.

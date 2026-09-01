@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { detectMediaType, type GalleryImageAttrs } from "@/lib/blockEditorCore";
-import { uploadMultipleFiles, STORAGE_BUCKETS } from "@/lib/storage";
+import { uploadMultipleFilesToR2 } from "@/lib/r2Upload";
 
 // EPIC-079-PHASE-5: "갤러리 삽입" 버튼을 눌렀을 때(또는 이미 삽입된 갤러리를
 // 편집할 때) 쓰는 모달 — 여러 개의 외부 URL(이미지/영상)을 한 번에
@@ -44,9 +44,9 @@ export function GalleryConfigModal({
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
-      const uploaded = await uploadMultipleFiles(Array.from(files), STORAGE_BUCKETS.GALLERY, "gallery");
+      const uploaded = await uploadMultipleFilesToR2(Array.from(files));
       const added: GalleryImageAttrs[] = uploaded
-        .filter((r) => !r.error)
+        .filter((r): r is typeof r & { url: string } => !r.error && !!r.url)
         .map((r) => ({ src: r.url, path: r.path, alt: "", caption: "", type: "image" }));
       setItems((prev) => [...prev, ...added]);
     } finally {

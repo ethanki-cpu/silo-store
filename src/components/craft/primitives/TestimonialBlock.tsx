@@ -2,7 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { EditableText, EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 
 export type TestimonialBlockProps = {
   quote: string;
@@ -62,7 +62,7 @@ function TestimonialSettings() {
 
   async function uploadAvatar(file: File | null) {
     if (!file) return;
-    const { url, error } = await uploadFile(file, "post-images", "craft-testimonial");
+    const { url, error } = await uploadFileToR2(file);
     if (!error && url) setProp((p) => { p.avatarUrl = url; });
   }
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { BlockEditor } from "@/components/editor/BlockEditor";
 import { findFeaturedImage, findFirstImage, isEmptyDoc, type JSONContent } from "@/lib/blockEditorCore";
-import { uploadPostImage } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import { useAuth } from "@/lib/AuthProvider";
 
 // EPIC-092(요구사항 1): datetime-local input은 "YYYY-MM-DDTHH:mm" 형식을
@@ -303,7 +303,7 @@ export function PostForm({
 
   async function handleFeaturedImageUpload(file: File) {
     setUploadingFeatured(true);
-    const result = await uploadPostImage(file, "featured");
+    const result = await uploadFileToR2(file);
     setUploadingFeatured(false);
     if (result.error) return;
     setFeaturedImageUrl(result.url);

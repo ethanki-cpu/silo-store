@@ -18,7 +18,7 @@ import { useNode } from "@craftjs/core";
 import type { CSSProperties, ReactNode } from "react";
 import { FontPicker } from "@/components/admin/FontPicker";
 import { useCustomFonts } from "@/lib/useCustomFonts";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import { NumberField, ColorField, SelectField, TextField } from "@/components/craft/shared/FieldControls";
 
 export type PageBackground = {
@@ -144,7 +144,7 @@ function PageSettings() {
 
   async function uploadBackgroundImage(file: File | null) {
     if (!file) return;
-    const { url, error } = await uploadFile(file, "post-images", "craft-page-background");
+    const { url, error } = await uploadFileToR2(file);
     if (!error && url) patchBackground({ imageUrl: url });
   }
 

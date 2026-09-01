@@ -2,7 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { EditableText, EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 
 export type SocialProofBlockProps = {
   avatarUrls: string[];
@@ -46,7 +46,7 @@ function SocialProofSettings() {
 
   async function addAvatar(file: File | null) {
     if (!file) return;
-    const { url, error } = await uploadFile(file, "post-images", "craft-social-proof");
+    const { url, error } = await uploadFileToR2(file);
     if (!error && url) setProp((p) => { p.avatarUrls = [...p.avatarUrls, url]; });
   }
 

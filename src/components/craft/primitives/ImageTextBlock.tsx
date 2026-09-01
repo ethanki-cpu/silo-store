@@ -6,7 +6,7 @@
 // 코드 중복 없이 캔버스에서 곧바로 레이아웃을 전환해볼 수도 있어 더 유연하다.
 import { useNode } from "@craftjs/core";
 import { EditableText, EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 
 export type ImageTextLayout = "image-left" | "image-right" | "image-top" | "image-bottom" | "image-right-narrow";
 
@@ -86,7 +86,7 @@ function ImageTextSettings() {
 
   async function uploadImage(file: File | null) {
     if (!file) return;
-    const { url, error } = await uploadFile(file, "post-images", "craft-image-text");
+    const { url, error } = await uploadFileToR2(file);
     if (!error && url) setProp((p) => { p.imageUrl = url; });
   }
 

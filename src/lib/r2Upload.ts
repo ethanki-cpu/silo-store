@@ -174,7 +174,7 @@ export async function uploadExternalUrlToR2Media(url: string): Promise<R2UploadR
   return { asset, error: null };
 }
 
-export type R2FontUploadResult = { fileUrl: string | null; error: string | null };
+export type R2FontUploadResult = { fileUrl: string | null; fileKey?: string; error: string | null };
 
 /**
  * media_library/custom_fonts 같은 DB 기록 없이 R2에 파일만 올리고 공개
@@ -205,7 +205,7 @@ async function presignedPutToR2(file: File): Promise<R2FontUploadResult> {
     const data = await presignedRes.json().catch(() => ({}));
     return { fileUrl: null, error: data.error ?? "업로드 URL을 받지 못했어요." };
   }
-  const { uploadUrl, publicUrl }: PresignedUploadResponse = await presignedRes.json();
+  const { uploadUrl, publicUrl, fileKey }: PresignedUploadResponse = await presignedRes.json();
 
   const putRes = await fetch(uploadUrl, {
     method: "PUT",
@@ -216,7 +216,7 @@ async function presignedPutToR2(file: File): Promise<R2FontUploadResult> {
     return { fileUrl: null, error: "R2 업로드에 실패했어요." };
   }
 
-  return { fileUrl: publicUrl, error: null };
+  return { fileUrl: publicUrl, fileKey, error: null };
 }
 
 /**
@@ -227,6 +227,29 @@ async function presignedPutToR2(file: File): Promise<R2FontUploadResult> {
  */
 export async function uploadFontToR2(file: File): Promise<R2FontUploadResult> {
   return presignedPutToR2(file);
+}
+
+export type R2PlainUploadResult = { url: string | null; path: string; error: string | null };
+
+// HOTFIX-151.7(사용자 지시 — "앞으로 플랫폼에 쓰여지는 모든 게시글도 R2에
+// 저장되도록 해줘"): src/lib/storage.ts의 uploadFile()과 반환 모양({url,
+// path, error})을 그대로 맞춘 R2 버전 — 호출부(게시글 대표 이미지, 게시판
+// 썸네일, Craft 블록 배경/히어로/타임라인 표지 등 storage.ts를 쓰던 모든
+// 곳)가 import만 바꾸면 되도록 드롭인 대체용으로 만들었다. media_library
+// insert 없이 URL만 필요한 곳이라 uploadFontToR2/uploadRawFileToR2와 같은
+// presignedPutToR2를 공유한다.
+export async function uploadFileToR2(file: File): Promise<R2PlainUploadResult> {
+  const { fileUrl, fileKey, error } = await presignedPutToR2(file);
+  return { url: fileUrl, path: fileKey ?? "", error };
+}
+
+/** 여러 파일을 순차적으로 R2에 업로드한다(uploadMultipleFiles의 R2 버전). */
+export async function uploadMultipleFilesToR2(files: File[]): Promise<R2PlainUploadResult[]> {
+  const results: R2PlainUploadResult[] = [];
+  for (const file of files) {
+    results.push(await uploadFileToR2(file));
+  }
+  return results;
 }
 
 // HOTFIX-144.5(사용자 지시 — "silo planet 에 오브제 업로드 제한을 100mb 로

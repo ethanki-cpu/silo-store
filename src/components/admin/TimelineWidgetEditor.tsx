@@ -32,7 +32,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { TimelineItemSettings } from "@/lib/widgetSchema";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import { AlternatingTimelineCanvas } from "@/components/modules/AlternatingTimelineCanvas";
 import { TimelineDescriptionEditor } from "@/components/admin/TimelineDescriptionEditor";
 import { TimelinePostPicker, type PickedPost } from "@/components/admin/TimelinePostPicker";
@@ -197,7 +197,7 @@ function TimelineItemAccordion({
     if (!file) return;
     setUploading(true);
     setUploadError(null);
-    const { url, error } = await uploadFile(file, "post-images", "timeline-widget");
+    const { url, error } = await uploadFileToR2(file);
     setUploading(false);
     if (error || !url) {
       setUploadError(error ?? "업로드에 실패했어요.");

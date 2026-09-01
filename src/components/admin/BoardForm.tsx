@@ -13,7 +13,7 @@ import { DEFAULT_POST_LAYOUT_ORDER, type PostLayoutBlock } from "@/lib/postLayou
 import { PostLayoutOrderEditor } from "@/components/admin/PostLayoutOrderEditor";
 import { FontPicker } from "@/components/admin/FontPicker";
 import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import type { SlideItem } from "@/components/HeroSlideshow";
 
 export { RANK_OPTIONS };
@@ -312,7 +312,7 @@ function TimelineHeroSlidesEditor({
   }
   async function uploadSlideImage(index: number, file: File | null) {
     if (!file) return;
-    const { url, error } = await uploadFile(file, "post-images", "timeline-hero");
+    const { url, error } = await uploadFileToR2(file);
     if (!error && url) updateSlide(index, { imageUrl: url });
   }
 

@@ -15,7 +15,7 @@ import { FreePositionSettingsSection } from "@/components/craft/shared/FreePosit
 import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
 import { DEFAULT_FREE_POSITION, freePositionStyle, type FreePosition } from "@/lib/useFreePosition";
 import { usePointerDragScroll } from "@/lib/usePointerDragScroll";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 
 export type SlideshowSlide = {
   imageUrl: string;
@@ -216,7 +216,7 @@ function SlideshowSettings() {
   }
   async function uploadSlideImage(index: number, file: File | null) {
     if (!file) return;
-    const { url, error } = await uploadFile(file, "post-images", "craft-slideshow");
+    const { url, error } = await uploadFileToR2(file);
     if (!error && url) updateSlide(index, { imageUrl: url });
   }
 

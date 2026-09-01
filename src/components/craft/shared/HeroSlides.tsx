@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import { useNode } from "@craftjs/core";
 import { useCraftEditable } from "@/components/craft/home/editable";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import { compressVideoIfNeeded } from "@/lib/videoCompress";
 
 export const HERO_SLIDE_VIDEO_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
@@ -115,7 +115,7 @@ export function HeroSlidesSettings() {
             setUploadStatus(status ? `${prefix}${status}` : null),
           );
           setUploadStatus(`${prefix}업로드 중...`);
-          const { url, error } = await uploadFile(uploadable, "post-images", "craft-page-hero");
+          const { url, error } = await uploadFileToR2(uploadable);
           if (!error && url) uploaded.push({ url });
           else failed.push(`${file.name}${error ? `: ${error}` : ""}`);
         } catch (err) {

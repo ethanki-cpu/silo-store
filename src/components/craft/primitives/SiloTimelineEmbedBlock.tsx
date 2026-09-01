@@ -23,7 +23,7 @@ import { DEFAULT_MOTION, type MotionConfig } from "@/lib/useScrollReveal";
 import { DEFAULT_FREE_POSITION, freePositionResponsiveAttrs, type FreePosition } from "@/lib/useFreePosition";
 import { SiloTimeline } from "@/components/timeline/SiloTimeline";
 import type { TimelineCoverState } from "@/components/timeline/SiloTimelineInner";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import { compressVideoIfNeeded } from "@/lib/videoCompress";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -1243,7 +1243,7 @@ function SlideOverlayFieldsEditor({
                       compressTargetMb,
                     );
                     setUploadStatus(`${progressPrefix}업로드 중...`);
-                    const { url, error } = await uploadFile(uploadable, "post-images", "craft-timeline-cover");
+                    const { url, error } = await uploadFileToR2(uploadable);
                     if (!error && url) uploadedUrls.push(url);
                     else failed.push(`${file.name}${error ? `: ${error}` : ""}`);
                   } catch (err) {

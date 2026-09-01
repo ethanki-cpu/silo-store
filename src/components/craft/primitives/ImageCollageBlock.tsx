@@ -2,7 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { EditableBlockFrame, useCraftEditable } from "@/components/craft/home/editable";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 
 export type ImageCollageBlockProps = {
   imageUrls: string[];
@@ -39,7 +39,7 @@ function ImageCollageSettings() {
 
   async function addImage(file: File | null) {
     if (!file) return;
-    const { url, error } = await uploadFile(file, "post-images", "craft-collage");
+    const { url, error } = await uploadFileToR2(file);
     if (!error && url) setProp((p) => { p.imageUrls = [...p.imageUrls, url]; });
   }
 

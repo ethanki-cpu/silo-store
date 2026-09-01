@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-09-02 (HOTFIX-154.2 — `public-assets` 버킷도 Cloudflare R2로 마이그레이션, DB 전용)
+- **배경**: EPIC-154가 게시글/Craft 타임라인/Silo Planet은 R2로 옮겼지만 `public-assets`(로고/히어로 슬라이드쇼/좌우·상단 사이드바 아이콘/커스텀 폰트 등 "홈페이지 설정 관리"의 업로드)는 범위 밖으로 남겨뒀었다 — 사이트 모든 페이지에서 매번 로드되는 자산이라 Cached Egress 기여도가 가장 큰데도 빠져있었던 것으로 판단, 사용자 승인 하에 진행.
+- **실측**: `storage.objects`로 버킷 전체 88개 파일 확인, `site_settings`(hero_slideshow/main_logo/sidebar_icons/top_bar_icons/top_sidebar 5개 키)와 `custom_fonts`를 전수 조회해 실제 참조되는 URL 56개 추출 — 그중 55개는 정상 참조, 1개(`sidebar_icons.rightIconUrl`이 가리키는 `logos/bg-a759e5a8-....png`)는 **이미 이번 작업 이전부터 깨져있던 참조**(다운로드 시도 시 400, 버킷에 파일 자체가 없음 — 마이그레이션과 무관한 기존 버그, 아래 "다음에 확인 필요" 참고). `custom_fonts`는 전부 R2 URL만 있어 손댈 것 없음.
+- **마이그레이션(55개)**: 다운로드 → R2 업로드(`media/migrated-public-assets/` 프리픽스) → 응답 바이트 수 일치로 검증 → `site_settings` 5개 키의 JSON 안 URL을 전부 새 R2 URL로 치환(Management API, `update ... set setting_value = $mig$...$mig$::jsonb`로 따옴표 이스케이프 문제 회피). 재조회로 `site_settings` 전체에 남은 Supabase Storage 참조가 위 깨진 1건 외엔 0건임을 확인.
+- **원본 삭제는 이번엔 보류**: EPIC-154의 Silo Planet 케이스는 관리자 브라우저 세션의 access token으로 Storage API를 통해 정식 삭제했는데, 이번 세션엔 로그인된 관리자 세션이 없어 그 방식을 못 썼다 — Management API(postgres 권한)로 `storage.objects` 행을 직접 지우는 건 실제 백엔드 바이트 삭제/사용량 정산이 Storage API를 통한 삭제와 다르게 반영될 수 있어 위험 부담이 있다고 판단해 하지 않음. `public-assets`는 현재 Storage Size(0.5GB 중극히 일부)만 차지할 뿐이라 급하지 않다고 보고, DB 참조가 전부 R2로 넘어가 Cached Egress를 실제로 줄이는 목적은 이미 달성됨.
+- **orphan 32개(참조 없음, 이번엔 손 안 댐)**: `logos`/`top_bar_icons_hover`/`top_sidebar_trigger`/`wallpaper` 등에 남은, 현재 어떤 `site_settings`에서도 참조하지 않는 파일 32개는 EPIC-154의 "98개 미확인 파일"과 같은 성격 — 지우기 전 확인 필요로 남겨둠.
+- **다음에 확인 필요**: (1) 관리자 세션으로 로그인한 채 다시 요청하면 이번에 마이그레이션한 55개 Supabase 원본을 Storage API로 정식 삭제 진행, (2) `sidebar_icons`의 `rightIconUrl`이 가리키던 이미지가 이미 사라져있던 건 — 실제 사이트에서 우측 사이드바 아이콘 하나가 깨진 이미지로 보일 가능성이 있음, 관리자가 "홈페이지 설정"에서 해당 아이콘 이미지를 다시 업로드해야 함(이번 작업으로 생긴 문제 아니라 원래부터 깨져있던 것), (3) orphan 32개 삭제 여부 결정.
+
 ## 2026-09-02 (HOTFIX-154.1 — 타임라인 배경 슬라이드 다중 업로드가 특정 영상 파일에서 영원히 멈추는 버그 수정)
 - **사용자 신고**: Craft 에디터에서 "아르누보"/"바로크" 타임라인 이벤트의 "배경 슬라이드"에 영상을 다량(266개/53개) 업로드하는 중 각각 `[174/266]`/`[34/53]`에서 "영상 길이 확인 중..."에 멈춘 채 진행이 안 됨 — 영상이 너무 커서 그런 건지, 업로드 용량 상한을 100MB로 올려야 하는지 문의.
 - **원인**: [videoCompress.ts](src/lib/videoCompress.ts)의 `readVideoDurationSeconds()`가 `<video>` 엘리먼트로 로컬에서 영상 길이를 읽는 단계(네트워크/업로드와 무관)인데, 여기에 타임아웃이 없었다 — 브라우저가 메타데이터를 못 읽는 파일(코덱/컨테이너 문제, 손상된 파일 등)을 만나면 `onloadedmetadata`도 `onerror`도 영영 안 불려 그 파일에서 배치 전체가 무한 대기에 빠진다. 이 경로엔 애초에 업로드 용량 상한이 없어(무제한 압축 시도) 100MB로 올려도 이 증상은 그대로다.

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-09-02 (Security Advisor 후속 — posts author_id 하이재킹 취약점 + newsletter 무제한 UPDATE 정책 수정, DB 전용)
+- **배경**: 앞선 Security Advisor 점검(같은 날짜, 아래 항목)에서 "RLS Policy Always True" warning 4건(`client_error_logs`/`newsletter_subscribers`×2/`posts`)을 하나씩 원인 조회한 결과, 2건이 실제 악용 가능한 취약점으로 확인됨.
+- **[치명적, 즉시 수정] `posts` — author_id 자기지정으로 타인 게시글 하이재킹 가능**: `posts` UPDATE는 RLS가 무조건 허용(`qual=true`)이고 실제 보호는 `posts_protect_content_columns()` 트리거(HOTFIX-152.21 이전, EPIC-079-phase-1에서 신설) 하나에 전적으로 의존하는 구조인데, 이 트리거가 "본인 글인가"를 판단할 때 **수정 요청에 담긴 새(new) author_id**로 확인하고 있었다 — 로그인한 임의 계정이 `{author_id: 본인_id, title: "...", body: "..."}`처럼 author_id를 자기 것으로 같이 바꿔 보내면 트리거가 "본인 글"로 오판해 title/body를 포함한 전체 콘텐츠 변조를 허용해버리는 구조였다(앱 화면은 이런 요청을 안 보내지만 Supabase REST API에 로그인 토큰만 있으면 직접 가능 — 실측 재현은 하지 않고 코드/함수 정의 검토로 확인, 실 데이터 훼손 방지). **수정**: 트리거의 소유자 판정 기준을 new.author_id → **old.author_id**로 변경 + `author_id` 자체도 보호 대상 컬럼에 추가(관리자만 변경 가능, 기존 HOTFIX-099 의도와 일치). `CREATE OR REPLACE FUNCTION`으로 로직만 교체, 트리거 연결/시그니처는 그대로라 정상적인 본인 글 수정·관리자 작성자 변경 플로우엔 영향 없음.
+- **[실제 방치된 구멍, 삭제] `newsletter_subscribers` — 죽은 정책인데 무제한으로 열려있었음**: `newsletter_public_resubscribe`(UPDATE, `qual=true, with_check=true`, 컬럼 제한 없음) 정책이 존재했는데, 코드 전체 검색 결과 앱 어디서도 이 테이블에 UPDATE를 호출하는 곳이 없었음(`/api/newsletter/subscribe`는 INSERT만 하고 unique 위반은 그냥 성공 취급하는 방식으로 구현돼 있어 애초에 UPDATE 경로 자체를 쓰지 않음, 라우트 코드 주석에도 명시). 즉 아무 기능도 안 쓰는데 로그인 없이 누구나 구독자 이메일/구독일시를 임의로 덮어쓸 수 있는 상태로 방치돼 있었던 것 — `DROP POLICY`로 제거(기능 영향 없음, SELECT는 이미 관리자 전용 정책이 별도로 있어 그대로 안전).
+- **[안전 확인, 손 안 댐] `client_error_logs` INSERT 무제한**: 클라이언트 에러 텔레메트리(HOTFIX-152.4) 용도로 로그인 여부와 무관하게 받아야 해서 의도된 설계 — 스팸성 대량 삽입 우려는 있으나 이번 범위 밖으로 판단, 필요시 추후 rate limit 검토.
+- **[의도된 설계, 손 안 댐] Storage 버킷 5개 전부 "Public Bucket Allows Listing"**: `avatars`/`attachments`/`gallery`/`post-images`/`public-assets` 전부 `public=true`로 설계된 버킷(공개 URL 서빙이 목적) — 공개 버킷은 구조적으로 listing도 함께 허용되는 Postgres/Supabase Storage의 기본 동작이라 버킷을 비공개로 바꾸지 않는 한 없앨 수 없는 항목. 전부 실제로 공개돼야 하는 콘텐츠라 문제 없음.
+- **미사용 테이블 9개(RLS 정책 없음)는 사용자 지시로 방치**: "나중에 필요할지도 모르니 지금 문제 안 되면 그냥 둬" — 코드 전체에서 참조하는 곳이 없어(정책 없음 = 항상 빈 배열 반환) 현재 기능 영향 0건 확인, 그대로 둠. `drink_menu`만 5행 데이터 존재, 나머지 8개는 0행.
+- **검증**: `posts_protect_content_columns` 함수 정의에 `old.author_id` 반영 확인, `newsletter_public_resubscribe` 정책이 `pg_policies`에서 사라진 것 확인.
+
 ## 2026-09-02 (Security Advisor 점검 — 뷰 3개 과다 권한 회수 + 함수 search_path 고정, DB 전용)
 - **사용자 신고**: Supabase Security Advisor에 error 3건/warning 다수 — 다 고쳐야 하는지 문의.
 - **실제 위험도 확인 결과(하나씩 원인 조회 후 판단)**:

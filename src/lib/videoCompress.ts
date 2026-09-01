@@ -35,16 +35,38 @@ async function getFFmpeg(): Promise<FFmpeg> {
   return ffmpegPromise;
 }
 
+const DURATION_READ_TIMEOUT_MS = 20_000;
+
+// 사용자 신고(2026-09-02 — 여러 파일 일괄 업로드 중 특정 파일에서
+// "[174/266] 영상 길이 확인 중..."처럼 멈춘 채 진행이 안 됨): 코덱/컨테이너를
+// 브라우저가 못 읽는 파일(예: 일부 HEVC .mov, 손상된 파일)은
+// onloadedmetadata도 onerror도 영영 안 불려서 이 Promise가 끝나지 않고
+// 배치 루프 전체가 그 파일에서 영원히 멈춘다 — 용량 제한과는 무관한
+// 문제라 업로드 상한을 올려도 해결되지 않는다. 타임아웃을 둬서 실패로
+// 처리하고 다음 파일로 넘어갈 수 있게 한다.
 function readVideoDurationSeconds(file: File): Promise<number> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const video = document.createElement("video");
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      reject(new Error("영상 길이를 읽는 데 시간이 너무 오래 걸려요(지원하지 않는 코덱이거나 손상된 파일일 수 있어요)"));
+    }, DURATION_READ_TIMEOUT_MS);
     video.preload = "metadata";
     video.onloadedmetadata = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       URL.revokeObjectURL(url);
       resolve(video.duration || 0);
     };
     video.onerror = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       URL.revokeObjectURL(url);
       reject(new Error("영상 길이를 읽을 수 없습니다"));
     };

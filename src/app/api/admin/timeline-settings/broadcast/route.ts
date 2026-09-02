@@ -10,6 +10,14 @@ import { getRequestMember } from "@/lib/serverAuth";
 // 되게 한다. page_builder는 /admin/storage-cleanup과 동일하게 admin
 // 게이팅 RLS만 있고 posts처럼 콘텐츠 보호 트리거가 없어(HOTFIX-152.21은
 // posts 전용) scopedClient로 바로 update할 수 있다.
+//
+// HOTFIX-156.6(사용자 지시 — "대시보드에 관련된 설정도 전체 타임라인에
+// 적용될수 있게 해줘"): panMotion/advanceAndFit은 "표지"에만 있는 값이라
+// coverXxx로 접두사를 붙이고 이벤트별 오버레이(eventOverlays)에도 같은
+// 값을 뿌렸지만, 마커 색상/카드 크기·폰트는 표지가 아니라 이 블록
+// 인스턴스 전체(TL3 대시보드 자체)에 하나만 있는 플랫 prop이라 접두사도
+// 없고 eventOverlays에도 없다 — FLAT_GROUPS로 별도 처리(그대로
+// props[key] = values[key]).
 
 type PanMotionValues = {
   panDirection: string | null;
@@ -30,6 +38,30 @@ const PAN_MOTION_KEYS: (keyof PanMotionValues)[] = [
   "panDistancePct",
 ];
 const ADVANCE_AND_FIT_KEYS: (keyof AdvanceAndFitValues)[] = ["autoAdvanceSeconds", "backgroundFit"];
+
+const COVER_PREFIXED_GROUPS = {
+  panMotion: PAN_MOTION_KEYS,
+  advanceAndFit: ADVANCE_AND_FIT_KEYS,
+} as const;
+
+const FLAT_GROUPS = {
+  markerColor: [
+    "markerColor",
+    "markerCardBg",
+    "markerCardText",
+    "markerCardHoverBg",
+    "markerCardHoverText",
+    "markerCardActiveBg",
+    "markerCardActiveText",
+  ],
+  markerCardStyle: [
+    "markerCardWidthPx",
+    "markerCardFontSizePx",
+    "markerCardFontWeight",
+    "markerCardFontFamily",
+    "markerCardMaxLines",
+  ],
+} as const;
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -57,13 +89,17 @@ export async function POST(request: NextRequest) {
   }
 
   const { group, values } = body;
-  if (group !== "panMotion" && group !== "advanceAndFit") {
+  const isCoverPrefixed = group === "panMotion" || group === "advanceAndFit";
+  const isFlat = group === "markerColor" || group === "markerCardStyle";
+  if (!isCoverPrefixed && !isFlat) {
     return NextResponse.json({ error: "group이 올바르지 않아요." }, { status: 400 });
   }
   if (!values || typeof values !== "object") {
     return NextResponse.json({ error: "values가 필요해요." }, { status: 400 });
   }
-  const keys = group === "panMotion" ? PAN_MOTION_KEYS : ADVANCE_AND_FIT_KEYS;
+  const keys: readonly string[] = isCoverPrefixed
+    ? COVER_PREFIXED_GROUPS[group as keyof typeof COVER_PREFIXED_GROUPS]
+    : FLAT_GROUPS[group as keyof typeof FLAT_GROUPS];
 
   const { data: pages, error: fetchError } = await requester.scopedClient
     .from("page_builder")
@@ -96,16 +132,22 @@ export async function POST(request: NextRequest) {
       const props = (node as any).props;
       if (!props || typeof props !== "object") continue;
 
-      for (const key of keys) {
-        props[`cover${capitalize(key)}`] = values[key];
-      }
-      const eventOverlays = props.eventOverlays;
-      if (eventOverlays && typeof eventOverlays === "object") {
-        for (const overlay of Object.values(eventOverlays)) {
-          if (!overlay || typeof overlay !== "object") continue;
-          for (const key of keys) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (overlay as any)[key] = values[key];
+      if (isFlat) {
+        for (const key of keys) {
+          props[key] = values[key];
+        }
+      } else {
+        for (const key of keys) {
+          props[`cover${capitalize(key)}`] = values[key];
+        }
+        const eventOverlays = props.eventOverlays;
+        if (eventOverlays && typeof eventOverlays === "object") {
+          for (const overlay of Object.values(eventOverlays)) {
+            if (!overlay || typeof overlay !== "object") continue;
+            for (const key of keys) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (overlay as any)[key] = values[key];
+            }
           }
         }
       }

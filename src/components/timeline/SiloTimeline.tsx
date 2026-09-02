@@ -37,6 +37,7 @@ export function SiloTimeline({
   markerCardFontWeight,
   markerCardFontFamily,
   markerCardMaxLines,
+  markerLabelOverrides,
 }: {
   boardId?: string;
   groupHref?: string;
@@ -66,6 +67,9 @@ export function SiloTimeline({
   markerCardFontWeight?: "normal" | "medium" | "semibold" | "bold" | null;
   markerCardFontFamily?: string | null;
   markerCardMaxLines?: number | null;
+  /** HOTFIX-156.6: 대시보드 마커 헤드라인 텍스트 오버라이드(unique_id →
+   * 표시 문구) — SiloTimelineInner.tsx 주석 참고. */
+  markerLabelOverrides?: Record<string, string>;
 }) {
   return (
     <SiloTimelineInner
@@ -86,6 +90,7 @@ export function SiloTimeline({
       markerCardFontWeight={markerCardFontWeight}
       markerCardFontFamily={markerCardFontFamily}
       markerCardMaxLines={markerCardMaxLines}
+      markerLabelOverrides={markerLabelOverrides}
     />
   );
 }

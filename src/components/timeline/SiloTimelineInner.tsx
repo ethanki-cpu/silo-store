@@ -359,6 +359,7 @@ export default function SiloTimelineInner({
   markerCardFontWeight,
   markerCardFontFamily,
   markerCardMaxLines,
+  markerLabelOverrides,
 }: {
   /** 단일 게시판 모드 — groupHref와 둘 중 하나만 준다. */
   boardId?: string;
@@ -406,6 +407,12 @@ export default function SiloTimelineInner({
   markerCardFontWeight?: "normal" | "medium" | "semibold" | "bold" | null;
   markerCardFontFamily?: string | null;
   markerCardMaxLines?: number | null;
+  // HOTFIX-156.6(사용자 지시 — "제국~군주"의 로마제국/비잔틴제국/르네상스/
+  // 바로크/로코코 OTE 대시보드 카드 "텍스트 내용을 수정할수 있게 해달라"):
+  // TL3에 넘기는 이벤트 JSON을 만들 때 unique_id가 일치하면 text.headline을
+  // 이 값으로 덮어쓴다 — 실제 카테고리/게시글 제목은 그대로 두고 이
+  // 타임라인 대시보드에서만 보이는 문구를 따로 지정.
+  markerLabelOverrides?: Record<string, string>;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<InstanceType<NonNullable<Window["TL"]>["Timeline"]> | null>(null);
@@ -428,6 +435,15 @@ export default function SiloTimelineInner({
   const onCoverStateChangeRef = useRef(onCoverStateChange);
   useEffect(() => {
     onCoverStateChangeRef.current = onCoverStateChange;
+  });
+  // HOTFIX-156.6: markerLabelOverrides는 호출부(SiloTimelineEmbedBlock)에서
+  // 매 렌더마다 새 객체 리터럴(기본값 `= {}`)일 수 있어, 아래 TL3
+  // 생성/재생성 effect의 의존성 배열에 직접 넣으면 매 렌더마다 TL3를
+  // 통째로 다시 만들어버린다 — onCoverStateChangeRef와 동일하게 ref로
+  // 최신 값만 추적해 effect 재실행 트리거로 쓰지 않는다.
+  const markerLabelOverridesRef = useRef(markerLabelOverrides);
+  useEffect(() => {
+    markerLabelOverridesRef.current = markerLabelOverrides;
   });
   const isTitleRef = useRef(true);
   // HOTFIX-147.13: 표지가 아닐 때 지금 보고 있는 이벤트의 unique_id.
@@ -487,6 +503,13 @@ export default function SiloTimelineInner({
     };
   }, [onCoverStateChange, emitCoverState, boardId, groupHref, stageHeightPx]);
 
+  // HOTFIX-156.6: 아래 effect의 의존성 배열에 markerLabelOverrides 객체를
+  // 직접 넣으면(호출부 기본값이 매 렌더 새 리터럴이라) 매 렌더마다 TL3를
+  // 다시 만들어버린다 — 실제 내용이 바뀔 때만 재실행되도록 직렬화한
+  // 문자열을 의존성으로 쓰고, 실제 값은 위 ref에서 읽는다(관리자가
+  // 라벨을 편집하면 이 문자열이 바뀌어 미리보기가 갱신된다).
+  const markerLabelOverridesKey = JSON.stringify(markerLabelOverrides ?? {});
+
   useEffect(() => {
     let cancelled = false;
     const container = containerRef.current;
@@ -508,6 +531,15 @@ export default function SiloTimelineInner({
         if (!Array.isArray(data?.events) || data.events.length === 0) {
           setIsEmpty(true);
           return;
+        }
+        // HOTFIX-156.6: 실제 카테고리/게시글 제목은 그대로 두고, 이
+        // 대시보드에서만 보이는 헤드라인 문구를 unique_id 기준으로 덮어쓴다.
+        const labelOverrides = markerLabelOverridesRef.current;
+        if (labelOverrides) {
+          for (const event of data.events as { unique_id?: string; text?: { headline?: string } }[]) {
+            const override = event.unique_id ? labelOverrides[event.unique_id] : undefined;
+            if (override && event.text) event.text.headline = override;
+          }
         }
         setIsEmpty(false);
         const TimelineCtor = window.TL?.Timeline;
@@ -590,7 +622,7 @@ export default function SiloTimelineInner({
       // 공식적으로 안내된 정리 방법(다른 사용자들도 재마운트 시 이렇게 함).
       if (container) container.innerHTML = "";
     };
-  }, [boardId, groupHref, stageHeightPx, initialZoomFactor, emitCoverState]);
+  }, [boardId, groupHref, stageHeightPx, initialZoomFactor, emitCoverState, markerLabelOverridesKey]);
 
   // EPIC-147(요구사항 3 — 새로고침 없이 상세 페이지로 이동): TimelineJS3가
   // 그리는 순수 DOM이라 React가 그 안의 <a> 클릭을 알 방법이 없다 —

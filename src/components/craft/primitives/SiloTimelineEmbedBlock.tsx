@@ -259,6 +259,16 @@ export type SiloTimelineEmbedBlockProps = {
   markerCardFontWeight: CoverFontWeight | null;
   markerCardFontFamily: string | null;
   markerCardMaxLines: number | null;
+  // HOTFIX-156.6(사용자 지시 — "제국~군주"의 로마제국/비잔틴제국/르네상스/
+  // 바로크/로코코 OTE 대시보드 카드 "텍스트 내용을 수정할수 있게 해달라"):
+  // group 모드에서 각 카드의 헤드라인은 그 하위 카테고리 페이지의 실제
+  // 제목(parseCategoryTitle로 연대 접두사를 뗀 나머지)에서, board 모드는
+  // 게시글 제목에서 그대로 가져온다 — 카테고리/게시글 제목 자체를 바꾸지
+  // 않고 "이 타임라인 대시보드에서만" 보이는 표시 문구를 따로 지정하고
+  // 싶을 때를 위한 맵. unique_id(그룹 모드는 하위 페이지 id, 보드 모드는
+  // 게시글 id) → 오버라이드 텍스트. 값이 없는(또는 빈 문자열) id는 원래
+  // 헤드라인 그대로 쓴다.
+  markerLabelOverrides: Record<string, string>;
 };
 
 // HOTFIX-147.19: TL3(TimelineJS3) 자체가 정의한 `zoom_sequence` 기본값
@@ -786,6 +796,7 @@ export function SiloTimelineEmbedBlock({
   markerCardFontWeight = null,
   markerCardFontFamily = null,
   markerCardMaxLines = null,
+  markerLabelOverrides = {},
 }: SiloTimelineEmbedBlockProps) {
   const {
     id: nodeId,
@@ -856,6 +867,7 @@ export function SiloTimelineEmbedBlock({
         markerCardFontWeight={markerCardFontWeight}
         markerCardFontFamily={markerCardFontFamily}
         markerCardMaxLines={markerCardMaxLines}
+        markerLabelOverrides={markerLabelOverrides}
       />
     ) : (
       <SiloTimeline
@@ -875,6 +887,7 @@ export function SiloTimelineEmbedBlock({
         markerCardFontWeight={markerCardFontWeight}
         markerCardFontFamily={markerCardFontFamily}
         markerCardMaxLines={markerCardMaxLines}
+        markerLabelOverrides={markerLabelOverrides}
       />
     );
 
@@ -1482,10 +1495,15 @@ function SiloTimelineEmbedSettings() {
   // 모든 타임라인에 적용하는 기능을 만들어줘"): 지금 이 타임라인 표지에
   // 설정된 값을 그대로 사이트의 모든 SiloTimelineEmbedBlock(표지+이벤트
   // 전부)에 뿌리는 일괄 적용 — 매번 페이지마다 손으로 맞추지 않아도 되게.
-  const [broadcasting, setBroadcasting] = useState<"panMotion" | "advanceAndFit" | null>(null);
+  const [broadcasting, setBroadcasting] = useState<"panMotion" | "advanceAndFit" | "markerColor" | "markerCardStyle" | null>(null);
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
 
-  async function broadcastToAllTimelines(group: "panMotion" | "advanceAndFit") {
+  // HOTFIX-156.6(사용자 지시 — "대시보드에 관련된 설정도 전체 타임라인에
+  // 적용될수 있게 해줘"): 마커 색상/카드 크기·폰트는 panMotion/
+  // advanceAndFit과 달리 "표지"가 아니라 이 블록 인스턴스 전체(TL3
+  // 대시보드 자체)에 하나만 있는 플랫 prop이라 coverXxx 접두사도 없고
+  // eventOverlays에도 안 뿌린다 — /api/.../broadcast의 FLAT_GROUPS 참고.
+  async function broadcastToAllTimelines(group: "panMotion" | "advanceAndFit" | "markerColor" | "markerCardStyle") {
     setBroadcasting(group);
     setBroadcastResult(null);
     try {
@@ -1504,10 +1522,28 @@ function SiloTimelineEmbedSettings() {
               panZoomPct: props.coverPanZoomPct,
               panDistancePct: props.coverPanDistancePct,
             }
-          : {
-              autoAdvanceSeconds: props.coverAutoAdvanceSeconds,
-              backgroundFit: props.coverBackgroundFit,
-            };
+          : group === "advanceAndFit"
+            ? {
+                autoAdvanceSeconds: props.coverAutoAdvanceSeconds,
+                backgroundFit: props.coverBackgroundFit,
+              }
+            : group === "markerColor"
+              ? {
+                  markerColor: props.markerColor,
+                  markerCardBg: props.markerCardBg,
+                  markerCardText: props.markerCardText,
+                  markerCardHoverBg: props.markerCardHoverBg,
+                  markerCardHoverText: props.markerCardHoverText,
+                  markerCardActiveBg: props.markerCardActiveBg,
+                  markerCardActiveText: props.markerCardActiveText,
+                }
+              : {
+                  markerCardWidthPx: props.markerCardWidthPx,
+                  markerCardFontSizePx: props.markerCardFontSizePx,
+                  markerCardFontWeight: props.markerCardFontWeight,
+                  markerCardFontFamily: props.markerCardFontFamily,
+                  markerCardMaxLines: props.markerCardMaxLines,
+                };
       const res = await fetch("/api/admin/timeline-settings/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
@@ -1905,6 +1941,14 @@ function SiloTimelineEmbedSettings() {
           defaultHex="#333333"
           onChange={(v) => setProp((p) => { p.markerCardActiveText = v; })}
         />
+        <button
+          type="button"
+          disabled={broadcasting !== null}
+          onClick={() => broadcastToAllTimelines("markerColor")}
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+        >
+          {broadcasting === "markerColor" ? "적용 중..." : "이 마커 색상 설정을 전체 타임라인에 적용"}
+        </button>
       </div>
 
       {/* HOTFIX-156.5(사용자 지시 — "카드크게/폰트/내용까지 내가
@@ -1968,6 +2012,52 @@ function SiloTimelineEmbedSettings() {
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
           />
         </label>
+        <button
+          type="button"
+          disabled={broadcasting !== null}
+          onClick={() => broadcastToAllTimelines("markerCardStyle")}
+          className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+        >
+          {broadcasting === "markerCardStyle" ? "적용 중..." : "이 카드 크기 · 폰트 설정을 전체 타임라인에 적용"}
+        </button>
+        {broadcastResult && <p className="text-[10px] text-gray-500">{broadcastResult}</p>}
+      </div>
+
+      {/* HOTFIX-156.6(사용자 지시 — "제국~군주"의 로마제국/비잔틴제국/
+          르네상스/바로크/로코코 OTE 대시보드 카드 "텍스트 내용을 수정할수
+          있게 해달라"): eventOptions(이미 위 "화면 자유편집" 표시용으로
+          불러온 목록, group 모드는 하위 카테고리, board 모드는 게시글)를
+          전부 나열해 각각 대시보드 표시 문구를 재정의할 수 있게 한다 —
+          실제 카테고리/게시글 제목은 바꾸지 않는다(사이트 메뉴/게시글
+          수정과는 별개). 비워두면 원래 제목 그대로. */}
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <h4 className="text-xs font-semibold text-gray-500">대시보드 카드 텍스트 재정의</h4>
+        <p className="text-[10px] leading-relaxed text-gray-500">
+          실제 카테고리/게시글 제목은 그대로 두고, 이 타임라인 대시보드에서만 보이는 문구를 따로 지정해요. 비워두면 원래 제목 그대로 보여요.
+        </p>
+        {eventOptions.length === 0 ? (
+          <p className="text-[10px] text-gray-400">이벤트를 불러오는 중이거나 아직 없어요.</p>
+        ) : (
+          eventOptions.map((ev) => (
+            <label key={ev.id} className="block text-xs text-gray-600">
+              {ev.headline}
+              <input
+                type="text"
+                placeholder={ev.headline}
+                value={props.markerLabelOverrides[ev.id] ?? ""}
+                onChange={(e) =>
+                  setProp((p) => {
+                    const next = { ...p.markerLabelOverrides };
+                    if (e.target.value === "") delete next[ev.id];
+                    else next[ev.id] = e.target.value;
+                    p.markerLabelOverrides = next;
+                  })
+                }
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+              />
+            </label>
+          ))
+        )}
       </div>
 
       <MotionSettingsSection />
@@ -2025,6 +2115,7 @@ SiloTimelineEmbedBlock.craft = {
     markerCardFontWeight: null,
     markerCardFontFamily: null,
     markerCardMaxLines: null,
+    markerLabelOverrides: {},
   } satisfies SiloTimelineEmbedBlockProps,
   related: { settings: SiloTimelineEmbedSettings },
 };

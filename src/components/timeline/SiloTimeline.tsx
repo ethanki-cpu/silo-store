@@ -25,6 +25,13 @@ export function SiloTimeline({
   stageHeightPx,
   initialZoomFactor,
   onCoverStateChange,
+  markerColor,
+  markerCardBg,
+  markerCardText,
+  markerCardHoverBg,
+  markerCardHoverText,
+  markerCardActiveBg,
+  markerCardActiveText,
 }: {
   boardId?: string;
   groupHref?: string;
@@ -38,6 +45,15 @@ export function SiloTimeline({
   /** HOTFIX-147.8: SiloTimelineEmbedBlock의 표지 자유배치 오버레이용 —
    * SiloTimelineInner.tsx 주석 참고. */
   onCoverStateChange?: (state: TimelineCoverState) => void;
+  /** HOTFIX-156.4: 대시보드(TimeNav) 이벤트 마커 점/카드 색상 커스터마이즈 —
+   * SiloTimelineInner.tsx 주석 참고. null이면 TL3 기본 색상. */
+  markerColor?: string | null;
+  markerCardBg?: string | null;
+  markerCardText?: string | null;
+  markerCardHoverBg?: string | null;
+  markerCardHoverText?: string | null;
+  markerCardActiveBg?: string | null;
+  markerCardActiveText?: string | null;
 }) {
   return (
     <SiloTimelineInner
@@ -46,6 +62,13 @@ export function SiloTimeline({
       stageHeightPx={stageHeightPx}
       initialZoomFactor={initialZoomFactor}
       onCoverStateChange={onCoverStateChange}
+      markerColor={markerColor}
+      markerCardBg={markerCardBg}
+      markerCardText={markerCardText}
+      markerCardHoverBg={markerCardHoverBg}
+      markerCardHoverText={markerCardHoverText}
+      markerCardActiveBg={markerCardActiveBg}
+      markerCardActiveText={markerCardActiveText}
     />
   );
 }

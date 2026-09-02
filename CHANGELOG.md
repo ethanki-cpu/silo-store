@@ -6,6 +6,19 @@
 - **모션 형식 변경("2번 움직이는 형식")**: HOTFIX-147.29부터 있던 "4정거장을 도는 투어" 모션(TOUR_TEMPLATES/buildTourVars, 정거장 4개를 거쳐 한 바퀴 도는 방식)을 완전히 제거 — 그보다 더 예전부터 있던 단순 대각선 왕복 키프레임(↘/↙, CSS `animation-direction: alternate`로 끝점에 닿으면 자동으로 반대 방향 재생 = "2번 움직임")으로 되돌림. "auto"는 이제 이미지 URL 해시로 ↘/↙ 둘 중 하나를 이미지마다 고정 랜덤 선택.
 - **슬라이드 노출 시간 확대**: `autoAdvanceSeconds` 기본값 5초 → `DEFAULT_AUTO_ADVANCE_SECONDS`(20초, 패닝 편도 재생 시간과 동일) 신설 — 지금까지는 패닝이 한쪽 방향으로 채 다 가기도 전에(20초 걸리는데 5초마다) 다음 이미지로 넘어가 버려 움직임 자체가 거의 안 보였다.
 - **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(81 warnings, 기존 기준선 유지, 신규 경고 없음 — 죽은 코드 TOUR_TEMPLATES/buildTourVars/PanPoint까지 함께 제거). 로컬 dev 서버에서 `getComputedStyle`로 `silo-cover-pan-diag-down` 클래스/20s/alternate 실제 적용 확인.
+- **후속 정정(같은 날, HOTFIX-156.4 참고)**: 이 롤백과 동시에 다른 세션(작업 브랜치)에서 별도로 배경 패닝 모션 값을 손대는 작업이 진행 중이었다 — 두 작업을 합치는 과정에서 사용자가 "충돌나면 투어 모션을 되살려줘"라고 지시해, 위에서 제거한 4정거장 "투어" 모션(TOUR_TEMPLATES/buildTourVars)은 HOTFIX-156.4에서 다시 복원됨. 이 항목의 "모션 형식 변경" 문단은 그 시점까지의 기록으로 남겨두고, 최종 상태는 HOTFIX-156.4 항목 참고.
+
+## 2026-09-02 (HOTFIX-156.4 — OTE 배경 패닝/자동전환 값 전체 타임라인 일괄 적용 + 대시보드 마커 색상 커스터마이즈)
+- **사용자 요청 1(첨부 스크린샷: TimeNav 대시보드 축 위 이벤트 시작점 표시 "점")**: "온라인 도슨트"의 "하위 카테고리"/"최하위 카테고리" 모든 OTE의 배경 패닝 모션=10초, 배경 자동전환 간격=15초로 통일 + 앞으로 이 두 그룹(배경 패닝 모션 / 배경 자동전환간격+배경이미지 채우기 방식)을 전체 타임라인에 한 번에 적용하는 기능.
+  - **구현**: 새 관리자 API `POST /api/admin/timeline-settings/broadcast`(`src/app/api/admin/timeline-settings/broadcast/route.ts`) — `group`("panMotion" | "advanceAndFit")과 현재 편집 중인 값을 받아, `page_builder`(`builder_type='craft'`, `craft_state IS NOT NULL`) 전체를 스캔해 `SiloTimelineEmbedBlock` 노드를 찾고 표지 prop + 모든 `eventOverlays` 항목에 동일 값을 일괄 반영(`scopedClient`로 admin RLS 통과, `page_builder`는 posts와 달리 콘텐츠 보호 트리거가 없어 update 가능). `SiloTimelineEmbedBlock.tsx` 편집 패널에 "전체 타임라인에 일괄 적용" 버튼 2개 신설(각각 두 그룹 호출). 기본값 자체도 `DEFAULT_PAN_SPEED_SECONDS` 10초, `coverAutoAdvanceSeconds`/`DEFAULT_SLIDE_OVERLAY_CONFIG.autoAdvanceSeconds` 15초로 통일.
+  - **검증**: 실제 운영 데이터에 대해 두 그룹 모두 실행 — 22개 페이지/23개 타임라인 반영 확인, 이후 별도 Python 스크립트로 23개 타임라인 노드 + 기존 `eventOverlays` 전부 재조회해 값 불일치 0건 확인.
+- **사용자 요청 2(첨부 스크린샷: 이벤트 시작점 "점" 색깔 원 표시)**: OTE 대시보드에서 이벤트 시작 지점을 표시하는 점의 색깔을 바꿀 수 있게 해달라는 요청 — `markerColor` prop 신설, TimelineJS3(TL3) CSS를 `--silo-marker-color` CSS 변수로 오버라이드.
+- **사용자 요청 3(첨부 스크린샷: 이벤트 마커 카드 박스 표시)**: 대시보드에 보이는 각 이벤트 카드의 평상시/hover/클릭됨(active) 배경·텍스트 색상을 설정할 수 있게 해달라는 요청 — `markerCardBg`/`markerCardText`/`markerCardHoverBg`/`markerCardHoverText`/`markerCardActiveBg`/`markerCardActiveText` 6개 prop 신설. 편집 패널에 "대시보드 이벤트 마커 스타일" 섹션(색상 스와치 + hex 입력 7개, 평상시/hover/클릭됨 3그룹) 추가.
+  - **TL3 DOM 소유권 버그(구현 중 발견 및 수정)**: TimelineJS3가 자신이 마운트되는 요소의 `className`을 초기화 시점에 자체적으로 덮어써버려(`"tl-timeline tl-layout-landscape"`), 그 요소에 직접 커스텀 클래스를 붙여 CSS로 커스터마이즈하려던 최초 구현은 TL3 초기화 이후 아무 효과가 없었다(클래스가 사라짐). `style` 속성은 TL3가 건드리지 않는 것을 확인 후, TL3가 마운트하는 `containerRef` div를 감싸는 **바깥쪽 래퍼 div**에 클래스와 CSS 변수(`style`)를 옮겨 해결(`SiloTimelineInner.tsx`).
+  - **검증**: 테스트 색상(빨강 점/파랑 카드배경/노랑 카드텍스트)을 실제 참조 페이지("고대 문명~침략")에 임시 적용 후 `getComputedStyle`로 정확히 일치 확인(라이브 페이지, 에디터 캔버스 아님), 확인 후 테스트 값은 다시 `null`로 원복.
+- **다른 세션과의 충돌 병합(중요)**: 이 작업 브랜치와 동시에 별도 세션이 HOTFIX-156.3(위 항목)을 main에 올려, 같은 파일의 같은 상수(`DEFAULT_PAN_SPEED_SECONDS` 등)를 서로 다른 값으로 바꿔놓은 상태로 충돌했다. 병합 시 사용자가 "충돌나면 투어 모션을 되살려줘"라고 지시 — HOTFIX-156.3이 제거했던 4정거장 "투어" 모션(`TOUR_TEMPLATES`/`buildTourVars`, HOTFIX-147.29)을 되살리고, 그 위에 이 항목의 속도(10초)/자동전환(15초) 지시를 반영, 확대/이동 거리는 투어 모션에 맞춰져 있던 값(220%/32%)을 유지했다.
+- **번호 규칙**: 병합 시점에 HOTFIX-156.3 번호가 이미 다른 커밋에 쓰여있어(위 항목) `HOTFIX-156.4`로 재조정.
+- **검증**: `npx tsc --noEmit` 0 errors, `npm run lint` 0 errors(81 warnings, 기존 기준선 유지, 신규 코드에서 추가된 warning 없음).
 
 ## 2026-09-02 (HOTFIX-156.2 — 배경 슬라이드 패닝 속도 절반으로 완화 + 편집 UI 범위 보정)
 - **사용자 재신고**: HOTFIX-156.1의 6초가 "너무 빠르다" — 속도를 절반으로 줄여달라는 요청 + 조절 기능 요청.

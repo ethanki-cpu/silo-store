@@ -21,11 +21,48 @@
 // 해결: 이 파일(및 CSS)을 public/vendor/timelinejs/로 복사해 자체 호스팅하고,
 // 브라우저 DOM에 진짜 <script src>/<link> 태그를 직접 넣는다 — 번들러
 // 스코프를 완전히 우회해 원래 라이브러리가 기대하는 대로 전역에 등록된다.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 
 const TL_BASE = "/vendor/timelinejs";
 let tlLoadPromise: Promise<void> | null = null;
+
+// HOTFIX-156.4(사용자 지시 — "OTE 대시보드의 이벤트 시작 기점을 알리는
+// '점'의 색깔을 바꿀 수 있게 해줘" + "각 이벤트의 대시보드에 보여지는
+// 설정을 hover/평상시/클릭됐을 때로 나눠서 하게 해줘"): TL3(벤더)
+// timeline.css가 마커 점(.tl-timemarker-line-*:after)과 마커 카드
+// (.tl-timemarker-content-container)의 배경/텍스트 색을 하드코딩하고
+// 있어(#919191/#e5e5e5/hover #737373·#fff/active #fff·#333) 벤더 CSS를
+// 직접 고치는 대신 여기서 var(--silo-marker-*, 원래 하드코딩 값)로
+// 오버라이드한다. 컨테이너 인라인 style에 커스텀 프로퍼티를 설정하면
+// 그 인스턴스에만 적용되고(인라인이라 다른 .tl-silo-container로 안 샘),
+// 아무것도 설정 안 하면 fallback이 그대로 원래 TL3 색상이라 회귀 없다.
+const MARKER_STYLE_CSS = `
+.tl-silo-container .tl-timemarker-line-left:after,
+.tl-silo-container .tl-timemarker-line-right:after {
+  background-color: var(--silo-marker-color, #919191);
+}
+.tl-silo-container .tl-timemarker-content-container {
+  background-color: var(--silo-marker-card-bg, #e5e5e5);
+}
+.tl-silo-container .tl-timemarker-content-container .tl-timemarker-content .tl-timemarker-text h2.tl-headline {
+  color: var(--silo-marker-card-text, inherit);
+}
+.tl-silo-container .tl-timemarker:hover .tl-timemarker-content-container,
+.tl-silo-container .tl-timemarker:focus .tl-timemarker-content-container {
+  background-color: var(--silo-marker-card-hover-bg, #737373);
+}
+.tl-silo-container .tl-timemarker:hover .tl-timemarker-content-container .tl-timemarker-content .tl-timemarker-text h2.tl-headline,
+.tl-silo-container .tl-timemarker:focus .tl-timemarker-content-container .tl-timemarker-content .tl-timemarker-text h2.tl-headline {
+  color: var(--silo-marker-card-hover-text, #fff);
+}
+.tl-silo-container .tl-timemarker.tl-timemarker-active .tl-timemarker-content-container {
+  background-color: var(--silo-marker-card-active-bg, #fff);
+}
+.tl-silo-container .tl-timemarker.tl-timemarker-active .tl-timemarker-content-container .tl-timemarker-content .tl-timemarker-text h2.tl-headline {
+  color: var(--silo-marker-card-active-text, #333);
+}
+`;
 
 // HOTFIX-151.3(사용자 신고 — "타임라인이 로딩되면 첫 이벤트가 너무
 // 오른쪽에 있어, 나머지 이벤트들도 첫 화면부터 한눈에 보이게 해줘"):
@@ -281,6 +318,13 @@ export default function SiloTimelineInner({
   stageHeightPx,
   initialZoomFactor,
   onCoverStateChange,
+  markerColor,
+  markerCardBg,
+  markerCardText,
+  markerCardHoverBg,
+  markerCardHoverText,
+  markerCardActiveBg,
+  markerCardActiveText,
 }: {
   /** 단일 게시판 모드 — groupHref와 둘 중 하나만 준다. */
   boardId?: string;
@@ -304,6 +348,20 @@ export default function SiloTimelineInner({
    * 정확히 겹칠 수 있도록. 매번 새 함수를 넘겨도 effect가 매번 재설정되지
    * 않도록 ref로 최신 값만 추적한다. */
   onCoverStateChange?: (state: TimelineCoverState) => void;
+  // HOTFIX-156.4(사용자 지시 — "OTE 대시보드의 이벤트 시작 기점을 알리는
+  // '점'의 색깔을 바꿀 수 있게 해줘" + "각 이벤트의 대시보드에 보여지는
+  // 설정을 hover/평상시/클릭됐을 때로 나눠서 하게 해줘"): TL3 대시보드
+  // (TimeNav)의 마커 점/카드 색상 — 전부 null이면 TL3 기본 색상 그대로.
+  // CSS 커스텀 프로퍼티로 이 컴포넌트 인스턴스에만(컨테이너에 인라인
+  // style로) 스코프해 적용한다(panSpeedSeconds 등과 동일한 패턴) — 아래
+  // <style> 블록이 var(--silo-marker-*, 기본값)로 참조한다.
+  markerColor?: string | null;
+  markerCardBg?: string | null;
+  markerCardText?: string | null;
+  markerCardHoverBg?: string | null;
+  markerCardHoverText?: string | null;
+  markerCardActiveBg?: string | null;
+  markerCardActiveText?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<InstanceType<NonNullable<Window["TL"]>["Timeline"]> | null>(null);
@@ -582,5 +640,31 @@ export default function SiloTimelineInner({
     );
   }
 
-  return <div ref={containerRef} className="tl-silo-container" style={{ height: stageHeightPx ? stageHeightPx + 260 : 650 }} />;
+  // HOTFIX-156.4(실측 중 발견한 버그): TL3(TimeNav.js)가 초기화되면서
+  // 이 컨테이너의 className을 자기 것("tl-timeline tl-layout-landscape"
+  // 등)으로 통째로 덮어써서, containerRef 자체에 "tl-silo-container"
+  // 클래스를 직접 주면 초기화 직후 사라져 위 <style>의 셀렉터가 아무것도
+  // 못 찾는다(실제 배포 페이지에서 getElementsByClassName으로 확인).
+  // TL3는 style 속성은 안 건드리므로, "tl-silo-container" 클래스와 CSS
+  // 변수는 TL3가 손 안 대는 바깥 래퍼에 두고 TL3의 실제 마운트 지점
+  // (containerRef)은 안쪽 별도 div로 분리한다.
+  const outerStyle = {
+    ...(markerColor ? { "--silo-marker-color": markerColor } : {}),
+    ...(markerCardBg ? { "--silo-marker-card-bg": markerCardBg } : {}),
+    ...(markerCardText ? { "--silo-marker-card-text": markerCardText } : {}),
+    ...(markerCardHoverBg ? { "--silo-marker-card-hover-bg": markerCardHoverBg } : {}),
+    ...(markerCardHoverText ? { "--silo-marker-card-hover-text": markerCardHoverText } : {}),
+    ...(markerCardActiveBg ? { "--silo-marker-card-active-bg": markerCardActiveBg } : {}),
+    ...(markerCardActiveText ? { "--silo-marker-card-active-text": markerCardActiveText } : {}),
+  } as CSSProperties;
+  const innerHeight = stageHeightPx ? stageHeightPx + 260 : 650;
+
+  return (
+    <>
+      <style>{MARKER_STYLE_CSS}</style>
+      <div className="tl-silo-container" style={outerStyle}>
+        <div ref={containerRef} style={{ height: innerHeight }} />
+      </div>
+    </>
+  );
 }

@@ -114,22 +114,19 @@ export type SlideOverlayConfig = {
 // 비어 보이지 않도록 확대 배율도 40%→65%로 함께 올렸다. 안전 여유분
 // 공식(|이동%| <= 50*(zoom-1)/zoom)대로면 65% 확대에서 최대 19.7%까지
 // 안전 — 18%는 그 안에 여유 있게 들어간다(가장자리 안 빔).
-// HOTFIX(2026-09-02, 시도했다가 롤백 — "모서리에서 모서리로 6초 안에"
-// 요청에 맞춰 속도 6초/확대 220%/이동 32%까지 올려봤다가, "너무 빠르다"는
-// 재신고로 12초로 완화했지만 결국 "수정 이후가 오히려 더 보기 안
-// 좋다 — 이전(HOTFIX-152.19 상태)이 낫다"는 최종 판단으로 이 두 커밋을
-// 전부 되돌린다. 대신 모션 "형식" 자체는 아래 resolvePanClass에서
-// 4정거장 투어 대신 단순 "왕복 2동작"으로 교체하고, 슬라이드가 바뀌는
-// 간격(autoAdvanceSeconds)을 늘려 한 이미지가 패닝을 충분히 보여줄
-// 시간을 확보하는 쪽으로 대응한다(아래 DEFAULT_AUTO_ADVANCE_SECONDS).
-export const DEFAULT_PAN_SPEED_SECONDS = 20;
-export const DEFAULT_PAN_ZOOM_PCT = 65;
-export const DEFAULT_PAN_DISTANCE_PCT = 18;
-// HOTFIX(2026-09-02): 슬라이드가 5초마다 바뀌면 패닝(20초 왕복)이 채
-// 한 방향도 다 못 가서 다음 이미지로 넘어가 버려 움직임이 안 보였다 —
-// 패닝 한쪽 방향 재생 시간(DEFAULT_PAN_SPEED_SECONDS)과 맞춰 한 이미지가
-// 충분히 움직이는 걸 보여준 뒤에 넘어가도록 늘림.
-export const DEFAULT_AUTO_ADVANCE_SECONDS = 20;
+// HOTFIX(2026-09-02, 다른 세션에서 시도했다가 롤백 — "모서리에서 모서리로
+// 6초 안에" 요청에 맞춰 속도 6초/확대 220%/이동 32%까지 올려봤다가, "너무
+// 빠르다"는 재신고로 12초로 완화했지만 "수정 이후가 오히려 더 보기 안
+// 좋다"는 판단으로 4정거장 "투어" 모션 자체를 단순 왕복 2동작으로
+// 되돌리는 커밋이 이 브랜치 작업과 동시에 main에 올라갔다(HOTFIX-156.3).
+// HOTFIX-156.4(2026-09-02, 사용자 지시로 두 커밋을 합치며 재확정 —
+// "충돌나면 투어 모션을 되살려줘"): 투어 모션(TOUR_TEMPLATES/
+// buildTourVars/resolvePanClass의 "auto"→투어 분기, 아래 계속)은 그대로
+// 유지 + 속도/전환 간격은 그 다음 별도 지시대로 10초/15초로 갱신.
+export const DEFAULT_PAN_ZOOM_PCT = 220;
+export const DEFAULT_PAN_DISTANCE_PCT = 32;
+export const DEFAULT_PAN_SPEED_SECONDS = 10;
+export const DEFAULT_AUTO_ADVANCE_SECONDS = 15;
 
 // HOTFIX-151.3(사용자 신고 — "제목 스타일을 바꾸면 설명 스타일도 같이
 // 바뀌는 것처럼 보인다, 둘이 분리되게 해달라"): description* 필드들이
@@ -159,6 +156,8 @@ export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   descriptionFontFamily: null,
   backgroundFit: null,
   slideUrls: [],
+  // HOTFIX-156.4(2026-09-02, 사용자 지시로 전체 타임라인 통일 값): 표지
+  // 기본값(coverAutoAdvanceSeconds)과 동일하게 15초로 갱신.
   autoAdvanceSeconds: DEFAULT_AUTO_ADVANCE_SECONDS,
   panSpeedSeconds: null,
   panZoomPct: null,
@@ -233,6 +232,21 @@ export type SiloTimelineEmbedBlockProps = {
   // 고정값이었다. Supabase Storage 실 상한(50MB, HOTFIX-144.5)보다
   // 반드시 낮아야 압축의 의미가 있어 UI에서 45로 상한을 둔다.
   videoCompressTargetMb: number;
+  // HOTFIX-156.4(사용자 지시 — "OTE 대시보드의 이벤트 시작 기점을 알리는
+  // '점'의 색깔을 바꿀 수 있게 해줘" + "각 이벤트의 대시보드에 보여지는
+  // 설정을 hover/평상시/클릭됐을 때로 나눠서 하게 해줘"): TL3 대시보드
+  // (TimeNav)의 네이티브 마커 점(.tl-timemarker-line-*:after)과 마커
+  // 카드(.tl-timemarker-content-container)는 전부 벤더 CSS의 하드코딩된
+  // 색상이라, 벤더 CSS를 직접 고치는 대신 SiloTimelineInner.tsx가
+  // CSS 커스텀 프로퍼티로 오버라이드한다(panSpeedSeconds 등과 동일한
+  // 패턴) — null이면 TL3 기본 색상 그대로.
+  markerColor: string | null;
+  markerCardBg: string | null;
+  markerCardText: string | null;
+  markerCardHoverBg: string | null;
+  markerCardHoverText: string | null;
+  markerCardActiveBg: string | null;
+  markerCardActiveText: string | null;
 };
 
 // HOTFIX-147.19: TL3(TimelineJS3) 자체가 정의한 `zoom_sequence` 기본값
@@ -312,11 +326,24 @@ const PAN_KEYFRAMES = `
     0% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(var(--silo-pan-dist, 8%), calc(-1 * var(--silo-pan-dist, 8%))); }
     100% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(calc(-1 * var(--silo-pan-dist, 8%)), var(--silo-pan-dist, 8%)); }
   }
+  @keyframes silo-cover-pan-tour {
+    0%   { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p0x, 0%), var(--silo-pan-p0y, 0%)); }
+    25%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p1x, 0%), var(--silo-pan-p1y, 0%)); }
+    50%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p2x, 0%), var(--silo-pan-p2y, 0%)); }
+    75%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p3x, 0%), var(--silo-pan-p3y, 0%)); }
+    100% { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p0x, 0%), var(--silo-pan-p0y, 0%)); }
+  }
   .silo-cover-pan-x, .silo-cover-pan-y, .silo-cover-pan-diag-down, .silo-cover-pan-diag-up {
     animation-timing-function: ease-in-out;
     animation-iteration-count: infinite;
     animation-direction: alternate;
     animation-duration: var(--silo-pan-duration, 20s);
+  }
+  .silo-cover-pan-tour {
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-duration: var(--silo-pan-duration, 20s);
+    animation-name: silo-cover-pan-tour;
   }
   .silo-cover-pan-x { animation-name: silo-cover-pan-x; }
   .silo-cover-pan-y { animation-name: silo-cover-pan-y; }
@@ -324,29 +351,63 @@ const PAN_KEYFRAMES = `
   .silo-cover-pan-diag-up { animation-name: silo-cover-pan-diag-up; }
 `;
 
-// HOTFIX(2026-09-02 — "왼쪽 상단→오른쪽 하단→위로" 4정거장 "투어" 모션을
-// 시도했다가("모서리에 닿게 크게" 요청 대응) 사용자가 "수정 이후가 오히려
-// 더 보기 안 좋다, 그냥 2번 움직이는 형식으로"로 최종 정리 — 정거장을
-// 여러 개 도는 TOUR_TEMPLATES/buildTourVars(HOTFIX-147.29)는 통째로
-// 제거하고, 원래 있던 단순 왕복 키프레임(대각선 ↘/↙, CSS
-// `animation-direction: alternate`로 자동으로 되돌아옴 = "2번 움직이는
-// 형식")으로 되돌린다. "auto"는 이제 이미지 URL 해시로 ↘/↙ 둘 중 하나를
-// 골라(같은 이미지는 항상 같은 방향 — 매 렌더마다 바뀌면 애니메이션이
-// 처음부터 다시 시작해 끊겨 보임) 매번 같은 패턴만 반복되지 않게 한다.
+// HOTFIX-156.4(2026-09-02, 사용자 지시 — 다른 세션이 이 4정거장 "투어"
+// 모션을 단순 왕복 2동작으로 되돌리는 커밋을 동시에 올렸으나, 이 브랜치
+// 작업과 병합하며 "충돌나면 투어 모션을 되살려줘"로 재확정): HOTFIX-147.29의
+// 투어 경로 6종을 그대로 유지한다. 각 정거장은 (x, y) ∈ {-1, 0, 1}로,
+// translate 방향(x: 1=오른쪽, y: 1=아래)에 대응 — 마지막 정거장에서 다시
+// 0번으로 돌아오며 자연스럽게 닫힌다.
+type PanPoint = { x: -1 | 0 | 1; y: -1 | 0 | 1 };
+const TOUR_TEMPLATES: readonly [PanPoint, PanPoint, PanPoint, PanPoint][] = [
+  // 모서리(가장자리 중앙)를 시계방향으로: 오른쪽→아래→왼쪽→위
+  [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }],
+  // 모서리를 반시계방향으로: 오른쪽→위→왼쪽→아래
+  [{ x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }, { x: 0, y: 1 }],
+  // 네 귀퉁이를 시계방향으로
+  [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 1 }, { x: -1, y: 1 }],
+  // 네 귀퉁이를 반시계방향으로
+  [{ x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }],
+  // 왼쪽 위 → 오른쪽 아래(대각선) → 오른쪽 위(직선으로 위) → 되돌아감
+  [{ x: -1, y: -1 }, { x: 1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: -1 }],
+  // 오른쪽 아래 → 왼쪽 위(대각선) → 왼쪽 아래(직선으로 아래) → 되돌아감
+  [{ x: 1, y: 1 }, { x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }],
+  // 왼쪽 아래 → 오른쪽 위(대각선) → 왼쪽 위(직선으로 왼쪽) → 되돌아감
+  [{ x: -1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: -1 }, { x: -1, y: 1 }],
+];
+
+// HOTFIX-147.29: 이미지 URL을 정수 해시로 바꾼다(djb2) — 매 렌더마다
+// 다시 뽑으면 애니메이션이 처음부터 다시 시작하며 뚝뚝 끊겨 보이므로,
+// 같은 이미지는 항상 같은 투어 경로를 쓰도록 순수 함수로 결정한다.
 function hashString(s: string): number {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
   return h >>> 0;
 }
 
-// HOTFIX-147.28: panDirection이 "auto"/null이면 이미지 URL 해시로 대각선
-// ↘/↙ 중 하나를 랜덤(이미지별 고정)으로 고른다 — 그 외엔 사용자가 고른
-// 단순 패턴을 그대로 쓴다.
-function resolvePanClass(url: string, direction: PanDirection | null, orientation: "landscape" | "portrait" | undefined): string {
+// HOTFIX-152.19(사용자 지시 — OTE "세로 미디어는 위 아래 움직임을 더
+// 중요시 하고(대각선도 됨), 가로 미디어는 왼쪽 오른쪽 움직임을 더
+// 중요시하길 원해"): 짧은 축 비율을 35%로 낮춰 긴 축 방향(가로→좌우,
+// 세로→상하)이 뚜렷하게 우세하도록 함.
+// HOTFIX(사용자 지시 2026-09-02 — "왼쪽 상단 모서리 끝에서 오른쪽 하단
+// 모서리 끝으로" 처럼 실제 모서리에 닿길 원함): 짧은 축 35%는 대각선
+// 정거장이 실제 모서리가 아니라 애매한 지점이 돼버려 65%로 올림.
+function buildTourVars(url: string, orientation: "landscape" | "portrait", distancePct: number): CSSProperties {
+  const template = TOUR_TEMPLATES[hashString(url) % TOUR_TEMPLATES.length];
+  const distX = orientation === "landscape" ? distancePct : distancePct * 0.65;
+  const distY = orientation === "portrait" ? distancePct : distancePct * 0.65;
+  const vars: Record<string, string> = {};
+  template.forEach((p, i) => {
+    vars[`--silo-pan-p${i}x`] = `${p.x * distX}%`;
+    vars[`--silo-pan-p${i}y`] = `${p.y * distY}%`;
+  });
+  return vars as CSSProperties;
+}
+
+// HOTFIX-147.28: panDirection이 "auto"/null이면 HOTFIX-147.29의 투어
+// 모션 — 그 외엔 사용자가 고른 단순 패턴을 그대로 쓴다.
+function resolvePanClass(direction: PanDirection | null, orientation: "landscape" | "portrait" | undefined): string {
   if (!orientation) return "";
-  if (!direction || direction === "auto") {
-    return hashString(url) % 2 === 0 ? "silo-cover-pan-diag-down" : "silo-cover-pan-diag-up";
-  }
+  if (!direction || direction === "auto") return "silo-cover-pan-tour";
   switch (direction) {
     case "horizontal":
       return "silo-cover-pan-x";
@@ -430,9 +491,13 @@ function CoverBackground({
         // HOTFIX(사용자 지시 — "영상 슬라이드에도 이미지처럼 확대/이동
         // 모션을 넣어달라"): 이전엔 영상은 항상 !isVideo 조건에 걸려 패닝
         // 클래스가 아예 안 붙었다 — 영상도 이미지와 동일하게 pan/zoom을 탄다.
-        const panClass = effectiveFit === "cover" ? resolvePanClass(url, panDirection, orientation) : "";
+        const panClass = effectiveFit === "cover" ? resolvePanClass(panDirection, orientation) : "";
         const className = `absolute inset-0 h-full w-full ${fitClass} ${panClass} transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
-        const style = panClass ? baseVars : undefined;
+        const style = panClass
+          ? panClass === "silo-cover-pan-tour" && orientation
+            ? { ...baseVars, ...buildTourVars(url, orientation, resolvedDistancePct) }
+            : baseVars
+          : undefined;
         return isVideo ? (
           <video
             key={url + i}
@@ -697,6 +762,13 @@ export function SiloTimelineEmbedBlock({
   position = DEFAULT_FREE_POSITION,
   mobilePosition = null,
   eventOverlays = {},
+  markerColor = null,
+  markerCardBg = null,
+  markerCardText = null,
+  markerCardHoverBg = null,
+  markerCardHoverText = null,
+  markerCardActiveBg = null,
+  markerCardActiveText = null,
 }: SiloTimelineEmbedBlockProps) {
   const {
     id: nodeId,
@@ -755,6 +827,13 @@ export function SiloTimelineEmbedBlock({
         stageHeightPx={stageHeightPx || undefined}
         initialZoomFactor={initialZoomFactor}
         onCoverStateChange={setCoverState}
+        markerColor={markerColor}
+        markerCardBg={markerCardBg}
+        markerCardText={markerCardText}
+        markerCardHoverBg={markerCardHoverBg}
+        markerCardHoverText={markerCardHoverText}
+        markerCardActiveBg={markerCardActiveBg}
+        markerCardActiveText={markerCardActiveText}
       />
     ) : (
       <SiloTimeline
@@ -762,6 +841,13 @@ export function SiloTimelineEmbedBlock({
         stageHeightPx={stageHeightPx || undefined}
         initialZoomFactor={initialZoomFactor}
         onCoverStateChange={setCoverState}
+        markerColor={markerColor}
+        markerCardBg={markerCardBg}
+        markerCardText={markerCardText}
+        markerCardHoverBg={markerCardHoverBg}
+        markerCardHoverText={markerCardHoverText}
+        markerCardActiveBg={markerCardActiveBg}
+        markerCardActiveText={markerCardActiveText}
       />
     );
 
@@ -1318,6 +1404,44 @@ function SlideOverlayPositionFields({
   );
 }
 
+// HOTFIX-156.4: 대시보드 마커 점/카드 색상 필드 7개(점 1 + 카드 배경/텍스트
+// ×3상태)가 전부 같은 "컬러 스와치 + hex 텍스트" 모양이라 하나로 뺐다 —
+// SlideOverlayFieldsEditor의 색상 필드와 동일한 UI 패턴(유효한 hex가
+// 아니면 기본값을 스와치에 보여주되, 텍스트 입력은 실제 값 그대로).
+function MarkerColorField({
+  label,
+  value,
+  defaultHex,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  defaultHex: string;
+  onChange: (next: string | null) => void;
+}) {
+  const swatchValue = value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : defaultHex;
+  return (
+    <label className="block text-xs text-gray-600">
+      {label}
+      <div className="mt-1 flex items-center gap-1.5">
+        <input
+          type="color"
+          value={swatchValue}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-7 w-9 shrink-0 cursor-pointer rounded border border-gray-300 p-0.5"
+        />
+        <input
+          type="text"
+          value={value ?? ""}
+          placeholder={`${defaultHex}(기본값)`}
+          onChange={(e) => onChange(e.target.value || null)}
+          className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        />
+      </div>
+    </label>
+  );
+}
+
 function SiloTimelineEmbedSettings() {
   const { id: nodeId, props, setProp } = useNode((node) => ({ props: node.data.props as SiloTimelineEmbedBlockProps }));
   const editable = useCraftEditable();
@@ -1326,6 +1450,55 @@ function SiloTimelineEmbedSettings() {
   // 빈 칸으로 보이지 않도록, 그리고 아래로 넘기는 값이 항상 실제 숫자가
   // 되도록 여기서 한 번만 기본값으로 채운다.
   const compressTargetMb = props.videoCompressTargetMb ?? DEFAULT_VIDEO_COMPRESS_TARGET_MB;
+  // HOTFIX-156.4(사용자 지시 — "'배경패닝모션'의 설정을 전체 타임라인에
+  // 적용하는 기능과, '배경 자동전환간격', '배경 이미지 채우기 방식'을
+  // 모든 타임라인에 적용하는 기능을 만들어줘"): 지금 이 타임라인 표지에
+  // 설정된 값을 그대로 사이트의 모든 SiloTimelineEmbedBlock(표지+이벤트
+  // 전부)에 뿌리는 일괄 적용 — 매번 페이지마다 손으로 맞추지 않아도 되게.
+  const [broadcasting, setBroadcasting] = useState<"panMotion" | "advanceAndFit" | null>(null);
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+
+  async function broadcastToAllTimelines(group: "panMotion" | "advanceAndFit") {
+    setBroadcasting(group);
+    setBroadcastResult(null);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setBroadcastResult("로그인이 필요해요.");
+        return;
+      }
+      const values =
+        group === "panMotion"
+          ? {
+              panDirection: props.coverPanDirection,
+              panSpeedSeconds: props.coverPanSpeedSeconds,
+              panZoomPct: props.coverPanZoomPct,
+              panDistancePct: props.coverPanDistancePct,
+            }
+          : {
+              autoAdvanceSeconds: props.coverAutoAdvanceSeconds,
+              backgroundFit: props.coverBackgroundFit,
+            };
+      const res = await fetch("/api/admin/timeline-settings/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ group, values }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBroadcastResult(data.error ?? "적용에 실패했어요.");
+        return;
+      }
+      setBroadcastResult(`${data.pagesUpdated}개 페이지, ${data.timelinesUpdated}개 타임라인에 적용했어요.`);
+    } catch (err) {
+      setBroadcastResult(err instanceof Error ? err.message : "적용 중 오류가 발생했어요.");
+    } finally {
+      setBroadcasting(null);
+    }
+  }
+
   const [boards, setBoards] = useState<BoardOption[]>([]);
   const [navGroups, setNavGroups] = useState<NavOption[]>([]);
   // HOTFIX-147.13: "화면 자유편집" 헤드라인 표시용 이벤트 목록 — 표지 설정과
@@ -1622,6 +1795,91 @@ function SiloTimelineEmbedSettings() {
         ) : null}
       </div>
 
+      {/* HOTFIX-156.4(사용자 지시 — "'배경패닝모션'의 설정을 전체 타임라인에
+          적용하는 기능과, '배경 자동전환간격', '배경 이미지 채우기 방식'을
+          모든 타임라인에 적용하는 기능을 만들어줘"): 위 "지금 보고 있는
+          화면"이 표지를 보여주고 있을 때의 coverXxx 값을 그대로 사이트
+          전체 타임라인(표지+이벤트)에 뿌린다 — 매번 페이지마다 손으로
+          맞추지 않아도 되게. */}
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <h4 className="text-xs font-semibold text-gray-500">전체 타임라인에 일괄 적용</h4>
+        <p className="text-[10px] leading-relaxed text-gray-500">
+          지금 이 타임라인 &ldquo;표지&rdquo;에 설정된 값을 사이트의 모든 온라인 도슨트 타임라인(표지 + 이벤트 전부)에 그대로 적용해요.
+        </p>
+        <button
+          type="button"
+          disabled={broadcasting !== null}
+          onClick={() => broadcastToAllTimelines("panMotion")}
+          className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+        >
+          {broadcasting === "panMotion" ? "적용 중..." : "배경 패닝 모션 설정을 전체 타임라인에 적용"}
+        </button>
+        <button
+          type="button"
+          disabled={broadcasting !== null}
+          onClick={() => broadcastToAllTimelines("advanceAndFit")}
+          className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+        >
+          {broadcasting === "advanceAndFit" ? "적용 중..." : "자동 전환 간격 + 이미지 채우기 방식을 전체 타임라인에 적용"}
+        </button>
+        {broadcastResult && <p className="text-[10px] text-gray-500">{broadcastResult}</p>}
+      </div>
+
+      {/* HOTFIX-156.4(사용자 지시 — "OTE 대시보드의 이벤트 시작 기점을
+          알리는 '점'의 색깔을 바꿀 수 있게 해줘" + "각 이벤트의 대시보드에
+          보여지는 설정을... 마우스가 hover 될때와 안될때, 클릭되었을 때의
+          설정"): TL3 대시보드(TimeNav)의 마커 점 색상과, 마커 카드(작은
+          미리보기 칩)의 배경/텍스트 색을 평상시·hover·클릭됨(활성) 3가지
+          상태별로 따로 설정 — 비워두면 TL3 기본 색상 그대로. */}
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <h4 className="text-xs font-semibold text-gray-500">대시보드 이벤트 마커 스타일</h4>
+        <MarkerColorField
+          label="이벤트 시작점 점 색상"
+          value={props.markerColor}
+          defaultHex="#919191"
+          onChange={(v) => setProp((p) => { p.markerColor = v; })}
+        />
+        <p className="pt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">평상시 카드</p>
+        <MarkerColorField
+          label="배경색"
+          value={props.markerCardBg}
+          defaultHex="#e5e5e5"
+          onChange={(v) => setProp((p) => { p.markerCardBg = v; })}
+        />
+        <MarkerColorField
+          label="텍스트 색"
+          value={props.markerCardText}
+          defaultHex="#333333"
+          onChange={(v) => setProp((p) => { p.markerCardText = v; })}
+        />
+        <p className="pt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">마우스 올렸을 때(hover)</p>
+        <MarkerColorField
+          label="배경색"
+          value={props.markerCardHoverBg}
+          defaultHex="#737373"
+          onChange={(v) => setProp((p) => { p.markerCardHoverBg = v; })}
+        />
+        <MarkerColorField
+          label="텍스트 색"
+          value={props.markerCardHoverText}
+          defaultHex="#ffffff"
+          onChange={(v) => setProp((p) => { p.markerCardHoverText = v; })}
+        />
+        <p className="pt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">클릭됨(선택된 이벤트)</p>
+        <MarkerColorField
+          label="배경색"
+          value={props.markerCardActiveBg}
+          defaultHex="#ffffff"
+          onChange={(v) => setProp((p) => { p.markerCardActiveBg = v; })}
+        />
+        <MarkerColorField
+          label="텍스트 색"
+          value={props.markerCardActiveText}
+          defaultHex="#333333"
+          onChange={(v) => setProp((p) => { p.markerCardActiveText = v; })}
+        />
+      </div>
+
       <MotionSettingsSection />
     </div>
   );
@@ -1651,7 +1909,10 @@ SiloTimelineEmbedBlock.craft = {
     coverDescriptionFontFamily: null,
     coverBackgroundFit: null,
     coverSlideUrls: [],
-    coverAutoAdvanceSeconds: 5,
+    // HOTFIX-156.4(2026-09-02, 사용자 지시로 전체 타임라인 통일 값): 새로
+    // 만드는 타임라인도 처음부터 10초/15초로 시작하도록 기본값 갱신
+    // (기존 5초는 "온라인 도슨트" 신설 초기 임시값이었음).
+    coverAutoAdvanceSeconds: 15,
     coverPanSpeedSeconds: null,
     coverPanZoomPct: null,
     coverPanDistancePct: null,
@@ -1662,6 +1923,13 @@ SiloTimelineEmbedBlock.craft = {
     // 웹 로딩 속도를 우선해 30MB보다 훨씬 작은 값을 기본값으로 — 짧게
     // 반복 재생되는 배경 영상이라 8MB면 충분히 여유 있다.
     videoCompressTargetMb: DEFAULT_VIDEO_COMPRESS_TARGET_MB,
+    markerColor: null,
+    markerCardBg: null,
+    markerCardText: null,
+    markerCardHoverBg: null,
+    markerCardHoverText: null,
+    markerCardActiveBg: null,
+    markerCardActiveText: null,
   } satisfies SiloTimelineEmbedBlockProps,
   related: { settings: SiloTimelineEmbedSettings },
 };

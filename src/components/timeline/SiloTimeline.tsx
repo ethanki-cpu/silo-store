@@ -32,6 +32,11 @@ export function SiloTimeline({
   markerCardHoverText,
   markerCardActiveBg,
   markerCardActiveText,
+  markerCardWidthPx,
+  markerCardFontSizePx,
+  markerCardFontWeight,
+  markerCardFontFamily,
+  markerCardMaxLines,
 }: {
   boardId?: string;
   groupHref?: string;
@@ -54,6 +59,13 @@ export function SiloTimeline({
   markerCardHoverText?: string | null;
   markerCardActiveBg?: string | null;
   markerCardActiveText?: string | null;
+  /** HOTFIX-156.5: 마커 카드 너비/폰트/내용 표시 줄 수 — SiloTimelineInner.tsx
+   * 주석 참고. null이면 TL3 기본값(너비 100px, 폰트 12px, 2줄). */
+  markerCardWidthPx?: number | null;
+  markerCardFontSizePx?: number | null;
+  markerCardFontWeight?: "normal" | "medium" | "semibold" | "bold" | null;
+  markerCardFontFamily?: string | null;
+  markerCardMaxLines?: number | null;
 }) {
   return (
     <SiloTimelineInner
@@ -69,6 +81,11 @@ export function SiloTimeline({
       markerCardHoverText={markerCardHoverText}
       markerCardActiveBg={markerCardActiveBg}
       markerCardActiveText={markerCardActiveText}
+      markerCardWidthPx={markerCardWidthPx}
+      markerCardFontSizePx={markerCardFontSizePx}
+      markerCardFontWeight={markerCardFontWeight}
+      markerCardFontFamily={markerCardFontFamily}
+      markerCardMaxLines={markerCardMaxLines}
     />
   );
 }

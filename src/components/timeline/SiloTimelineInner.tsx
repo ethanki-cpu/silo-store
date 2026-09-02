@@ -62,7 +62,36 @@ const MARKER_STYLE_CSS = `
 .tl-silo-container .tl-timemarker.tl-timemarker-active .tl-timemarker-content-container .tl-timemarker-content .tl-timemarker-text h2.tl-headline {
   color: var(--silo-marker-card-active-text, #333);
 }
+/* HOTFIX-156.5(사용자 지시 — "카드크게/폰트/내용까지 내가 설정할수
+   있게 해줘"): 카드 너비(기본 100px 하드코딩)와 헤드라인 폰트 크기/굵기/
+   서체(기본 12px/normal/상속), 표시 줄 수(-webkit-line-clamp, 기본 2줄)를
+   같은 CSS 변수 패턴으로 오버라이드. line-height는 폰트 크기를 그대로
+   따라가게 해(1:1) 커지든 작아지든 TL3 원래의 "여백 없는" 느낌을 유지한다.
+   실측 중 발견: -webkit-line-clamp만은 TL3가 레이아웃 계산 후 매번 JS로
+   인라인 style(style="-webkit-line-clamp: 2") 직접 써버려서, 셀렉터
+   специфи시티를 아무리 맞춰도 스타일시트 규칙은 인라인 style을 절대 못
+   이긴다(폰트 크기/너비는 TL3가 인라인으로 안 건드려 !important 없이도
+   먹힘) — 이 한 줄만 !important로 인라인 style을 강제로 덮어쓴다. */
+.tl-silo-container .tl-timemarker-content-container {
+  width: var(--silo-marker-card-width, 100px);
+}
+.tl-silo-container .tl-timemarker-content-container .tl-timemarker-content .tl-timemarker-text h2.tl-headline,
+.tl-silo-container .tl-timemarker-content-container .tl-timemarker-content .tl-timemarker-text h2.tl-headline p {
+  font-size: var(--silo-marker-card-font-size, 12px);
+  line-height: var(--silo-marker-card-font-size, 12px);
+  font-weight: var(--silo-marker-card-font-weight, normal);
+  font-family: var(--silo-marker-card-font-family, inherit);
+  -webkit-line-clamp: var(--silo-marker-card-max-lines, 2) !important;
+  line-clamp: var(--silo-marker-card-max-lines, 2) !important;
+}
 `;
+
+const MARKER_FONT_WEIGHT_CSS: Record<"normal" | "medium" | "semibold" | "bold", number> = {
+  normal: 400,
+  medium: 500,
+  semibold: 600,
+  bold: 700,
+};
 
 // HOTFIX-151.3(사용자 신고 — "타임라인이 로딩되면 첫 이벤트가 너무
 // 오른쪽에 있어, 나머지 이벤트들도 첫 화면부터 한눈에 보이게 해줘"):
@@ -325,6 +354,11 @@ export default function SiloTimelineInner({
   markerCardHoverText,
   markerCardActiveBg,
   markerCardActiveText,
+  markerCardWidthPx,
+  markerCardFontSizePx,
+  markerCardFontWeight,
+  markerCardFontFamily,
+  markerCardMaxLines,
 }: {
   /** 단일 게시판 모드 — groupHref와 둘 중 하나만 준다. */
   boardId?: string;
@@ -362,6 +396,16 @@ export default function SiloTimelineInner({
   markerCardHoverText?: string | null;
   markerCardActiveBg?: string | null;
   markerCardActiveText?: string | null;
+  // HOTFIX-156.5(사용자 지시 — "카드크게/폰트/내용까지 내가 설정할수
+  // 있게 해줘"): 마커 카드 색상 6종에 이어 카드 너비/폰트(크기·굵기·
+  // 서체)/내용 표시 줄 수까지 — 전부 null이면 TL3 기본값(너비 100px,
+  // 폰트 12px 보통 굵기, 2줄) 그대로. 카드 높이는 TL3가 트랙(같은 줄에
+  // 몇 개가 들어가는지)을 JS로 실측해 정하므로 여기서 다루지 않는다.
+  markerCardWidthPx?: number | null;
+  markerCardFontSizePx?: number | null;
+  markerCardFontWeight?: "normal" | "medium" | "semibold" | "bold" | null;
+  markerCardFontFamily?: string | null;
+  markerCardMaxLines?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<InstanceType<NonNullable<Window["TL"]>["Timeline"]> | null>(null);
@@ -656,6 +700,11 @@ export default function SiloTimelineInner({
     ...(markerCardHoverText ? { "--silo-marker-card-hover-text": markerCardHoverText } : {}),
     ...(markerCardActiveBg ? { "--silo-marker-card-active-bg": markerCardActiveBg } : {}),
     ...(markerCardActiveText ? { "--silo-marker-card-active-text": markerCardActiveText } : {}),
+    ...(markerCardWidthPx ? { "--silo-marker-card-width": `${markerCardWidthPx}px` } : {}),
+    ...(markerCardFontSizePx ? { "--silo-marker-card-font-size": `${markerCardFontSizePx}px` } : {}),
+    ...(markerCardFontWeight ? { "--silo-marker-card-font-weight": MARKER_FONT_WEIGHT_CSS[markerCardFontWeight] } : {}),
+    ...(markerCardFontFamily ? { "--silo-marker-card-font-family": markerCardFontFamily } : {}),
+    ...(markerCardMaxLines ? { "--silo-marker-card-max-lines": markerCardMaxLines } : {}),
   } as CSSProperties;
   const innerHeight = stageHeightPx ? stageHeightPx + 260 : 650;
 

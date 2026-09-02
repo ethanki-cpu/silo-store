@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-09-02 (HOTFIX-156.5 — OTE 대시보드 마커 카드 크기 · 폰트 · 내용 표시 줄 수 커스터마이즈)
+- **사용자 요청**: HOTFIX-156.4로 마커 카드 색상(배경/텍스트 6종)을 설정할 수 있게 한 데 이어 "카드크게/폰트/내용까지 내가 설정할수 있게 해줘" — 카드 크기, 폰트, 내용(표시되는 줄 수)까지 확장.
+- **구현**: `SiloTimelineEmbedBlockProps`에 `markerCardWidthPx`/`markerCardFontSizePx`/`markerCardFontWeight`/`markerCardFontFamily`/`markerCardMaxLines` 5개 필드 신설, 기존 마커 색상 6종과 동일한 CSS 커스텀 프로퍼티 패턴으로 `SiloTimelineInner.tsx`의 `MARKER_STYLE_CSS`에 오버라이드 추가(카드 너비, 헤드라인 폰트 크기/굵기/서체, `-webkit-line-clamp`로 표시 줄 수 제한). 편집 패널에 "대시보드 이벤트 마커 카드 크기 · 폰트" 섹션(너비 입력, 굵기 선택, 크기 입력, `FontPicker`, 줄 수 입력) 신설. **카드 높이는 다루지 않음** — TL3가 같은 줄에 몇 개의 마커가 들어가는지 JS로 실측해 트랙 높이를 계산하므로, 이걸 CSS로 강제로 바꾸면 TL3 자체 레이아웃 계산과 충돌할 위험이 있어 너비/폰트/줄 수만(전부 순수 CSS라 안전) 제공.
+- **버그 발견 및 수정**: `-webkit-line-clamp`만은 셀렉터 특이도를 아무리 맞춰도 오버라이드가 안 먹혔다 — TL3가 자체 레이아웃 계산 후 매번 해당 요소에 `style="-webkit-line-clamp: 2"`를 JS로 직접 써버리는 것을 실측으로 확인(인라인 style은 특이도와 무관하게 일반 스타일시트 규칙을 항상 이긴다). 이 한 선언에만 `!important`를 붙여 인라인 style을 강제로 덮어써 해결(너비/폰트는 TL3가 인라인으로 안 건드려 `!important` 없이도 정상 작동).
+- **검증**: `npx tsc --noEmit`/`npm run lint` 0 errors(81 warnings, 기존 기준선 유지, 신규 경고 없음). 실제 참조 페이지("고대 문명~침략")에 테스트 값(너비 220px/폰트 20px·굵게/줄 수 4)을 임시 적용해 `getComputedStyle`로 카드 실제 너비·헤드라인 폰트 크기·굵기·line-clamp 전부 정확히 반영된 것을 라이브 페이지에서 확인, 확인 후 테스트 값은 다시 `null`로 원복.
+
 ## 2026-09-02 (HOTFIX-156.3 — 배경 슬라이드 모션 HOTFIX-156.1/156.2 롤백 + 단순 2동작 왕복으로 정리, 자동 전환 간격 확대)
 - **사용자 최종 판단**: "수정 이후가 오히려 더 보기 안 좋다 — HOTFIX-156.1 이전이 낫다"며 그 이전 커밋(HOTFIX-156.1/156.2) 자체를 롤백 요청. 다만 "슬라이드 배경화면이 2번 움직이는 형식"과 "각 슬라이드가 보여지는 시간을 늘려달라"는 두 가지는 그대로 반영.
 - **롤백**: `DEFAULT_PAN_SPEED_SECONDS` 12→20초, `DEFAULT_PAN_ZOOM_PCT` 220→65%, `DEFAULT_PAN_DISTANCE_PCT` 32→18%로 HOTFIX-152.19 이전 값으로 원복.

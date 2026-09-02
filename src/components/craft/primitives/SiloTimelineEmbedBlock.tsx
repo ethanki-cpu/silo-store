@@ -247,6 +247,18 @@ export type SiloTimelineEmbedBlockProps = {
   markerCardHoverText: string | null;
   markerCardActiveBg: string | null;
   markerCardActiveText: string | null;
+  // HOTFIX-156.5(사용자 지시 — "카드크게/폰트/내용까지 내가 설정할수
+  // 있게 해줘"): 마커 카드 색상 6종에 이어 카드 자체의 크기(너비)/폰트
+  // (크기·굵기·서체)/내용 표시 줄 수(line-clamp)까지 커스터마이즈. 카드
+  // 높이는 TL3가 트랙(같은 줄에 몇 개가 들어가는지) 레이아웃을 JS로
+  // 실측해 계산하므로 여기서 강제로 바꾸지 않는다(너비/폰트/줄 수는
+  // 순수 CSS라 TL3 레이아웃 계산과 충돌하지 않음) — null이면 TL3 기본값
+  // 그대로(너비 100px, 폰트 12px, 줄 수 2줄).
+  markerCardWidthPx: number | null;
+  markerCardFontSizePx: number | null;
+  markerCardFontWeight: CoverFontWeight | null;
+  markerCardFontFamily: string | null;
+  markerCardMaxLines: number | null;
 };
 
 // HOTFIX-147.19: TL3(TimelineJS3) 자체가 정의한 `zoom_sequence` 기본값
@@ -769,6 +781,11 @@ export function SiloTimelineEmbedBlock({
   markerCardHoverText = null,
   markerCardActiveBg = null,
   markerCardActiveText = null,
+  markerCardWidthPx = null,
+  markerCardFontSizePx = null,
+  markerCardFontWeight = null,
+  markerCardFontFamily = null,
+  markerCardMaxLines = null,
 }: SiloTimelineEmbedBlockProps) {
   const {
     id: nodeId,
@@ -834,6 +851,11 @@ export function SiloTimelineEmbedBlock({
         markerCardHoverText={markerCardHoverText}
         markerCardActiveBg={markerCardActiveBg}
         markerCardActiveText={markerCardActiveText}
+        markerCardWidthPx={markerCardWidthPx}
+        markerCardFontSizePx={markerCardFontSizePx}
+        markerCardFontWeight={markerCardFontWeight}
+        markerCardFontFamily={markerCardFontFamily}
+        markerCardMaxLines={markerCardMaxLines}
       />
     ) : (
       <SiloTimeline
@@ -848,6 +870,11 @@ export function SiloTimelineEmbedBlock({
         markerCardHoverText={markerCardHoverText}
         markerCardActiveBg={markerCardActiveBg}
         markerCardActiveText={markerCardActiveText}
+        markerCardWidthPx={markerCardWidthPx}
+        markerCardFontSizePx={markerCardFontSizePx}
+        markerCardFontWeight={markerCardFontWeight}
+        markerCardFontFamily={markerCardFontFamily}
+        markerCardMaxLines={markerCardMaxLines}
       />
     );
 
@@ -1880,6 +1907,69 @@ function SiloTimelineEmbedSettings() {
         />
       </div>
 
+      {/* HOTFIX-156.5(사용자 지시 — "카드크게/폰트/내용까지 내가
+          설정할수 있게 해줘"): 마커 카드 크기(너비)/폰트/내용 표시 줄
+          수까지 커스터마이즈 — 색상과 마찬가지로 비워두면 TL3 기본값
+          (너비 100px, 폰트 12px 보통 굵기, 2줄)을 그대로 쓴다. 카드 높이는
+          TL3가 같은 줄에 몇 개 마커가 들어가는지 JS로 실측해 정하므로
+          여기서 다루지 않는다(너비를 바꾸면 그 실측 결과에 자동으로
+          반영됨). */}
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <h4 className="text-xs font-semibold text-gray-500">대시보드 이벤트 마커 카드 크기 · 폰트</h4>
+        <label className="block text-xs text-gray-600">
+          카드 너비(px)
+          <input
+            type="number"
+            min={40}
+            placeholder="100"
+            value={props.markerCardWidthPx ?? ""}
+            onChange={(e) => setProp((p) => { p.markerCardWidthPx = e.target.value === "" ? null : Number(e.target.value) || null; })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+        <label className="block text-xs text-gray-600">
+          굵기
+          <select
+            value={props.markerCardFontWeight ?? "normal"}
+            onChange={(e) => setProp((p) => { p.markerCardFontWeight = e.target.value as CoverFontWeight; })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="normal">보통</option>
+            <option value="medium">중간</option>
+            <option value="semibold">약간 굵게</option>
+            <option value="bold">굵게</option>
+          </select>
+        </label>
+        <label className="block text-xs text-gray-600">
+          크기(px)
+          <input
+            type="number"
+            min={8}
+            placeholder="12"
+            value={props.markerCardFontSizePx ?? ""}
+            onChange={(e) => setProp((p) => { p.markerCardFontSizePx = e.target.value === "" ? null : Number(e.target.value) || null; })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+        <FontPicker
+          label="폰트"
+          value={props.markerCardFontFamily ?? ""}
+          onChange={(v) => setProp((p) => { p.markerCardFontFamily = v || null; })}
+        />
+        <label className="block text-xs text-gray-600">
+          내용 표시 줄 수(최대)
+          <input
+            type="number"
+            min={1}
+            max={6}
+            placeholder="2"
+            value={props.markerCardMaxLines ?? ""}
+            onChange={(e) => setProp((p) => { p.markerCardMaxLines = e.target.value === "" ? null : Number(e.target.value) || null; })}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+      </div>
+
       <MotionSettingsSection />
     </div>
   );
@@ -1930,6 +2020,11 @@ SiloTimelineEmbedBlock.craft = {
     markerCardHoverText: null,
     markerCardActiveBg: null,
     markerCardActiveText: null,
+    markerCardWidthPx: null,
+    markerCardFontSizePx: null,
+    markerCardFontWeight: null,
+    markerCardFontFamily: null,
+    markerCardMaxLines: null,
   } satisfies SiloTimelineEmbedBlockProps,
   related: { settings: SiloTimelineEmbedSettings },
 };

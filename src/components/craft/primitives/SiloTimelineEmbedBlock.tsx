@@ -114,22 +114,22 @@ export type SlideOverlayConfig = {
 // 비어 보이지 않도록 확대 배율도 40%→65%로 함께 올렸다. 안전 여유분
 // 공식(|이동%| <= 50*(zoom-1)/zoom)대로면 65% 확대에서 최대 19.7%까지
 // 안전 — 18%는 그 안에 여유 있게 들어간다(가장자리 안 빔).
-// HOTFIX(사용자 지시 2026-09-02 — 첨부 스크린샷처럼 "왼쪽 상단 모서리
-// 끝에서 시작해서 오른쪽 하단 모서리 끝으로 갔다가 위로 올라오는" 식으로
-// "이미지 전체를 6초 안에" 다 보여줄 만큼 크게 움직여달라는 재요청):
-// 18%/65% 조합도 여전히 "모서리에 닿는다"고 느끼기엔 부족했다 — 속도를
-// 20초→6초로 크게 줄이고, 이동 거리/확대 배율도 같은 안전 공식 안에서
-// 최대한 크게(32%/220%, 최대 안전값 50*2.2/3.2≈34.4%) 올려 실제로 각
-// 모서리 근처까지 이동하도록 했다.
-// HOTFIX(사용자 지시 2026-09-02, 재신고 — "이야 이건 너무 빠르다 ㅋㅋㅋ
-// 속도를 절반으로 줄여봐"): 6초는 과했다 — 절반 느리게(12초)로 되돌림.
-// 확대/이동 거리는 그대로 두되(모서리에 닿는 크기 자체는 유지), 아래
-// 편집 UI의 min/max도 이 새 기본값 범위를 담을 수 있도록 함께 넓혔다
-// (편집 화면에서 이미 속도/확대/이동 거리를 슬라이드별로 직접 조절
-// 가능 — "배경 패닝 모션" 섹션, HOTFIX-147.27부터 있던 기능).
-export const DEFAULT_PAN_SPEED_SECONDS = 12;
-export const DEFAULT_PAN_ZOOM_PCT = 220;
-export const DEFAULT_PAN_DISTANCE_PCT = 32;
+// HOTFIX(2026-09-02, 시도했다가 롤백 — "모서리에서 모서리로 6초 안에"
+// 요청에 맞춰 속도 6초/확대 220%/이동 32%까지 올려봤다가, "너무 빠르다"는
+// 재신고로 12초로 완화했지만 결국 "수정 이후가 오히려 더 보기 안
+// 좋다 — 이전(HOTFIX-152.19 상태)이 낫다"는 최종 판단으로 이 두 커밋을
+// 전부 되돌린다. 대신 모션 "형식" 자체는 아래 resolvePanClass에서
+// 4정거장 투어 대신 단순 "왕복 2동작"으로 교체하고, 슬라이드가 바뀌는
+// 간격(autoAdvanceSeconds)을 늘려 한 이미지가 패닝을 충분히 보여줄
+// 시간을 확보하는 쪽으로 대응한다(아래 DEFAULT_AUTO_ADVANCE_SECONDS).
+export const DEFAULT_PAN_SPEED_SECONDS = 20;
+export const DEFAULT_PAN_ZOOM_PCT = 65;
+export const DEFAULT_PAN_DISTANCE_PCT = 18;
+// HOTFIX(2026-09-02): 슬라이드가 5초마다 바뀌면 패닝(20초 왕복)이 채
+// 한 방향도 다 못 가서 다음 이미지로 넘어가 버려 움직임이 안 보였다 —
+// 패닝 한쪽 방향 재생 시간(DEFAULT_PAN_SPEED_SECONDS)과 맞춰 한 이미지가
+// 충분히 움직이는 걸 보여준 뒤에 넘어가도록 늘림.
+export const DEFAULT_AUTO_ADVANCE_SECONDS = 20;
 
 // HOTFIX-151.3(사용자 신고 — "제목 스타일을 바꾸면 설명 스타일도 같이
 // 바뀌는 것처럼 보인다, 둘이 분리되게 해달라"): description* 필드들이
@@ -159,7 +159,7 @@ export const DEFAULT_SLIDE_OVERLAY_CONFIG: SlideOverlayConfig = {
   descriptionFontFamily: null,
   backgroundFit: null,
   slideUrls: [],
-  autoAdvanceSeconds: 5,
+  autoAdvanceSeconds: DEFAULT_AUTO_ADVANCE_SECONDS,
   panSpeedSeconds: null,
   panZoomPct: null,
   panDistancePct: null,
@@ -312,24 +312,11 @@ const PAN_KEYFRAMES = `
     0% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(var(--silo-pan-dist, 8%), calc(-1 * var(--silo-pan-dist, 8%))); }
     100% { transform: scale(var(--silo-pan-zoom, 1.15)) translate(calc(-1 * var(--silo-pan-dist, 8%)), var(--silo-pan-dist, 8%)); }
   }
-  @keyframes silo-cover-pan-tour {
-    0%   { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p0x, 0%), var(--silo-pan-p0y, 0%)); }
-    25%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p1x, 0%), var(--silo-pan-p1y, 0%)); }
-    50%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p2x, 0%), var(--silo-pan-p2y, 0%)); }
-    75%  { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p3x, 0%), var(--silo-pan-p3y, 0%)); }
-    100% { transform: scale(var(--silo-pan-zoom, 1.4)) translate(var(--silo-pan-p0x, 0%), var(--silo-pan-p0y, 0%)); }
-  }
   .silo-cover-pan-x, .silo-cover-pan-y, .silo-cover-pan-diag-down, .silo-cover-pan-diag-up {
     animation-timing-function: ease-in-out;
     animation-iteration-count: infinite;
     animation-direction: alternate;
     animation-duration: var(--silo-pan-duration, 20s);
-  }
-  .silo-cover-pan-tour {
-    animation-timing-function: ease-in-out;
-    animation-iteration-count: infinite;
-    animation-duration: var(--silo-pan-duration, 20s);
-    animation-name: silo-cover-pan-tour;
   }
   .silo-cover-pan-x { animation-name: silo-cover-pan-x; }
   .silo-cover-pan-y { animation-name: silo-cover-pan-y; }
@@ -337,72 +324,29 @@ const PAN_KEYFRAMES = `
   .silo-cover-pan-diag-up { animation-name: silo-cover-pan-diag-up; }
 `;
 
-// HOTFIX-147.29: "auto"의 새 기본 동작 — 4개 정거장을 도는 투어 경로
-// 6종. 각 정거장은 (x, y) ∈ {-1, 0, 1}로, translate 방향(x: 1=오른쪽,
-// y: 1=아래)에 대응한다. 사용자가 예로 든 "오른쪽→아래→위→왼쪽"(모서리를
-// 도는 루프), "왼쪽위→오른쪽아래→(직선으로)위"(대각선+직선의 세모꼴 경로)
-// 같은 패턴들을 최대한 그대로 반영 — 마지막 정거장에서 다시 0번으로
-// 돌아오며 자연스럽게 닫힌다.
-type PanPoint = { x: -1 | 0 | 1; y: -1 | 0 | 1 };
-const TOUR_TEMPLATES: readonly [PanPoint, PanPoint, PanPoint, PanPoint][] = [
-  // 모서리(가장자리 중앙)를 시계방향으로: 오른쪽→아래→왼쪽→위
-  [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }],
-  // 모서리를 반시계방향으로: 오른쪽→위→왼쪽→아래
-  [{ x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }, { x: 0, y: 1 }],
-  // 네 귀퉁이를 시계방향으로
-  [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 1 }, { x: -1, y: 1 }],
-  // 네 귀퉁이를 반시계방향으로
-  [{ x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }],
-  // 왼쪽 위 → 오른쪽 아래(대각선) → 오른쪽 위(직선으로 위) → 되돌아감
-  [{ x: -1, y: -1 }, { x: 1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: -1 }],
-  // 오른쪽 아래 → 왼쪽 위(대각선) → 왼쪽 아래(직선으로 아래) → 되돌아감
-  [{ x: 1, y: 1 }, { x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }],
-  // 왼쪽 아래 → 오른쪽 위(대각선) → 왼쪽 위(직선으로 왼쪽) → 되돌아감
-  [{ x: -1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: -1 }, { x: -1, y: 1 }],
-];
-
-// HOTFIX-147.29: 이미지 URL을 정수 해시로 바꾼다(djb2) — 매 렌더마다
-// 다시 뽑으면 애니메이션이 처음부터 다시 시작하며 뚝뚝 끊겨 보이므로,
-// 같은 이미지는 항상 같은 투어 경로를 쓰도록 순수 함수로 결정한다.
+// HOTFIX(2026-09-02 — "왼쪽 상단→오른쪽 하단→위로" 4정거장 "투어" 모션을
+// 시도했다가("모서리에 닿게 크게" 요청 대응) 사용자가 "수정 이후가 오히려
+// 더 보기 안 좋다, 그냥 2번 움직이는 형식으로"로 최종 정리 — 정거장을
+// 여러 개 도는 TOUR_TEMPLATES/buildTourVars(HOTFIX-147.29)는 통째로
+// 제거하고, 원래 있던 단순 왕복 키프레임(대각선 ↘/↙, CSS
+// `animation-direction: alternate`로 자동으로 되돌아옴 = "2번 움직이는
+// 형식")으로 되돌린다. "auto"는 이제 이미지 URL 해시로 ↘/↙ 둘 중 하나를
+// 골라(같은 이미지는 항상 같은 방향 — 매 렌더마다 바뀌면 애니메이션이
+// 처음부터 다시 시작해 끊겨 보임) 매번 같은 패턴만 반복되지 않게 한다.
 function hashString(s: string): number {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
   return h >>> 0;
 }
 
-// HOTFIX-147.29: 가로 이미지는 좌우 폭을, 세로 이미지는 상하 폭을 더
-// 넉넉히 써서 "가로/세로 이미지에 맞춰서" 경로 모양 자체가 방향에 맞게
-// 눌리게 한다.
-// HOTFIX-152.19(사용자 지시 — OTE "세로 미디어는 위 아래 움직임을 더
-// 중요시 하고(대각선도 됨), 가로 미디어는 왼쪽 오른쪽 움직임을 더
-// 중요시하길 원해"): 짧은 축 비율이 60%면 긴 축과 차이가 크지 않아
-// "가로/세로에 따라 방향이 다르다"는 게 잘 안 느껴졌다 — 35%로 낮춰
-// 긴 축 방향(가로→좌우, 세로→상하)이 뚜렷하게 우세하도록 했다(완전히
-// 0으로 없애지 않은 건 대각선 정거장이 섞인 투어 경로의 자연스러운
-// 곡선 느낌을 유지하기 위함).
-// HOTFIX(사용자 지시 2026-09-02 — "왼쪽 상단 모서리 끝에서 오른쪽 하단
-// 모서리 끝으로" 처럼 실제 모서리에 닿길 원함): 대각선 정거장(x,y 둘 다
-// ±1)에서 짧은 축을 35%까지 죽여버리면 그 정거장이 더 이상 "모서리"가
-// 아니라 긴 축 쪽으로 치우친 애매한 지점이 돼버린다 — 65%로 올려 가로/
-// 세로 구분(긴 축이 여전히 살짝 우세)은 남기되 대각선 정거장이 실제
-// 모서리에 훨씬 가깝게 닿도록 했다.
-function buildTourVars(url: string, orientation: "landscape" | "portrait", distancePct: number): CSSProperties {
-  const template = TOUR_TEMPLATES[hashString(url) % TOUR_TEMPLATES.length];
-  const distX = orientation === "landscape" ? distancePct : distancePct * 0.65;
-  const distY = orientation === "portrait" ? distancePct : distancePct * 0.65;
-  const vars: Record<string, string> = {};
-  template.forEach((p, i) => {
-    vars[`--silo-pan-p${i}x`] = `${p.x * distX}%`;
-    vars[`--silo-pan-p${i}y`] = `${p.y * distY}%`;
-  });
-  return vars as CSSProperties;
-}
-
-// HOTFIX-147.28: panDirection이 "auto"/null이면 HOTFIX-147.29의 투어
-// 모션 — 그 외엔 사용자가 고른 단순 패턴을 그대로 쓴다.
-function resolvePanClass(direction: PanDirection | null, orientation: "landscape" | "portrait" | undefined): string {
+// HOTFIX-147.28: panDirection이 "auto"/null이면 이미지 URL 해시로 대각선
+// ↘/↙ 중 하나를 랜덤(이미지별 고정)으로 고른다 — 그 외엔 사용자가 고른
+// 단순 패턴을 그대로 쓴다.
+function resolvePanClass(url: string, direction: PanDirection | null, orientation: "landscape" | "portrait" | undefined): string {
   if (!orientation) return "";
-  if (!direction || direction === "auto") return "silo-cover-pan-tour";
+  if (!direction || direction === "auto") {
+    return hashString(url) % 2 === 0 ? "silo-cover-pan-diag-down" : "silo-cover-pan-diag-up";
+  }
   switch (direction) {
     case "horizontal":
       return "silo-cover-pan-x";
@@ -486,13 +430,9 @@ function CoverBackground({
         // HOTFIX(사용자 지시 — "영상 슬라이드에도 이미지처럼 확대/이동
         // 모션을 넣어달라"): 이전엔 영상은 항상 !isVideo 조건에 걸려 패닝
         // 클래스가 아예 안 붙었다 — 영상도 이미지와 동일하게 pan/zoom을 탄다.
-        const panClass = effectiveFit === "cover" ? resolvePanClass(panDirection, orientation) : "";
+        const panClass = effectiveFit === "cover" ? resolvePanClass(url, panDirection, orientation) : "";
         const className = `absolute inset-0 h-full w-full ${fitClass} ${panClass} transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`;
-        const style = panClass
-          ? panClass === "silo-cover-pan-tour" && orientation
-            ? { ...baseVars, ...buildTourVars(url, orientation, resolvedDistancePct) }
-            : baseVars
-          : undefined;
+        const style = panClass ? baseVars : undefined;
         return isVideo ? (
           <video
             key={url + i}
@@ -1129,7 +1069,7 @@ function SlideOverlayFieldsEditor({
           type="number"
           min={1}
           value={value.autoAdvanceSeconds}
-          onChange={(e) => onChange({ autoAdvanceSeconds: Number(e.target.value) || 5 })}
+          onChange={(e) => onChange({ autoAdvanceSeconds: Number(e.target.value) || DEFAULT_AUTO_ADVANCE_SECONDS })}
           className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs"
         />
       </label>

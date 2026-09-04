@@ -154,6 +154,14 @@ export function BoardModule({
   );
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
+  // HOTFIX: Page Builder의 "board" 위젯(PageBuilderRenderer.tsx)은 boardId를
+  // slug가 아니라 board_id(UUID)로 넘긴다 — 그 값을 그대로 글쓰기/게시글
+  // 링크에 쓰면 "/boards/<uuid>/write"가 되어, 글쓰기 화면의 CategoryBoardPicker가
+  // slug 기준 게시판 목록에서 이 값을 찾지 못해 현재 게시판이 자동
+  // 선택되지 않는다(살롱데상 하위 게시판들에서 신고된 증상). fetch가 끝나
+  // board.slug를 알게 되면 그쪽을 우선해 항상 slug 기반 링크를 쓴다.
+  const effectiveBoardId = board?.slug || boardId;
+
   // EPIC-056: Hero Module — 부모 hub가 있으면(예: "Heritage" 아래 "Grandmas")
   // 그 이름을 중간 breadcrumb로 보여준다. 부모의 실제 board id는 이 훅이
   // 알지 못해 링크 없이 텍스트로만 표시한다(EPIC-054A의 기존 breadcrumb
@@ -209,7 +217,7 @@ export function BoardModule({
 
       <BoardHeader
         boardName={board?.name ?? ""}
-        writeHref={showWriteButton ? `/boards/${boardId}/write` : undefined}
+        writeHref={showWriteButton ? `/boards/${effectiveBoardId}/write` : undefined}
         definition={definition}
         q={q}
         onQueryChange={searchEnabled === false ? undefined : handleQueryChange}
@@ -227,7 +235,7 @@ export function BoardModule({
 
       <BoardRenderer
         definition={definition}
-        boardId={String(boardId)}
+        boardId={String(effectiveBoardId)}
         posts={posts}
         isQna={board?.board_type === "qna"}
         hubFeed={hubFeed}

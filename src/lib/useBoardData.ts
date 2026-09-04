@@ -7,6 +7,10 @@ import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
 
 type Board = {
   id: string;
+  // EPIC-XXX-HOTFIX: 글쓰기 버튼 등 링크 구성에 필요한 라우팅 slug — Page
+  // Builder의 "board" 위젯처럼 board_id(UUID)로 boardId가 넘어오는 호출부가
+  // 있어, 실제 링크는 항상 이 slug를 우선해야 한다(아래 BoardModule 참고).
+  slug?: string | null;
   name: string;
   category: string | null;
   board_type: string;

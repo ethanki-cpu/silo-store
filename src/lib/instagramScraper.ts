@@ -13,7 +13,10 @@
 // DB 등에 영구 캐싱하지 않고, 매 요청마다 새로 스크래핑하는 것이 이 모듈의
 // 전제다(호출부도 이 전제를 지켜야 한다).
 
-export type InstagramMediaItem = { type: "image" | "video"; url: string };
+// posterUrl(영상만 해당): 실기기 모바일 Chrome이 영상 프리로드를 막는
+// 경우(데이터 절약 모드 등) <video>가 재생 전까지 새까맣게 보이는 문제의
+// 2차 방어선 — poster로 최소한 정지 썸네일이라도 보이게 한다.
+export type InstagramMediaItem = { type: "image" | "video"; url: string; posterUrl?: string };
 
 // 평범한 브라우저로 위장하지 않으면 Instagram이 로그인 월/차단 페이지를
 // 내려보내는 경우가 많다(이 리포에서 이미 여러 차례 확인된 제약 —
@@ -67,7 +70,7 @@ function extractSidecarCarousel(html: string): InstagramMediaItem[] | null {
     const isVideo = (m[1] ?? m[4]) === "true";
     const displayUrl = unescapeJsonString(m[2] ?? m[3]);
     if (isVideo) {
-      items.push({ type: "video", url: videoUrls[videoIndex] ?? displayUrl });
+      items.push({ type: "video", url: videoUrls[videoIndex] ?? displayUrl, posterUrl: displayUrl });
       videoIndex += 1;
     } else {
       items.push({ type: "image", url: displayUrl });
@@ -82,9 +85,9 @@ function extractSidecarCarousel(html: string): InstagramMediaItem[] | null {
 // 내려오기도 해(예: 프로필 사진 등 부가 이미지) 첫 번째만 사용한다.
 function extractSingleFromMetaTags(html: string): InstagramMediaItem | null {
   const videos = extractAllMetaContents(html, "og:video");
-  if (videos[0]) return { type: "video", url: videos[0] };
-
   const images = extractAllMetaContents(html, "og:image");
+  if (videos[0]) return { type: "video", url: videos[0], posterUrl: images[0] };
+
   if (images[0]) return { type: "image", url: images[0] };
 
   return null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import type { InstagramFeedItem } from "@/lib/instagramFeed";
 
@@ -26,6 +26,41 @@ export function InstagramFeedPost({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
+
+  // 버그 수정(사용자 신고 — "실제 폰 Chrome으로 접속하면 영상 자리가
+  // 새까맣게 나온다"): 이 카드가 그리드(기본 12개, InstagramNativeFeed.tsx)
+  // 안에 여러 장 늘어서면 VIDEO 타입 항목마다 `autoPlay`가 걸려 화면 밖
+  // 카드까지 전부 동시에 디코딩을 시도한다 — 데스크톱은 여유 있게 버티지만
+  // 실제 모바일 기기는 동시 재생 가능한 비디오 디코더 수가 훨씬 적어(보통
+  // 한 자릿수) 한도를 넘는 순간 일부가 프레임을 그리지 못하고 검은 박스로
+  // 남는다. `autoPlay` 대신 IntersectionObserver로 이 카드가 실제
+  // 화면(또는 근처)에 들어왔을 때만 재생하고, 벗어나면 멈춰 디코더를
+  // 반납한다 — Instagram/틱톡 피드가 흔히 쓰는 것과 같은 패턴.
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const videoRefs = useRef<Array<HTMLVideoElement | null>>([]);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        for (const video of videoRefs.current) {
+          if (!video) continue;
+          if (entry.isIntersecting) {
+            video.play().catch(() => {
+              // 자동재생이 브라우저 정책으로 거부돼도(드묾 — muted라 보통
+              // 허용됨) 조용히 무시 — poster/첫 프레임은 이미 보이므로
+              // 검은 박스로 남지는 않는다.
+            });
+          } else {
+            video.pause();
+          }
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
@@ -59,10 +94,12 @@ export function InstagramFeedPost({
       return (
         <video
           key={`${url}-${idx}`}
+          ref={(el) => {
+            videoRefs.current[idx] = el;
+          }}
           className={`h-full w-full ${mediaFit}`}
           src={url}
           poster={item.thumbnail_url ?? undefined}
-          autoPlay
           muted
           loop
           playsInline
@@ -90,6 +127,7 @@ export function InstagramFeedPost({
 
   return (
     <div
+      ref={containerRef}
       className={`group relative overflow-hidden rounded-lg bg-gray-100 shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md ${
         isEmbed ? "h-[420px]" : "aspect-square"
       }`}

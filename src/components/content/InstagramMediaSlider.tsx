@@ -112,6 +112,7 @@ export function InstagramMediaSlider({ permalink }: { permalink: string }) {
               <video
                 className="gallery-media"
                 src={`/api/proxy-ig?url=${encodeURIComponent(item.url)}`}
+                poster={item.posterUrl ? `/api/proxy-ig?url=${encodeURIComponent(item.posterUrl)}` : undefined}
                 controls
                 playsInline
               />

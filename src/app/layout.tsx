@@ -61,6 +61,26 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {/* HOTFIX-156.13(사용자 재신고 — 실기기 모바일에서 헤더 버튼 위치가
+            여전히 엉망): Navbar.tsx의 헤더 축소 배율(zoom)은 브라우저
+            `window.innerWidth`를 재서 계산하는데, 서버(SSR)는 window가 없어
+            실제 기기와 무관하게 항상 축소 없음(zoom:1, PC 크기 그대로)으로
+            렌더링한다 — 브라우저가 그 SSR HTML을 화면에 그리는 시점부터
+            React가 하이드레이션을 마치고 진짜 배율로 고쳐주는 시점까지,
+            느린 실기기에서는 PC 크기 헤더가 눈에 띄게 오래 보일 수 있다.
+            다크모드 FOUC 방지와 동일한 기법 — React/하이드레이션보다 먼저
+            실행되는 이 차단(non-async) 스크립트가 실제 폭을 즉시 재서
+            `--silo-header-zoom` CSS 변수로 심어두면, Navbar.tsx는 그 값을
+            읽어 쓰므로(하이드레이션 전이라도) 첫 페인트부터 이미 올바른
+            배율로 그려진다. 값은 Navbar.tsx의 PC/태블릿/모바일 기준폭
+            (1440/820/390, headerLayoutPositions.ts)과 반드시 같아야 한다 —
+            그쪽 상수를 바꾸면 이 스크립트도 함께 바꿀 것. 외부 입력이나
+            사용자 데이터가 전혀 섞이지 않는 고정 문자열이라 XSS 위험 없음. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{function z(){var w=window.innerWidth;var t=w<=767?390:(w<=1023?820:1440);return Math.min(1,w/t);}document.documentElement.style.setProperty('--silo-header-zoom',String(z()));window.addEventListener('resize',function(){document.documentElement.style.setProperty('--silo-header-zoom',String(z()));});}catch(e){}})();`,
+          }}
+        />
         <AuthProvider>
           <NavbarBoundary>
             <Suspense fallback={null}>

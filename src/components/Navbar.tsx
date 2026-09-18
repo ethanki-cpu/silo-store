@@ -1448,12 +1448,35 @@ export function Navbar({
           폭): 변경 전 document.documentElement.scrollWidth === clientWidth
           유지(가로 오버플로우 차단 계속 유효), 강제로 드롭다운을 열어보면
           변경 전엔 완전히 안 보이던 게 변경 후엔 정상 렌더링됨을 확인. */}
+      {/* HOTFIX-156.13(사용자 재신고 — "모바일에서 버튼 위치가 여전히
+          엉망이다", 위 156.11/156.12 이후에도 재현): 실기기 SSR HTML을
+          모바일 User-Agent로 직접 떠서 보니 `style="zoom:1"`이 그대로
+          찍혀 있었다 — `headerZoomScale`은 `useReferenceWidth()`(브라우저
+          `window.innerWidth`)에 의존하는데, 서버에는 window가 없으니
+          SSR은 실제 기기와 무관하게 **항상** zoom:1(축소 없음, PC 크기
+          그대로)로 렌더링한다. 브라우저는 이 SSR HTML을 받는 즉시(React가
+          아직 하이드레이션을 시작하기도 전에) 그 자체를 화면에 그리므로,
+          "서버가 그린 zoom:1 HTML이 화면에 페인트되는 순간"부터 "React가
+          하이드레이션을 마치고 useLayoutEffect로 진짜 zoom을 계산해 되돌리는
+          순간"까지는 실제 기기 폭과 무관하게 PC 크기 헤더가 그대로 보인다
+          — 이 틈이 데스크톱에서는 찰나라 안 보이지만, JS 번들 다운로드/파싱이
+          느린 실기기(특히 첫 방문·저사양·느린 회선)에서는 사용자가 스크린샷을
+          찍을 만큼 오래 남을 수 있다(HOTFIX-156.12의 useLayoutEffect 전환은
+          "하이드레이션 시작 이후"만 앞당길 뿐, 이 SSR~하이드레이션 간극
+          자체는 못 없앰). 다크모드 FOUC 방지와 같은 방식으로 해결한다:
+          `layout.tsx`의 `<body>` 맨 앞에 있는 차단(non-async) 스크립트가
+          React보다 먼저 실행돼 `--silo-header-zoom` CSS 변수를 실제 폭
+          기준으로 즉시 설정해두고, 여기서는 실측이 아직 안 끝났으면
+          (headerReferenceWidth===0, SSR 포함) 그 변수를 쓰고, 실측이 끝나면
+          React가 계산한 진짜 값(headerZoomScale)으로 넘겨받는다 — SSR과
+          하이드레이션 첫 렌더가 똑같이 "변수를 쓴다"고 렌더링하므로 hydration
+          mismatch도 없다. */}
       <div
         ref={topBarRef}
         className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} overflow-x-clip overflow-y-visible border-b border-gray-200 bg-white transition-transform duration-300 ${
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
-        style={{ zoom: headerZoomScale }}
+        style={{ zoom: headerReferenceWidth > 0 ? headerZoomScale : "var(--silo-header-zoom, 1)" }}
       >
       <HeaderScaleModeContext.Provider value={headerTargetWidth}>
       {/* EPIC-043: "적용" 켜진 커스텀 폰트마다 각각 @font-face를 동적 주입 —

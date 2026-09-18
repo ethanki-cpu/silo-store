@@ -9,7 +9,8 @@
 // LeftSidebar.tsx/RightSidebar.tsx(좌우 사이드바 여닫이 아이콘 — 이 둘은
 // HeaderSlot을 안 쓰고 자체 드래그 로직을 갖고 있음, HOTFIX-141 주석 참고)
 // 둘 다 이 기준 폭 측정/추적 로직을 공유한다.
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useState } from "react";
+import { useIsomorphicLayoutEffect } from "@/lib/useIsomorphicLayoutEffect";
 
 // HOTFIX-156.12: 이 훅이 반환하는 폭이 0(초기값)인 동안 Navbar.tsx의
 // headerZoomScale은 항상 1(축소 없음)로 취급된다 — 원래 `useEffect`는
@@ -21,10 +22,12 @@ import { useEffect, useLayoutEffect, useState } from "react";
 // 돌아오는" 것처럼 보일 수 있다 — 스크린샷 타이밍에 따라 이 상태가
 // 찍히면 "고쳐지지 않았다"로 보인다. `useLayoutEffect`는 브라우저가
 // 페인트하기 "전에" 동기적으로 실행되므로 이 첫 프레임 자체가 아예
-// 생기지 않는다(SSR에는 window가 없어 실행 자체가 안 되므로, 서버에서는
-// 안전하게 `useEffect`로 폴백 — 흔히 쓰는 isomorphic layout effect
-// 패턴, 콘솔 경고 없이 클라이언트에서만 동기 실행).
-const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+// 생기지 않는다. **HOTFIX-156.13에서 알아낸 사실**: 이 훅만 고쳐도
+// SSR(서버 렌더 HTML 자체에 이미 `zoom:1`이 찍혀 나가는 것)과 React
+// 하이드레이션 시작 사이의 간극은 여전히 못 없앤다 — 그 간극은
+// Navbar.tsx의 CSS 변수 폴백(`--silo-header-zoom`)과 `layout.tsx`의
+// 차단 스크립트가 담당하고, 이 훅은 "하이드레이션이 시작된 이후"
+// React 쪽 상태가 최대한 빨리 정확해지도록 하는 역할만 한다.
 
 export function measureReferenceWidth(): number {
   if (typeof document === "undefined") return 0;

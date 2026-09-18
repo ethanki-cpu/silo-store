@@ -173,6 +173,7 @@ const MAX_GRID_COLUMNS = 6;
 
 export function GalleryModule({
   boardId,
+  boardSlug,
   posts,
   boardCategory,
   showLikes,
@@ -185,6 +186,10 @@ export function GalleryModule({
   hoverAutoSlide = true,
 }: {
   boardId: string;
+  // HOTFIX-156.17: SlideModule.tsx의 동일 이름 prop과 같은 이유/용도 —
+  // "/write?boardId="에는 slug가 있으면 그걸, 없으면(레거시) boardId
+  // (UUID)를 그대로 쓴다.
+  boardSlug?: string | null;
   posts: BoardPost[];
   boardCategory?: string | null;
   // EPIC-066: 게시판 관리의 좋아요/댓글/조회수 사용 여부 토글.
@@ -251,12 +256,13 @@ export function GalleryModule({
       ? thumbnailMaxPx
       : Math.floor((GALLERY_REFERENCE_WIDTH_PX - GALLERY_GAP_PX * (gridColumns - 1)) / gridColumns);
   const tileMinPx = Math.max(140, Math.floor(tileTargetPx * 0.75));
+  const writeTarget = boardSlug || boardId;
   return (
     <div>
       {showWriteButton && (
         <div className="flex justify-end mb-3">
           <Link
-            href={`/write?boardId=${encodeURIComponent(boardId)}`}
+            href={`/write?boardId=${encodeURIComponent(writeTarget)}`}
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
           >
             글쓰기

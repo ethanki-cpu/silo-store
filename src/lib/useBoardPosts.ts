@@ -8,6 +8,11 @@ import type { PostMetaStyle } from "@/components/boards/PostDetailHeader";
 type Board = {
   id: string;
   name: string;
+  // HOTFIX-156.17: Page Builder의 Gallery/Slide 위젯이 "글쓰기" 링크를
+  // 만들 때 board_id(UUID)가 아니라 이 slug를 쓰도록 하기 위해 노출한다 —
+  // BOARD_RICH_FIELDS(boardFetch.ts)에는 이미 slug가 포함돼 있어 API
+  // 응답에는 항상 들어있었지만 이 타입에 없어 그동안 못 읽었다.
+  slug: string | null;
   category: string | null;
   board_type: string;
   // HOTFIX-097(사용자 지시): 타임라인 위젯이 배치 방향/미리보기 여부를

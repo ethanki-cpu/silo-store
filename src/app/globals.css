@@ -290,6 +290,74 @@ table .selectedCell {
   background: rgba(59, 130, 246, 0.1);
 }
 
+/* HOTFIX-156.17(사용자 신고 — "글쓰기 에디터에서 엔터를 누르면 생기는
+   위줄과 아래줄 사이의 빈칸이 적용이 안 되고 있어"): BlockEditor.tsx(에디터)와
+   PostBody.tsx(발행된 글 본문) 둘 다 className에 `prose prose-sm max-w-none`을
+   쓰고 있는데, 이 프로젝트에는 그 클래스들을 실제로 채우는
+   `@tailwindcss/typography` 플러그인이 애초에 설치돼 있지 않다(package.json
+   확인 — 이 클래스들은 지금까지 아무 CSS도 생성하지 않는 죽은 이름이었다).
+   그 결과 Tailwind preflight 리셋이 지운 `<p>`/`<h1-3>`/`<ul>`/`<blockquote>`의
+   기본 여백을 되살려줄 게 아무것도 없어, 문단을 아무리 나눠도(Enter로
+   새 <p>를 만들어도) 위아래 문단이 margin:0으로 완전히 붙어있었다 — 실측:
+   두 <p>의 marginTop/marginBottom이 전부 0px, 첫 문단의 bottom과 둘째
+   문단의 top이 정확히 일치. 제목(H1) 버튼을 눌러도 fontSize/fontWeight가
+   본문 <p>와 완전히 동일(16px/400)해 구분이 전혀 안 되는 것도 같은 원인.
+   전체 typography 플러그인을 새로 설치하는 대신(이 프로젝트가 지금까지
+   써온, 위 table 규칙과 동일한 패턴 — 필요한 만큼만 직접 CSS로 채우는
+   방식) `.prose`로 범위를 좁혀 문단/제목/리스트/인용구 여백만 최소한으로
+   되살린다 — 사이트 전역 <p>/<h1> 등에는 영향 없음(에디터와 발행된 글
+   본문 둘 다 이 클래스를 쓰므로 한 곳에서 양쪽 다 고쳐진다). */
+.prose p {
+  margin: 0.75em 0;
+}
+.prose p:first-child {
+  margin-top: 0;
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
+.prose h1,
+.prose h2,
+.prose h3 {
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 1.4em 0 0.6em;
+}
+.prose h1 {
+  font-size: 1.8em;
+}
+.prose h2 {
+  font-size: 1.5em;
+}
+.prose h3 {
+  font-size: 1.25em;
+}
+.prose ul,
+.prose ol {
+  margin: 0.75em 0;
+  padding-left: 1.5em;
+}
+.prose ul {
+  list-style: disc;
+}
+.prose ol {
+  list-style: decimal;
+}
+.prose li {
+  margin: 0.25em 0;
+}
+.prose blockquote {
+  margin: 1em 0;
+  padding-left: 1em;
+  border-left: 3px solid #d1d5db;
+  color: #4b5563;
+}
+.prose hr {
+  margin: 1.5em 0;
+  border: none;
+  border-top: 1px solid #e5e7eb;
+}
+
 /* EPIC-085: 임베드(YouTube/Vimeo/Maps/Spotify 등) — 화면비율 wrapper가
    있는 경우(youtube+aspectRatio)는 이미 반응형이지만, 그 외 고정
    width/height iframe(blockEditorCore.ts renderHTML 기본 분기)은 좁은

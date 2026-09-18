@@ -1,6 +1,13 @@
 "use client";
 
 import { useEditor, EditorContent, type Editor, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
+// HOTFIX-156.17(사용자 요청 — "텍스트를 셀렉트하면 미니 버튼바가 나오게
+// 해줘"): 상단 고정 툴바까지 스크롤해서 왔다갔다 하지 않아도 되도록,
+// 텍스트를 드래그 선택하면 그 위/아래에 뜨는 작은 플로팅 툴바. Tiptap v3부터
+// React용 BubbleMenu는 `@tiptap/react`가 아니라 이 서브패스로 옮겨졌다(v2
+// 문서/기억에 의존해 기존 경로로 import하면 빌드 에러 — node_modules로 직접
+// 확인: @tiptap/react/dist/menus, package.json의 "./menus" export).
+import { BubbleMenu } from "@tiptap/react/menus";
 import type { EditorView } from "@tiptap/pm/view";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
@@ -1605,6 +1612,145 @@ function Toolbar({
   );
 }
 
+// HOTFIX-156.17(사용자 요청 — "글을 쓰다보면 길어져서 맨 위의 에디터
+// 버튼들을 위아래로 왔다갔다 하는 게 너무 불편해, 텍스트를 셀렉트하면 미니
+// 버튼바가 나오게 해줘"): 위 Toolbar 전체를 복제하지 않고, 선택한 텍스트에
+// 바로 적용하는 서식(굵게/기울임/밑줄/취소선, 제목 1~3, 정렬, 글자색,
+// 폰트, 링크)만 골라 담은 작은 버전 — 이미지/갤러리/외부자료/표/출처 같은
+// "커서 위치에 새로 삽입"하는 종류는 선택 영역과 무관한 동작이라 제외했다
+// (그런 삽입은 여전히 상단 툴바에서). Toolbar와 완전히 같은 editor 인스턴스를
+// 공유하므로 여기서 누른 서식이 상단 툴바의 active 표시에도 그대로 반영되고
+// 그 반대도 마찬가지다 — 상태를 따로 관리하지 않는다.
+function SelectionBubbleMenu({ editor }: { editor: Editor }) {
+  const { fonts: customFonts } = useCustomFonts();
+
+  return (
+    <BubbleMenu
+      editor={editor}
+      options={{ placement: "top", offset: 8 }}
+      // 커서만 놓여있고 아무것도 선택 안 됐을 때(from === to)는 안 뜬다 —
+      // "선택하면 나오는" 버튼바라는 목적 그대로, 빈 커서에서까지 뜨면 상단
+      // 툴바와 기능이 겹쳐 오히려 헷갈린다.
+      shouldShow={({ state, from, to }) => {
+        if (from === to) return false;
+        return state.doc.textBetween(from, to, " ").trim().length > 0;
+      }}
+      className="flex flex-wrap items-center gap-1 rounded-md border border-gray-300 bg-white p-1.5 shadow-lg"
+    >
+      <ToolbarGroup>
+        <ToolbarButton title="굵게 (B)" onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}>
+          <BoldIcon size={14} />
+        </ToolbarButton>
+        <ToolbarButton title="기울임 (I)" onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")}>
+          <ItalicIcon size={14} />
+        </ToolbarButton>
+        <ToolbarButton title="밑줄 (U)" onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")}>
+          <UnderlineIcon size={14} />
+        </ToolbarButton>
+        <ToolbarButton title="취소선" onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")}>
+          <Strikethrough size={14} />
+        </ToolbarButton>
+      </ToolbarGroup>
+
+      <ToolbarDivider />
+
+      {/* 글씨크기 — 이 에디터엔 px 단위 글자 크기 조절이 없고 제목1~3
+          레벨로 크기를 바꾸는 게 기존 상단 툴바의 방식이라 그대로 따른다. */}
+      <ToolbarGroup>
+        <ToolbarButton title="제목 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive("heading", { level: 1 })}>
+          <Heading1 size={14} />
+        </ToolbarButton>
+        <ToolbarButton title="제목 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })}>
+          <Heading2 size={14} />
+        </ToolbarButton>
+        <ToolbarButton title="제목 3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })}>
+          <Heading3 size={14} />
+        </ToolbarButton>
+      </ToolbarGroup>
+
+      <ToolbarDivider />
+
+      <ToolbarGroup>
+        <ToolbarButton title="왼쪽 정렬" onClick={() => editor.chain().focus().setTextAlign("left").run()} active={editor.isActive({ textAlign: "left" })}>
+          <AlignLeft size={14} />
+        </ToolbarButton>
+        <ToolbarButton title="중앙 정렬" onClick={() => editor.chain().focus().setTextAlign("center").run()} active={editor.isActive({ textAlign: "center" })}>
+          <AlignCenter size={14} />
+        </ToolbarButton>
+        <ToolbarButton title="오른쪽 정렬" onClick={() => editor.chain().focus().setTextAlign("right").run()} active={editor.isActive({ textAlign: "right" })}>
+          <AlignRight size={14} />
+        </ToolbarButton>
+      </ToolbarGroup>
+
+      <ToolbarDivider />
+
+      {/* 글씨색상 — 상단 툴바와 동일한 스와이프 팔레트(임의색/초기화는
+          공간이 좁아 생략, 필요하면 상단 툴바 사용). */}
+      <div className="flex items-center gap-0.5">
+        {["#111827", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"].map((hex) => (
+          <button
+            key={hex}
+            type="button"
+            title={hex}
+            onClick={() => editor.chain().focus().setColor(hex).run()}
+            className={`w-4 h-4 rounded-full border ${
+              editor.isActive("textStyle", { color: hex }) ? "ring-2 ring-offset-1 ring-gray-500" : "border-gray-300"
+            }`}
+            style={{ backgroundColor: hex }}
+          />
+        ))}
+      </div>
+
+      <select
+        title="글꼴"
+        onChange={(e) => {
+          const value = e.target.value;
+          if (!value) editor.chain().focus().unsetFontFamily().run();
+          else editor.chain().focus().setFontFamily(value).run();
+        }}
+        className="text-xs border border-gray-200 rounded px-1 py-0.5 bg-white max-w-[90px]"
+        defaultValue=""
+      >
+        <option value="">기본 글꼴</option>
+        <option value="Arial, Helvetica, sans-serif">Arial</option>
+        <option value="Georgia, serif">Georgia</option>
+        <option value="'Times New Roman', serif">Times New Roman</option>
+        <option value="'Courier New', monospace">Courier New</option>
+        {customFonts.length > 0 && (
+          <optgroup label="커스텀 폰트">
+            {customFonts.map((font) => (
+              <option key={font.id} value={`'${font.fontName}'`}>
+                {font.fontName}
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </select>
+
+      <ToolbarDivider />
+
+      {/* 삽입 — 선택한 텍스트를 대상으로 하는 것만(링크로 만들기). 이미지/
+          갤러리/외부자료/표처럼 커서 위치에 새 블록을 끼워 넣는 종류는
+          "선택 영역" 개념과 무관해 상단 툴바 전용으로 남긴다. */}
+      <ToolbarButton
+        title="링크"
+        onClick={() => {
+          const url = window.prompt("링크 URL을 입력하세요");
+          if (url === null) return;
+          if (url === "") {
+            editor.chain().focus().unsetLink().run();
+            return;
+          }
+          editor.chain().focus().setLink({ href: url }).run();
+        }}
+        active={editor.isActive("link")}
+      >
+        <Link2 size={14} />
+      </ToolbarButton>
+    </BubbleMenu>
+  );
+}
+
 // ============================================================
 // BlockEditor
 // ============================================================
@@ -2010,6 +2156,7 @@ export function BlockEditor({
         onTogglePreview={() => setIsPreview((v) => !v)}
         isPreview={isPreview}
       />
+      {!isPreview && <SelectionBubbleMenu editor={editor} />}
 
       {isPreview ? (
         <div

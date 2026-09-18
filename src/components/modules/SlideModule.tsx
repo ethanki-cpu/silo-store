@@ -16,20 +16,31 @@ export function SlideModule({
   title,
   items,
   boardId,
+  boardSlug,
 }: {
   title: string;
   items: HubFeed["latest"];
   boardId?: string;
+  // HOTFIX-156.17(사용자 신고 — "게시판에서 글쓰기를 누르면 해당 게시판이
+  // 자동으로 설정되도록 해줘"): boardId는 PageBuilderRenderer.tsx가
+  // board_id(UUID) 컬럼을 그대로 넘긴 값이라, 그걸 그대로 "/write?boardId="에
+  // 실으면 WriteBoardForm이 기대하는 slug와 안 맞아 "게시될 페이지 선택"이
+  // 자동 선택되지 않았다(BoardModule.tsx가 이미 effectiveBoardId로 겪고
+  // 고친 것과 동일한 버그, 이 컴포넌트에는 그 수정이 안 들어와 있었다).
+  // DbFeedModules.tsx가 useBoardPosts로 이미 조회해둔 board.slug를 여기로
+  // 넘겨 있으면 그걸 쓰고, 없으면(레거시 폴백) boardId 그대로 쓴다.
+  boardSlug?: string | null;
 }) {
+  const writeTarget = boardSlug || boardId;
   return (
     <section className="mb-10">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-xs uppercase tracking-wide text-gray-400">
           {title}
         </h2>
-        {boardId && (
+        {writeTarget && (
           <Link
-            href={`/write?boardId=${encodeURIComponent(boardId)}`}
+            href={`/write?boardId=${encodeURIComponent(writeTarget)}`}
             className="rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50"
           >
             글쓰기

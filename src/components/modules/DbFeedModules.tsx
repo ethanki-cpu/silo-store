@@ -47,13 +47,13 @@ export function DbSlideModule({
     tags: p.tags ?? [],
   }));
 
-  return <SlideModule title={title ?? board?.name ?? "최신 글"} items={items} boardId={boardId} />;
+  return <SlideModule title={title ?? board?.name ?? "최신 글"} items={items} boardId={boardId} boardSlug={board?.slug} />;
 }
 
 export function DbGalleryModule({ boardId }: { boardId: string | null }) {
-  const { posts, loading } = useBoardPosts(boardId);
+  const { board, posts, loading } = useBoardPosts(boardId);
   if (!boardId || (!loading && posts.length === 0)) return <EmptyBoardHint loading={loading} />;
-  return <GalleryModule boardId={boardId} posts={posts} />;
+  return <GalleryModule boardId={boardId} boardSlug={board?.slug} posts={posts} />;
 }
 
 // HOTFIX-097: 페이지 빌더 Timeline 위젯도 게시판 렌더러(TimelineRenderer.tsx)와

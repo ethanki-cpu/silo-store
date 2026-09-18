@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-09-19 (HOTFIX-156.18 — `?debugviewport=1` 진단 배지 재도입: 실기기 전용 헤더 레이아웃 문제 추적)
+- **사용자 재신고**: HOTFIX-156.14(matchMedia 틈)/156.15(zoom 캡핑)/156.16(text-size-adjust)을 전부 배포했는데도 "내 핸드폰 크롬에서 아직도 이렇게 보여"라며 최초 신고와 동일한 스크린샷("관리자" 안 보임 + "장미" 사이드바 아이콘 위치 틀림)을 다시 첨부.
+- **재확인**: 데스크톱 크롬을 500~1200px 전 구간 라이브 리사이즈해도 재현되지 않고, HOTFIX-156.16이 추가한 `text-size-adjust: 100%`가 실제로 dev.silostore.net에 적용된 것도 `getComputedStyle`로 직접 확인했다 — 그런데도 실기기에서만 동일하게 재현된다는 건, 이 세션의 어떤 도구로도 흉내 낼 수 없는 실기기 전용 요인(정확한 DPR 값, 실제 브라우저의 `zoom` 렌더링 세부 동작 등)이 남아있다는 뜻이다.
+- **조치**: 더 추측하지 않고 HOTFIX-156.11이 이미 한 번 실제로 원인을 밝혀낸 방법 — `?debugviewport=1` 쿼리로만 노출되는 진단 배지 — 를 `Navbar.tsx`에 재도입(`MobileHeaderDebugBadge`, 공개 사이트에서만 렌더링, editable 모드에서는 비활성). 화면 하단에 고정된 텍스트 패널로 `innerWidth`/`innerHeight`/`devicePixelRatio`/`visualViewport.width`/`html.scrollWidth` vs `clientWidth`/헤더의 실제 `zoom` 계산값/"관리자" 텍스트의 실측 위치·크기/헤더 안에서 `transform: translate(...)`로 옮겨진 요소 전체(최대 14개)의 위치·크기·라벨을 1초마다 갱신해 보여준다.
+- **검증**: `npx tsc --noEmit` 신규 에러 없음. 로컬 dev 서버를 390×844(모바일 에뮬레이션)로 열어 배지가 정확한 실측값(innerWidth 390, dpr 2.0, visualViewportWidth 390.4, adminRect 등)을 실제로 표시하는 것을 스크린샷으로 확인 — 다만 이 환경에서는 여전히 레이아웃 자체가 정상으로 보여, 실기기에서만 나타나는 근본 원인 자체는 이 배지의 값을 실제로 받아봐야 알 수 있다. **다음에 반드시 필요**: 사용자가 문제의 그 폰으로 `dev.silostore.net/?debugviewport=1`을 열어 화면 하단 배지 전체가 보이도록 스크린샷을 보내주면, 그 실측값으로 실기기 전용 원인을 확정하고 배지는 확인 후 제거.
+
 ## 2026-09-19 (EPIC-157 — 글쓰기 에디터 4종 개선: 문단 간격 수정, 기본 굵게 조사, 선택 시 미니 툴바, 게시판 자동선택 확대)
 - **사용자 요청 4가지**: (1) "에디터에서 엔터를 누르면 생기는 위줄과 아래줄 사이의 빈칸이 적용이 안 되고 있어", (2) "에디터에서 기본값이 bold가 되어있는데 해제해줘", (3) "글이 길어지면 상단 버튼까지 왔다갔다 하는 게 불편해, 텍스트를 셀렉트하면 미니 버튼바가 나오게 해줘", (4) "게시판에서 글쓰기를 누르면 해당 게시판이 자동으로 설정되도록 모든 게시판 기본값을 바꿔줘".
 - **(1) 원인**: `BlockEditor.tsx`(에디터)와 `PostBody.tsx`(발행된 글 본문) 둘 다 `prose prose-sm max-w-none` 클래스를 쓰는데, 이 프로젝트에는 그 클래스를 채우는 `@tailwindcss/typography` 플러그인이 애초에 설치돼 있지 않았다(`package.json` 확인 — Tailwind v4라 `@plugin` CSS 등록도 없음). Tailwind preflight가 지운 `<p>`/`<h1-3>`의 기본 여백을 되살려줄 게 없어, Enter로 문단을 나눠도 margin:0으로 완전히 붙어있었다 — 실측: 두 `<p>`의 marginTop/marginBottom이 전부 0px, 첫 문단 bottom과 둘째 문단 top이 정확히 일치. 제목(H1) 버튼을 눌러도 fontSize/fontWeight가 본문 `<p>`와 완전히 동일(16px/400)한 것도 같은 원인.

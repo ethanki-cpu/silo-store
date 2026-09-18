@@ -2147,6 +2147,84 @@ export function Navbar({
             : undefined
         }
       />
+      {!editable && <MobileHeaderDebugBadge />}
     </header>
+  );
+}
+
+// HOTFIX-156.18(사용자 재신고 — HOTFIX-156.14/156.15/156.16을 전부 거쳤는데도
+// "내 핸드폰 크롬에서 아직도 이렇게 보여"라며 같은 스크린샷을 다시 첨부:
+// "관리자"가 안 보이고 "장미" 사이드바 아이콘 위치가 틀림): 데스크톱에서
+// 500~1200px 전 구간 라이브 리사이즈로 재현을 시도했지만 전부 정상이었고,
+// text-size-adjust:100%(HOTFIX-156.16)가 실제로 라이브에 적용된 것도
+// 확인했는데도 실기기에서만 동일하게 재현된다는 건 이 세션이 흉내 낼 수
+// 없는 실기기 전용 요인(정확한 DPR/실제 zoom 렌더링 등)이 있다는 뜻이다 —
+// 더 추측하지 않고 HOTFIX-156.11이 이미 한 번 효과를 본 방법(`?debugviewport=1`
+// 진단 배지)을 그대로 재사용한다. 공개 사이트에서만(editable=false) 렌더링되고
+// 이 쿼리 파라미터가 없으면 완전히 비활성 — 확인 후 제거 예정.
+function MobileHeaderDebugBadge() {
+  const [info, setInfo] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("debugviewport") !== "1") return;
+
+    function measure() {
+      const html = document.documentElement;
+      const topBar = document.querySelector("header > div") as HTMLElement | null;
+      const adminEl = Array.from(document.querySelectorAll("a, span, div")).find(
+        (el) => el.children.length === 0 && (el.textContent ?? "").trim() === "관리자",
+      ) as HTMLElement | undefined;
+      const movedEls = Array.from(document.querySelectorAll('header [style*="translate"]')) as HTMLElement[];
+
+      setInfo({
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        dpr: window.devicePixelRatio,
+        visualViewportWidth: window.visualViewport?.width,
+        htmlScrollWidth: html.scrollWidth,
+        htmlClientWidth: html.clientWidth,
+        topBarStyle: topBar?.getAttribute("style") ?? null,
+        topBarComputedZoom: topBar ? getComputedStyle(topBar).zoom : null,
+        adminFound: !!adminEl,
+        adminRect: adminEl
+          ? (() => {
+              const r = adminEl.getBoundingClientRect();
+              return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
+            })()
+          : null,
+        movedCount: movedEls.length,
+        moved: movedEls.slice(0, 14).map((el) => {
+          const r = el.getBoundingClientRect();
+          const img = el.querySelector("img");
+          return {
+            transform: el.style.transform,
+            x: Math.round(r.x),
+            y: Math.round(r.y),
+            w: Math.round(r.width),
+            h: Math.round(r.height),
+            label: img?.getAttribute("alt") || (el.textContent ?? "").trim().slice(0, 14),
+          };
+        }),
+      });
+    }
+
+    measure();
+    window.addEventListener("resize", measure);
+    const id = window.setInterval(measure, 1000);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.clearInterval(id);
+    };
+  }, []);
+
+  if (!info) return null;
+
+  return (
+    <div
+      style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 999999, maxHeight: "55vh", overflow: "auto" }}
+      className="bg-black/90 text-white text-[10px] font-mono p-2 leading-tight whitespace-pre-wrap break-all"
+    >
+      {JSON.stringify(info, null, 1)}
+    </div>
   );
 }

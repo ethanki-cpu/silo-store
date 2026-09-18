@@ -15,14 +15,24 @@ export function useIsMobileViewport(): boolean {
   // 모바일 화면에서도 첫 프레임은 항상 `isMobile=false`(SSR 기본값) 취급된다
   // — 아래 useDeviceTier와 같은 이유(useReferenceWidth.ts 주석 참고)로
   // `useLayoutEffect` isomorphic 패턴으로 교체.
+  // HOTFIX-156.14(사용자 재신고 — "타블렛→모바일로 넘어가는 과정에서
+  // 오류가 나는 것 같다, 모바일 크롬/데스크톱 크롬 둘 다 똑같다"):
+  // `matchMedia("(max-width: 767px)")`는 **정수가 아닌** 실제 뷰포트 폭을
+  // 기준으로 판정한다 — `dev.silostore.net`에서 직접 재현: 창을 768→767로
+  // 리사이즈했을 때 `window.innerWidth`는 767(정수로 반올림)을 보고하지만
+  // `window.visualViewport.width`는 767.2 같은 소수(실제 기기/디스플레이
+  // 배율에 따라 흔함, devicePixelRatio가 정수가 아닐 때 특히)였다 —
+  // `matchMedia`는 이 767.2를 기준으로 판정해 `(max-width:767px)`이
+  // **false**가 나왔다(767.2 > 767). 아래 useDeviceTier와 같은 이유로
+  // `window.innerWidth`(정수, zoom 계산에도 이미 쓰는 것과 동일한 값) 기준
+  // 산술 비교로 바꿔 이 틈 자체를 없앤다.
   useIsomorphicLayoutEffect(() => {
-    const mql = window.matchMedia("(max-width: 767px)");
-    setIsMobile(mql.matches);
-    function handleChange(e: MediaQueryListEvent) {
-      setIsMobile(e.matches);
+    function compute() {
+      setIsMobile(window.innerWidth < 768);
     }
-    mql.addEventListener("change", handleChange);
-    return () => mql.removeEventListener("change", handleChange);
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
   }, []);
 
   return isMobile;
@@ -60,19 +70,33 @@ export function useDeviceTier(): DeviceTier {
   // 스크립트가 설정)로 SSR 단계부터 이미 보정되므로, 이 틈에 pc 콘텐츠가
   // 보이더라도 최소한 "모바일 zoom 배율로 축소된" pc 콘텐츠라 화면을
   // 크게 벗어나 찢어지진 않는다.
+  // HOTFIX-156.14(사용자 재신고, `dev.silostore.net`에서 실측 재현 —
+  // 진짜 원인 발견): 위 156.13까지 고친 뒤에도 재현돼 실제로 브라우저
+  // 창을 768→767px로 한 픽셀씩 리사이즈하며 재현했다 — 767px에서
+  // `mobileMql.matches`/`tabletMql.matches`가 **둘 다 false**가 나와
+  // "그 어느 쪽도 아님" 취급되며 `tier`가 (초기값이자 마지막 분기인) "pc"로
+  // 떨어졌다. 원인: `window.innerWidth`는 767(정수)을 보고하지만
+  // `window.visualViewport.width`(matchMedia가 실제로 비교하는 값)는
+  // 767.2 같은 **소수**였다(실기기 devicePixelRatio가 정수가 아니거나,
+  // Windows 디스플레이 배율이 100%가 아닌 경우 흔함 — 그래서 사용자가
+  // 실제 모바일 기기와 데스크톱 크롬(창 크기 조절) 양쪽에서 똑같이
+  // 재현했던 것, 특정 기기만의 문제가 아니었다). `max-width:767px`과
+  // `min-width:768px`은 "정수 폭"이라는 암묵적 전제 하에서만 서로 빈틈없이
+  // 맞물리는데, 소수 폭(767.2)은 그 전제를 깨고 둘 사이 틈에 정확히
+  // 낀다 — 그 결과 살롱데상 같은 탭 콘텐츠는 모바일/태블릿용인데 헤더
+  // 배율·위치 계산만 PC 기준(1440px)으로 계산되면서 화면 요소들이 짓눌리듯
+  // 겹쳐 보였다. `useIsMobileViewport`와 동일하게 `matchMedia` 두 개
+  // 대신 `window.innerWidth`(정수, zoom 계산과 동일한 값) 기준 산술
+  // 비교로 교체 — `w < 768`/`w < 1024`/그 외로 정확히 3분할해 수학적으로
+  // 빈틈이 있을 수 없다.
   useIsomorphicLayoutEffect(() => {
-    const mobileMql = window.matchMedia("(max-width: 767px)");
-    const tabletMql = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
     function compute() {
-      setTier(mobileMql.matches ? "mobile" : tabletMql.matches ? "tablet" : "pc");
+      const w = window.innerWidth;
+      setTier(w < 768 ? "mobile" : w < 1024 ? "tablet" : "pc");
     }
     compute();
-    mobileMql.addEventListener("change", compute);
-    tabletMql.addEventListener("change", compute);
-    return () => {
-      mobileMql.removeEventListener("change", compute);
-      tabletMql.removeEventListener("change", compute);
-    };
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
   }, []);
 
   return tier;

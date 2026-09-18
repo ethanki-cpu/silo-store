@@ -386,8 +386,40 @@ export function Navbar({
   };
   const headerReferenceWidth = useReferenceWidth();
   const headerTargetWidth = HEADER_REFERENCE_WIDTH_BY_TIER[deviceKey];
+  // HOTFIX-156.15(사용자 재신고 — 실기기 없이도 `dev.silostore.net`을
+  // 414px 폭으로 열어보니 사용자 스크린샷과 똑같이 "관리자"/"글쓰기"가
+  // 로고와 겹치고 "살롱데상"이 잘려 보이는 게 그대로 재현됨, 원인 확정):
+  // 위 주석(HOTFIX-152.14/152.15)의 "기준폭보다 넓은 화면에서는 더
+  // 커지지 않고 1로 고정 — 남는 공간은 자연스럽게 여백"이라는 원래
+  // 전제가 틀렸다. CSS `zoom`은 단순히 "보이는 크기"만 줄이는
+  // `transform: scale`과 달리, 그 안의 **flex 레이아웃 자체가 내부적으로
+  // "몇 px 폭에서 배치됐다고 착각하는지"까지 바꾼다** — zoom=390/390=1인
+  // 390px 화면에서는 내부 flex 계산도 정확히 390px 기준으로 이뤄지고,
+  // 각 HeaderSlot의 dx 오프셋도 그 390px 기준으로 캘리브레이션돼 있어
+  // 정확히 맞아떨어진다. 그런데 real 폭이 414px(아이폰 대부분 기종)처럼
+  // 390보다 "조금이라도" 넓으면 `Math.min(1, ...)`이 zoom을 1로 캡핑해
+  // 버려서, 내부 flex 계산이 (390이 아니라) **실제 414px 기준으로
+  // 다시 이뤄진다** — flex 요소들의 "원래(안 옮겨진) 위치" 자체가
+  // 390 기준과 414 기준에서 미묘하게 달라지는데, dx 오프셋은 여전히
+  // 390 기준 값 그대로라 더 이상 맞물리지 않아 겹치거나 화면 밖으로
+  // 밀린다 — 실제 전화기는 정확히 390px인 경우가 오히려 드물기 때문에
+  // (360/375/390/393/412/414/428 등 제각각) 거의 모든 실기기에서
+  // 상시 재발하던 근본 원인이었다. **수정**: PC 계층만 기존처럼 1로
+  // 캡핑(초대형 모니터에서 헤더가 과도하게 커지는 것 방지 — PC 화면은
+  // 1440보다 훨씬 넓은 경우가 흔해 이 캡이 여전히 필요)하고, 태블릿/
+  // 모바일 계층은 캡 없이(예: 414px → zoom 1.0615) 항상 "실제 폭 =
+  // 기준폭 × zoom"이 성립하도록 유지 — 그래야 내부 flex 계산이 항상
+  // 캘리브레이션 당시와 동일한 기준폭으로 이뤄져 dx 오프셋이 실제 폭과
+  // 무관하게 항상 정확히 들어맞는다. 실측(`dev.silostore.net`, 로컬
+  // dev 서버 414px): 캡 있을 때 "관리자"가 로고와 겹치고 "살롱데상"이
+  // 잘렸는데, zoom을 1.0615로(캡 없이) 강제 적용하자 즉시 완전히
+  // 정상으로 겹침 없이 렌더링되는 것을 스크린샷으로 확인.
   const headerZoomScale =
-    headerReferenceWidth > 0 ? Math.min(1, headerReferenceWidth / headerTargetWidth) : 1;
+    headerReferenceWidth > 0
+      ? deviceKey === "pc"
+        ? Math.min(1, headerReferenceWidth / headerTargetWidth)
+        : headerReferenceWidth / headerTargetWidth
+      : 1;
 
   // EPIC-032: admin/navigation/settings("홈페이지 설정 관리")가 저장한
   // site_settings.main_logo를 조회해 로고를 대체한다. 값이 비어 있으면

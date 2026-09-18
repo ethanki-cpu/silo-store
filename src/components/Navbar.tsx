@@ -1417,9 +1417,22 @@ export function Navbar({
           "auto" 레벨이라 나중에 그려지는 쪽이 위로 올라옴). editable
           여부와 무관하게 z-40은 항상 유지해야 원래(비-editable) 사이트와
           동일한 stacking이 보장된다. */}
+      {/* 버그 수정(사용자 신고 — 실기기에서만 페이지 전체가 화면보다 훨씬
+          넓게 렌더링돼 손가락으로 옆으로/축소해서 봐야 함, 진단 배지로
+          실측: scrollWidth 3008px vs clientWidth 456px): EPIC-136의 자유
+          드래그는 각 요소를 transform: translate()로 "보이는 위치"만
+          옮길 뿐, 그 요소들을 원래 담고 있던 flex-nowrap 한 줄 컨테이너
+          자체의 레이아웃 폭은 전혀 줄이지 않는다 — 관리자가 여러 요소를
+          모바일 화면 안에 압축해 보이도록 겹쳐서 배치해도, 보이지 않는
+          원본 컨테이너는 모든 요소의 원래 폭을 합친 만큼(3000px+) 그대로
+          존재해 문서 전체의 가로 스크롤 영역을 그만큼 넓혀버린다 —
+          deviceKey/zoom 판정은 전부 정상이었고 순수하게 이 오버플로우가
+          원인이었다. transform으로 이미 뷰포트 안쪽으로 재배치된
+          요소들은 그대로 보이므로, 그 바깥의 "보이지 않는 원본 폭"만
+          가로로 잘라내면 시각적 손실 없이 스크롤/줌 문제만 사라진다. */}
       <div
         ref={topBarRef}
-        className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} border-b border-gray-200 bg-white transition-transform duration-300 ${
+        className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} overflow-x-hidden border-b border-gray-200 bg-white transition-transform duration-300 ${
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
         style={{ zoom: headerZoomScale }}

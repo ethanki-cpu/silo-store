@@ -86,10 +86,24 @@
    실질적 다크 테마 없이 body 배경만 반쪽짜리로 바뀌어 버그만 만드므로
    제거 — 시스템 설정과 무관하게 항상 라이트 배경을 쓴다. */
 
+/* 버그 수정(사용자 신고 — 실기기 모바일 Chrome에서 페이지 전체가 화면보다
+   훨씬 넓게 렌더링됨, 진단 배지 실측: document.scrollWidth 3008px vs
+   clientWidth 456px): EPIC-136의 헤더 자유 드래그(transform: translate)가
+   요소를 담던 flex-nowrap 컨테이너 자체의 레이아웃 폭은 줄이지 않아
+   보이지 않는 가로 오버플로우가 생겼다 — 근본 수정은 Navbar.tsx의 헤더
+   래퍼에 overflow-x-hidden을 직접 걸어뒀지만, 앞으로 다른 곳(자유
+   드래그/절대 배치를 쓰는 다른 컴포넌트)에서 같은 실수가 또 나도 최소한
+   페이지 전체가 옆으로 늘어나 손가락으로 확대/축소해야 하는 사태까지는
+   막도록 body 자체에도 안전망을 건다 — 세로 스크롤은 그대로 유지. */
+html {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
 }
 
 /* EPIC-079-PHASE-5: 갤러리(GalleryBlock) 인스타그램 스타일 가로 스와이프

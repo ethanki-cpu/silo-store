@@ -1430,9 +1430,27 @@ export function Navbar({
           원인이었다. transform으로 이미 뷰포트 안쪽으로 재배치된
           요소들은 그대로 보이므로, 그 바깥의 "보이지 않는 원본 폭"만
           가로로 잘라내면 시각적 손실 없이 스크롤/줌 문제만 사라진다. */}
+      {/* HOTFIX-156.12(사용자 재신고 — "상단 탭에 커서를 올리면 드롭다운이
+          보이지 않는다"): 위 HOTFIX-156.11이 추가한 `overflow-x-hidden`이
+          진짜 원인이었다 — CSS 스펙상 overflow-x/overflow-y 중 하나만
+          'visible'이 아니면 나머지(overflow-y, 여기선 지정 안 해 기본값
+          'visible')는 자동으로 'auto'로 바뀐다(getComputedStyle로 실측:
+          overflowY가 실제로 'auto'였다). 이 div 안에는 각 상단 탭의
+          드롭다운(absolute top-full, 이 박스의 높이보다 훨씬 아래까지
+          내려감)이 자식으로 들어있어, hover로 열려도 부모의 overflow-y:auto
+          박스 높이를 벗어나는 부분이 통째로 잘려 "드롭다운이 안 보인다"가
+          됐다(PC/모바일 구분 없이 항상 재현 — 디바이스 문제가 아니었다).
+          `overflow-x: hidden` 대신 `overflow-x: clip`(Tailwind
+          `overflow-x-clip`)을 쓰면 이 auto 전환이 일어나지 않아
+          `overflow-y: visible`을 그대로 유지할 수 있다 — 가로 클리핑
+          효과(위 156.11의 목적)는 동일하게 유지하면서 세로로 튀어나오는
+          드롭다운만 그대로 보이게 한다. 실측(dev.silostore.net, 390px
+          폭): 변경 전 document.documentElement.scrollWidth === clientWidth
+          유지(가로 오버플로우 차단 계속 유효), 강제로 드롭다운을 열어보면
+          변경 전엔 완전히 안 보이던 게 변경 후엔 정상 렌더링됨을 확인. */}
       <div
         ref={topBarRef}
-        className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} overflow-x-hidden border-b border-gray-200 bg-white transition-transform duration-300 ${
+        className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} overflow-x-clip overflow-y-visible border-b border-gray-200 bg-white transition-transform duration-300 ${
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
         style={{ zoom: headerZoomScale }}

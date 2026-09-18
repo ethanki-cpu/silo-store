@@ -27,18 +27,27 @@ export function InstagramFeedPost({
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
 
-  // 버그 수정(사용자 신고 — "실제 폰 Chrome으로 접속하면 영상 자리가
-  // 새까맣게 나온다"): 이 카드가 그리드(기본 12개, InstagramNativeFeed.tsx)
-  // 안에 여러 장 늘어서면 VIDEO 타입 항목마다 `autoPlay`가 걸려 화면 밖
-  // 카드까지 전부 동시에 디코딩을 시도한다 — 데스크톱은 여유 있게 버티지만
-  // 실제 모바일 기기는 동시 재생 가능한 비디오 디코더 수가 훨씬 적어(보통
-  // 한 자릿수) 한도를 넘는 순간 일부가 프레임을 그리지 못하고 검은 박스로
-  // 남는다. `autoPlay` 대신 IntersectionObserver로 이 카드가 실제
-  // 화면(또는 근처)에 들어왔을 때만 재생하고, 벗어나면 멈춰 디코더를
-  // 반납한다 — Instagram/틱톡 피드가 흔히 쓰는 것과 같은 패턴.
+  // 버그 수정 2차(사용자 재신고 — "0.5초는 정상으로 보이다가 다시 검게
+  // 변한다"): 1차 수정(IntersectionObserver로 화면에 보이는 카드만 재생)은
+  // 그리드가 보통 홈 최상단에 있어 12장 대부분이 뷰포트+여유폭(200px) 안에
+  // 한꺼번에 들어오는 구조라 실효가 없었다 — hydration 직후 관찰자가 거의
+  // 동시에 전부 "보임" 판정을 내려 처음부터 다시 전부 동시 재생을 시도했다
+  // (그래서 "SSR 정지 프레임이 먼저 보이다가, hydration 이후 일괄 재생
+  // 트리거로 무너지는" 타이밍과 정확히 일치). 근본적으로 "몇 개까지 동시
+  // 재생 가능한지"는 기기마다 달라 안전 상한을 추측하는 방식 자체가
+  // fragile하다 — 이 그리드는 애초에 permalink `<a>`로 감싸여 클릭하면
+  // 인스타그램 원본으로 이동하므로(EPIC-143), 그 안에서 실제 자동재생
+  // 미리보기를 보여줄 필요가 없다: **그리드(variant="grid")는 영상을 아예
+  // 재생하지 않고 정지 프레임 + 재생 아이콘만 보여준다**(VIDEO_THUMBNAIL과
+  // 동일한 처리, 아래 renderMedia 참고) — 디코더 경쟁 자체가 발생하지
+  // 않으니 기기 성능과 무관하게 항상 안전하다. 실제 재생이 필요한
+  // variant="embed"(게시글 본문에 삽입되는 단일 임베드, 페이지당 보통
+  // 1~2개뿐이라 동시성 경쟁이 문제되지 않음)에서만 아래 IntersectionObserver
+  // 로 화면에 들어왔을 때 재생/벗어나면 정지를 계속 적용한다.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRefs = useRef<Array<HTMLVideoElement | null>>([]);
   useEffect(() => {
+    if (!isEmbed) return;
     const container = containerRef.current;
     if (!container) return;
     const observer = new IntersectionObserver(
@@ -60,7 +69,7 @@ export function InstagramFeedPost({
     );
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [isEmbed]);
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
@@ -91,6 +100,28 @@ export function InstagramFeedPost({
   // 구분 없이 보이던 문제를 최소한 시각적으로는 해결).
   function renderMedia(url: string, type: string, idx: number) {
     if (type === "VIDEO") {
+      // isEmbed(게시글 본문 단일 임베드)만 실제로 재생한다 — 그리드
+      // 미리보기는 위 useEffect 주석대로 재생을 아예 시도하지 않고 정지
+      // 프레임 + 재생 아이콘만 보여준다(VIDEO_THUMBNAIL과 동일 처리).
+      if (!isEmbed) {
+        return (
+          <div key={`${url}-${idx}`} className="relative h-full w-full">
+            <video
+              className={`h-full w-full ${mediaFit}`}
+              src={url}
+              poster={item.thumbnail_url ?? undefined}
+              muted
+              playsInline
+              preload="metadata"
+            />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white">
+                <span className="ml-0.5 text-xl">▶</span>
+              </div>
+            </div>
+          </div>
+        );
+      }
       return (
         <video
           key={`${url}-${idx}`}

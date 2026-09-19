@@ -683,6 +683,7 @@ function TimelineCoverOverlay({
           <EditableText
             as="p"
             value={text}
+            multiline
             onCommit={onTextCommit}
             className={`${COVER_WEIGHT_CLASS[fontWeight]} ${COVER_ALIGN_CLASS[align]}`}
             style={{ fontSize: fontSizePx, color, ...(fontFamily ? { fontFamily } : {}) }}
@@ -694,6 +695,7 @@ function TimelineCoverOverlay({
           <EditableText
             as="p"
             value={description}
+            multiline
             onCommit={onDescriptionCommit}
             className={`${COVER_WEIGHT_CLASS[descFontWeight]} ${COVER_ALIGN_CLASS[descAlign]}`}
             style={{ fontSize: descFontSizePx, color: descColor, ...(descFontFamily ? { fontFamily: descFontFamily } : {}) }}

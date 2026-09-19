@@ -23,6 +23,7 @@ export function EditableText({
   className,
   style,
   placeholder = "텍스트를 입력하세요",
+  multiline = false,
 }: {
   value: string;
   onCommit: (next: string) => void;
@@ -30,18 +31,22 @@ export function EditableText({
   className?: string;
   style?: CSSProperties;
   placeholder?: string;
+  /** 줄바꿈(
+)을 화면에 그대로 반영(whitespace-pre-line) — 기본은 기존처럼 공백으로 접힘. */
+  multiline?: boolean;
 }) {
   const editable = useCraftEditable();
   const [editing, setEditing] = useState(false);
   const Tag = as;
+  const lineClass = multiline ? "whitespace-pre-line" : "";
 
   if (!editable) {
-    return <Tag className={className} style={style}>{value || placeholder}</Tag>;
+    return <Tag className={`${className ?? ""} ${lineClass}`} style={style}>{value || placeholder}</Tag>;
   }
 
   return (
     <Tag
-      className={`${className ?? ""} ${
+      className={`${className ?? ""} ${lineClass} ${
         editing
           ? "outline outline-2 outline-blue-400 outline-offset-2"
           : "cursor-text outline-offset-2 hover:outline hover:outline-1 hover:outline-blue-300"
@@ -53,7 +58,7 @@ export function EditableText({
       onBlur={(e) => {
         if (!editing) return;
         setEditing(false);
-        const next = e.currentTarget.textContent ?? "";
+        const next = (multiline ? e.currentTarget.innerText : e.currentTarget.textContent) ?? "";
         if (next !== value) onCommit(next);
       }}
     >

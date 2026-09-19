@@ -8,13 +8,10 @@ import { BoardRenderer } from "@/components/boards/BoardRenderer";
 import { BoardSkeleton } from "@/components/boards/BoardSkeleton";
 import { Pagination } from "@/components/boards/Pagination";
 import { FilterModule } from "@/components/modules/FilterModule";
-import { HeroModule } from "@/components/modules/HeroModule";
 import { HeroSlideshow } from "@/components/HeroSlideshow";
 import {
   resolveBoardDefinition,
   isRealBoardCategory,
-  INDIVIDUAL_BOARD_DEFINITIONS,
-  type BoardDefinition,
   type HubFeed,
 } from "@/lib/boardLayout";
 
@@ -51,7 +48,6 @@ type Board = {
 export function BoardModule({
   boardId,
   includeChildBoards = true,
-  showHero = true,
   searchEnabled,
   sortEnabled,
   paginationEnabled,
@@ -61,12 +57,6 @@ export function BoardModule({
 }: {
   boardId: string;
   includeChildBoards?: boolean;
-  // EPIC-056: Hero Module(제목/설명/Breadcrumb)을 이 Board Module 안에서
-  // 자동으로 함께 보여줄지 여부 — 이 Board Module 자체가 페이지의 유일한
-  // 콘텐츠일 때(예: /boards/[id])는 true(기본값), 이미 페이지 쪽에서 Hero를
-  // 그린 경우(예: PageTemplate이 쓰는 6개 카테고리 허브 페이지)는 false로
-  // 꺼서 Hero가 중복 렌더링되지 않게 한다.
-  showHero?: boolean;
   // EPIC-065: Widget Builder의 Board Widget 설정 6종 — 전부 undefined(기본값
   // 없음)면 기존 그대로 BoardDefinition.searchable/sortable/pageable이
   // 결정한다(하위 호환, 이 파일을 직접 호출하던 기존 페이지들은 전혀 영향
@@ -162,16 +152,6 @@ export function BoardModule({
   // board.slug를 알게 되면 그쪽을 우선해 항상 slug 기반 링크를 쓴다.
   const effectiveBoardId = board?.slug || boardId;
 
-  // EPIC-056: Hero Module — 부모 hub가 있으면(예: "Heritage" 아래 "Grandmas")
-  // 그 이름을 중간 breadcrumb로 보여준다. 부모의 실제 board id는 이 훅이
-  // 알지 못해 링크 없이 텍스트로만 표시한다(EPIC-054A의 기존 breadcrumb
-  // 관례와 동일).
-  const parentDefinition = definition.parent
-    ? (INDIVIDUAL_BOARD_DEFINITIONS as Record<string, BoardDefinition>)[
-        definition.parent
-      ]
-    : null;
-
   const filterOptions = [
     ...availableTags.map((t) => ({ value: `tag:${t}`, label: `#${t}` })),
     ...availableYears.map((y) => ({ value: `year:${y}`, label: `${y}년` })),
@@ -197,24 +177,32 @@ export function BoardModule({
   return (
     <div>
       {/* HOTFIX-147.3(사용자 지시 — "히어로 아래에 그대로 유지"): 새 대표사진
-          슬라이드쇼+오버레이 텍스트는 기존 브레드크럼/게시판 이름/검색·정렬
-          헤더보다 위에 오고, 그 헤더는 그대로 아래에 남는다. */}
+          슬라이드쇼+오버레이 텍스트는 게시판 이름/검색·정렬 헤더보다 위에
+          오고, 그 헤더는 그대로 아래에 남는다. */}
       {board?.widget_settings?.timelineHeroSlides && board.widget_settings.timelineHeroSlides.length > 0 && (
         <HeroSlideshow device="both" slides={board.widget_settings.timelineHeroSlides} />
       )}
 
-      {showHero && (
-        <HeroModule
-          title={board?.name ?? ""}
-          breadcrumb={[
-            { label: "홈", href: "/" },
-            ...(parentDefinition ? [{ label: parentDefinition.title_ko }] : []),
-            { label: board?.name ?? "" },
-          ]}
-          description={definition.description}
-        />
-      )}
-
+      {/* HOTFIX-156.21(사용자 신고 — "게시판 위에 이 링크들[브레드크럼]이 왜
+          작동이 안돼?"): 이 Hero(EPIC-056, showHero 기본값 true)는
+          site_navigations 기반 전역 자동 브레드크럼(Breadcrumb.tsx)과
+          완전히 별개의, 이 카테고리 트리보다 훨씬 오래된 레거시 시스템
+          (boardLayout.ts의 BoardDefinition.parent)으로 부모 브레드크럼을
+          만들었다 — INDIVIDUAL_BOARD_DEFINITIONS에 등록 안 된 보통 게시판
+          (예: "패션")은 전부 제네릭 topic 정의로 폴백되는데, 그 parent인
+          "community" 정의의 title_ko가 "Community"(EPIC-049 이후 한글화
+          안 된 영문 그대로) — 게다가 이 항목은 부모 게시판 id를 몰라
+          href 자체가 없는 텍스트만 렌더링했다. `/boards/[board_slug]`처럼
+          showHero를 명시적으로 끄지 않은 모든 곳에서 "홈 › Community ›
+          패션"처럼 틀린 라벨 + 클릭 안 되는 링크가 나타났다(실측:
+          dev.silostore.net/boards/fashion). 바로 아래 BoardHeader가 이미
+          게시판 이름을 보여주고, 이미 존재하는 전역 자동 브레드크럼이
+          이 페이지에서 이미 정상 렌더링되고 있어(레이아웃 최상단) 완전히
+          중복이었으므로 Hero 자체를 삭제 — showHero prop과 parentDefinition
+          계산도 함께 제거(호출부 전부 확인: PageTemplate.tsx/
+          PageBuilderRenderer.tsx는 이미 showHero={false}로 껐었고,
+          /boards/[board_slug]/page.tsx와 PageModuleRenderer.tsx의 board류
+          4종은 prop을 안 넘겨 기본값 true로 새고 있었다). */}
       <BoardHeader
         boardName={board?.name ?? ""}
         writeHref={showWriteButton ? `/boards/${effectiveBoardId}/write` : undefined}

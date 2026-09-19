@@ -40,9 +40,10 @@ export function PageTemplate({
         />
         <div className="mt-10">
           {boardId ? (
-            // EPIC-056: 이 페이지가 위에서 이미 Hero Module(PageHeaderContent)을
-            // 그렸으므로, BoardModule 내부 Hero는 꺼서 중복 렌더링을 막는다.
-            <BoardModule boardId={boardId} showHero={false} />
+            // HOTFIX-156.21: BoardModule 자체의 Hero가 완전히 삭제돼(BoardModule.tsx
+            // 참고) showHero prop 자체가 더 이상 없다 — 이 페이지 자신의
+            // Hero(PageHeaderContent, 위)만 남는다.
+            <BoardModule boardId={boardId} />
           ) : (
             <EmptyState
               title="게시글이 없습니다."

@@ -273,7 +273,6 @@ function renderModule(module: PageModuleRow) {
       return board_id ? (
         <BoardModule
           boardId={board_id}
-          showHero={false}
           searchEnabled={bool(settings.searchEnabled, true)}
           sortEnabled={bool(settings.sortEnabled, true)}
           paginationEnabled={bool(settings.paginationEnabled, true)}

@@ -294,7 +294,11 @@ export function Navbar({
       if (!entry) return;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const next = Math.round(entry.contentRect.height);
+        // HOTFIX-156.24: contentRect.height는 이 요소 자신의 CSS zoom이 적용되기
+        // 전 값이라(실측: zoom 0.82에서 rect 167px vs contentRect 204px), zoom이
+        // 1이 아니면 spacer가 실제 헤더 높이와 어긋난다 — zoom>1(태블릿/모바일)이면
+        // spacer가 모자라 본문 맨 위(관리자 탭 줄 등)가 헤더 밑에 가려진다.
+        const next = Math.round(entry.target.getBoundingClientRect().height);
         setTopBarHeight((prev) => (prev === next ? prev : next));
       });
     });

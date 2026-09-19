@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2026-09-19 (HOTFIX-156.24 — 관리자 상단 탭 줄이 헤더 밑에 가려져 안 보이던 문제: 헤더 spacer 높이가 CSS zoom을 무시하고 측정되던 버그)
+- **사용자 신고(3번째)**: "'관리자'를 눌렀을 때 상단 관리 탭들이 안 보여" — 스크린샷에서 탭 글자가 위쪽 절반이 잘려 헤더 밑에 깔려 있었다. 앞의 두 번은 글자가 깨진 줄 알고 폰트/인코딩을 의심했지만 실제로는 **글자가 아니라 가려짐**이었다.
+- **원인(실측)**: `Navbar.tsx`의 spacer는 ResizeObserver의 `contentRect.height`로 헤더 높이를 재는데, 이 값은 헤더 자신의 CSS `zoom`이 적용되기 전 높이다. 로컬 실측: 폭 1180px(zoom 0.82)에서 실제 화면 높이 167px vs spacer 203px, 태블릿/모바일처럼 zoom>1이면 반대로 spacer가 화면 높이보다 작아져 본문 맨 위(관리자 탭 줄)가 고정 헤더 밑에 깔린다. 관리자 페이지만 문제로 보인 건 그 탭 줄이 본문 맨 위 요소라서.
+- **수정**: spacer 높이를 `entry.target.getBoundingClientRect().height`(zoom 반영된 실제 화면 높이)로 측정. 검증: 1180px(zoom 0.82) bar 167.4/spacer 167, 900px(zoom 1.10) bar 224.6/spacer 225로 일치.
+
 ## 2026-09-19 (HOTFIX-156.23 — 트리거 버튼 선택 시 Controls에 아이콘 설정이 안 보이던 문제 + 상단 아이콘 "항상 표시"를 태블릿/모바일 전용으로 분리)
 - **사용자 신고 1**: HOTFIX-156.22 후에도 "아무것도 안 변했다"(스크린샷: 캔버스에서 "상단 사이드바 열기 버튼"을 선택하면 Controls 탭에 위치 설정만 나옴). **원인**: 156.22는 4개 필드를 "상단 사이드바" 패널 편집기(`TopSidebarControls`, 패널 안쪽을 클릭해야 열림) 안에만 넣었고, 사용자가 실제로 보는 트리거 버튼 자체 선택 화면(`selectedSlotKey==="top-sidebar-trigger"`)에는 위치 섹션뿐이었다 — 위치를 잘못 짚었다. **수정**: 트리거 아이콘 설정 블록(기본/hover 이미지·크기·hover 크기·대체 텍스트·표시 방식·반복 횟수)을 `TriggerIconFields` 컴포넌트로 뽑아 패널 편집기와 트리거 버튼 선택 화면 양쪽에서 재사용(링크 필드는 이 버튼이 항상 패널을 여는 특성상 제외, 안내 문구에 명시).
 - **사용자 요청 2**: "상단 아이콘 1의 '항상(hover 없이 계속 표시)'은 태블릿과 모바일에서만 되게". `TopBarIcon`에 `hoverModeTouch` 필드 추가(`hoverMode`=PC, `hoverModeTouch`=태블릿/모바일, 구버전 데이터는 `hoverMode`를 그대로 물려받아 화면 변화 없음), 관리자 폼에 "PC"/"태블릿/모바일" 두 개의 표시 방식 선택 추가, `Navbar.tsx`가 `deviceKey`로 둘 중 하나를 선택. 실제 데이터도 DB(`site_settings.top_bar_icons`)에서 상단 아이콘 1만 PC=hover/터치=always로 설정.

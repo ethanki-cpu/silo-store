@@ -62,7 +62,10 @@ export type TopBarIcon = {
   hoverSizePx: number;
   /** 대체 텍스트(접근성) — 비워도 됨. */
   alt: string;
+  /** PC에서의 표시 방식. */
   hoverMode: HoverMediaMode;
+  /** 사용자 지시(2026-09-19 — "항상 표시는 타블렛과 모바일에서만"): 태블릿/모바일에서의 표시 방식 — 구버전 데이터는 hoverMode를 그대로 물려받는다. */
+  hoverModeTouch: HoverMediaMode;
   /** hoverImageUrl이 영상(mp4/webm)일 때만 적용 — 0이면 무한 반복. */
   hoverLoopCount: number;
   sidebar: TopBarIconSidebar;
@@ -100,6 +103,7 @@ export function newTopBarIcon(): TopBarIcon {
     hoverSizePx: DEFAULT_TOP_BAR_ICON_SIZE_PX,
     alt: "",
     hoverMode: "hover",
+    hoverModeTouch: "hover",
     hoverLoopCount: 0,
     sidebar: defaultTopBarIconSidebar(),
   };
@@ -129,6 +133,7 @@ function normalizeIcon(raw: unknown): TopBarIcon {
     hoverSizePx: v.hoverSizePx || v.sizePx || DEFAULT_TOP_BAR_ICON_SIZE_PX,
     alt: v.alt ?? "",
     hoverMode: v.hoverMode === "always" ? "always" : "hover",
+    hoverModeTouch: (v.hoverModeTouch ?? v.hoverMode) === "always" ? "always" : "hover",
     hoverLoopCount: typeof v.hoverLoopCount === "number" ? v.hoverLoopCount : 0,
     sidebar: normalizeSidebar(v.sidebar),
   };

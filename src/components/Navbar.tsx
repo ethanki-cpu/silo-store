@@ -1832,7 +1832,7 @@ export function Navbar({
           // 크기로 중앙 정렬한다.
           const outerSizePx = Math.max(icon.sizePx, icon.hoverSizePx);
           const media =
-            icon.hoverMode === "always" ? (
+            (deviceKey === "pc" ? icon.hoverMode : icon.hoverModeTouch) === "always" ? (
               <span
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
                 style={{ width: icon.hoverSizePx, height: icon.hoverSizePx }}

@@ -1509,8 +1509,15 @@ function ControlsPanel({
             아니면 hover 없이 계속 두번째 이미지가 나올지, 두번째 이미지가
             모션이라면 몇번 loop 할지"): 좌/우 사이드바 아이콘과 동일한 필드. */}
         <label className="block">
-          <span className="mb-1 block text-gray-600">두번째(hover) 이미지 표시 방식</span>
+          <span className="mb-1 block text-gray-600">두번째(hover) 이미지 표시 방식 — PC</span>
           <select value={icon.hoverMode} onChange={(e) => patchIcon({ hoverMode: e.target.value as "hover" | "always" })} className="w-full rounded border border-gray-300 px-2 py-1">
+            <option value="hover">마우스를 올렸을 때만</option>
+            <option value="always">항상(hover 없이 계속 표시)</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">두번째(hover) 이미지 표시 방식 — 태블릿/모바일</span>
+          <select value={icon.hoverModeTouch} onChange={(e) => patchIcon({ hoverModeTouch: e.target.value as "hover" | "always" })} className="w-full rounded border border-gray-300 px-2 py-1">
             <option value="hover">마우스를 올렸을 때만</option>
             <option value="always">항상(hover 없이 계속 표시)</option>
           </select>
@@ -2433,7 +2440,11 @@ function ControlsPanel({
     return (
       <div className="space-y-3 text-xs">
         <p className="text-sm font-semibold text-gray-700">상단 사이드바 열기 버튼</p>
-        <p className="text-[11px] text-gray-400">클릭하면 아래에서 편집하는 &ldquo;상단 사이드바&rdquo; 패널이 위에서 아래로 슬라이드해 열려요. 위치만 자유롭게 옮길 수 있어요(캔버스에서 직접 클릭해 열고 닫아 미리볼 수도 있어요).</p>
+        <p className="text-[11px] text-gray-400">클릭하면 아래에서 편집하는 &ldquo;상단 사이드바&rdquo; 패널이 위에서 아래로 슬라이드해 열려요(캔버스에서 직접 클릭해 열고 닫아 미리볼 수도 있어요). 이 버튼의 이미지/hover 이미지/크기 등은 아래에서 설정해요(링크는 없어요 — 항상 패널을 여는 버튼이라서).</p>
+        <TriggerIconFields
+          config={topSidebarValue[deviceTab]}
+          patch={(next) => setTopSidebarValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...next } }))}
+        />
         {positionSection}
       </div>
     );
@@ -2726,6 +2737,113 @@ const COLUMN_LABELS = ["0: 이미지", "1: 세션 정보", "2: 링크 목록", "
 // column 2(링크 목록, 항목마다 hover 이미지)와 그 하위 column 3(children)을
 // 여기서 추가/삭제/재배치한다. column 1(이름/등급/팔로워 등)은 실제 세션
 // 데이터라 TopSidebarPanel.tsx가 직접 조회 — 관리자가 편집할 대상이 아니다.
+// HOTFIX-156.23: 여닫이 트리거 아이콘 설정 — "상단 사이드바" 패널 편집기와
+// 캔버스에서 트리거 버튼 자체를 선택했을 때(Controls 탭) 양쪽에서 쓴다.
+function TriggerIconFields({
+  config,
+  patch,
+}: {
+  config: TopSidebarConfig;
+  patch: (next: Partial<TopSidebarConfig>) => void;
+}) {
+  const [uploadingTriggerField, setUploadingTriggerField] = useState<"triggerIconDefaultUrl" | "triggerIconHoverUrl" | null>(null);
+  async function handleTriggerIconFile(field: "triggerIconDefaultUrl" | "triggerIconHoverUrl", file: File | null) {
+    if (!file) return;
+    setUploadingTriggerField(field);
+    try {
+      const compressed = await compressImage(file, 85);
+      const { url, error: uploadErr } = await uploadImage(compressed, "top_sidebar_trigger");
+      if (url) {
+        patch({ [field]: url } as Partial<TopSidebarConfig>);
+      } else {
+        alert(`아이콘 이미지 업로드에 실패했어요.
+${uploadErr ?? "알 수 없는 오류"}`);
+      }
+    } catch (e) {
+      alert(`아이콘 이미지 처리 중 오류가 발생했어요.
+${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploadingTriggerField(null);
+    }
+  }
+  return (
+      <div className="space-y-2 border-t border-gray-200 pt-3">
+        <p className="font-medium text-gray-600">여닫이 트리거 아이콘</p>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">기본 이미지 {uploadingTriggerField === "triggerIconDefaultUrl" && "(업로드 중...)"}</span>
+          <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconDefaultUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <ImageThumb url={config.triggerIconDefaultUrl} alt="트리거 기본 아이콘 미리보기" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">호버 이미지 {uploadingTriggerField === "triggerIconHoverUrl" && "(업로드 중...)"}</span>
+          <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconHoverUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <ImageThumb url={config.triggerIconHoverUrl} alt="트리거 호버 아이콘 미리보기" />
+        </label>
+        {/* HOTFIX-141.1(사용자 지시 — "상단 사이드바 아이콘 크기를
+            조절할수 있게 해줘" + "'모바일' preview 에 '상단 사이드바
+            열기 버튼'도 크기가 가능하게 해줘"): 이 값 자체가 PC/모바일
+            독립 설정(deviceTab별 config)이라 모바일 탭에서 따로 조절하면
+            모바일에서만 적용된다. */}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">아이콘 크기(px)</span>
+          <input
+            type="number"
+            min={10}
+            max={80}
+            value={config.triggerIconSizePx}
+            onChange={(e) => patch({ triggerIconSizePx: Math.max(10, Number(e.target.value) || 20) })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+        {/* HOTFIX-156.22(사용자 신고 — "'상단 아이콘 1'과 같은 hover 이미지
+            크기/대체 텍스트/hover 표시 방식/반복 횟수 설정들이 여기엔
+            없어"): 좌/우 사이드바 아이콘·상단 아이콘과 동일한 4개 필드 —
+            이 트리거만 처음 만들어질 때(기본/호버 이미지+크기 3개뿐) 이후
+            추가된 필드라 빠져 있었다. */}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">hover 이미지 크기(px)</span>
+          <input
+            type="number"
+            min={10}
+            max={80}
+            value={config.triggerIconHoverSizePx}
+            onChange={(e) => patch({ triggerIconHoverSizePx: Math.max(10, Number(e.target.value) || 20) })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">대체 텍스트(선택)</span>
+          <input
+            value={config.triggerIconAlt}
+            onChange={(e) => patch({ triggerIconAlt: e.target.value })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">두번째(hover) 이미지 표시 방식</span>
+          <select
+            value={config.triggerIconHoverMode}
+            onChange={(e) => patch({ triggerIconHoverMode: e.target.value as "hover" | "always" })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          >
+            <option value="hover">마우스를 올렸을 때만</option>
+            <option value="always">항상(hover 없이 계속 표시)</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">두번째 이미지가 영상일 때 반복 횟수(0=무한 반복)</span>
+          <input
+            type="number"
+            min={0}
+            value={config.triggerIconHoverLoopCount}
+            onChange={(e) => patch({ triggerIconHoverLoopCount: Math.max(0, Number(e.target.value) || 0) })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+      </div>
+  );
+}
+
 function TopSidebarControls({
   value,
   setValue,
@@ -2745,7 +2863,6 @@ function TopSidebarControls({
 }) {
   const [uploadingLinkId, setUploadingLinkId] = useState<string | null>(null);
   const [uploadingBankImage, setUploadingBankImage] = useState(false);
-  const [uploadingTriggerField, setUploadingTriggerField] = useState<"triggerIconDefaultUrl" | "triggerIconHoverUrl" | null>(null);
   const [uploadingTopSidebarFont, setUploadingTopSidebarFont] = useState(false);
   const [uploadingLoginFont, setUploadingLoginFont] = useState(false);
   const [draggedLinkId, setDraggedLinkId] = useState<string | null>(null);
@@ -2882,26 +2999,6 @@ function TopSidebarControls({
   }
   function removeBankImage(url: string) {
     patch({ imageBankUrls: config.imageBankUrls.filter((u) => u !== url) });
-  }
-  // HOTFIX-141(사용자 지시 — "상단 사이드바 아이콘 설정(이미지), hover
-  // 했을때 이미지를 설정하는게 없네 만들어"): 트리거 아이콘 기본/hover
-  // 이미지 업로드 — sidebarIconsSettings.ts의 handleFile과 동일한 패턴.
-  async function handleTriggerIconFile(field: "triggerIconDefaultUrl" | "triggerIconHoverUrl", file: File | null) {
-    if (!file) return;
-    setUploadingTriggerField(field);
-    try {
-      const compressed = await compressImage(file, 85);
-      const { url, error: uploadErr } = await uploadImage(compressed, "top_sidebar_trigger");
-      if (url) {
-        patch({ [field]: url } as Partial<TopSidebarValue["pc"]>);
-      } else {
-        alert(`아이콘 이미지 업로드에 실패했어요.\n${uploadErr ?? "알 수 없는 오류"}`);
-      }
-    } catch (e) {
-      alert(`아이콘 이미지 처리 중 오류가 발생했어요.\n${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setUploadingTriggerField(null);
-    }
   }
   // HOTFIX-141(사용자 지시 — "이건 다른 모든 상단 사이드바의 서체를
   // 내가 업로드하는 기능이 없네"): mainLogo customFonts와 동일한 패턴.
@@ -3159,84 +3256,7 @@ function TopSidebarControls({
         ))}
       </div>
 
-      {/* HOTFIX-141(사용자 지시 — "상단 사이드바 아이콘 설정(이미지),
-          hover 했을때 이미지를 설정하는게 없네 만들어"): 헤더 우측 "☰"
-          여닫이 트리거 자체의 기본/hover 이미지 — sidebarIconsSettings.ts의
-          기존 좌/우 사이드바 아이콘 설정 UI와 동일한 패턴. */}
-      <div className="space-y-2 border-t border-gray-200 pt-3">
-        <p className="font-medium text-gray-600">여닫이 트리거 아이콘</p>
-        <label className="block">
-          <span className="mb-1 block text-gray-600">기본 이미지 {uploadingTriggerField === "triggerIconDefaultUrl" && "(업로드 중...)"}</span>
-          <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconDefaultUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
-          <ImageThumb url={config.triggerIconDefaultUrl} alt="트리거 기본 아이콘 미리보기" />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-gray-600">호버 이미지 {uploadingTriggerField === "triggerIconHoverUrl" && "(업로드 중...)"}</span>
-          <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconHoverUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
-          <ImageThumb url={config.triggerIconHoverUrl} alt="트리거 호버 아이콘 미리보기" />
-        </label>
-        {/* HOTFIX-141.1(사용자 지시 — "상단 사이드바 아이콘 크기를
-            조절할수 있게 해줘" + "'모바일' preview 에 '상단 사이드바
-            열기 버튼'도 크기가 가능하게 해줘"): 이 값 자체가 PC/모바일
-            독립 설정(deviceTab별 config)이라 모바일 탭에서 따로 조절하면
-            모바일에서만 적용된다. */}
-        <label className="block">
-          <span className="mb-1 block text-gray-600">아이콘 크기(px)</span>
-          <input
-            type="number"
-            min={10}
-            max={80}
-            value={config.triggerIconSizePx}
-            onChange={(e) => patch({ triggerIconSizePx: Math.max(10, Number(e.target.value) || 20) })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          />
-        </label>
-        {/* HOTFIX-156.22(사용자 신고 — "'상단 아이콘 1'과 같은 hover 이미지
-            크기/대체 텍스트/hover 표시 방식/반복 횟수 설정들이 여기엔
-            없어"): 좌/우 사이드바 아이콘·상단 아이콘과 동일한 4개 필드 —
-            이 트리거만 처음 만들어질 때(기본/호버 이미지+크기 3개뿐) 이후
-            추가된 필드라 빠져 있었다. */}
-        <label className="block">
-          <span className="mb-1 block text-gray-600">hover 이미지 크기(px)</span>
-          <input
-            type="number"
-            min={10}
-            max={80}
-            value={config.triggerIconHoverSizePx}
-            onChange={(e) => patch({ triggerIconHoverSizePx: Math.max(10, Number(e.target.value) || 20) })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-gray-600">대체 텍스트(선택)</span>
-          <input
-            value={config.triggerIconAlt}
-            onChange={(e) => patch({ triggerIconAlt: e.target.value })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-gray-600">두번째(hover) 이미지 표시 방식</span>
-          <select
-            value={config.triggerIconHoverMode}
-            onChange={(e) => patch({ triggerIconHoverMode: e.target.value as "hover" | "always" })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          >
-            <option value="hover">마우스를 올렸을 때만</option>
-            <option value="always">항상(hover 없이 계속 표시)</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-gray-600">두번째 이미지가 영상일 때 반복 횟수(0=무한 반복)</span>
-          <input
-            type="number"
-            min={0}
-            value={config.triggerIconHoverLoopCount}
-            onChange={(e) => patch({ triggerIconHoverLoopCount: Math.max(0, Number(e.target.value) || 0) })}
-            className="w-full rounded border border-gray-300 px-2 py-1"
-          />
-        </label>
-      </div>
+      <TriggerIconFields config={config} patch={patch} />
 
       <div className="space-y-2 border-t border-gray-200 pt-3">
         <p className="font-medium text-gray-600">이미지 뱅크 ({config.imageBankUrls.length}장) — column 2에 마우스를 올리면 이 중 무작위로 하나가 왼쪽에 떠요</p>

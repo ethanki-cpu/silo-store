@@ -10,7 +10,7 @@
 // 지원한다 — 온라인 도슨트 2단계 카테고리 페이지가 이 모드를 쓴다.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
-import { useNode } from "@craftjs/core";
+import { useEditor, useNode } from "@craftjs/core";
 import { EditableBlockFrame, EditableText, useCraftEditable } from "@/components/craft/home/editable";
 import { RevealWrapper } from "@/components/craft/shared/RevealWrapper";
 import { MotionSettingsSection } from "@/components/craft/shared/MotionSettingsSection";
@@ -1484,6 +1484,7 @@ function MarkerColorField({
 
 function SiloTimelineEmbedSettings() {
   const { id: nodeId, props, setProp } = useNode((node) => ({ props: node.data.props as SiloTimelineEmbedBlockProps }));
+  const { actions: editorActions, query: editorQuery } = useEditor();
   const editable = useCraftEditable();
   // HOTFIX-151.9: 이 필드가 생기기 전에 저장된 기존 5개 카테고리 페이지의
   // craft_state에는 videoCompressTargetMb가 없다(undefined) — 입력창이
@@ -1553,6 +1554,28 @@ function SiloTimelineEmbedSettings() {
       if (!res.ok) {
         setBroadcastResult(data.error ?? "적용에 실패했어요.");
         return;
+      }
+      // HOTFIX-156.26: 서버는 DB의 craft_state만 고친다 — 지금 열려 있는 편집기
+      // 메모리(Craft 트리)는 그대로라 화면엔 아무 변화가 없고, 이후 "저장"이
+      // 옛 값으로 이 페이지를 덮어써 일괄 적용이 사라졌다. 서버와 같은 규칙으로
+      // 열려 있는 트리의 타임라인 블록들에도 바로 반영한다.
+      const isCoverGroup = group === "panMotion" || group === "advanceAndFit";
+      const localValues = values as Record<string, unknown>;
+      for (const [id, node] of Object.entries(editorQuery.getNodes())) {
+        if (node.data.name !== "SiloTimelineEmbedBlock") continue;
+        editorActions.setProp(id, (p: Record<string, unknown>) => {
+          for (const key of Object.keys(localValues)) {
+            if (isCoverGroup) p[`cover${key.charAt(0).toUpperCase()}${key.slice(1)}`] = localValues[key];
+            else p[key] = localValues[key];
+          }
+          const overlays = p.eventOverlays as Record<string, Record<string, unknown>> | undefined;
+          if (isCoverGroup && overlays && typeof overlays === "object") {
+            for (const overlay of Object.values(overlays)) {
+              if (!overlay || typeof overlay !== "object") continue;
+              for (const key of Object.keys(localValues)) overlay[key] = localValues[key];
+            }
+          }
+        });
       }
       setBroadcastResult(`${data.pagesUpdated}개 페이지, ${data.timelinesUpdated}개 타임라인에 적용했어요.`);
     } catch (err) {

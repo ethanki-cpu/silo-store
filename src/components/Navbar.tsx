@@ -1703,9 +1703,22 @@ export function Navbar({
       )}
       {topTabDropdownStyleCss && <style>{topTabDropdownStyleCss}</style>}
       {accountMenuStyleCss && <style>{accountMenuStyleCss}</style>}
+      {/* HOTFIX-156.25(사용자 신고 — "'관리자' 버튼을 고정해도 실제 화면에선
+          다른 위치에 나온다, 설정과 output이 다르다"): 이 줄은 계정 영역이
+          오른쪽 끝에, 로고가 남은 공간 가운데에 놓이는 flex라 요소들의
+          "원래(안 옮겨진) 위치"가 줄의 폭에 따라 달라진다. PC는 zoom이
+          1로 캡돼(기준 1440 초과 시) 이 폭이 화면 폭 그대로라, 관리 화면
+          캔버스(예: 1780px)에서 맞춘 dx가 실제 방문자 화면(예: 1846px)에서
+          수십 px 어긋났다(실측: 관리자↔로고 간격 85px vs 40px). PC에서는
+          줄 폭을 기준폭(1440)으로 고정하고 가운데 정렬해 어느 화면 폭에서도
+          동일한 원래 위치가 나오게 한다(태블릿/모바일은 zoom이 캡 없이
+          내부 폭을 기준폭으로 유지하므로 이미 일치). */}
       <div
         className="relative flex items-center p-4 gap-4"
-        style={mainLogo?.rowHeightPx ? { minHeight: mainLogo.rowHeightPx } : undefined}
+        style={{
+          ...(mainLogo?.rowHeightPx ? { minHeight: mainLogo.rowHeightPx } : undefined),
+          ...(deviceKey === "pc" ? { maxWidth: headerTargetWidth, marginInline: "auto" } : undefined),
+        }}
       >
         {/* EPIC-039: 로고 이미지를 중앙에 두고 좌/우 텍스트를 대칭으로
             배치하던 원래 설계 — 양옆을 동일한 flex-1 컨테이너로 감싸

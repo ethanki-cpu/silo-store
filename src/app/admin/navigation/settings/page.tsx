@@ -3191,6 +3191,51 @@ function TopSidebarControls({
             className="w-full rounded border border-gray-300 px-2 py-1"
           />
         </label>
+        {/* HOTFIX-156.22(사용자 신고 — "'상단 아이콘 1'과 같은 hover 이미지
+            크기/대체 텍스트/hover 표시 방식/반복 횟수 설정들이 여기엔
+            없어"): 좌/우 사이드바 아이콘·상단 아이콘과 동일한 4개 필드 —
+            이 트리거만 처음 만들어질 때(기본/호버 이미지+크기 3개뿐) 이후
+            추가된 필드라 빠져 있었다. */}
+        <label className="block">
+          <span className="mb-1 block text-gray-600">hover 이미지 크기(px)</span>
+          <input
+            type="number"
+            min={10}
+            max={80}
+            value={config.triggerIconHoverSizePx}
+            onChange={(e) => patch({ triggerIconHoverSizePx: Math.max(10, Number(e.target.value) || 20) })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">대체 텍스트(선택)</span>
+          <input
+            value={config.triggerIconAlt}
+            onChange={(e) => patch({ triggerIconAlt: e.target.value })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">두번째(hover) 이미지 표시 방식</span>
+          <select
+            value={config.triggerIconHoverMode}
+            onChange={(e) => patch({ triggerIconHoverMode: e.target.value as "hover" | "always" })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          >
+            <option value="hover">마우스를 올렸을 때만</option>
+            <option value="always">항상(hover 없이 계속 표시)</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-gray-600">두번째 이미지가 영상일 때 반복 횟수(0=무한 반복)</span>
+          <input
+            type="number"
+            min={0}
+            value={config.triggerIconHoverLoopCount}
+            onChange={(e) => patch({ triggerIconHoverLoopCount: Math.max(0, Number(e.target.value) || 0) })}
+            className="w-full rounded border border-gray-300 px-2 py-1"
+          />
+        </label>
       </div>
 
       <div className="space-y-2 border-t border-gray-200 pt-3">

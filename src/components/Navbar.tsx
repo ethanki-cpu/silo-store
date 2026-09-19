@@ -639,6 +639,10 @@ export function Navbar({
   // 안하고 있어"): 좌/우 사이드바와 동일한 이유 — hover 이미지가 영상일 때
   // 실제 hover 시작 시점에 처음부터 재생되도록 실제 hover 상태를 추적한다.
   const [hoveredTopBarIconId, setHoveredTopBarIconId] = useState<string | null>(null);
+  // HOTFIX-156.22: 여닫이 트리거(top-sidebar-trigger)도 이제 hover 이미지가
+  // 영상일 수 있어(triggerIconHoverLoopCount 추가) 위와 동일한 이유로
+  // 실제 hover 상태를 추적한다.
+  const [topSidebarTriggerHovered, setTopSidebarTriggerHovered] = useState(false);
 
   function slotOffset(slotKey: string): HeaderSlotOffset {
     return getSlotOffset(resolvedPositions, slotKey);
@@ -2019,25 +2023,59 @@ export function Navbar({
                     type="button"
                     data-top-sidebar-trigger
                     onClick={() => setTopSidebarOpen((o) => !o)}
-                    aria-label="상단 사이드바 열기"
+                    onMouseEnter={() => setTopSidebarTriggerHovered(true)}
+                    onMouseLeave={() => setTopSidebarTriggerHovered(false)}
+                    aria-label={resolvedTopSidebar?.triggerIconAlt || "상단 사이드바 열기"}
                     className="group/topsb relative flex items-center justify-center text-lg text-gray-600 hover:text-gray-900"
                   >
                     {resolvedTopSidebar?.triggerIconDefaultUrl || resolvedTopSidebar?.triggerIconHoverUrl ? (
-                      <span
-                        className="relative block"
-                        style={{ width: resolvedTopSidebar?.triggerIconSizePx ?? 20, height: resolvedTopSidebar?.triggerIconSizePx ?? 20 }}
-                      >
-                        <SidebarTriggerMedia
-                          url={resolvedTopSidebar?.triggerIconDefaultUrl ?? ""}
-                          alt="상단 사이드바 열기"
-                          className="absolute inset-0 h-full w-full object-contain opacity-100 transition-opacity duration-300 group-hover/topsb:opacity-0"
-                        />
-                        <SidebarTriggerMedia
-                          url={resolvedTopSidebar?.triggerIconHoverUrl || resolvedTopSidebar?.triggerIconDefaultUrl || ""}
-                          alt="상단 사이드바 열기"
-                          className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-300 group-hover/topsb:opacity-100"
-                        />
-                      </span>
+                      // HOTFIX-156.22: 좌/우 사이드바 아이콘·상단 아이콘과
+                      // 동일한 hoverMode 분기 — "always"면 크로스페이드 없이
+                      // hover 이미지(없으면 기본 이미지)를 고정으로 보여준다.
+                      resolvedTopSidebar?.triggerIconHoverMode === "always" ? (
+                        <span
+                          className="relative block"
+                          style={{ width: resolvedTopSidebar?.triggerIconHoverSizePx ?? 20, height: resolvedTopSidebar?.triggerIconHoverSizePx ?? 20 }}
+                        >
+                          <SidebarTriggerMedia
+                            url={resolvedTopSidebar?.triggerIconHoverUrl || resolvedTopSidebar?.triggerIconDefaultUrl || ""}
+                            alt={resolvedTopSidebar?.triggerIconAlt || "상단 사이드바 열기"}
+                            className="h-full w-full object-contain"
+                            loopCount={resolvedTopSidebar?.triggerIconHoverLoopCount}
+                          />
+                        </span>
+                      ) : (
+                        <span
+                          className="relative block"
+                          style={{
+                            width: Math.max(resolvedTopSidebar?.triggerIconSizePx ?? 20, resolvedTopSidebar?.triggerIconHoverSizePx ?? 20),
+                            height: Math.max(resolvedTopSidebar?.triggerIconSizePx ?? 20, resolvedTopSidebar?.triggerIconHoverSizePx ?? 20),
+                          }}
+                        >
+                          <span
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-100 transition-opacity duration-300 group-hover/topsb:opacity-0"
+                            style={{ width: resolvedTopSidebar?.triggerIconSizePx ?? 20, height: resolvedTopSidebar?.triggerIconSizePx ?? 20 }}
+                          >
+                            <SidebarTriggerMedia
+                              url={resolvedTopSidebar?.triggerIconDefaultUrl ?? ""}
+                              alt={resolvedTopSidebar?.triggerIconAlt || "상단 사이드바 열기"}
+                              className="h-full w-full object-contain"
+                            />
+                          </span>
+                          <span
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover/topsb:opacity-100"
+                            style={{ width: resolvedTopSidebar?.triggerIconHoverSizePx ?? 20, height: resolvedTopSidebar?.triggerIconHoverSizePx ?? 20 }}
+                          >
+                            <SidebarTriggerMedia
+                              url={resolvedTopSidebar?.triggerIconHoverUrl || resolvedTopSidebar?.triggerIconDefaultUrl || ""}
+                              alt={resolvedTopSidebar?.triggerIconAlt || "상단 사이드바 열기"}
+                              className="h-full w-full object-contain"
+                              loopCount={resolvedTopSidebar?.triggerIconHoverLoopCount}
+                              active={topSidebarTriggerHovered}
+                            />
+                          </span>
+                        </span>
+                      )
                     ) : (
                       <span style={{ fontSize: resolvedTopSidebar?.triggerIconSizePx ?? 20 }}>☰</span>
                     )}

@@ -10,6 +10,7 @@
 // 왼쪽에 뜨는 이미지)와 그 각 링크의 column 3 하위 목록(hover 시 나타남)뿐이다.
 import { DEFAULT_TAB_HOVER_MOTION, type TabHoverMotion } from "./tabHoverMotion";
 import type { CustomFontEntry } from "./mainLogoSettings";
+import type { HoverMediaMode } from "./sidebarIconsSettings";
 
 // HOTFIX-141.2(사용자 지시 — "지금 현재 '로그인/로그아웃' 버튼을 없애고
 // '상단 사이드바' 에 로그인 / 로그아웃 버튼이 보이면 좋겠어. 그리고 그
@@ -79,6 +80,21 @@ export type TopSidebarConfig = {
   // 개념 — 이 값 자체가 이미 pc/mobile 독립 설정(TopSidebarValue)이라
   // 모바일 크기도 자연히 별도로 잡힌다.
   triggerIconSizePx: number;
+  // HOTFIX-156.22(사용자 신고 — "'상단 사이드바 열기' 버튼 누르면
+  // '패널열기 -> control' 부분에 '상단아이콘1'과 같은 hover 이미지 크기/
+  // 대체 텍스트/hover 표시 방식/반복 횟수 설정들이 없어. 예전에 있었던것
+  // 같은데"): 좌/우 사이드바 아이콘(sidebarIconsSettings.ts)과 상단
+  // 아이콘(topBarIconsSettings.ts)은 처음부터 이 4개 필드를 가지고
+  // 있었는데, 이 트리거(원조 "상단 사이드바" 패널 전용, HOTFIX-137.9/141)
+  // 는 만들어질 당시(기본/hover 이미지+크기 3개뿐) 이후 이 필드들이 다른
+  // 두 곳에 추가될 때 여기엔 반영되지 않았다 — "예전에 있었다"는 기억은
+  // 착각이 아니라 애초에 이 트리거만 소외돼 있었던 것. 나머지 두 곳과
+  // 동일한 필드/기본값/동작으로 추가한다.
+  triggerIconHoverSizePx: number;
+  triggerIconAlt: string;
+  triggerIconHoverMode: HoverMediaMode;
+  /** triggerIconHoverUrl이 영상(mp4/webm)일 때만 적용 — 0이면 무한 반복. */
+  triggerIconHoverLoopCount: number;
   // HOTFIX-141(사용자 지시 — "상단 사이드바의 컬럼과 컬럼의 영역을 내가
   // 드래그 드랍으로 조절하는 기능을 만들어줘. 그리고... 컬럼을 하나의
   // 묶음으로 드래그 드랍으로 좌우 순서를 변경가능하게 해줘"): 4개 컬럼
@@ -129,6 +145,10 @@ export function defaultTopSidebarConfig(): TopSidebarConfig {
     triggerIconDefaultUrl: "",
     triggerIconHoverUrl: "",
     triggerIconSizePx: 20,
+    triggerIconHoverSizePx: 20,
+    triggerIconAlt: "",
+    triggerIconHoverMode: "hover",
+    triggerIconHoverLoopCount: 0,
     columnWidthsPx: [160, 192, 224, 224],
     columnOrder: [0, 1, 2, 3],
     hiddenFixedLinkHrefs: [],
@@ -170,6 +190,11 @@ function normalizeConfig(raw: unknown): TopSidebarConfig {
     triggerIconDefaultUrl: v?.triggerIconDefaultUrl ?? fallback.triggerIconDefaultUrl,
     triggerIconHoverUrl: v?.triggerIconHoverUrl ?? fallback.triggerIconHoverUrl,
     triggerIconSizePx: v?.triggerIconSizePx || fallback.triggerIconSizePx,
+    triggerIconHoverSizePx: v?.triggerIconHoverSizePx || v?.triggerIconSizePx || fallback.triggerIconHoverSizePx,
+    triggerIconAlt: v?.triggerIconAlt ?? fallback.triggerIconAlt,
+    triggerIconHoverMode: v?.triggerIconHoverMode === "always" ? "always" : fallback.triggerIconHoverMode,
+    triggerIconHoverLoopCount:
+      typeof v?.triggerIconHoverLoopCount === "number" ? v.triggerIconHoverLoopCount : fallback.triggerIconHoverLoopCount,
     columnWidthsPx:
       Array.isArray(v?.columnWidthsPx) && v!.columnWidthsPx.length === 4
         ? (v!.columnWidthsPx as [number, number, number, number])

@@ -302,7 +302,23 @@ export function LeftSidebar({
           aria-label={`${combinedLabel} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="left-sidebar-panel"
-          className={`group ${editable ? "absolute cursor-move" : "fixed"} left-0 z-40 flex items-center justify-center rounded-r-md bg-transparent p-2 text-white ${
+          // HOTFIX-156.20(사용자 신고 — "상단 탭에 커서를 올리고 아래
+          // 하위 드롭다운 카테고리에 커서를 옮겨야 하는데 드롭다운이
+          // 해제가 되서 하위 카테고리에 커서를 둘 수가 없어"):
+          // `document.elementFromPoint()`로 확인해보니 하위 드롭다운
+          // 위로 마우스를 옮기면 실제로 포인터 이벤트를 받는 요소가
+          // 드롭다운이 아니라 이 트리거 버튼(배경 투명, 화면 왼쪽
+          // 가장자리 전체 높이에 걸쳐 떠 있음)이었다 — 이 버튼과
+          // `Navbar.tsx`의 헤더 래퍼(topBarRef)가 둘 다 z-40으로 같은
+          // 부모(`<header>`) 아래 형제라, 동점이면 DOM에서 나중에 오는
+          // 이 버튼이 이겨 그 지점의 hover/클릭을 가로챘다(topBarRef
+          // 안의 드롭다운 자신의 z-index를 아무리 올려도, 자식은
+          // topBarRef라는 부모 stacking context의 순위 밖으로 못
+          // 나간다). z-40 → z-30으로 낮춰 topBarRef(및 그 자손인
+          // 드롭다운)가 항상 이 버튼보다 위에서 이벤트를 받게 한다 —
+          // 사이드바가 "열렸을 때"의 배경 어둡게(z-45)/패널 자체(z-50)는
+          // 이 버튼과 무관하게 그대로 z-40 위라 회귀 없음.
+          className={`group ${editable ? "absolute cursor-move" : "fixed"} left-0 z-30 flex items-center justify-center rounded-r-md bg-transparent p-2 text-white ${
             topOffsetPx === undefined ? "top-1/2" : ""
           }`}
           style={{

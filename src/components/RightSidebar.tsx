@@ -240,7 +240,9 @@ export function RightSidebar({
           aria-label={`${combinedLabel} 메뉴 열기`}
           aria-expanded={open}
           aria-controls="right-sidebar-panel"
-          className={`group ${editable ? "absolute cursor-move" : "fixed"} right-0 z-40 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white ${
+          // HOTFIX-156.20: LeftSidebar.tsx의 동일 트리거 버튼과 같은 이유
+          // (자세한 원인/재현은 그쪽 주석 참고) — z-40 → z-30.
+          className={`group ${editable ? "absolute cursor-move" : "fixed"} right-0 z-30 flex items-center justify-center rounded-l-md bg-transparent p-2 text-white ${
             topOffsetPx === undefined ? "top-1/2" : ""
           }`}
           style={{

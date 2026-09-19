@@ -1101,8 +1101,24 @@ export function Navbar({
           // 다음 Tab이 자연스럽게 안쪽 링크로 이어진다(JS state 없이
           // 순수 CSS로, EPIC-041-042-HOTFIX가 피하려던 JS hover 버그를
           // 재도입하지 않음).
+          // HOTFIX-156.20(사용자 신고 — "상단 탭에 커서를 올리고 아래
+          // 하위 드롭다운 카테고리에 커서를 옮겨야 하는데 드롭다운이
+          // 해제가 되서 하위 카테고리에 커서를 둘 수가 없어"): hover 끊김이
+          // 아니라 z-index 충돌이었다 — `document.elementFromPoint()`로
+          // 직접 확인해보니, 드롭다운 위로 마우스를 이동하면 실제로 포인터
+          // 이벤트를 받는 요소가 이 드롭다운이 아니라 LeftSidebar/
+          // RightSidebar의 여닫이 트리거 버튼(`fixed left-0/right-0 z-40`,
+          // 배경이 투명해 안 보이지만 화면 가장자리 전체 높이에 걸쳐
+          // 클릭 영역이 떠 있음)이었다 — 이 드롭다운도 똑같이 `z-40`이라
+          // DOM 순서상 나중에 렌더링되는 사이드바 트리거가 동일 z-index
+          // 동점에서 이겨 그 지점의 포인터 이벤트를 가로챘다. 마우스가
+          // `.group/tab`의 자손이 아닌 다른 요소 위에 있게 되니
+          // `group-hover/tab`이 즉시 풀리며 드롭다운이 닫혔다. 사이드바
+          // "열린" 패널 자체는 이미 `z-50`(LeftSidebar/RightSidebar.tsx)이라
+          // 손대지 않고, 이 드롭다운만 그와 동일한 `z-50`으로 올려 트리거
+          // 버튼보다 항상 위에서 포인터 이벤트를 받도록 한다.
           <div
-            className={`hidden group-hover/tab:block group-focus-within/tab:block absolute top-full pt-4 z-40 ${
+            className={`hidden group-hover/tab:block group-focus-within/tab:block absolute top-full pt-4 z-50 ${
               tabStyleEntry?.dropdownAlign === "right" ? "right-0" : "left-0"
             }`}
           >
@@ -1560,9 +1576,32 @@ export function Navbar({
           React가 계산한 진짜 값(headerZoomScale)으로 넘겨받는다 — SSR과
           하이드레이션 첫 렌더가 똑같이 "변수를 쓴다"고 렌더링하므로 hydration
           mismatch도 없다. */}
+      {/* HOTFIX-156.20(사용자 신고 — "상단 탭 드롭다운에서 하위 카테고리로
+          커서를 옮기면 드롭다운이 닫힌다"): 두 가지 별개의 hit-testing
+          버그가 겹쳐 있었다. (1) LeftSidebar/RightSidebar의 트리거
+          버튼이 이 wrapper와 같은 z-40이라 바깥(header) stacking context
+          레벨에서 DOM 순서로 승부가 갈렸고, 이 wrapper보다 나중에 오는
+          트리거 버튼이 드롭다운 위로 올라와 마우스 이벤트를 가로챘다 —
+          두 트리거를 z-30으로 낮춰 해결(LeftSidebar.tsx/RightSidebar.tsx).
+          (2) 그 다음, 드롭다운을 더 깊이(2단계 하위 항목까지) hover해보면
+          홈 화면 히어로 슬라이드쇼 <img>(전체 조상 체인이 z-index:auto)가
+          여전히 드롭다운 위의 포인터 이벤트를 가로챘다 — 실측
+          (`topBar.style.overflow = 'visible'`로 즉시 재현/해결 확인):
+          위 HOTFIX-156.12가 넣은 `overflow-x-clip overflow-y-visible`
+          자체가 원인이었다. overflow-x가 'visible'이 아니면(clip이어도)
+          세로축(overflow-y: visible)으로 박스 밖에 그려지는 자손은
+          페인트는 정상이어도 **히트테스트(포인터 이벤트 타겟 판정)**에서
+          제외되는 브라우저 동작이 있다 — 드롭다운(absolute top-full)이
+          바로 그 "박스 밖으로 그려지는 자손"이었다. 156.12의 실제 목적
+          (가로 오버플로우 차단)은 `html`/`body`의 `overflow-x: hidden`
+          (HOTFIX-156.11, globals.css)이 문서 레벨에서 이미 독립적으로
+          보장하고 있음을 실측 확인(overflow를 완전히 지운 상태에서도
+          document.documentElement.scrollWidth === clientWidth 유지) —
+          따라서 이 wrapper 자체의 overflow-x-clip은 더 이상 필요 없어
+          완전히 제거한다. */}
       <div
         ref={topBarRef}
-        className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} overflow-x-clip overflow-y-visible border-b border-gray-200 bg-white transition-transform duration-300 ${
+        className={`${editable ? "relative z-40" : "fixed inset-x-0 top-0 z-40"} border-b border-gray-200 bg-white transition-transform duration-300 ${
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
         style={{ zoom: headerReferenceWidth > 0 ? headerZoomScale : "var(--silo-header-zoom, 1)" }}

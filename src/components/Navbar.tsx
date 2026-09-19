@@ -1322,17 +1322,57 @@ export function Navbar({
   // 항목들을 탭과 뒤섞어 임의 순서로 배치할 수 있어야 해서 함수로 뽑아
   // 재사용한다 — 로그인 상태 게이팅/클래스/팝오버 여닫이 로직은 100%
   // 그대로.
+  // HOTFIX-156.19(사용자 실측 재현 — "로그인하면 원하는 레이아웃이 나오는데
+  // 로그아웃하면 SILO와 장미 아이콘이 겹쳐"): 진단 배지(`?debugviewport=1`)로
+  // 로그인/로그아웃 두 상태의 "장미" 아이콘(실제로는 top-sidebar-trigger
+  // 버튼 — 관리자가 이미지를 장미 모양으로 커스터마이즈해둔 것) 좌표를
+  // 직접 대조해 원인을 확정했다: 로그인 시 x=303, 로그아웃 시 x=250 —
+  // 정확히 53px(관리자 텍스트 폭+gap) 차이. 이 계정 영역 5개 항목(관리자/
+  // 등급/마이페이지/이름/로그아웃)은 각각 `null`을 반환해 조건에 안 맞으면
+  // HeaderSlot 자체가 DOM에서 통째로 사라지도록 돼 있었는데, 관리자는
+  // "홈페이지 설정 관리"에서 자기 자신이 로그인(+관리자)한 상태로만 이
+  // 캔버스를 보며 top-sidebar-trigger 등 뒤에 오는 요소들의 dx를
+  // 드래그했다 — 그 dx는 "관리자/등급/마이페이지/이름/로그아웃 5개가 전부
+  // 존재하는 폭"을 기준으로 캘리브레이션됐는데, 실제 방문자(비로그인 —
+  // 이 중 "로그인" 버튼 1개만 남음, 또는 로그인했지만 비관리자 — 4개만
+  // 남음)에게는 앞쪽 항목 일부가 아예 렌더링 자체가 안 돼 뒤따르는
+  // top-sidebar-trigger의 "원래(안 옮겨진) flex 위치" 자체가 왼쪽으로
+  // 밀리면서, dx는 그대로라 화면에 보이는 최종 위치가 SILO 로고 쪽으로
+  // 겹쳐 들어왔다. 조건에 안 맞아도 `null`로 완전히 걷어내는 대신 항상
+  // 같은 자리(폭)를 차지하되 `invisible`(visibility:hidden — 화면에서
+  // 안 보이고 클릭/포커스도 안 됨, display:none과 달리 레이아웃 공간은
+  // 그대로 차지)로 전환한다 — 이러면 방문자가 로그인했든 안 했든 관리자든
+  // 아니든 이 5칸짜리 영역의 "원래 flex 폭" 자체가 항상 동일해서, 그
+  // 뒤에 오는 요소들의 dx가 어떤 방문자에게나 동일하게 들어맞는다.
   function renderMenuItem(key: HeaderMenuItemKey) {
     if (!mounted || loading) return null;
     switch (key) {
-      case "admin":
-        return session && member?.is_admin ? (
-          <Link key="admin" href="/admin/payments" className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}>
+      case "admin": {
+        const visible = session && member?.is_admin;
+        return (
+          <Link
+            key="admin"
+            href="/admin/payments"
+            aria-hidden={!visible}
+            tabIndex={visible ? undefined : -1}
+            className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS} ${visible ? "" : "invisible pointer-events-none"}`}
+          >
             관리자
           </Link>
-        ) : null;
-      case "tier":
-        if (!session) return null;
+        );
+      }
+      case "tier": {
+        if (!session) {
+          return (
+            <span
+              key="tier"
+              aria-hidden
+              className={`invisible pointer-events-none text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}
+            >
+              멤버십 신청
+            </span>
+          );
+        }
         return member ? (
           <button
             key="tier"
@@ -1350,34 +1390,51 @@ export function Navbar({
             멤버십 신청
           </Link>
         );
-      case "mypage":
-        return session ? (
+      }
+      case "mypage": {
+        const visible = !!session;
+        return (
           <button
             key="mypage"
             type="button"
-            onClick={() => {
-              setUserMenuOpen((o) => !o);
-              setPopoverOpen(false);
-            }}
-            className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}
+            aria-hidden={!visible}
+            tabIndex={visible ? undefined : -1}
+            onClick={
+              visible
+                ? () => {
+                    setUserMenuOpen((o) => !o);
+                    setPopoverOpen(false);
+                  }
+                : undefined
+            }
+            className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS} ${visible ? "" : "invisible pointer-events-none"}`}
           >
             마이페이지
           </button>
-        ) : null;
-      case "name":
-        return session && member ? (
+        );
+      }
+      case "name": {
+        const visible = !!(session && member);
+        return (
           <button
             key="name"
             type="button"
-            onClick={() => {
-              setPopoverOpen((o) => !o);
-              setUserMenuOpen(false);
-            }}
-            className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}
+            aria-hidden={!visible}
+            tabIndex={visible ? undefined : -1}
+            onClick={
+              visible
+                ? () => {
+                    setPopoverOpen((o) => !o);
+                    setUserMenuOpen(false);
+                  }
+                : undefined
+            }
+            className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS} ${visible ? "" : "invisible pointer-events-none"}`}
           >
-            {member.name}
+            {member?.name ?? "회원"}
           </button>
-        ) : null;
+        );
+      }
       case "logout":
         return session ? (
           <button key="logout" onClick={handleLogout} className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}>
@@ -2147,84 +2204,6 @@ export function Navbar({
             : undefined
         }
       />
-      {!editable && <MobileHeaderDebugBadge />}
     </header>
-  );
-}
-
-// HOTFIX-156.18(사용자 재신고 — HOTFIX-156.14/156.15/156.16을 전부 거쳤는데도
-// "내 핸드폰 크롬에서 아직도 이렇게 보여"라며 같은 스크린샷을 다시 첨부:
-// "관리자"가 안 보이고 "장미" 사이드바 아이콘 위치가 틀림): 데스크톱에서
-// 500~1200px 전 구간 라이브 리사이즈로 재현을 시도했지만 전부 정상이었고,
-// text-size-adjust:100%(HOTFIX-156.16)가 실제로 라이브에 적용된 것도
-// 확인했는데도 실기기에서만 동일하게 재현된다는 건 이 세션이 흉내 낼 수
-// 없는 실기기 전용 요인(정확한 DPR/실제 zoom 렌더링 등)이 있다는 뜻이다 —
-// 더 추측하지 않고 HOTFIX-156.11이 이미 한 번 효과를 본 방법(`?debugviewport=1`
-// 진단 배지)을 그대로 재사용한다. 공개 사이트에서만(editable=false) 렌더링되고
-// 이 쿼리 파라미터가 없으면 완전히 비활성 — 확인 후 제거 예정.
-function MobileHeaderDebugBadge() {
-  const [info, setInfo] = useState<Record<string, unknown> | null>(null);
-
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("debugviewport") !== "1") return;
-
-    function measure() {
-      const html = document.documentElement;
-      const topBar = document.querySelector("header > div") as HTMLElement | null;
-      const adminEl = Array.from(document.querySelectorAll("a, span, div")).find(
-        (el) => el.children.length === 0 && (el.textContent ?? "").trim() === "관리자",
-      ) as HTMLElement | undefined;
-      const movedEls = Array.from(document.querySelectorAll('header [style*="translate"]')) as HTMLElement[];
-
-      setInfo({
-        innerWidth: window.innerWidth,
-        innerHeight: window.innerHeight,
-        dpr: window.devicePixelRatio,
-        visualViewportWidth: window.visualViewport?.width,
-        htmlScrollWidth: html.scrollWidth,
-        htmlClientWidth: html.clientWidth,
-        topBarStyle: topBar?.getAttribute("style") ?? null,
-        topBarComputedZoom: topBar ? getComputedStyle(topBar).zoom : null,
-        adminFound: !!adminEl,
-        adminRect: adminEl
-          ? (() => {
-              const r = adminEl.getBoundingClientRect();
-              return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
-            })()
-          : null,
-        movedCount: movedEls.length,
-        moved: movedEls.slice(0, 14).map((el) => {
-          const r = el.getBoundingClientRect();
-          const img = el.querySelector("img");
-          return {
-            transform: el.style.transform,
-            x: Math.round(r.x),
-            y: Math.round(r.y),
-            w: Math.round(r.width),
-            h: Math.round(r.height),
-            label: img?.getAttribute("alt") || (el.textContent ?? "").trim().slice(0, 14),
-          };
-        }),
-      });
-    }
-
-    measure();
-    window.addEventListener("resize", measure);
-    const id = window.setInterval(measure, 1000);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.clearInterval(id);
-    };
-  }, []);
-
-  if (!info) return null;
-
-  return (
-    <div
-      style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 999999, maxHeight: "55vh", overflow: "auto" }}
-      className="bg-black/90 text-white text-[10px] font-mono p-2 leading-tight whitespace-pre-wrap break-all"
-    >
-      {JSON.stringify(info, null, 1)}
-    </div>
   );
 }

@@ -1,6 +1,4 @@
-# CHANGELOG
-
-## 2026-09-20 (HOTFIX-158.4 — 유료 멤버십 전 등급을 토스 정기결제로: Alice/Great Gatsby/Patron/Lautrec)
+undefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefined## 2026-09-20 (HOTFIX-158.4 — 유료 멤버십 전 등급을 토스 정기결제로: Alice/Great Gatsby/Patron/Lautrec)
 - **사용자 지시**: 등급별 유료 멤버십도 전부 토스 결제, 도슨트 단건도 마찬가지(도슨트는 EPIC-158에서 이미 토스).
 - **DB**(`docs/sql/EPIC-158-membership-tiers.sql`, 적용 완료): `member_billing.tier_rank`(1~98) 추가, `toss_save_billing`/`toss_record_charge`를 일반화 — 구독한 등급으로 `membership_rank` 승급(이미 그 이상이면 유지, Artist 99도 그대로). 롤백 블록 테스트: Alice→1, Lautrec로 업그레이드→4, 이후 낮은 등급 결제해도 4 유지.
 - **구독 가능 등급**: `membership_tiers`에서 가격>0이고 평생 등급이 아닌 것(현재 Alice 10,000 / Great Gatsby 25,000 / Patron 40,000 / Lautrec 100,000). Silo Angel(0원)과 Artist(99, 평생/무료)는 제외. 금액은 항상 서버가 `tierRank`로 다시 산출(클라이언트 금액 불신).

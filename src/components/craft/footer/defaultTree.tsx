@@ -15,16 +15,21 @@ const companyInfoProps = {
   name: "사일로상점 / 살롱데상",
   representative: "채춘자 / 김수미",
   businessNumber: "",
+  mailOrderNumber: "",
   address: "",
   email: "ethanki@silostore.net",
   phone: "",
+  privacyOfficer: "",
+  hostingProvider: "Vercel Inc.",
 };
 
 const linksRowProps = {
   items: [
     { label: "About Silo", href: "/about-silo" },
-    { label: "이용약관", href: "#" },
-    { label: "개인정보처리방침", href: "#" },
+    { label: "이용약관", href: "/terms" },
+    { label: "개인정보처리방침", href: "/privacy" },
+    { label: "환불 및 구독 해지 안내", href: "/refund-policy" },
+    { label: "상품 및 가격 안내", href: "/pricing" },
   ],
   openInNewTab: false,
 };

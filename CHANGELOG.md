@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2026-09-20 (HOTFIX-158.2 — Supabase Pro 업그레이드 후 Storage → R2 기존 파일 이전 실행)
+- Supabase Pro 업그레이드로 제한이 풀려(다운로드 200) `scripts/migrate-supabase-storage-to-r2.mjs`를 실행: storage.objects 99개(public-assets 88 + attachments 11, 약 177MB)를 R2 `migrated/<bucket>/<name>`로 **99개 전부 복사(실패 0)**, 이어서 DB 전 컬럼의 옛 Supabase Storage 주소를 R2 주소로 치환(`site_settings.sidebar_icons` 1곳). 치환 후 남은 Supabase Storage 주소 0개, R2 접근 200 확인, dev 사이트/Supabase REST 정상.
+- 발견: 대부분의 헤더 미디어(사이드바 아이콘/트리거 등)는 이미 R2(`media/migrated-public-assets/…`)를 가리키고 있었다(이전 작업의 결과). `sidebar_icons`가 참조하던 `logos/bg-a759e5a8-….png`는 **Supabase에도 없던 깨진 참조**(원본 400) — 이전으로 생긴 문제가 아니며 R2에도 없어 404다(해당 배경 이미지를 관리자 화면에서 다시 올려야 함).
+- Supabase Storage의 원본 파일은 아직 삭제하지 않았다(복사 완료 후 사이트 정상 확인 뒤 정리 권장).
+
 ## 2026-09-20 (HOTFIX-158.1 — 홈페이지 설정의 상단 아이콘/상단 사이드바 열기 버튼에 webm·mp4 영상 업로드 허용)
 - **사용자 요청**: 홈페이지 설정에서 webm/mp4 같은 영상도 올릴 수 있게. 배경: 상단 사이드바 열기 버튼의 16MB GIF 등 큰 GIF가 방문마다 내려가 Supabase 트래픽을 키웠다 — 영상으로 바꾸면 용량이 크게 준다.
 - 좌/우 사이드바 아이콘은 이미 영상 허용이었고, **상단 아이콘(기본/hover)과 상단 사이드바 열기 버튼(기본/hover)** 파일 입력이 `image/*`만 받고 있었다 → `image/*,video/webm,video/mp4`로 확장(렌더링은 원래 `SidebarTriggerMedia`가 영상을 지원). `compressImage`가 영상을 canvas로 재인코딩하려다 실패하지 않도록 이미지가 아니면 원본 그대로 통과시키도록 가드 추가. 업로드는 R2(파일당 100MB 제한).

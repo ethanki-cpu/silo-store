@@ -5,13 +5,15 @@ import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
 // EPIC-158: 토스페이먼츠 SDK v2 브라우저 헬퍼. 클라이언트 키만 다루며, 금액/customerKey는 항상
 // 서버(/api/payments/toss/*)가 산출한 값을 그대로 받아 넘긴다.
 
+export type TossTier = { rank: number; name: string; price: number };
+
 export type TossCustomerInfo = {
   customerKey: string;
-  amount: number;
-  orderName: string;
+  tiers: TossTier[];
   customerName: string;
   billing: {
     status: "active" | "canceled" | "suspended";
+    tier_rank: number;
     next_billing_date: string | null;
     card_company: string | null;
     card_number_masked: string | null;
@@ -34,12 +36,12 @@ function requireClientKey(): string {
 }
 
 /** 자동결제(빌링) 카드 등록 창 — 성공 시 successUrl로 authKey/customerKey가 붙어 리다이렉트된다. */
-export async function requestBillingAuth(params: { customerKey: string; customerName?: string; customerEmail?: string }) {
+export async function requestBillingAuth(params: { customerKey: string; tierRank: number; customerName?: string; customerEmail?: string }) {
   const tossPayments = await loadTossPayments(requireClientKey());
   const payment = tossPayments.payment({ customerKey: params.customerKey });
   await payment.requestBillingAuth({
     method: "CARD",
-    successUrl: `${window.location.origin}/payments/toss/billing-success`,
+    successUrl: `${window.location.origin}/payments/toss/billing-success?tier=${params.tierRank}`,
     failUrl: `${window.location.origin}/membership?billing=failed`,
     customerName: params.customerName,
     customerEmail: params.customerEmail,

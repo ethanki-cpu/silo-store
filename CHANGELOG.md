@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-09-20 (HOTFIX-158.4 — 유료 멤버십 전 등급을 토스 정기결제로: Alice/Great Gatsby/Patron/Lautrec)
+- **사용자 지시**: 등급별 유료 멤버십도 전부 토스 결제, 도슨트 단건도 마찬가지(도슨트는 EPIC-158에서 이미 토스).
+- **DB**(`docs/sql/EPIC-158-membership-tiers.sql`, 적용 완료): `member_billing.tier_rank`(1~98) 추가, `toss_save_billing`/`toss_record_charge`를 일반화 — 구독한 등급으로 `membership_rank` 승급(이미 그 이상이면 유지, Artist 99도 그대로). 롤백 블록 테스트: Alice→1, Lautrec로 업그레이드→4, 이후 낮은 등급 결제해도 4 유지.
+- **구독 가능 등급**: `membership_tiers`에서 가격>0이고 평생 등급이 아닌 것(현재 Alice 10,000 / Great Gatsby 25,000 / Patron 40,000 / Lautrec 100,000). Silo Angel(0원)과 Artist(99, 평생/무료)는 제외. 금액은 항상 서버가 `tierRank`로 다시 산출(클라이언트 금액 불신).
+- **API/화면**: `customer-key`가 유료 등급 목록을 내려주고, `billing-auth`가 `tierRank`를 받아 그 등급 금액으로 1회차 결제(주문명 "사일로 <등급명> 멤버십 정기구독"). 이미 그 등급 이상이면 409, 구독 중이면 더 높은 등급으로만 변경 가능(다운그레이드/해지는 별도 기능). 프론트 `PatronSubscribeButton`을 `MembershipSubscribeSection`(등급별 카드+[<등급> 정기구독 시작하기])으로 교체 — /membership과 마이페이지, 카드 등록 성공 URL에 `?tier=`를 붙여 `/payments/toss/billing-success`가 처리.
+- 검증: `tsc`/`lint` 통과. 토스 실호출은 키가 없어 미검증.
+
 ## 2026-09-20 (HOTFIX-158.3 — 홈페이지 설정에 등록된 아이콘 파일 용량 표시)
 - **사용자 요청**: 홈페이지 설정에 등록된 사이드바/상단 바 아이콘 파일들의 용량을 전부 표시. 배경: 큰 GIF(16MB 등)가 트래픽을 키운 것을 관리자가 바로 알아볼 수 있게.
 - **추가**: (1) 왼쪽 패널 "Page" 탭에 **"등록된 아이콘 파일 용량"** 패널 — 좌/우 사이드바 아이콘(PC/태블릿/모바일 × 왼/오른 × 기본/hover), 상단 사이드바 열기 버튼(기기별 기본/hover), 상단 아이콘(전부 기본/hover)을 파일명·용량과 함께 나열하고 중복 제외 합계를 표시(2MB 이상은 빨간색). (2) 설정 화면의 모든 이미지 썸네일(`ImageThumb`) 우하단에 용량 배지. (3) 용량 조회는 관리자 전용 `POST /api/admin/media-size`(서버가 HEAD, 실패 시 Range 요청으로 조회 — 브라우저 CORS 회피, R2/Supabase 호스트만 허용해 SSRF 차단)를 `useFileSizes` 훅이 세션 캐시로 호출.

@@ -3,29 +3,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestMember } from "@/lib/serverAuth";
 import {
   customerKeyFor,
-  patronPrice,
-  PATRON_RANK,
-  PATRON_SUBSCRIPTION_POINT_PCT,
+  paidTier,
+  SUBSCRIPTION_POINT_PCT,
   rpc,
   tossRequest,
   TossConfigError,
 } from "@/lib/tossServer";
 
 // EPIC-158: 카드 등록(빌링 인증) 성공 후 호출 — authKey로 빌링키를 발급받아 member_billing에 저장하고
-// 1회차 결제를 즉시 시도한다. 성공하면 membership_rank를 3(Patron)으로 승급하고 points_ledger를 기록한다.
+// 1회차 결제를 즉시 시도한다. 성공하면 구독한 등급(Alice/Great Gatsby/Patron/Lautrec)으로 membership_rank를
+// 승급하고 points_ledger를 기록한다. 등급/금액은 tierRank로 받아 서버가 membership_tiers에서 다시 산출한다.
 export async function POST(request: NextRequest) {
   const requester = await getRequestMember(request);
   if (!requester) return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
 
-  let body: { authKey?: string; customerKey?: string };
+  let body: { authKey?: string; customerKey?: string; tierRank?: number };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "요청 본문이 올바르지 않아요." }, { status: 400 });
   }
   const { authKey, customerKey } = body;
-  if (!authKey || !customerKey) {
-    return NextResponse.json({ error: "authKey/customerKey가 필요해요." }, { status: 400 });
+  const tierRank = Number(body.tierRank);
+  if (!authKey || !customerKey || !Number.isInteger(tierRank)) {
+    return NextResponse.json({ error: "authKey/customerKey/tierRank가 필요해요." }, { status: 400 });
   }
 
   try {
@@ -35,15 +36,20 @@ export async function POST(request: NextRequest) {
 
     const { data: existing } = await requester.scopedClient
       .from("member_billing")
-      .select("status")
+      .select("status, tier_rank")
       .eq("member_id", requester.member.id)
       .maybeSingle();
-    if (existing?.status === "active") {
-      return NextResponse.json({ error: "이미 정기구독 중이에요." }, { status: 409 });
-    }
 
-    const amount = await patronPrice();
-    if (!amount) return NextResponse.json({ error: "구독 금액을 확인할 수 없어요." }, { status: 500 });
+    const tier = await paidTier(tierRank);
+    if (!tier) return NextResponse.json({ error: "구독할 수 없는 등급이에요." }, { status: 400 });
+    if (requester.member.membership_rank >= tier.rank && existing?.status !== "suspended") {
+      return NextResponse.json({ error: "이미 그 등급 이상이에요." }, { status: 409 });
+    }
+    // 구독 중이면 더 높은 등급으로만 올릴 수 있다(다운그레이드/해지는 별도 기능).
+    if (existing?.status === "active" && tier.rank <= existing.tier_rank) {
+      return NextResponse.json({ error: "이미 같은 등급 이하로 정기구독 중이에요." }, { status: 409 });
+    }
+    const amount = tier.price;
     const { data: nameRow } = await requester.scopedClient.from("members").select("name").eq("id", requester.member.id).maybeSingle();
     const customerName = (nameRow as { name: string } | null)?.name;
 
@@ -65,6 +71,7 @@ export async function POST(request: NextRequest) {
       p_billing_key: billingKey,
       p_card_company: card.company ?? card.issuerCode ?? null,
       p_card_number: card.number ?? null,
+      p_tier_rank: tier.rank,
     });
     if (saved.error) return NextResponse.json({ error: "카드 정보를 저장하지 못했어요.", detail: saved.error }, { status: 500 });
 
@@ -74,7 +81,7 @@ export async function POST(request: NextRequest) {
       customerKey,
       amount,
       orderId,
-      orderName: "사일로 Patron 멤버십 정기구독",
+      orderName: `사일로 ${tier.name} 멤버십 정기구독`,
       customerName,
     });
     const ok = charged.ok && charged.data.status === "DONE";
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
       p_order_id: orderId,
       p_payment_key: charged.ok ? (charged.data.paymentKey ?? null) : null,
       p_failure_reason: ok ? null : charged.ok ? `status:${charged.data.status}` : `${charged.code}: ${charged.message}`,
-      p_point_pct: PATRON_SUBSCRIPTION_POINT_PCT,
+      p_point_pct: SUBSCRIPTION_POINT_PCT,
     });
     if (recorded.error) {
       return NextResponse.json({ error: "결제 결과를 기록하지 못했어요.", detail: recorded.error, charged: ok }, { status: 500 });
@@ -96,7 +103,7 @@ export async function POST(request: NextRequest) {
       const message = charged.ok ? "결제가 승인되지 않았어요." : charged.message;
       return NextResponse.json({ error: `첫 결제에 실패했어요. (${message})`, status: "suspended" }, { status: 402 });
     }
-    return NextResponse.json({ ok: true, membership_rank: Math.max(PATRON_RANK, requester.member.membership_rank), amount });
+    return NextResponse.json({ ok: true, tier_name: tier.name, membership_rank: Math.max(tier.rank, requester.member.membership_rank), amount });
   } catch (e) {
     if (e instanceof TossConfigError) return NextResponse.json({ error: e.message }, { status: 500 });
     throw e;

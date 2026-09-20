@@ -139,6 +139,6 @@
 
 ## 결제 방식 이원화 (EPIC-158, 2026-09-20)
 
-- **디지털 결제 = 토스페이먼츠**: Patron 정기구독(`/api/payments/toss/billing-auth`, 빌링키는 `member_billing`에 저장 — 클라이언트 역할은 `toss_billing_key` 컬럼을 읽을 수 없음)과 온라인 도슨트 단건 결제(`/api/payments/toss/success`, `docent_purchases`가 `pending_payment → confirmed`).
+- **디지털 결제 = 토스페이먼츠**: 유료 등급 4종(Alice/Great Gatsby/Patron/Lautrec) 정기구독(HOTFIX-158.4, `member_billing.tier_rank`)(`/api/payments/toss/billing-auth`, 빌링키는 `member_billing`에 저장 — 클라이언트 역할은 `toss_billing_key` 컬럼을 읽을 수 없음)과 온라인 도슨트 단건 결제(`/api/payments/toss/success`, `docent_purchases`가 `pending_payment → confirmed`).
 - **실물 결제 = 무통장 입금**: 사일로 상점 `orders`는 기존 `pending_transfer` + `/admin/payments` 관리자 승인 그대로(토스 위젯 없음, 계좌 안내는 `NEXT_PUBLIC_SILO_BANK_ACCOUNT`).
 - 결제 확정/승급은 service-role 키 없이 `SECURITY DEFINER` RPC(`toss_*`, 서버 전용 비밀 `TOSS_DB_RPC_SECRET`)로만 수행하고, `members.membership_rank`/`is_admin` 직접 변경과 `docent_purchases.payment_status='confirmed'` 직접 쓰기는 트리거로 차단한다(`docs/sql/EPIC-158-toss-payments.sql`).

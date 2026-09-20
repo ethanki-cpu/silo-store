@@ -7,9 +7,11 @@ import { supabase } from "@/lib/supabaseClient";
 
 const TOSS_API = "https://api.tosspayments.com";
 
-// 정기구독 결제 시 적립하는 포인트 비율(%) — 정책 미확정이라 임시 1%(NEXT_TASK.md 확인 필요).
-export const PATRON_SUBSCRIPTION_POINT_PCT = 1;
+// 정기구독 결제 시 적립하는 포인트 비율(%) — 정책 미확정이라 전 등급 공통 임시 1%(NEXT_TASK.md 확인 필요).
+export const SUBSCRIPTION_POINT_PCT = 1;
 export const PATRON_RANK = 3;
+
+export type PaidTier = { rank: number; name: string; price: number };
 
 export class TossConfigError extends Error {}
 
@@ -58,9 +60,19 @@ export async function rpc<T = unknown>(fn: string, args: Record<string, unknown>
   return { data: (data as T) ?? null, error: error?.message ?? null };
 }
 
-/** Patron 등급 월 구독 금액(원) — membership_tiers.price(서버 산출, 클라이언트 값은 신뢰하지 않음). */
-export async function patronPrice(): Promise<number | null> {
-  const { data } = await supabase.from("membership_tiers").select("price").eq("rank", PATRON_RANK).maybeSingle();
-  const price = (data as { price: number | null } | null)?.price;
-  return typeof price === "number" && price > 0 ? price : null;
+/** 정기결제로 구독할 수 있는 유료 등급 목록(가격 > 0, 평생 등급 제외) — membership_tiers 기준(서버 산출). */
+export async function paidTiers(): Promise<PaidTier[]> {
+  const { data } = await supabase
+    .from("membership_tiers")
+    .select("rank, name, price, is_lifetime")
+    .gt("price", 0)
+    .order("rank", { ascending: true });
+  return ((data ?? []) as { rank: number; name: string; price: number; is_lifetime: boolean }[])
+    .filter((t) => !t.is_lifetime && t.rank > 0 && t.rank < 99)
+    .map((t) => ({ rank: t.rank, name: t.name, price: t.price }));
+}
+
+/** 특정 등급의 구독 정보(유료 등급이 아니면 null). */
+export async function paidTier(rank: number): Promise<PaidTier | null> {
+  return (await paidTiers()).find((t) => t.rank === rank) ?? null;
 }

@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2026-09-20 (HOTFIX-158.3 — 홈페이지 설정에 등록된 아이콘 파일 용량 표시)
+- **사용자 요청**: 홈페이지 설정에 등록된 사이드바/상단 바 아이콘 파일들의 용량을 전부 표시. 배경: 큰 GIF(16MB 등)가 트래픽을 키운 것을 관리자가 바로 알아볼 수 있게.
+- **추가**: (1) 왼쪽 패널 "Page" 탭에 **"등록된 아이콘 파일 용량"** 패널 — 좌/우 사이드바 아이콘(PC/태블릿/모바일 × 왼/오른 × 기본/hover), 상단 사이드바 열기 버튼(기기별 기본/hover), 상단 아이콘(전부 기본/hover)을 파일명·용량과 함께 나열하고 중복 제외 합계를 표시(2MB 이상은 빨간색). (2) 설정 화면의 모든 이미지 썸네일(`ImageThumb`) 우하단에 용량 배지. (3) 용량 조회는 관리자 전용 `POST /api/admin/media-size`(서버가 HEAD, 실패 시 Range 요청으로 조회 — 브라우저 CORS 회피, R2/Supabase 호스트만 허용해 SSRF 차단)를 `useFileSizes` 훅이 세션 캐시로 호출.
+- 검증: `tsc`/`lint` 통과, R2가 HEAD의 Content-Length와 Range의 Content-Range를 모두 돌려주는 것을 확인. 관리자 세션이 없어 화면 표시는 확인하지 못했다.
+
 ## 2026-09-20 (HOTFIX-158.2 — Supabase Pro 업그레이드 후 Storage → R2 기존 파일 이전 실행)
 - Supabase Pro 업그레이드로 제한이 풀려(다운로드 200) `scripts/migrate-supabase-storage-to-r2.mjs`를 실행: storage.objects 99개(public-assets 88 + attachments 11, 약 177MB)를 R2 `migrated/<bucket>/<name>`로 **99개 전부 복사(실패 0)**, 이어서 DB 전 컬럼의 옛 Supabase Storage 주소를 R2 주소로 치환(`site_settings.sidebar_icons` 1곳). 치환 후 남은 Supabase Storage 주소 0개, R2 접근 200 확인, dev 사이트/Supabase REST 정상.
 - 발견: 대부분의 헤더 미디어(사이드바 아이콘/트리거 등)는 이미 R2(`media/migrated-public-assets/…`)를 가리키고 있었다(이전 작업의 결과). `sidebar_icons`가 참조하던 `logos/bg-a759e5a8-….png`는 **Supabase에도 없던 깨진 참조**(원본 400) — 이전으로 생긴 문제가 아니며 R2에도 없어 404다(해당 배경 이미지를 관리자 화면에서 다시 올려야 함).

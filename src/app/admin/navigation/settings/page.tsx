@@ -31,6 +31,8 @@ import { Navbar } from "@/components/Navbar";
 import { HeroSlideshow } from "@/components/HeroSlideshow";
 import { SelectionOverlay } from "@/components/SelectionOverlay";
 import { uploadImage, compressImage } from "@/lib/adminImageUpload";
+import { formatBytes, useFileSizes } from "@/lib/useFileSizes";
+import { IconFileSizesPanel } from "@/components/admin/IconFileSizesPanel";
 import { fetchNavTabs, type NavTab, type DbTargetType } from "@/lib/navConfig";
 import { ensurePageForSlug, hrefToSlug } from "@/lib/pageTemplates";
 import { PRIMITIVE_RESOLVER, PRIMITIVE_BLOCK_OPTIONS } from "@/components/craft/primitives";
@@ -433,6 +435,7 @@ const IMAGE_THUMB_VIDEO_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 
 function ImageThumb({ url, alt }: { url: string; alt: string }) {
   const [hovering, setHovering] = useState(false);
+  const fileSize = useFileSizes(url ? [url] : [])[url];
   if (!url) return null;
   const isVideo = IMAGE_THUMB_VIDEO_RE.test(url);
   return (
@@ -446,6 +449,13 @@ function ImageThumb({ url, alt }: { url: string; alt: string }) {
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt={alt} className="h-14 w-14 rounded border border-gray-200 object-cover" />
+      )}
+      {typeof fileSize === "number" && (
+        <span
+          className={`absolute bottom-0 right-0 rounded-tl bg-black/60 px-1 text-[9px] leading-tight text-white ${fileSize >= 2 * 1024 * 1024 ? "bg-red-600/90" : ""}`}
+        >
+          {formatBytes(fileSize)}
+        </span>
       )}
       {hovering && (
         <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
@@ -1075,6 +1085,8 @@ export default function AdminNavigationSettingsPage() {
               )}
 
               {leftTab === "page" && (
+                <div className="space-y-5">
+                <IconFileSizesPanel sidebarIcons={sidebarIconsValue} topBarIcons={topBarIconsValue} topSidebar={topSidebarValue} />
                 <div className="space-y-3 text-xs text-gray-600">
                   <p className="font-semibold text-gray-500">Page</p>
                   <p>지금 편집 중인 건 홈페이지 전체 — 로고·상단 탭·사용자 메뉴·슬라이드쇼·사이드바 아이콘·하단 메뉴까지 한 화면에서 실시간으로 함께 편집돼요.</p>
@@ -1085,6 +1097,7 @@ export default function AdminNavigationSettingsPage() {
                     </Link>
                     에서 하세요 — 여기서는 이미 있는 탭의 디자인·위치만 다뤄요.
                   </p>
+                </div>
                 </div>
               )}
 

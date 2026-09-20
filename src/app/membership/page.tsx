@@ -5,6 +5,7 @@ import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 import { usePageRankGate } from "@/lib/pageRankGate";
+import { PatronSubscribeButton } from "@/components/payments/PatronSubscribeButton";
 
 // EPIC-061: Membership은 이제 Page Builder(page_builder/page_modules,
 // slug="membership")로만 렌더링한다 — EPIC-054F의 PageTemplate/useHubBoardId
@@ -39,6 +40,8 @@ export default function MembershipPage() {
       <main className="flex-1 bg-white px-6 py-12">
         <div className="max-w-3xl mx-auto w-full">
           <PageBuilderRenderer modules={modules ?? []} />
+          {/* EPIC-158: 토스페이먼츠 Patron 정기구독 */}
+          <PatronSubscribeButton />
         </div>
       </main>
     </>

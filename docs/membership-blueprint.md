@@ -136,3 +136,9 @@
 2. 어떤 `membership_tiers` 플래그를 쓸 것인가? 기존 컬럼 중 재사용 가능한 게 있는지 §2 표를 먼저 확인 — 없으면 새 컬럼을 추가하고 이 문서의 §2/§4를 갱신한다.
 3. 게시판 관련 기능이면 `min_rank_to_write`가 아니라 `board_type` + `canWriteToBoard` 분기를 수정하는 것이 맞는지 확인한다(§3 경고 참고).
 4. 등급별 값 자체(정확한 %/금액)를 프로젝트 문서에 적기 전에 라이브 DB로 재검증했는지 확인한다(§1 경고 참고).
+
+## 결제 방식 이원화 (EPIC-158, 2026-09-20)
+
+- **디지털 결제 = 토스페이먼츠**: Patron 정기구독(`/api/payments/toss/billing-auth`, 빌링키는 `member_billing`에 저장 — 클라이언트 역할은 `toss_billing_key` 컬럼을 읽을 수 없음)과 온라인 도슨트 단건 결제(`/api/payments/toss/success`, `docent_purchases`가 `pending_payment → confirmed`).
+- **실물 결제 = 무통장 입금**: 사일로 상점 `orders`는 기존 `pending_transfer` + `/admin/payments` 관리자 승인 그대로(토스 위젯 없음, 계좌 안내는 `NEXT_PUBLIC_SILO_BANK_ACCOUNT`).
+- 결제 확정/승급은 service-role 키 없이 `SECURITY DEFINER` RPC(`toss_*`, 서버 전용 비밀 `TOSS_DB_RPC_SECRET`)로만 수행하고, `members.membership_rank`/`is_admin` 직접 변경과 `docent_purchases.payment_status='confirmed'` 직접 쓰기는 트리거로 차단한다(`docs/sql/EPIC-158-toss-payments.sql`).

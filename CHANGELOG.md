@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-09-20 (EPIC-158 — 결제 시스템 이원화: 토스페이먼츠(Patron 정기구독/도슨트 단건) + 사일로 상점 무통장 입금 유지)
+- **목표**: 디지털 콘텐츠와 실물 상품 결제를 분리. 디지털=토스페이먼츠, 실물(빈티지/앤틱)=기존 수동 입금 확인.
+- **DB**(`docs/sql/EPIC-158-toss-payments.sql`, 라이브 적용 완료): `member_billing`(member_id/customer_key/toss_billing_key/status[active|canceled|suspended]/next_billing_date/last_billed_at 등) 신설 — RLS 본인/관리자 조회 + **`toss_billing_key` 컬럼은 anon/authenticated 모두 SELECT 불가**(컬럼 단위 GRANT). `docent_purchases`에 `toss_payment_key`/`toss_order_id`/`paid_at` 추가, `payment_status`에 `pending_payment` 추가. `points_ledger.reason`에 `membership_subscription` 추가. `orders`(상점)는 건드리지 않음.
+- **신뢰 쓰기**: service-role 키가 없는 프로젝트라, 결제 확정/승급은 `SECURITY DEFINER` RPC(`toss_save_billing`/`toss_record_charge`/`toss_get_docent_purchase`/`toss_confirm_docent_purchase`)를 서버 전용 공유 비밀(`TOSS_DB_RPC_SECRET`, DB엔 sha256 해시만)로 보호해 호출. 사용자 신원이 없는 토스 리다이렉트(도슨트 successUrl)도 (추측 불가 구매 id + DB의 서버 산출 금액 일치 + 토스 승인 API 성공)일 때만 확정.
+- **사전 발견한 보안 구멍(함께 수정)**: authenticated가 `members.membership_rank`/`is_admin`에 UPDATE 권한+"본인 행 수정" 정책을 가져 **누구나 REST로 자기 등급을 99(Artist)/관리자로 올릴 수 있었고**, `docent_purchases`에 `payment_status='confirmed'`로 직접 INSERT해 유료 도슨트를 공짜로 열람할 수 있었다 — 유료 결제가 의미 없어지므로 BEFORE UPDATE/INSERT 트리거로 차단(관리자·신뢰된 서버 함수·월 무료 혜택(is_monthly_free & 0원)은 통과). 시뮬레이션으로 검증: 일반 사용자의 등급 상승/confirmed 위조/빌링키 조회는 전부 42501.
+- **정기결제(빌링)**: `GET /api/payments/toss/customer-key`(서버가 HMAC으로 customerKey 산출 + 구독 금액은 `membership_tiers.price`), `POST /api/payments/toss/billing-auth`(authKey→빌링키 발급→저장→1회차 결제 승인 → 성공 시 `membership_rank=3`(이미 3 이상이면 유지)+`points_ledger` 기록, 실패 시 `status='suspended'`+실패 사유/횟수 기록 후 402 응답). 프론트: `PatronSubscribeButton`([Patron 정기구독 시작하기], 구독 상태/다음 결제일/실패 안내 표시)을 `/membership`과 마이페이지에 추가, 카드 등록 성공 리다이렉트 `/payments/toss/billing-success`.
+- **도슨트 단건**: `POST /api/docent-purchases`가 유료를 `pending_payment`(계좌이체 대기 아님)로 만들고 `purchase_id/order_id` 반환 → `/docent/[id]`가 토스 결제창(카드+간편결제) 호출 → `GET /api/payments/toss/success`가 토스 승인 API 호출 후 `confirmed`로 확정하고 도슨트 페이지로 리다이렉트(성공/실패 안내 배너).
+- **사일로 상점**: `/shop/[id]`에 토스 위젯 없음 — 무통장 입금 안내 박스(계좌는 `NEXT_PUBLIC_SILO_BANK_ACCOUNT`)와 [주문서 제출 및 입금하기] 버튼(기존 `/api/orders` → `pending_transfer`, `/admin/payments` 수동 승인 로직은 그대로).
+- **검증**: `tsc`/`lint` 0 errors. DB RPC를 롤백되는 블록에서 실행해 성공 경로(등급 3, 포인트 400, billing active/다음 결제일 +1개월)와 실패 경로(suspended, failed_count 1), 잘못된 비밀 거부를 확인. **토스 API 실호출(카드 등록/결제/승인)은 키가 없어 검증하지 못했다.**
+
 ## 2026-09-20 (HOTFIX-156.28 — 모든 업로드를 Supabase Storage → Cloudflare R2로 전환 + 기존 파일 이전 스크립트)
 - **계기**: Supabase 프로젝트가 `exceed_cached_egress_quota`로 제한(구글 로그인 등 전체 서비스 402). 사용자 지시: 기존 이미지/영상을 R2로 옮기고, 앞으로 올리는 것도 전부 R2로.
 - **앞으로의 업로드(완료)**: `lib/storage.ts`의 `uploadFile`(게시글 이미지/갤러리/첨부/아바타), `lib/adminImageUpload.ts`의 `uploadImage`(홈페이지 설정/Craft/관리자 전반), `CategoryTreeManager`의 썸네일 업로드가 전부 기존 R2 presigned 파이프라인(`uploadFileToR2`)으로 향한다. R2 파이프라인이 원래 허용하지 않던 첨부 문서 형식(pdf/zip/txt/csv)을 `/api/media/presigned`에 추가. 이 코드에서 Supabase Storage로 새 파일을 올리는 경로는 더 없다(남은 건 삭제용 `deleteFile`/storage-cleanup뿐).

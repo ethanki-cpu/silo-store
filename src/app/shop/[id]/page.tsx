@@ -7,6 +7,7 @@ import { WishlistButton } from "@/components/WishlistButton";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
+import { SILO_BANK_ACCOUNT } from "@/lib/bankAccount";
 
 type Persona = {
   id: string;
@@ -183,7 +184,7 @@ export default function ItemDetailPage() {
             disabled={orderSubmitting !== null}
             className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm disabled:opacity-50"
           >
-            {orderSubmitting === "purchase" ? "처리 중..." : "구매하기"}
+            {orderSubmitting === "purchase" ? "처리 중..." : "[주문서 제출 및 입금하기] 구매"}
           </button>
 
           <input
@@ -201,8 +202,15 @@ export default function ItemDetailPage() {
             disabled={orderSubmitting !== null}
             className="rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm disabled:opacity-50"
           >
-            {orderSubmitting === "rental" ? "처리 중..." : "대여하기"}
+            {orderSubmitting === "rental" ? "처리 중..." : "[주문서 제출 및 입금하기] 대여"}
           </button>
+        </div>
+
+        {/* EPIC-158: 실물 상품은 토스페이먼츠 없이 무통장 입금 — 관리자가 /admin/payments에서 입금 확인 후 승인. */}
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+          <p className="font-medium">무통장 입금 안내</p>
+          <p className="mt-1">{SILO_BANK_ACCOUNT || "입금 계좌는 주문서 제출 후 안내드려요."}</p>
+          <p className="mt-1 text-xs text-gray-500">주문서를 제출하면 입금 대기(pending_transfer) 상태로 접수되고, 입금이 확인되면 승인돼요.</p>
         </div>
 
         {orderError && <p className="text-sm text-red-600">{orderError}</p>}

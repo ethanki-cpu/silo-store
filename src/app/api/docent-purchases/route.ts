@@ -64,11 +64,12 @@ export async function POST(request: NextRequest) {
   let priceCharged = content.price;
   let discountAppliedPct = 0;
   let isMonthlyFree = false;
-  let paymentStatus: "confirmed" | "pending_transfer" = "pending_transfer";
+  // EPIC-158: 유료 도슨트는 토스페이먼츠 단건 결제 — 결제 완료 전까지 pending_payment(계좌이체 대기가 아님).
+  let paymentStatus: "confirmed" | "pending_payment" = "pending_payment";
 
   if (tier.docent_free_only) {
     priceCharged = content.price;
-    paymentStatus = "pending_transfer";
+    paymentStatus = "pending_payment";
   } else {
     let freeAvailable = false;
 
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
       priceCharged = Math.round(
         content.price * (1 - discountAppliedPct / 100),
       );
-      paymentStatus = "pending_transfer";
+      paymentStatus = "pending_payment";
     }
   }
 
@@ -128,6 +129,8 @@ export async function POST(request: NextRequest) {
     discount_applied_pct: discountAppliedPct,
     is_monthly_free: isMonthlyFree,
     payment_status: paymentStatus,
+    purchase_id: purchase.id,
+    order_id: `docent_${purchase.id}`,
     needs_agreement_notice: tier.docent_needs_agreement,
   });
 }

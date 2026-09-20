@@ -8,6 +8,7 @@ import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 import { CollectButton } from "@/components/common/CollectButton";
 import { guessDocentCollectionCategory } from "@/lib/collectionCategory";
+import { fetchTossCustomerInfo, requestSinglePayment } from "@/lib/tossClient";
 
 type ContentDetail = {
   id: string;
@@ -26,7 +27,9 @@ type PurchaseResult = {
   price_charged: number;
   discount_applied_pct: number;
   is_monthly_free: boolean;
-  payment_status: "confirmed" | "pending_transfer";
+  payment_status: "confirmed" | "pending_payment" | "pending_transfer";
+  purchase_id?: string;
+  order_id?: string;
   needs_agreement_notice: boolean;
 };
 
@@ -47,6 +50,13 @@ export default function DocentDetailPage() {
   // EPIC-067: page_builder(slug="docent-id") 위젯을 본문/구매 영역 아래에
   // 이어서 렌더링(EPIC-066이 발견한 PageEditButton-only 결함 수정, Phase 1).
   const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
+  // EPIC-158: 토스 결제창에서 돌아온 결과(/api/payments/toss/success 리다이렉트 쿼리).
+  const [paymentNotice, setPaymentNotice] = useState<{ kind: "success" | "failed"; reason?: string } | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const p = q.get("payment");
+    if (p === "success" || p === "failed") setPaymentNotice({ kind: p, reason: q.get("reason") ?? undefined });
+  }, []);
   useEffect(() => {
     let cancelled = false;
     fetchPublishedPageBySlug("docent-id").then((result) => {
@@ -111,6 +121,29 @@ export default function DocentDetailPage() {
 
     if (data.payment_status === "confirmed") {
       load();
+      return;
+    }
+
+    // EPIC-158: 유료 도슨트는 토스페이먼츠 결제창(카드 + 간편결제)으로 결제한다.
+    if (data.order_id && session && content) {
+      const { data: info, error: infoError } = await fetchTossCustomerInfo(session.access_token);
+      if (!info) {
+        setPurchaseError(infoError ?? "결제 정보를 불러오지 못했어요.");
+        return;
+      }
+      try {
+        await requestSinglePayment({
+          customerKey: info.customerKey,
+          amount: data.price_charged,
+          orderId: data.order_id,
+          orderName: content.title.slice(0, 100),
+          failPath: `/docent/${id}?payment=failed`,
+          customerName: info.customerName,
+          customerEmail: session.user.email ?? undefined,
+        });
+      } catch (e) {
+        setPurchaseError(e instanceof Error ? e.message : "결제 창을 열지 못했어요.");
+      }
     }
   }
 
@@ -153,6 +186,12 @@ export default function DocentDetailPage() {
       </div>
       {content.keywords && (
         <p className="text-sm text-gray-500 mt-1">{content.keywords}</p>
+      )}
+      {paymentNotice?.kind === "success" && (
+        <p className="mt-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">결제가 완료됐어요. 바로 열람하실 수 있어요.</p>
+      )}
+      {paymentNotice?.kind === "failed" && (
+        <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">결제가 완료되지 않았어요{paymentNotice.reason ? ` (${paymentNotice.reason})` : ""}. 다시 시도해 주세요.</p>
       )}
 
       {content.purchased ? (
@@ -203,8 +242,8 @@ export default function DocentDetailPage() {
               ) : (
                 <>
                   <p className="font-medium text-blue-700">
-                    참여비 {purchaseResult.price_charged.toLocaleString()}원 —
-                    계좌이체 대기 중
+                    결제 금액 {purchaseResult.price_charged.toLocaleString()}원 —
+                    결제 창에서 결제를 진행해 주세요
                   </p>
                   {purchaseResult.discount_applied_pct > 0 && (
                     <p className="text-gray-600 mt-1">

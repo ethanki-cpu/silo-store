@@ -204,6 +204,8 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
+EPIC-158(2026-09-20, 진행 중 — 구현 완료/토스 키·실결제 검증 대기) — 결제 시스템 이원화 — 디지털(Patron 정기구독=토스 빌링, 도슨트 단건=토스 결제창)은 토스페이먼츠, 실물(사일로 상점)은 기존 무통장 입금+관리자 승인 유지. member_billing 신설(빌링키 컬럼 접근 차단), docent_purchases에 토스 컬럼 확장, SECURITY DEFINER RPC+서버 비밀로 결제 확정/승급, members.membership_rank·docent_purchases confirmed 직접 쓰기 차단 트리거 추가.
+
 EPIC-144(2026-08-24 갱신, EPIC-141/142는 아래 목록에 개별 정리되지 않음 —
 CHANGELOG.md/docs/EPIC.md 참고)
 Silo Planet 3D 우주 — 오브젝트 모션 10종 추가("spin"이 이미지 빌보드에서

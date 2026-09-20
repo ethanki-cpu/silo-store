@@ -37,7 +37,8 @@ export async function uploadImage(
 // 애니메이션을 잃는 손해가 훨씬 크므로, 원본 그대로 통과시킨다 — 이
 // 함수를 쓰는 모든 호출부(현재/향후)에 한 번에 적용된다.
 export async function compressImage(file: File, quality: number): Promise<File> {
-  if (quality >= 100 || file.type === "image/gif") return file;
+  // 영상(webm/mp4)이나 GIF는 canvas 재인코딩 대상이 아니다(영상은 디코딩 불가, GIF는 애니메이션 손실).
+  if (quality >= 100 || file.type === "image/gif" || !file.type.startsWith("image/")) return file;
 
   const bitmap = await createImageBitmap(file);
   const canvas = document.createElement("canvas");

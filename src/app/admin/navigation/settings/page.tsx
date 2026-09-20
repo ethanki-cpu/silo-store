@@ -1461,12 +1461,12 @@ function ControlsPanel({
         </div>
         <label className="block">
           <span className="mb-1 block text-gray-600">이미지 {uploadingIconField === "default" && "(업로드 중...)"}</span>
-          <input type="file" accept="image/*" disabled={uploadingIconField === "default"} onChange={(e) => handleIconFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <input type="file" accept="image/*,video/webm,video/mp4" disabled={uploadingIconField === "default"} onChange={(e) => handleIconFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
           <ImageThumb url={icon.imageUrl} alt="아이콘 미리보기" />
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">마우스를 올렸을 때 나타날 이미지(선택, {uploadingIconField === "hover" && "업로드 중... "}비우면 기본 이미지 고정)</span>
-          <input type="file" accept="image/*" disabled={uploadingIconField === "hover"} onChange={(e) => handleIconHoverFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <input type="file" accept="image/*,video/webm,video/mp4" disabled={uploadingIconField === "hover"} onChange={(e) => handleIconHoverFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
           <ImageThumb url={icon.hoverImageUrl} alt="아이콘 hover 미리보기" />
           {icon.hoverImageUrl && (
             <button type="button" onClick={() => patchIcon({ hoverImageUrl: "" })} className="mt-1 text-[11px] text-red-500 hover:underline">
@@ -2771,12 +2771,12 @@ ${e instanceof Error ? e.message : String(e)}`);
         <p className="font-medium text-gray-600">여닫이 트리거 아이콘</p>
         <label className="block">
           <span className="mb-1 block text-gray-600">기본 이미지 {uploadingTriggerField === "triggerIconDefaultUrl" && "(업로드 중...)"}</span>
-          <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconDefaultUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <input type="file" accept="image/*,video/webm,video/mp4" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconDefaultUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
           <ImageThumb url={config.triggerIconDefaultUrl} alt="트리거 기본 아이콘 미리보기" />
         </label>
         <label className="block">
           <span className="mb-1 block text-gray-600">호버 이미지 {uploadingTriggerField === "triggerIconHoverUrl" && "(업로드 중...)"}</span>
-          <input type="file" accept="image/*" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconHoverUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
+          <input type="file" accept="image/*,video/webm,video/mp4" disabled={uploadingTriggerField !== null} onChange={(e) => handleTriggerIconFile("triggerIconHoverUrl", e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
           <ImageThumb url={config.triggerIconHoverUrl} alt="트리거 호버 아이콘 미리보기" />
         </label>
         {/* HOTFIX-141.1(사용자 지시 — "상단 사이드바 아이콘 크기를

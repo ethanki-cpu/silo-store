@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2026-09-20 (HOTFIX-158.1 — 홈페이지 설정의 상단 아이콘/상단 사이드바 열기 버튼에 webm·mp4 영상 업로드 허용)
+- **사용자 요청**: 홈페이지 설정에서 webm/mp4 같은 영상도 올릴 수 있게. 배경: 상단 사이드바 열기 버튼의 16MB GIF 등 큰 GIF가 방문마다 내려가 Supabase 트래픽을 키웠다 — 영상으로 바꾸면 용량이 크게 준다.
+- 좌/우 사이드바 아이콘은 이미 영상 허용이었고, **상단 아이콘(기본/hover)과 상단 사이드바 열기 버튼(기본/hover)** 파일 입력이 `image/*`만 받고 있었다 → `image/*,video/webm,video/mp4`로 확장(렌더링은 원래 `SidebarTriggerMedia`가 영상을 지원). `compressImage`가 영상을 canvas로 재인코딩하려다 실패하지 않도록 이미지가 아니면 원본 그대로 통과시키도록 가드 추가. 업로드는 R2(파일당 100MB 제한).
+- 검증: `tsc` 통과. 관리자 세션이 없어 실제 업로드/재생은 확인하지 못했다.
+
 ## 2026-09-20 (EPIC-158 — 결제 시스템 이원화: 토스페이먼츠(Patron 정기구독/도슨트 단건) + 사일로 상점 무통장 입금 유지)
 - **목표**: 디지털 콘텐츠와 실물 상품 결제를 분리. 디지털=토스페이먼츠, 실물(빈티지/앤틱)=기존 수동 입금 확인.
 - **DB**(`docs/sql/EPIC-158-toss-payments.sql`, 라이브 적용 완료): `member_billing`(member_id/customer_key/toss_billing_key/status[active|canceled|suspended]/next_billing_date/last_billed_at 등) 신설 — RLS 본인/관리자 조회 + **`toss_billing_key` 컬럼은 anon/authenticated 모두 SELECT 불가**(컬럼 단위 GRANT). `docent_purchases`에 `toss_payment_key`/`toss_order_id`/`paid_at` 추가, `payment_status`에 `pending_payment` 추가. `points_ledger.reason`에 `membership_subscription` 추가. `orders`(상점)는 건드리지 않음.

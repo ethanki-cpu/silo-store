@@ -5,6 +5,7 @@
 // 설계한다.
 
 import { supabase } from "./supabaseClient";
+import { uploadFileToR2 } from "./r2Upload";
 
 /** Block Editor 전용 Storage 버킷 — 필요시 Supabase Dashboard에서 생성 필요 */
 export const STORAGE_BUCKETS = {
@@ -38,21 +39,15 @@ export async function uploadFile(
   bucket: StorageBucket,
   subfolder: string = "",
 ): Promise<UploadResult> {
-  // 파일명 충돌 방지를 위해 타임스탬프 + UUID 접두사 사용
-  const ext = file.name.split(".").pop() ?? "";
-  const safeName = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
-  const path = subfolder ? `${subfolder}/${safeName}` : safeName;
-
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(path, file);
-
-  if (uploadError) {
-    return { url: null as unknown as string, path, error: uploadError.message };
-  }
-
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return { url: data.publicUrl, path, error: null };
+  // HOTFIX-156.28(사용자 지시 — "앞으로 웹사이트에서 올리는 모든 이미지와
+  // 영상도 R2로 저장되도록 해줘"): Supabase Storage egress 한도 초과로
+  // 프로젝트가 제한된 것이 계기 — 이제 모든 업로드는 R2로 간다(bucket/
+  // subfolder 인자는 호환을 위해 남겨두지만 저장 위치에는 쓰이지 않는다,
+  // 키는 서버가 발급하는 media/<userId>/<timestamp>-<uuid>.<ext>).
+  void bucket;
+  void subfolder;
+  const { url, path, error } = await uploadFileToR2(file);
+  return { url: (url ?? null) as unknown as string, path, error };
 }
 
 /**

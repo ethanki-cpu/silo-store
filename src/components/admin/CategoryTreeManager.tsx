@@ -20,6 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import { ensurePageForSlug, hrefToSlug, renamePageSlugIfPossible } from "@/lib/pageTemplates";
 import { WIDGET_DEFAULT_SETTINGS } from "@/lib/pageBuilder";
 import { fetchNavBranches, fetchBoardBranchMap } from "@/lib/adminTreeGrouping";
@@ -80,7 +81,6 @@ type CategoryNavRow = {
   is_public: boolean;
 };
 
-const STORAGE_BUCKET = "public-assets";
 // EPIC-079-PHASE-4 후속: "미분류 페이지"를 별도 패널이 아니라 이 트리 안의
 // 진짜 노드(부모 없는 루트 하나 아래에 전부 자식으로)로 편입시켜, 드래그로
 // 실제 메뉴 위치로 옮기는 것과 추가/수정/페이지 수정/관리/삭제를 별도 구현
@@ -2125,17 +2125,14 @@ function CategoryDetailModal({
     if (!file) return;
     setUploading(true);
     setError(null);
-    const path = `categories/${Date.now()}-${file.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(path, file);
-    if (uploadError) {
+    // HOTFIX-156.28: Supabase Storage 대신 R2로 업로드.
+    const { url, error: uploadError } = await uploadFileToR2(file);
+    if (uploadError || !url) {
       setUploading(false);
-      setError(uploadError.message);
+      setError(uploadError ?? "업로드에 실패했어요.");
       return;
     }
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-    setThumbnailUrl(data.publicUrl);
+    setThumbnailUrl(url);
     setUploading(false);
   }
 

@@ -20,6 +20,8 @@ import type { PresignedUploadRequest, PresignedUploadResponse } from "@/lib/medi
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
 const ALLOWED_MIME_PREFIXES = ["image/", "video/", "audio/"];
+// HOTFIX-156.28: 게시글 첨부파일(attachments 버킷 → R2 이전)용 문서 형식.
+const ALLOWED_DOCUMENT_MIMES = ["application/pdf", "application/zip", "text/plain", "text/csv"];
 // EPIC-083: Admin 커스텀 폰트 업로드(.woff2/.woff/.ttf/.otf)도 이 presigned
 // 파이프라인을 그대로 탄다. 브라우저/OS별 폰트 파일의 File.type 인식이
 // 일관되지 않아(예: Windows에서 .ttf가 "application/octet-stream" 또는
@@ -45,6 +47,7 @@ function sanitizeExtension(fileName: string): string {
 
 function isAllowedUpload(fileType: string, ext: string): boolean {
   if (ALLOWED_MIME_PREFIXES.some((prefix) => fileType.startsWith(prefix))) return true;
+  if (ALLOWED_DOCUMENT_MIMES.includes(fileType)) return true;
   if (ALLOWED_FONT_EXTENSIONS.includes(ext) && (fileType.startsWith("font/") || fileType === "application/octet-stream" || fileType === "application/font-woff" || fileType === "application/x-font-ttf" || fileType === "application/vnd.ms-fontobject" || fileType === "")) {
     return true;
   }

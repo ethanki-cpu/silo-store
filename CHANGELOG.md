@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-09-20 (HOTFIX-156.28 — 모든 업로드를 Supabase Storage → Cloudflare R2로 전환 + 기존 파일 이전 스크립트)
+- **계기**: Supabase 프로젝트가 `exceed_cached_egress_quota`로 제한(구글 로그인 등 전체 서비스 402). 사용자 지시: 기존 이미지/영상을 R2로 옮기고, 앞으로 올리는 것도 전부 R2로.
+- **앞으로의 업로드(완료)**: `lib/storage.ts`의 `uploadFile`(게시글 이미지/갤러리/첨부/아바타), `lib/adminImageUpload.ts`의 `uploadImage`(홈페이지 설정/Craft/관리자 전반), `CategoryTreeManager`의 썸네일 업로드가 전부 기존 R2 presigned 파이프라인(`uploadFileToR2`)으로 향한다. R2 파이프라인이 원래 허용하지 않던 첨부 문서 형식(pdf/zip/txt/csv)을 `/api/media/presigned`에 추가. 이 코드에서 Supabase Storage로 새 파일을 올리는 경로는 더 없다(남은 건 삭제용 `deleteFile`/storage-cleanup뿐).
+- **기존 파일 이전(스크립트 준비, 실행 대기)**: `scripts/migrate-supabase-storage-to-r2.mjs` — storage.objects 99개(public-assets 88개 130MB, attachments 11개 47MB)를 R2 `migrated/<bucket>/<name>`로 복사한 뒤(전부 성공해야 다음 단계), DB 전체(text/varchar/jsonb/text[] 컬럼)의 옛 Supabase Storage URL을 R2 URL로 치환한다(`--dry-run`/`--skip-copy`/`--skip-rewrite` 지원). 드라이런 확인: 복사 대상 99개 목록 정상, 치환 대상은 `site_settings.sidebar_icons` 1행. **실행은 아직 못 했다** — Supabase가 제한 상태라 파일 다운로드가 402로 막혀 있어서(요금제 복구 후 `node scripts/migrate-supabase-storage-to-r2.mjs`).
+- **검증**: `tsc`/`lint` 통과, 스크립트 드라이런 통과. 실제 업로드 클릭 테스트는 로그인 세션이 없어 못 했다.
+
 ## 2026-09-19 (HOTFIX-156.27 — 타임라인 화면 자유 편집의 제목/설명 줄바꿈이 화면에 반영 안 되던 문제)
 - **사용자 신고**: 설정 패널 '설명'에 줄바꿈을 넣었는데 실제 화면(output)엔 한 줄로 나온다.
 - **원인**: `EditableText`가 값을 그냥 텍스트로 그려 CSS 기본(`white-space: normal`)이 

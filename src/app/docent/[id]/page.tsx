@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 import { PageEditButton } from "@/components/admin/PageEditButton";
@@ -42,6 +43,8 @@ export default function DocentDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [purchasing, setPurchasing] = useState(false);
+  // HOTFIX-158.6: 디지털 콘텐츠는 열람을 시작하면 청약철회가 제한된다(전자상거래법 제17조 제2항) — 결제 전 안내 + 동의.
+  const [withdrawalAck, setWithdrawalAck] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [purchaseResult, setPurchaseResult] = useState<PurchaseResult | null>(
     null,
@@ -219,9 +222,17 @@ export default function DocentDetailPage() {
             </p>
           )}
 
+          <label className="mb-3 flex items-start gap-2 text-xs leading-5 text-gray-600">
+            <input type="checkbox" checked={withdrawalAck} onChange={(e) => setWithdrawalAck(e.target.checked)} className="mt-1" />
+            <span>
+              온라인 도슨트는 결제 즉시 열람할 수 있는 디지털 콘텐츠이며, 열람을 시작하면 청약철회가 제한됨을 확인했습니다(열람 시작 전 7일 이내에는 전액
+              환불, 콘텐츠 하자 시에는 예외). 자세한 내용은 <Link href="/refund-policy" className="underline">환불 및 구독 해지 안내</Link>를 확인해 주세요.
+            </span>
+          </label>
+
           <button
             onClick={handlePurchase}
-            disabled={purchasing || !session}
+            disabled={purchasing || !session || !withdrawalAck}
             className="rounded-md bg-gray-800 text-white px-4 py-2 disabled:opacity-50"
           >
             {purchasing ? "처리 중..." : "구매하기"}

@@ -1,3 +1,11 @@
+## 2026-09-21 (HOTFIX-158.6 — 정기구독 수명주기: 셀프 해지·다음 결제일 등급 변경·월 자동 청구/재시도·철회 제한 동의)
+- **사용자 지시**: 심사 제출 전에 정책 문구와 코드가 다른 부분을 개발. 대표님 확정: 등급 변경 다음 결제일부터(B안), 반품 배송비 3,000원.
+- **DB**(`docs/sql/HOTFIX-158.6-billing-lifecycle.sql`, **미적용** — 아래 참고): `member_billing`에 cancel_at_period_end/pending_tier_rank/agreed_price/pending_agreed_price 추가, RPC 5종(toss_request_cancel/toss_set_pending_tier/toss_due_billings/toss_finalize_cancellations/toss_record_recurring) 신설, toss_save_billing/toss_record_charge에 동의 가격·예약 초기화 반영.
+- **API**: `POST /api/payments/toss/cancel`(해지 예약/철회), `POST /api/payments/toss/change-tier`(다음 결제일부터 적용 예약), `GET /api/cron/billing`(CRON_SECRET 보호, 해지 확정 → 오늘 청구분 결제 → 결과 기록), billing-auth는 구독 중이면 즉시 결제 대신 409.
+- **화면**: 멤버십 구독 섹션에 결제 전 청약철회 제한 안내+동의 체크, 구독 해지/해지 철회 버튼, 구독 중 등급 변경 예약, 결제 실패 재시도 안내. 도슨트 구매 화면에 철회 제한 안내+동의 체크. `vercel.json` 크론 매일 1회.
+- **정책 문서**: 반품 배송비 3,000원 명시, 결제 실패 안내를 "마이페이지와 서비스 내 안내"로 정정(이메일 발송 인프라 없음).
+- 검증: `tsc`/`eslint` 통과. DB 미적용이라 실동작(토스 호출 포함)은 미검증.
+
 ## 2026-09-21 (HOTFIX-158.5 — 토스 심사용 사업자 정보 입력 + 환불/해지·약관 세부 확정)
 - **사용자 지시**: 사업자 정보 입력 + 토스가 받아줄 정책 세부 조건(사례 조사·법령 검토 후 제안 → 대표님 확정)을 문서에 반영.
 - **DB(page_builder slug=footer)**: 푸터 사업자 정보 블록에 대표자/사업자등록번호/통신판매업 신고번호/주소/전화/개인정보보호책임자 입력(코드 변경 없음).

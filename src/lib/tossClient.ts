@@ -18,6 +18,9 @@ export type TossCustomerInfo = {
     card_company: string | null;
     card_number_masked: string | null;
     last_failure_reason: string | null;
+    cancel_at_period_end: boolean;
+    pending_tier_rank: number | null;
+    failed_count: number;
   } | null;
   currentRank: number;
 };
@@ -27,6 +30,28 @@ export async function fetchTossCustomerInfo(accessToken: string): Promise<{ data
   const json = await res.json().catch(() => ({}));
   if (!res.ok) return { data: null, error: json.error ?? "결제 정보를 불러오지 못했어요." };
   return { data: json as TossCustomerInfo, error: null };
+}
+
+/** 구독 해지 예약(cancel=true)/철회(false) — 이미 결제한 기간이 끝날 때까지 등급 유지. */
+export async function requestSubscriptionCancel(accessToken: string, cancel: boolean): Promise<string | null> {
+  const res = await fetch("/api/payments/toss/cancel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ cancel }),
+  });
+  const json = await res.json().catch(() => ({}));
+  return res.ok ? null : (json.error ?? "처리하지 못했어요.");
+}
+
+/** 구독 중 등급 변경 예약(다음 결제일부터 적용). 현재 구독 등급을 보내면 예약 해제. */
+export async function requestTierChange(accessToken: string, tierRank: number): Promise<string | null> {
+  const res = await fetch("/api/payments/toss/change-tier", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ tierRank }),
+  });
+  const json = await res.json().catch(() => ({}));
+  return res.ok ? null : (json.error ?? "처리하지 못했어요.");
 }
 
 function requireClientKey(): string {

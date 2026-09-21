@@ -45,9 +45,10 @@ export async function POST(request: NextRequest) {
     if (requester.member.membership_rank >= tier.rank && existing?.status !== "suspended") {
       return NextResponse.json({ error: "이미 그 등급 이상이에요." }, { status: 409 });
     }
-    // 구독 중이면 더 높은 등급으로만 올릴 수 있다(다운그레이드/해지는 별도 기능).
-    if (existing?.status === "active" && tier.rank <= existing.tier_rank) {
-      return NextResponse.json({ error: "이미 같은 등급 이하로 정기구독 중이에요." }, { status: 409 });
+    // HOTFIX-158.6(정책: 등급 변경은 다음 결제일부터 적용, 일할 계산 없음): 구독 중(active)이면 이 경로로 즉시 결제하지
+    // 않는다 — 등급 변경은 /api/payments/toss/change-tier(예약), 해지는 /api/payments/toss/cancel.
+    if (existing?.status === "active") {
+      return NextResponse.json({ error: "이미 정기구독 중이에요. 등급 변경은 다음 결제일부터 적용돼요." }, { status: 409 });
     }
     const amount = tier.price;
     const { data: nameRow } = await requester.scopedClient.from("members").select("name").eq("id", requester.member.id).maybeSingle();

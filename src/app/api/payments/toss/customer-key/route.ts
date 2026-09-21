@@ -15,7 +15,9 @@ export async function GET(request: NextRequest) {
   try {
     const { data: billing } = await requester.scopedClient
       .from("member_billing")
-      .select("status, tier_rank, next_billing_date, card_company, card_number_masked, last_failure_reason")
+      .select(
+        "status, tier_rank, next_billing_date, card_company, card_number_masked, last_failure_reason, cancel_at_period_end, pending_tier_rank, failed_count",
+      )
       .eq("member_id", requester.member.id)
       .maybeSingle();
 

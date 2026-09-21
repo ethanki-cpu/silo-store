@@ -1,3 +1,6 @@
+## 2026-09-21 (EPIC-159 — 스텝페이 API 토큰 확인)
+- 재발급 Secret-Token(64자)으로 상품/고객/구독 조회 200 확인(처음 토큰은 잘린 값). Patron 상품 가격 플랜 코드 확인, 상품 상태 UNSOLD 발견. 코드 변경 없음(문서만).
+
 ## 2026-09-21 (EPIC-159 Phase 2 — 스텝페이 정기구독 결제·웹훅·등급 자동 승급/강등 구현)
 - **사용자 지시**: 스텝페이 위젯 연동 시작(Patron 월 40,000원, 웹훅 4종, membership_rank 자동 승급·강등).
 - **DB**(`docs/sql/EPIC-159-steppay.sql`, 적용 완료): steppay_customers/subscriptions/payments/webhook_events(RLS), RPC 6종(SECURITY DEFINER + 서버 비밀 `steppay_rpc`), 구독 상태 기반 승급/강등(이벤트 순서 비보장 대응).

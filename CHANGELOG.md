@@ -1,3 +1,7 @@
+## 2026-09-21 (상단 사이드바 Patron 가입 링크 + 스텝페이 PG 가입 절차 정리)
+- `site_settings.top_sidebar`(pc/tablet/mobile) links 맨 앞에 "Patron 가입 → /membership" 추가(DB 데이터 변경, 코드 변경 없음).
+- 스텝페이 PG 가입 가이드(나이스페이 For Startup 바로오픈: 호스팅사 '스텝페이' 선택 시 가입비·연회비 면제, 정산은 카드사 심사 후) NEXT_TASK.md에 기록.
+
 ## 2026-09-21 (스텝페이 배포 환경 진단 API)
 - `GET /api/payments/steppay/health` 추가: 환경 변수 설정 여부/DB 서버 비밀 일치 여부만 true/false 반환. Preview 환경 변수 범위 문제를 밖에서 확인하기 위함.
 

@@ -5,7 +5,7 @@ import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 import { usePageRankGate } from "@/lib/pageRankGate";
-import { PatronSubscribeSection } from "@/components/payments/PatronSubscribeSection";
+import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
 
 // EPIC-061: Membership은 이제 Page Builder(page_builder/page_modules,
 // slug="membership")로만 렌더링한다 — EPIC-054F의 PageTemplate/useHubBoardId
@@ -39,9 +39,10 @@ export default function MembershipPage() {
       <PageEditButton slug="membership" />
       <main className="flex-1 bg-white px-6 py-12">
         <div className="max-w-3xl mx-auto w-full">
-          <PageBuilderRenderer modules={modules ?? []} />
+          {/* 배치된 위젯이 없을 때 "모듈이 없어요" 안내문이 방문자에게 보이지 않게 한다 */}
+          {(modules ?? []).length > 0 && <PageBuilderRenderer modules={modules ?? []} />}
           {/* EPIC-158: 토스페이먼츠 Patron 정기구독 */}
-          <PatronSubscribeSection />
+          <MembershipPlansSection />
         </div>
       </main>
     </>

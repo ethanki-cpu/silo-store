@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { PATRON_RANK, rpc, SteppayConfigError, verifySteppaySignature } from "@/lib/steppayServer";
+import { rpc, SteppayConfigError, tierRankForProductCode, verifySteppaySignature } from "@/lib/steppayServer";
 
 // EPIC-159: 스텝페이 웹훅 v2 수신. 요청 규격 {timestamp, version, event, data}, 서명 헤더 `Steppay-Signature`.
 // 처리 이벤트: subscription.created / subscription.updated → 구독 상태 저장 + members.membership_rank 승급·강등,
@@ -59,12 +59,16 @@ export async function POST(request: NextRequest) {
   try {
     if (event === "subscription.created" || event === "subscription.updated") {
       const d = payload.data as SubscriptionData;
-      const planCode = process.env.NEXT_PUBLIC_STEPPAY_PLAN_ID;
       const productCodes = (d.items ?? []).map((i) => i.productCode).filter(Boolean);
-      // 우리 Patron 상품이 아닌 구독(다른 상품)은 등급에 반영하지 않는다.
-      if (planCode && productCodes.length > 0 && !productCodes.includes(planCode)) {
-        await rpc("steppay_log_event", { p_hash: hash, p_event: event, p_note: "ignored: other product" });
-        return ack("ignored: other product");
+      // EPIC-160: 상품 코드로 멤버십 등급(Alice/Great Gatsby/Patron/Lautrec)을 찾는다. 우리 멤버십 상품이 아니면 무시.
+      let tierRank: number | null = null;
+      for (const code of productCodes) {
+        tierRank = await tierRankForProductCode(code);
+        if (tierRank) break;
+      }
+      if (!tierRank) {
+        await rpc("steppay_log_event", { p_hash: hash, p_event: event, p_note: "ignored: not a membership product" });
+        return ack("ignored: not a membership product");
       }
       const applied = await rpc<string>("steppay_apply_subscription", {
         p_customer_id: Number(d.customerId),
@@ -75,7 +79,7 @@ export async function POST(request: NextRequest) {
         p_end: toIso(d.endDate),
         p_order_code: d.orderCode ?? null,
         p_event_ts: eventTs,
-        p_rank: PATRON_RANK,
+        p_rank: tierRank,
       });
       if (applied.error) return NextResponse.json({ error: "apply failed", detail: applied.error }, { status: 500 });
       await rpc("steppay_log_event", { p_hash: hash, p_event: event, p_note: `${d.status} → ${applied.data}` });

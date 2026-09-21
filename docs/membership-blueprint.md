@@ -142,3 +142,29 @@
 - **디지털 결제 = 토스페이먼츠**: 유료 등급 4종(Alice/Great Gatsby/Patron/Lautrec) 정기구독(HOTFIX-158.4, `member_billing.tier_rank`)(`/api/payments/toss/billing-auth`, 빌링키는 `member_billing`에 저장 — 클라이언트 역할은 `toss_billing_key` 컬럼을 읽을 수 없음)과 온라인 도슨트 단건 결제(`/api/payments/toss/success`, `docent_purchases`가 `pending_payment → confirmed`).
 - **실물 결제 = 무통장 입금**: 사일로 상점 `orders`는 기존 `pending_transfer` + `/admin/payments` 관리자 승인 그대로(토스 위젯 없음, 계좌 안내는 `NEXT_PUBLIC_SILO_BANK_ACCOUNT`).
 - 결제 확정/승급은 service-role 키 없이 `SECURITY DEFINER` RPC(`toss_*`, 서버 전용 비밀 `TOSS_DB_RPC_SECRET`)로만 수행하고, `members.membership_rank`/`is_admin` 직접 변경과 `docent_purchases.payment_status='confirmed'` 직접 쓰기는 트리거로 차단한다(`docs/sql/EPIC-158-toss-payments.sql`).
+
+## EPIC-160 등급별 접근 구조 분석 (2026-09-22)
+
+### 현재 실제로 강제되는 구조 (membership_tiers 플래그 기준 — /membership 화면이 이 값을 그대로 보여준다)
+| 구분 | Alice 10,000 | Great Gatsby 25,000 | Patron 40,000 | Lautrec 100,000 |
+|---|---|---|---|---|
+| 게시판 읽기 | 공개 전체 | 공개 전체 | 공개 전체 | 공개 전체 |
+| 게시판 쓰기 | 전체(클럽 모임방 포함) | + 도슨트 글쓰기 | + 패트론 라운지, 게시판 개설 | 동일 |
+| 클럽 모임 | 정가 | 정가 + 우선 예약 | 월 1회 무료 + 10% 할인 + 우선 예약 | 전체 무료 |
+| 살롱 | — | — | 입장 무료, 월별 살롱 모임 초대, 비밀의 방 자격(심사) | + 음료·투어 도슨트 무료 |
+| 온라인 도슨트 | 정가 | 정가 | 월 1건 무료 + 20% | 월 1건 무료 + 20% |
+| 사일로 상점 | 큐레이션 1단계 | 대여 10% | 구매 5% / 대여 15% | 구매 8% / 대여 15% |
+
+### 발견한 문제
+1. 62개 주제 게시판을 포함해 **읽기 제한이 거의 없다**(boards.min_rank_to_read 전부 null, 페이지 1곳만 제한) — 유료 가입 동기가 글쓰기·할인·오프라인 활동에만 의존.
+2. `boards.min_rank_to_write`는 DB에 값(나의 보물들=1, 사일로 타임라인=4)이 있지만 **쓰기 API가 참조하지 않아 무효**(canWriteToBoard는 board_type 플래그만 본다).
+3. **포인트 적립 역전**: 클럽/상점 구매 포인트가 Alice 3%·Great Gatsby 5%인데 Patron·Lautrec는 0% — 상위 등급이 적립을 못 받는다(할인으로 대체한 설계인지 확인 필요).
+4. **Patron(40,000) ↔ Lautrec(100,000)**: 가격은 2.5배인데 게시판 접근 차이가 없고 활동/할인 차이뿐이다.
+
+### 권장 구조 (제안 — 적용 전 대표님 승인 필요)
+원칙: (1) 읽기는 공개 유지(아카이브·검색 노출·커뮤니티 성장), (2) 유료 등급은 **참여(쓰기)·모임·전용 공간·할인**으로 차등, (3) 등급이 오를 때마다 체감 혜택이 뚜렷하게 커지게.
+- **Alice**: 요일별 클럽 모임방·나의 보물들 글쓰기, 포인트 적립 강화(현행 유지).
+- **Great Gatsby**: + 주제별 클럽 게시판(A/B) 글쓰기 확대, 도슨트 글쓰기, 클럽 우선 예약.
+- **Patron**: + 패트론 라운지·월별 살롱 모임 게시판 **열람+글쓰기**(열람도 Patron 이상으로 제한), 게시판 개설, 월 1회 클럽 무료, 살롱 입장 무료.
+- **Lautrec**: + Lautrec 전용 라운지(신설), 클럽 전체 무료, 음료·투어 도슨트 무료, 비밀의 방, 타임라인 작성 권한.
+- 코드 작업: `canWriteToBoard`가 `min_rank_to_write`를 참조하도록 수정, 등급 전용 게시판에 `min_rank_to_read` 설정, 포인트 정책 확정.

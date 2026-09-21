@@ -82,3 +82,50 @@ export function verifySteppaySignature(header: string | null, rawBody: string, s
     return candidate.length === expectedBuf.length && timingSafeEqual(candidate, expectedBuf);
   });
 }
+
+// ── EPIC-160: 멤버십 4등급 ↔ 스텝페이 상품 매핑 ────────────────────────────────────────────────────────────
+// 스텝페이에 등급별 상품("Alice 멤버십", "Great Gatsby 멤버십", "Patron 멤버십", "Lautrec 멤버십")이 등록돼 있으면, 상품 이름으로
+// 등급을 찾아 결제·웹훅에서 쓴다(상품 코드를 환경 변수로 일일이 복사하지 않아도 됨). 5분 메모리 캐시.
+export type TierProduct = { rank: number; productCode: string; priceCode: string; price: number | null; productName: string };
+
+const TIER_PATTERNS: [number, RegExp][] = [
+  [1, /alice|앨리스/i],
+  [2, /great\s*gatsby|그레이트\s*개츠비|개츠비/i],
+  [3, /patron|패트론/i],
+  [4, /lautrec|로트렉|로트레크/i],
+];
+
+type ProductListDto = { content?: (ProductDto & { status?: string })[] };
+let tierProductCache: { at: number; map: Map<number, TierProduct> } | null = null;
+
+export async function tierProducts(force = false): Promise<Map<number, TierProduct>> {
+  if (!force && tierProductCache && Date.now() - tierProductCache.at < 5 * 60 * 1000) return tierProductCache.map;
+  const map = new Map<number, TierProduct>();
+  const listed = await steppayRequest<ProductListDto>("GET", "/api/v1/products?status=SALE&size=100");
+  if (listed.ok) {
+    for (const product of listed.data.content ?? []) {
+      const name = product.name ?? "";
+      const match = TIER_PATTERNS.find(([, re]) => re.test(name));
+      if (!match) continue;
+      const prices = product.prices ?? [];
+      const plan = prices.find((p) => p.type === "FLAT" || p.recurring) ?? prices[0];
+      if (!plan?.code || map.has(match[0])) continue;
+      map.set(match[0], { rank: match[0], productCode: product.code, priceCode: plan.code, price: plan.price ?? null, productName: name });
+    }
+  }
+  // 기존 Patron 단일 상품 설정(환경 변수)은 상품 이름으로 못 찾았을 때의 대체
+  if (!map.has(3) && process.env.NEXT_PUBLIC_STEPPAY_PLAN_ID) {
+    const legacy = await subscriptionPriceCode();
+    if (legacy.ok) map.set(3, { rank: 3, productCode: legacy.data.productCode, priceCode: legacy.data.priceCode, price: legacy.data.price, productName: "Patron" });
+  }
+  if (listed.ok || map.size > 0) tierProductCache = { at: Date.now(), map };
+  return map;
+}
+
+/** 스텝페이 상품 코드 → 멤버십 등급(우리 멤버십 상품이 아니면 null). */
+export async function tierRankForProductCode(productCode: string | undefined | null): Promise<number | null> {
+  if (!productCode) return null;
+  const map = await tierProducts();
+  for (const p of map.values()) if (p.productCode === productCode) return p.rank;
+  return null;
+}

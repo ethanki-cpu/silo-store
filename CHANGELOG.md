@@ -1,3 +1,11 @@
+## 2026-09-22 (EPIC-160 — 멤버십 4등급(Alice/Great Gatsby/Patron/Lautrec) 스텝페이 정기결제 + 비회원 열람 + 등급별 접근 구조)
+- **사용자 지시**: 스텝페이에 전 등급을 상품으로 등록했으니, 로그인하지 않아도 4개 유료 구독 상품이 보이게 하고, 상단 사이드바 "Patron 가입"을 "멤버십 가입"으로 바꾸며, 그 페이지에서 4개 모두 선택 가능하게, 각 등급의 접근 가능한 게시판·활동을 구분.
+- **결제(스텝페이)**: `steppayServer.tierProducts()`가 스텝페이 판매중(SALE) 상품을 조회해 **상품 이름(Alice/Great Gatsby/Patron/Lautrec, 한글 표기 포함)으로 등급을 매핑**(5분 캐시, 기존 Patron 단일 환경 변수는 대체용) — 상품 코드를 환경 변수로 복사할 필요 없음. `/api/payments/steppay/checkout`가 `tierRank`(1~4)를 받아 서버가 상품/가격 플랜을 다시 찾고(클라이언트 값 불신), 이미 그 등급 이상이면 409, 상품이 없으면 503. 웹훅은 상품 코드→등급을 찾아 `p_rank`로 전달하고 우리 멤버십 상품이 아니면 무시.
+- **DB**(`docs/sql/EPIC-160-steppay-tiers.sql`, 적용 완료): `steppay_subscriptions.tier_rank` 추가(기존 구독은 Patron=3), `steppay_apply_subscription`을 "이용 가능한 구독 중 최고 등급" 기준으로 재작성 — 승급은 자동(수동 부여된 더 높은 등급은 유지), 구독을 잃으면 남은 구독의 최고 등급(없으면 0)으로 강등하되 그 구독 등급으로 올라가 있던 경우에만. 롤백 테스트: Alice→1, +Lautrec→4, Lautrec 취소→1, Alice 취소→0.
+- **화면**: `GET /api/membership/plans`(비회원 포함 공개, CDN 5분 캐시)가 4등급의 가격·접근 게시판·활동·혜택·결제 가능 여부를 내려주고, `MembershipPlansSection`(구 PatronSubscribeSection)이 /membership과 마이페이지에서 4개 카드를 보여준다 — 비회원은 "로그인하고 가입하기", 로그인 회원은 등급별 가입/구독 상태/해지. 등급별 접근 안내는 `lib/tierAccess.ts`가 **실제 게이팅에 쓰이는 membership_tiers 플래그에서 파생**해 화면과 권한이 어긋나지 않는다. 빈 위젯 안내문("모듈이 없어요")이 방문자에게 보이던 것도 숨김.
+- **상단 사이드바**: `site_settings.top_sidebar`의 pc/tablet/mobile 링크 "Patron 가입" → "멤버십 가입"(DB 수정, 변경 전 값 로컬 백업).
+- 검증: `tsc`/`lint` 통과, 로컬에서 비회원 /membership에 4등급 카드·접근 목록·동의 문구 표시 확인. 스텝페이 실호출/결제는 배포 환경에서 확인 필요.
+
 ## 2026-09-21 (HOTFIX-159.1 — 스텝페이 health 진단 강화: 재배포가 새 비밀을 반영했는지 확인)
 - **상황**: `/api/payments/steppay/health`가 환경 변수 6종은 전부 true인데 `dbSecretValid=false`(Vercel의 `STEPPAY_DB_RPC_SECRET`이 DB `steppay_rpc` 해시와 불일치). DB/RPC 쪽은 롤백 프로브로 정상 확인, 사용자 요청으로 비밀을 새 값으로 교체(DB 해시 갱신)한 뒤 Vercel 재배포했는데도 계속 false.
 - **추가**: health 응답에 `dbError`(RPC 오류 메시지 앞 120자), `secretFingerprint`(비밀의 sha256 앞 8자리 — 값 자체는 노출 안 됨), `secretLength`, `deployedCommit`(VERCEL_GIT_COMMIT_SHA 앞 7자리), `vercelEnv`를 추가해 "이 배포가 새 비밀·새 커밋을 들고 있는지"를 밖에서 확인할 수 있게 함. 새 비밀의 정상 지문은 `9b4387d2`(길이 64).

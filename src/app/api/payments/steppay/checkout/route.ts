@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { getRequestMember } from "@/lib/serverAuth";
-import { rpc, steppayRequest, SteppayConfigError, steppayConfigured, subscriptionPriceCode } from "@/lib/steppayServer";
+import { rpc, steppayRequest, SteppayConfigError, steppayConfigured, tierProducts } from "@/lib/steppayServer";
 
 // EPIC-159: Patron 정기구독 결제 시작. 회원에 대응하는 스텝페이 고객을 만들고(없으면), 구독 상품으로 주문을 생성해
 // 스텝페이 결제 페이지(관리형 결제 — 리다이렉트 방식) 주소를 돌려준다. 금액은 스텝페이의 가격 플랜이 정하므로 클라이언트가 조작할 수 없다.
@@ -12,6 +12,12 @@ export async function POST(request: NextRequest) {
   const requester = await getRequestMember(request);
   if (!requester) return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
   if (!steppayConfigured()) return NextResponse.json({ error: "결제 서비스가 아직 준비되지 않았어요." }, { status: 503 });
+
+  // EPIC-160: 4개 등급 중 가입할 등급(tierRank) — 상품/가격은 서버가 스텝페이 상품에서 다시 찾는다(클라이언트 값 불신).
+  const body = (await request.json().catch(() => ({}))) as { tierRank?: number };
+  const tierRank = Number(body.tierRank ?? 3);
+  if (!Number.isInteger(tierRank) || tierRank < 1 || tierRank > 4) return NextResponse.json({ error: "가입할 수 없는 등급이에요." }, { status: 400 });
+  if (requester.member.membership_rank >= tierRank) return NextResponse.json({ error: "이미 그 등급 이상이에요." }, { status: 409 });
 
   try {
     const { data: existing } = await requester.scopedClient
@@ -48,8 +54,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 2) 구독 상품/가격 플랜 → 주문 생성
-    const price = await subscriptionPriceCode();
-    if (!price.ok) return NextResponse.json({ error: `구독 상품을 확인하지 못했어요. (${price.message})` }, { status: 502 });
+    const products = await tierProducts();
+    const product = products.get(tierRank);
+    if (!product) return NextResponse.json({ error: "이 등급의 결제 상품이 아직 준비되지 않았어요." }, { status: 503 });
+    const price = { ok: true as const, data: { productCode: product.productCode, priceCode: product.priceCode } };
     const order = await steppayRequest<{ orderCode: string }>("POST", "/api/v1/orders", {
       customerId,
       items: [{ minimumQuantity: 1, productCode: price.data.productCode, priceCode: price.data.priceCode }],

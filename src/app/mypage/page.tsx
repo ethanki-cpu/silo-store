@@ -6,7 +6,7 @@ import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 import { usePageRankGate } from "@/lib/pageRankGate";
 import { CraftMypageRenderer } from "@/components/craft/mypage/CraftMypageRenderer";
-import { PatronSubscribeSection } from "@/components/payments/PatronSubscribeSection";
+import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
 
 // EPIC-060/EPIC-061: MyPage 인덱스는 원래 MYPAGE_TABS를 아이콘 그리드로
 // 직접 그렸다. 사용자 명시 지시로 이제 Page Builder만 사용한다
@@ -51,7 +51,7 @@ export default function MyPageHomePage() {
       <div>
         <PageEditButton slug="mypage" />
         <CraftMypageRenderer craftState={craftState} />
-        <div className="mx-auto w-full max-w-3xl px-6 pb-10"><PatronSubscribeSection /></div>
+        <div className="mx-auto w-full max-w-3xl px-6 pb-10"><MembershipPlansSection /></div>
       </div>
     );
   }
@@ -60,7 +60,7 @@ export default function MyPageHomePage() {
     <div>
       <PageEditButton slug="mypage" />
       <PageBuilderRenderer modules={modules ?? []} />
-      <div className="mx-auto w-full max-w-3xl px-6 pb-10"><PatronSubscribeSection /></div>
+      <div className="mx-auto w-full max-w-3xl px-6 pb-10"><MembershipPlansSection /></div>
     </div>
   );
 }

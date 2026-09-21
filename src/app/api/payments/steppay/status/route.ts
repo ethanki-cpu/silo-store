@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   const { data } = await requester.scopedClient
     .from("steppay_subscriptions")
-    .select("subscription_id, status, next_payment_date, end_date, updated_at")
+    .select("subscription_id, status, tier_rank, next_payment_date, end_date, updated_at")
     .eq("member_id", requester.member.id)
     .order("updated_at", { ascending: false })
     .limit(1)

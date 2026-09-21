@@ -9,7 +9,7 @@ import type { TierAccess } from "@/lib/tierAccess";
 // EPIC-160: 유료 멤버십 4등급(Alice/Great Gatsby/Patron/Lautrec) 가입 화면. /membership 과 마이페이지 공용.
 // 로그인하지 않아도 4개 등급의 가격·접근 게시판·활동·혜택을 볼 수 있고, 가입/해지는 로그인 후 스텝페이로 진행한다.
 // 결제 결과·등급 반영·해지 반영은 웹훅이 하므로 이 컴포넌트는 상태를 읽어 보여주기만 한다.
-type Plan = { rank: number; name: string; price: number; available: boolean; access: TierAccess };
+type Plan = { rank: number; name: string; price: number; free?: boolean; available: boolean; access: TierAccess };
 type Sub = { subscription_id: number; status: string; tier_rank: number | null; next_payment_date: string | null; end_date: string | null } | null;
 type StatusInfo = { enabled: boolean; subscription: Sub; membership_rank: number };
 
@@ -172,6 +172,31 @@ export function MembershipPlansSection() {
         <>
           <ul className="mt-5 grid gap-4 sm:grid-cols-2">
             {plans.map((plan) => {
+              if (plan.free) {
+                // 무료 입문 등급: 가입(회원가입)만 하면 되고 결제가 없다. 이미 회원이면 현재 등급 여부만 안내.
+                return (
+                  <li key={plan.rank} className="flex flex-col rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 sm:col-span-2">
+                    <p className="text-base font-semibold">
+                      {plan.name} <span className="ml-1 rounded bg-gray-800 px-1.5 py-0.5 align-middle text-[10px] font-medium text-white">무료</span>
+                    </p>
+                    <p className="mt-1 text-sm text-gray-600">월 0원 — 가입만 하면 바로 시작해요. 유료 등급은 언제든 올릴 수 있어요.</p>
+                    <div className="grid gap-x-6 sm:grid-cols-3">
+                      <AccessList title="접근 가능한 게시판" items={plan.access.boards} />
+                      <AccessList title="이용 가능한 활동" items={plan.access.activities} />
+                      <AccessList title="할인·혜택" items={plan.access.perks} />
+                    </div>
+                    <div className="pt-4">
+                      {!session ? (
+                        <Link href="/signup" className="inline-block rounded-md border border-gray-800 px-4 py-2 text-sm text-gray-800">
+                          무료로 시작하기
+                        </Link>
+                      ) : (
+                        <span className="text-sm text-gray-500">{currentRank === 0 ? "현재 이용 중인 등급이에요" : "기본(무료) 등급이에요"}</span>
+                      )}
+                    </div>
+                  </li>
+                );
+              }
               const isCurrent = entitled && sub?.tier_rank === plan.rank;
               const notUpgrade = session ? currentRank >= plan.rank : false;
               const canBuy = cardAvailable && plan.available && !entitled && !notUpgrade;

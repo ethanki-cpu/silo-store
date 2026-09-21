@@ -8,7 +8,8 @@ import { steppayConfigured, tierProducts } from "@/lib/steppayServer";
 // 방문마다 DB/스텝페이를 다시 읽지 않도록 CDN 캐시를 건다.
 export async function GET() {
   const { data } = await supabase.from("membership_tiers").select("*").order("rank", { ascending: true });
-  const tiers = ((data ?? []) as TierRow[]).filter((t) => t.price > 0 && !t.is_lifetime && t.rank > 0 && t.rank < 99);
+  // 무료 입문 등급(Silo Angel, rank 0)을 맨 앞에 포함 — 무료로 먼저 유입시킨 뒤 유료로 전환하는 흐름의 시작점.
+  const tiers = ((data ?? []) as TierRow[]).filter((t) => !t.is_lifetime && t.rank >= 0 && t.rank < 99 && (t.price > 0 || t.rank === 0));
 
   let products = new Map<number, unknown>();
   if (steppayConfigured()) {
@@ -23,7 +24,8 @@ export async function GET() {
     rank: t.rank,
     name: t.name,
     price: t.price,
-    available: products.has(t.rank),
+    free: t.price === 0,
+    available: t.price === 0 ? true : products.has(t.rank),
     access: describeTierAccess(t),
   }));
 

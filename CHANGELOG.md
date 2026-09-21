@@ -4,6 +4,7 @@
 - **DB**(`docs/sql/EPIC-160-steppay-tiers.sql`, 적용 완료): `steppay_subscriptions.tier_rank` 추가(기존 구독은 Patron=3), `steppay_apply_subscription`을 "이용 가능한 구독 중 최고 등급" 기준으로 재작성 — 승급은 자동(수동 부여된 더 높은 등급은 유지), 구독을 잃으면 남은 구독의 최고 등급(없으면 0)으로 강등하되 그 구독 등급으로 올라가 있던 경우에만. 롤백 테스트: Alice→1, +Lautrec→4, Lautrec 취소→1, Alice 취소→0.
 - **화면**: `GET /api/membership/plans`(비회원 포함 공개, CDN 5분 캐시)가 4등급의 가격·접근 게시판·활동·혜택·결제 가능 여부를 내려주고, `MembershipPlansSection`(구 PatronSubscribeSection)이 /membership과 마이페이지에서 4개 카드를 보여준다 — 비회원은 "로그인하고 가입하기", 로그인 회원은 등급별 가입/구독 상태/해지. 등급별 접근 안내는 `lib/tierAccess.ts`가 **실제 게이팅에 쓰이는 membership_tiers 플래그에서 파생**해 화면과 권한이 어긋나지 않는다. 빈 위젯 안내문("모듈이 없어요")이 방문자에게 보이던 것도 숨김.
 - **상단 사이드바**: `site_settings.top_sidebar`의 pc/tablet/mobile 링크 "Patron 가입" → "멤버십 가입"(DB 수정, 변경 전 값 로컬 백업).
+- **후속(사용자 지시 2건)**: (1) **무료 입문 등급 Silo Angel 추가** — `/api/membership/plans`가 rank 0(무료)을 맨 앞에 포함하고 `MembershipPlansSection`이 맨 위에 넓은 무료 카드(비회원 "무료로 시작하기" → /signup, 회원은 현재 등급 표시)를 보여준다, `/pricing` 표에도 무료 행 추가, 등급 안내에 "살롱 입장 시간당 3,000원" 같은 무료/저등급 대비 문구 추가. 무료 유입→유료 전환 퍼널 재분석은 docs/membership-blueprint.md에 정리. (2) **상품 및 가격 안내(`/pricing`) 상세화** — 5개 등급 비교 표(월 요금·클럽·도슨트·상점), 등급별 상세 카드(접근 게시판/활동/혜택), 가입 방법·결제·청구 안내, 온라인 도슨트 유료 콘텐츠 목록과 등급별 적용(정가 예시 계산), 사일로 상점 상품 목록(구매가·일 대여가)과 등급별 할인 예시 계산. 전부 DB 실제 값에서 계산.
 - 검증: `tsc`/`lint` 통과, 로컬에서 비회원 /membership에 4등급 카드·접근 목록·동의 문구 표시 확인. 스텝페이 실호출/결제는 배포 환경에서 확인 필요.
 
 ## 2026-09-21 (HOTFIX-159.1 — 스텝페이 health 진단 강화: 재배포가 새 비밀을 반영했는지 확인)

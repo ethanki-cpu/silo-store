@@ -22,6 +22,7 @@ export type TierRow = {
   drink_free?: boolean | null;
   tour_docent_free?: boolean | null;
   salon_entry_free?: boolean | null;
+  salon_entry_hourly_fee?: number | null;
   board_write_scope?: string | null;
   board_can_write_docent?: boolean | null;
   board_can_create?: boolean | null;
@@ -57,6 +58,7 @@ export function describeTierAccess(t: TierRow): TierAccess {
   }
   if (t.club_priority_booking) activities.push("클럽 우선 예약");
   if (t.salon_entry_free) activities.push("살롱 입장 무료");
+  else if (t.salon_entry_hourly_fee) activities.push(`살롱 입장 시간당 ${t.salon_entry_hourly_fee.toLocaleString("ko-KR")}원`);
   if (t.drink_free) activities.push("살롱 음료 무료");
   if (t.tour_docent_free) activities.push("투어 도슨트 무료");
   if (t.monthly_salon_meeting_invite) activities.push("월별 살롱 모임(패트론의 살롱) 초대");

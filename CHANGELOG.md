@@ -1,3 +1,6 @@
+## 2026-09-21 (문서 — 토스페이먼츠 심사 범위 결정)
+- 대표님 결정(A안): 이번 토스 심사는 멤버십 정기구독 + 온라인 도슨트만 신청. 모임 참여/콘서트 티케팅/포인트 구매는 심사 통과 후 상품 추가 신청(포인트=환금성이라 별도 법적 검토). 상세는 NEXT_TASK.md "심사 진행 현황".
+
 ## 2026-09-21 (HOTFIX-158.6 — 정기구독 수명주기: 셀프 해지·다음 결제일 등급 변경·월 자동 청구/재시도·철회 제한 동의)
 - **사용자 지시**: 심사 제출 전에 정책 문구와 코드가 다른 부분을 개발. 대표님 확정: 등급 변경 다음 결제일부터(B안), 반품 배송비 3,000원.
 - **DB**(`docs/sql/HOTFIX-158.6-billing-lifecycle.sql`, 2026-09-21 운영 DB 적용 완료): `member_billing`에 cancel_at_period_end/pending_tier_rank/agreed_price/pending_agreed_price 추가, RPC 5종(toss_request_cancel/toss_set_pending_tier/toss_due_billings/toss_finalize_cancellations/toss_record_recurring) 신설, toss_save_billing/toss_record_charge에 동의 가격·예약 초기화 반영.

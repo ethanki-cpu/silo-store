@@ -1,3 +1,10 @@
+## 2026-09-21 (EPIC-159 Phase 2 — 스텝페이 정기구독 결제·웹훅·등급 자동 승급/강등 구현)
+- **사용자 지시**: 스텝페이 위젯 연동 시작(Patron 월 40,000원, 웹훅 4종, membership_rank 자동 승급·강등).
+- **DB**(`docs/sql/EPIC-159-steppay.sql`, 적용 완료): steppay_customers/subscriptions/payments/webhook_events(RLS), RPC 6종(SECURITY DEFINER + 서버 비밀 `steppay_rpc`), 구독 상태 기반 승급/강등(이벤트 순서 비보장 대응).
+- **API**: `POST /api/payments/steppay/checkout`(고객 생성→주문 생성→결제 페이지 URL), `/cancel`(END_OF_PERIOD), `GET /status`, `POST /api/webhooks/steppay`(서명 검증 `Steppay-Signature`). 공용 `src/lib/steppayServer.ts`.
+- **화면**: `PatronSubscribeSection`(카드 정기구독 시작·구독 상태·해지 + 계좌이체 접수 안내)로 /membership·마이페이지 교체, 결과 페이지 `/payments/steppay/result`. 토스 컴포넌트/API는 미사용 상태로 보존(정리는 EPIC-159 후속).
+- 검증: `tsc`/`eslint` 통과, 서명 검증 9개 시나리오 통과, 웹훅 시크릿 미설정 시 500·비로그인 API 401·페이지 200 확인. 스텝페이 실호출은 API가 현재 토큰에 500을 반환해 **미검증**(원인: 토큰 재확인 필요).
+
 ## 2026-09-21 (EPIC-159 Phase 1/2 준비 — 스텝페이 환경 변수 + 로드맵 상세화)
 - **사용자 지시**: 스텝페이 정기구독(Patron 월 40,000원) 도입. `.env.local`(gitignore)에 `NEXT_PUBLIC_STEPPAY_PAYMENT_KEY`/`STEPPAY_SECRET_TOKEN`(서버 전용)/`NEXT_PUBLIC_STEPPAY_PLAN_ID=product_PzHVVIPs3` 추가 — 코드/문서에는 값을 남기지 않음.
 - **로드맵**: NEXT_TASK.md/STAGES.md Phase 2를 Patron 단독·웹훅 4종(payment.completed/failed, subscription.created/updated)·`members.membership_rank` 자동 승급/강등 기준으로 갱신(사용자 지칭 "EPIC-156" = 저장소 번호 규칙상 EPIC-159).

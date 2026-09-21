@@ -5,11 +5,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import { SALON_BANK_ACCOUNT, STEPPAY_UI_ENABLED } from "@/lib/bankAccount";
 import type { TierAccess } from "@/lib/tierAccess";
+import { supabase } from "@/lib/supabaseClient";
 
 // EPIC-160: 유료 멤버십 4등급(Alice/Great Gatsby/Patron/Lautrec) 가입 화면. /membership 과 마이페이지 공용.
 // 로그인하지 않아도 4개 등급의 가격·접근 게시판·활동·혜택을 볼 수 있고, 가입/해지는 로그인 후 스텝페이로 진행한다.
 // 결제 결과·등급 반영·해지 반영은 웹훅이 하므로 이 컴포넌트는 상태를 읽어 보여주기만 한다.
-type Plan = { rank: number; name: string; price: number; free?: boolean; available: boolean; access: TierAccess };
+type Rates = { shopPurchasePct: number; shopRentalPct: number; clubPct: number; docentPct: number };
+type Plan = { rank: number; name: string; price: number; free?: boolean; available: boolean; access: TierAccess; rates?: Rates };
+type Spend = { shopPurchase: number; shopRental: number; club: number; docent: number };
 type Sub = { subscription_id: number; status: string; tier_rank: number | null; next_payment_date: string | null; end_date: string | null } | null;
 type StatusInfo = { enabled: boolean; subscription: Sub; membership_rank: number };
 
@@ -56,6 +59,32 @@ export function MembershipPlansSection() {
   const [busyRank, setBusyRank] = useState<number | "cancel" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [spend, setSpend] = useState<Spend | null>(null);
+
+  // EPIC-160: 절약 계산기 — 지난 30일 내 이용 금액(본인 행만 RLS로 조회)을 모아 등급별 추정 절약액을 보여준다(전환 장치).
+  useEffect(() => {
+    if (loading || !session) return;
+    let cancelled = false;
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    Promise.all([
+      supabase.from("orders").select("order_type, price_charged").gte("created_at", since),
+      supabase.from("reservations").select("price_charged").gte("created_at", since),
+      supabase.from("docent_purchases").select("price_charged").eq("payment_status", "confirmed").eq("is_monthly_free", false).gte("purchased_at", since),
+    ]).then(([orders, reservations, docents]) => {
+      if (cancelled) return;
+      const sum = (rows: { price_charged: number | null }[] | null) => (rows ?? []).reduce((a, r) => a + (r.price_charged ?? 0), 0);
+      const o = (orders.data ?? []) as { order_type: string; price_charged: number | null }[];
+      setSpend({
+        shopPurchase: sum(o.filter((r) => r.order_type === "purchase")),
+        shopRental: sum(o.filter((r) => r.order_type === "rental")),
+        club: sum((reservations.data ?? []) as { price_charged: number | null }[]),
+        docent: sum((docents.data ?? []) as { price_charged: number | null }[]),
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, session]);
 
   const reload = useCallback(async () => {
     if (!session) return;
@@ -134,6 +163,25 @@ export function MembershipPlansSection() {
   const cardAvailable = STEPPAY_UI_ENABLED && (session ? info?.enabled === true : true);
   const subTierName = plans.find((p) => p.rank === sub?.tier_rank)?.name ?? "멤버십";
 
+  // 절약 추정: 이미 현재 등급 할인이 반영된 금액이므로 (새 할인율 − 현재 할인율)/(100 − 현재 할인율)을 곱해 증가분만 계산한다.
+  const currentRates = plans.find((p) => p.rank === currentRank)?.rates ?? { shopPurchasePct: 0, shopRentalPct: 0, clubPct: 0, docentPct: 0 };
+  const inc = (charged: number, next: number, cur: number) => (cur >= 100 ? 0 : Math.max(0, (charged * (next - cur)) / (100 - cur)));
+  const savings = !spend
+    ? []
+    : plans
+        .filter((p) => !p.free && p.rank > currentRank && p.rates)
+        .map((p) => ({
+          plan: p,
+          amount: Math.round(
+            inc(spend.shopPurchase, p.rates!.shopPurchasePct, currentRates.shopPurchasePct) +
+              inc(spend.shopRental, p.rates!.shopRentalPct, currentRates.shopRentalPct) +
+              inc(spend.club, p.rates!.clubPct, currentRates.clubPct) +
+              inc(spend.docent, p.rates!.docentPct, currentRates.docentPct),
+          ),
+        }))
+        .filter((s) => s.amount > 0);
+  const spendTotal = spend ? spend.shopPurchase + spend.shopRental + spend.club + spend.docent : 0;
+
   return (
     <section className="mt-10 rounded-lg border border-gray-200 p-5">
       <h2 className="text-lg font-semibold">멤버십 가입</h2>
@@ -161,6 +209,21 @@ export function MembershipPlansSection() {
               구독 해지
             </button>
           )}
+        </div>
+      )}
+
+      {session && savings.length > 0 && (
+        <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs leading-5 text-gray-700">
+          <p className="font-medium text-gray-900">지난 30일 이용 금액 {spendTotal.toLocaleString()}원 기준 절약 예상</p>
+          <ul className="mt-1 space-y-0.5">
+            {savings.map(({ plan, amount }) => (
+              <li key={plan.rank}>
+                {plan.name}(월 {plan.price.toLocaleString()}원)이면 약 {amount.toLocaleString()}원 절약
+                {amount >= plan.price ? " — 회비보다 절약이 더 커요" : ""}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-gray-500">할인 혜택만 계산한 추정치예요(무료 이용권·우선 예약 등은 제외).</p>
         </div>
       )}
 

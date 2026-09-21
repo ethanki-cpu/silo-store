@@ -429,7 +429,7 @@ export async function POST(
   }
 
   const tier = await getTier(requester.member.membership_rank);
-  const permission = canWriteToBoard(board, tier, isDocentPost);
+  const permission = canWriteToBoard(board, tier, isDocentPost, requester.member.is_admin);
 
   if (!permission.ok) {
     return NextResponse.json({ error: permission.error }, { status: 403 });

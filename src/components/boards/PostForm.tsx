@@ -5,6 +5,7 @@ import { BlockEditor } from "@/components/editor/BlockEditor";
 import { findFeaturedImage, findFirstImage, isEmptyDoc, type JSONContent } from "@/lib/blockEditorCore";
 import { uploadFileToR2 } from "@/lib/r2Upload";
 import { useAuth } from "@/lib/AuthProvider";
+import { UpgradeHint } from "@/components/membership/UpgradeHint";
 
 // EPIC-092(요구사항 1): datetime-local input은 "YYYY-MM-DDTHH:mm" 형식을
 // 쓴다 — ISO 문자열(Z/초/밀리초 포함)을 그대로 넣으면 인식하지 못해 빈
@@ -592,6 +593,7 @@ export function PostForm({
         >
           <p className="font-medium text-red-700">저장에 실패했어요</p>
           <p className="mt-1 text-red-600">{error}</p>
+          <UpgradeHint message={error} />
         </div>
       )}
 

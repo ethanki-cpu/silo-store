@@ -27,6 +27,13 @@ export async function GET() {
     free: t.price === 0,
     available: t.price === 0 ? true : products.has(t.rank),
     access: describeTierAccess(t),
+    // 절약 계산기용 할인율(마이페이지/멤버십 화면이 지난 30일 이용 금액에 곱해 추정한다)
+    rates: {
+      shopPurchasePct: t.shop_purchase_discount_pct ?? 0,
+      shopRentalPct: t.shop_rental_discount_pct ?? 0,
+      clubPct: t.club_all_free ? 100 : (t.club_participation_discount_pct ?? 0),
+      docentPct: t.docent_per_item_discount_pct ?? 0,
+    },
   }));
 
   return NextResponse.json({ plans }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });

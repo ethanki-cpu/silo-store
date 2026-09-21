@@ -48,6 +48,9 @@ export function describeTierAccess(t: TierRow): TierAccess {
   if (t.board_can_write_docent) boards.push("도슨트 글쓰기");
   if (t.board_has_patron_board) boards.push("패트론 라운지(전용 게시판) 열람·글쓰기");
   if (t.board_can_create) boards.push("게시판 개설");
+  // 등급 전용 게시판(boards.min_rank_to_write/read로 강제 — EPIC-160): 나의 보물들=Alice+, 사일로 타임라인·Lautrec 라운지=Lautrec+
+  if (t.rank >= 1) boards.push("나의 보물들 게시판 글쓰기");
+  if (t.rank >= 4) boards.push("Lautrec 라운지(전용) 열람·글쓰기", "사일로 타임라인 글쓰기");
 
   const activities: string[] = [];
   if (t.club_all_free) activities.push("요일별 클럽 모임 전체 무료 참여");

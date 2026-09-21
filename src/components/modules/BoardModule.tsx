@@ -9,6 +9,7 @@ import { BoardSkeleton } from "@/components/boards/BoardSkeleton";
 import { Pagination } from "@/components/boards/Pagination";
 import { FilterModule } from "@/components/modules/FilterModule";
 import { HeroSlideshow } from "@/components/HeroSlideshow";
+import { UpgradeHint } from "@/components/membership/UpgradeHint";
 import {
   resolveBoardDefinition,
   isRealBoardCategory,
@@ -134,7 +135,12 @@ export function BoardModule({
   }
 
   if (error) {
-    return <p className="text-red-600">{error}</p>;
+    return (
+      <div>
+        <p className="text-red-600">{error}</p>
+        <UpgradeHint message={error} />
+      </div>
+    );
   }
 
   // Board Definition System(EPIC-047): 화면 레이아웃/토글은 전부 이 정의

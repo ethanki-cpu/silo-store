@@ -113,12 +113,21 @@ export function canReadBoard(
 }
 
 export function canWriteToBoard(
-  board: { board_type: string; category: string | null },
+  board: { board_type: string; category: string | null; min_rank_to_write?: number | null },
   tier: TierFlags | null,
   isDocentPost: boolean,
+  isAdmin?: boolean,
 ): { ok: true } | { ok: false; error: string } {
   if (!tier) {
     return { ok: false, error: "로그인이 필요해요." };
+  }
+
+  // EPIC-160: boards.min_rank_to_write는 DB에 값이 있었지만(나의 보물들=1, 사일로 타임라인=4 등) 여기서 한 번도 참조하지 않아
+  // 무효였다 — 등급별 접근 구조(Alice=클럽 모임방/나의 보물들, Lautrec=타임라인 등)가 실제로 적용되도록 강제한다.
+  // null이면 게이트 없음, 관리자는 통과.
+  if (!isAdmin && board.min_rank_to_write != null && tier.rank < board.min_rank_to_write) {
+    const label = RANK_LABELS[board.min_rank_to_write] ?? `등급 ${board.min_rank_to_write}`;
+    return { ok: false, error: `이 게시판은 ${label} 등급부터 글쓰기가 가능해요. 멤버십 가입 안내에서 등급을 올릴 수 있어요.` };
   }
 
   if (isDocentPost && !tier.board_can_write_docent) {

@@ -1,3 +1,8 @@
+## 2026-09-21 (EPIC-159 Phase 1/2 준비 — 스텝페이 환경 변수 + 로드맵 상세화)
+- **사용자 지시**: 스텝페이 정기구독(Patron 월 40,000원) 도입. `.env.local`(gitignore)에 `NEXT_PUBLIC_STEPPAY_PAYMENT_KEY`/`STEPPAY_SECRET_TOKEN`(서버 전용)/`NEXT_PUBLIC_STEPPAY_PLAN_ID=product_PzHVVIPs3` 추가 — 코드/문서에는 값을 남기지 않음.
+- **로드맵**: NEXT_TASK.md/STAGES.md Phase 2를 Patron 단독·웹훅 4종(payment.completed/failed, subscription.created/updated)·`members.membership_rank` 자동 승급/강등 기준으로 갱신(사용자 지칭 "EPIC-156" = 저장소 번호 규칙상 EPIC-159).
+- **Phase 1**: 푸터 링크·사업자 정보 실측 확인, `/privacy` 위탁 목록에 스텝페이 명시.
+
 ## 2026-09-21 (EPIC-159 계획 — 토스페이먼츠 폐기, 스텝페이 기반 결제 로드맵으로 전환 + Phase 1 정비)
 - **사용자 지시**: 토스 일반 신청이 가입비 220,000원 + 연관리비 110,000원 선결제라 폐기, 스텝페이로 전환. 조사 결과 스텝페이는 PG가 아니라 구독 결제 관리 SaaS라 별도 PG 계약이 필요(지원 PG: KG이니시스/카카오페이/다날/뱅크페이) — Phase 2 선결 확인 항목으로 문서화.
 - **문서**: `docs/STAGES.md`(Stage 2 핵심 마일스톤 4 Phase로 재편, CURRENT STAGE/CURRENT EPIC 갱신, 신규 EPIC-159 — 사용자가 EPIC-156으로 적었으나 156은 이미 사용 중이라 다음 정수 159로 부여), `NEXT_TASK.md`(LAUNCH ROADMAP 재작성, 토스 폐기 기록).

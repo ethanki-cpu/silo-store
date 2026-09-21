@@ -116,7 +116,7 @@
 > Stage 1~8 구조는 그대로 두고, 현재 진행 중인 Stage 2의 핵심 마일스톤으로 편입한다. 아래 4단계는 **이 순서대로만** 진행한다(앞 단계가 끝나기 전에 뒤 단계를 시작하지 않는다). 상세 체크리스트/현황은 [NEXT_TASK.md](../NEXT_TASK.md) 최상단 "LAUNCH ROADMAP"이 SSoT다. **2026-09-21 결정**: 토스페이먼츠 신청은 가입비 220,000원 + 연관리비 110,000원(선결제, 심사 거절 시에만 환불) 부담으로 폐기하고 스텝페이로 전환한다(EPIC-158의 토스 코드는 EPIC-159에서 교체 후 제거). 주의: 스텝페이는 PG가 아니라 구독 결제 관리 SaaS라 **별도 PG 계약이 여전히 필요**하다(지원 PG: KG이니시스·카카오페이·다날·뱅크페이 — Phase 2 선결 확인 항목).
 
 1. **[Phase 1] 결제 심사 요건 및 행정 페이지 구축 (Pre-requisite, EPIC-158.0 완료분 + EPIC-159 정비)** — 하단 푸터 사업자 정보 / 필수 약관 페이지(이용약관·개인정보처리방침) 신설·링크 연결 / 상품·가격 명시(Patron 등 멤버십·온라인 도슨트·사일로 상점) / 환불·구독 해지 안내 정책 명시 — 결제대행사 표기를 특정 PG(토스)에서 중립 표기로 정비
-2. **[Phase 2] 스텝페이 기반 정기구독 시스템 구축 (EPIC-159)** — PG 계약 선결 확인 / 스텝페이 API 및 결제 위젯 연동(Patron 정기구독 등) / Webhook 수신 라우트(`/api/webhooks/steppay`) 구축 및 유효성 검증 / 결제 성공·해지 시 `members.membership_rank` 자동 승급·강등 / 실물 상품(사일로 상점)은 기존 수동 승인(무통장입금/페이히어 링크 등) 플로우 유지
+2. **[Phase 2] 스텝페이 결제 연동 (EPIC-159, 사용자 지칭 "EPIC-156")** — 환경 변수(결제 키·시크릿·플랜 ID) 세팅 완료 / PG 계약·키 종류 확인 / 스텝페이 API 및 결제 위젯 연동(Patron 정기구독 월 40,000원) / Webhook 수신 라우트(`/api/webhooks/steppay`: payment.completed·payment.failed·subscription.created·subscription.updated, 유효성 검증) / 결제 완료·해지 시 `members.membership_rank` Patron 자동 승급·강등 / 실물 상품(사일로 상점)은 기존 수동 승인 플로우 유지
 3. **[Phase 3] 플랫폼 최적화 및 QA (Pre-launch)** — 트래픽·데이터 사용량 최적화(불필요한 리소스 로딩 방지) / 결제 연동 포함 전체 시스템 버그 전수 검사·사용성 테스트
 4. **[Phase 4] 인프라 업그레이드 및 라이브 오픈 (Go-Live)** — Vercel Pro 업그레이드(한도 해제·상업적 이용 정책 준수) / 메인 도메인(`silostore.net`)을 Vercel망에 연결 및 정식 론칭
 
@@ -217,7 +217,7 @@ Stage 2 — Content Platform (EPIC-081, 2026-08-06 공식 진입)
 
 **CURRENT EPIC**
 
-EPIC-159(2026-09-21 신설, 계획) — 스텝페이 기반 정기구독 결제 시스템(PG 계약 선결 → 위젯/API 연동 → `/api/webhooks/steppay` → `members.membership_rank` 자동 승급·강등 → 토스 코드 제거). EPIC-158(토스페이먼츠 이원화)은 토스 신청 비용 문제로 폐기 결정 — 코드는 비활성 상태로 남아 있다가 EPIC-159에서 교체.
+EPIC-159(2026-09-21 신설, 진행 중 — 사용자 지칭 "EPIC-156: 스텝페이 정기구독 시스템 전면 도입") — 스텝페이 정기구독(Patron 월 40,000원): 환경 변수 세팅 → 결제 위젯/API → `/api/webhooks/steppay` → `members.membership_rank` 자동 승급·강등 → 토스 코드 제거. EPIC-158(토스페이먼츠 이원화)은 토스 신청 비용 문제로 폐기 결정 — 코드는 비활성 상태로 남아 있다가 EPIC-159에서 교체.
 
 EPIC-158(2026-09-20, 진행 중 — 구현 완료/토스 키·실결제 검증 대기) — 결제 시스템 이원화 — 디지털(Patron 정기구독=토스 빌링, 도슨트 단건=토스 결제창)은 토스페이먼츠, 실물(사일로 상점)은 기존 무통장 입금+관리자 승인 유지. member_billing 신설(빌링키 컬럼 접근 차단), docent_purchases에 토스 컬럼 확장, SECURITY DEFINER RPC+서버 비밀로 결제 확정/승급, members.membership_rank·docent_purchases confirmed 직접 쓰기 차단 트리거 추가.
 

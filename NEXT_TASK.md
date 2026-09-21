@@ -11,16 +11,18 @@
 - [x] 상품 및 가격 명시 — `/pricing`(멤버십 4종·온라인 도슨트·사일로 상점, DB 실제 값 연동)
 - [x] 환불 및 구독 해지 안내 정책 명시 — `/refund-policy`(2026-09-21 세부 확정: 등급 변경 다음 결제일부터, 상점 배송 영업일 2~5일, 반품 배송비 3,000원, 환불 3영업일 등)
 - [x] 결제대행사 표기 중립화 — 약관/개인정보처리방침/환불 안내/가격 페이지의 "토스페이먼츠" 문구를 PG 확정 전까지 중립 표기로 정비, 토스 카드 결제 UI 기본 비활성화(`NEXT_PUBLIC_TOSS_MEMBERSHIP_ENABLED=true`일 때만 노출)
+- [x] 푸터에 이용약관/개인정보처리방침/환불 및 구독 해지 안내/가격 링크 연결 확인(dev.silostore.net 실측, 링크 4개 + 사업자 정보 반영), `/privacy` 위탁 목록에 스텝페이 명시(PG는 확정 시 갱신)
 - **입력/확인 필요(대표님)**: 통신판매업 신고번호 "발급중"(사일로상점), 개인정보보호책임자 연락처, 약관 법률 검토, 스텝페이 계정 개설 및 연동할 PG 선택(가입비 확인 후)
 
-**[Phase 2] 스텝페이 기반 정기구독 시스템 구축 (EPIC-159)**
-- [ ] **선결 확인**: 스텝페이 연동 PG 계약(가입비·연관리비·정기결제 카드사 심사 기간), 스텝빌링 요금 견적 — 대표님 확인
-- [ ] 스텝페이 API 및 결제 위젯 연동 (Patron 정기구독 등 유료 멤버십 4종, 도슨트 단건은 스텝페이 지원 범위 확인 후)
-- [ ] 스텝페이 Webhook 수신 라우트(`/api/webhooks/steppay`) 구축 및 유효성 검증(서명/토큰 검증, 중복 이벤트 멱등 처리)
-- [ ] 결제 성공/해지 시 Supabase `members.membership_rank` 자동 승급/강등 로직 연동(RPC+서버 비밀 패턴 재사용, `membership_rank` 직접 쓰기 차단 트리거는 그대로)
+**[Phase 2] 스텝페이 결제 연동 (EPIC-159 — 사용자는 "EPIC-156"으로 지칭, 156은 기존 EPIC이라 159로 부여)**
+- [x] **환경 변수 세팅(2026-09-21)**: `.env.local`에 `NEXT_PUBLIC_STEPPAY_PAYMENT_KEY`(결제 위젯 키, 공개), `STEPPAY_SECRET_TOKEN`(API 시크릿, **서버 전용 — NEXT_PUBLIC 금지**), `NEXT_PUBLIC_STEPPAY_PLAN_ID=product_PzHVVIPs3`(Patron 월 40,000원 상품) 추가. **Vercel 환경 변수에도 동일하게 등록해야 함(사용자 액션).** `.env*`는 gitignore(.gitignore:34).
+- [ ] **확인 필요**: 위 키가 테스트/라이브 중 어느 쪽인지, 스텝페이에 연동된 PG 계약 상태(라이브 결제는 별도 PG 계약 필요 — 가입비/연관리비/카드사 심사)
+- [ ] 스텝페이 API 및 결제 위젯 연동 — **Patron 정기구독 월 40,000원** (문서: https://docs.develop.steppay.kr/ — 결제 SDK/구독/웹훅 v2/인증)
+- [ ] 웹훅 수신 라우트 `/api/webhooks/steppay` 구축 — 수신 이벤트 `payment.completed`, `payment.failed`, `subscription.created`, `subscription.updated`, 서명/토큰 유효성 검증 + 중복 이벤트 멱등 처리
+- [ ] 결제 완료/해지 웹훅 수신 시 Supabase `members.membership_rank`를 Patron(3)에 맞게 자동 승급/강등 — RPC+서버 비밀 패턴 재사용(`members` 직접 쓰기 차단 트리거는 그대로, 이미 Patron 이상(Lautrec 4/Artist 99)은 강등하지 않음), 결제 실패는 기간 유예 후 강등
 - [ ] 실물 상품(사일로 상점)은 기존 수동 승인(무통장입금/페이히어 링크 등) 플로우 유지 — `orders`/`/admin/payments` 그대로
-- [ ] 토스 코드 정리: `tossClient.ts`/`tossServer.ts`/`/api/payments/toss/*`/`/api/cron/billing`/`vercel.json` 크론/`MembershipSubscribeSection`의 토스 호출부를 스텝페이로 교체하고 제거, DB `member_billing`(토스 빌링키)·RPC `toss_*` 정리(데이터 0건이지만 삭제 전 확인). **그때까지는 비활성 상태로 둔다.**
-- 임시 대안(Phase 2 완료 전, 2026-09-27 Patron 모임 대비): 멤버십 **계좌이체 접수**(살롱데상 계좌) + 관리자 수동 등급 변경(`/admin/members`), `NEXT_PUBLIC_SALON_BANK_ACCOUNT` 환경 변수
+- [ ] 토스 코드 정리: `tossClient.ts`/`tossServer.ts`/`/api/payments/toss/*`/`/api/cron/billing`/`vercel.json` 크론/`MembershipSubscribeSection`의 토스 호출부를 스텝페이로 교체하고 제거, DB `member_billing`·RPC `toss_*` 정리(데이터 0건, 삭제 전 확인). **그때까지는 비활성 상태.**
+- 미결정: Alice/Great Gatsby/Lautrec 등 나머지 유료 등급은 이번 스텝페이 범위(Patron만)에서 제외 — 당분간 계좌이체 접수(살롱데상 계좌) + 관리자 수동 변경(`/admin/members`), 추후 스텝페이 상품 추가 여부 결정
 
 **[Phase 3] 플랫폼 최적화 및 QA (Pre-launch)**
 - [ ] 웹사이트 트래픽/데이터 사용량 최적화 — Supabase Cached/일반 Egress 관찰(무료 5GB 기준), 헤더 메뉴·사이트 설정 반복 조회 캐싱, 큰 GIF→webm/mp4, 봇 트래픽 점검, 불필요한 리소스 로딩 방지 (Storage→R2 이전은 완료, HOTFIX-158.2)

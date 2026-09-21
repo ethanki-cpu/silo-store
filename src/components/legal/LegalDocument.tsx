@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { BusinessInfo } from "@/lib/businessInfo";
+import { ENTITY_ROLE, splitBusinessEntities, type BusinessInfo } from "@/lib/businessInfo";
 
 // EPIC-158.0: 이용약관/개인정보처리방침/환불·해지 정책/가격 안내가 공유하는 문서 레이아웃.
 // 하단에 푸터와 같은 사업자 정보(src/lib/businessInfo.ts)를 다시 보여준다.
@@ -25,6 +25,8 @@ export function LegalDocument({
     ["이메일", business.email],
   ];
 
+  const entities = splitBusinessEntities(business);
+
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 bg-white px-6 py-12">
       <nav className="mb-6 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400" aria-label="정책 문서">
@@ -46,6 +48,23 @@ export function LegalDocument({
             </p>
           ))}
       </section>
+      {entities && (
+        <section className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4 text-xs leading-6 text-gray-600">
+          <p className="mb-1 font-medium text-gray-800">판매·결제 주체별 사업자 정보</p>
+          {entities.map((e) => (
+            <div key={e.name} className="mb-2 last:mb-0">
+              <p className="font-medium text-gray-700">
+                {e.name}
+                {ENTITY_ROLE[e.name] ? ` — ${ENTITY_ROLE[e.name]}` : ""}
+              </p>
+              {e.representative && <p>대표자: {e.representative}</p>}
+              {e.businessNumber && <p>사업자등록번호: {e.businessNumber}</p>}
+              {e.mailOrderNumber && <p>통신판매업 신고번호: {e.mailOrderNumber}</p>}
+              {e.address && <p>주소: {e.address}</p>}
+            </div>
+          ))}
+        </section>
+      )}
     </main>
   );
 }

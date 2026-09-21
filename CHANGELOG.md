@@ -1,3 +1,10 @@
+## 2026-09-21 (HOTFIX-158.5 — 토스 심사용 사업자 정보 입력 + 환불/해지·약관 세부 확정)
+- **사용자 지시**: 사업자 정보 입력 + 토스가 받아줄 정책 세부 조건(사례 조사·법령 검토 후 제안 → 대표님 확정)을 문서에 반영.
+- **DB(page_builder slug=footer)**: 푸터 사업자 정보 블록에 대표자/사업자등록번호/통신판매업 신고번호/주소/전화/개인정보보호책임자 입력(코드 변경 없음).
+- **문서**: `/refund-policy` 전면 개정(판매·결제 주체 구분, 멤버십 철회·해지=기간 만료 종료만·등급 변경 다음 결제일부터·결제 실패 3회 재시도·요금 인상 30일/유료 전환 14일 전 동의, 도슨트 철회 제한 사전 안내, 상점 배송 영업일 2~5일·반품 주소·단품 품절 시 전액 환불, 환불 3영업일 이내), `/terms` 제6조 보강, `/privacy` 보유기간에 표시·광고 6개월 추가.
+- **표기**: `src/lib/businessInfo.ts`에 `splitBusinessEntities`/`ENTITY_ROLE` 추가, `LegalDocument`가 살롱데상(토스 결제 계약)/사일로상점(무통장 입금) 상호별 사업자 정보를 하단에 표시.
+- **주의**: 정책 문구가 앞서가는 부분(셀프 해지·다음 결제일 등급 변경·재시도·요금 변경 동의·철회 제한 결제화면 안내)은 아직 코드에 없다 — NEXT_TASK.md HOTFIX-158.5 참고.
+
 undefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefinedundefined## 2026-09-20 (HOTFIX-158.4 — 유료 멤버십 전 등급을 토스 정기결제로: Alice/Great Gatsby/Patron/Lautrec)
 - **사용자 지시**: 등급별 유료 멤버십도 전부 토스 결제, 도슨트 단건도 마찬가지(도슨트는 EPIC-158에서 이미 토스).
 - **DB**(`docs/sql/EPIC-158-membership-tiers.sql`, 적용 완료): `member_billing.tier_rank`(1~98) 추가, `toss_save_billing`/`toss_record_charge`를 일반화 — 구독한 등급으로 `membership_rank` 승급(이미 그 이상이면 유지, Artist 99도 그대로). 롤백 블록 테스트: Alice→1, Lautrec로 업그레이드→4, 이후 낮은 등급 결제해도 4 유지.

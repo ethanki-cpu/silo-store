@@ -10,6 +10,7 @@ import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder"
 import { CollectButton } from "@/components/common/CollectButton";
 import { guessDocentCollectionCategory } from "@/lib/collectionCategory";
 import { fetchTossCustomerInfo, requestSinglePayment } from "@/lib/tossClient";
+import { TOSS_MEMBERSHIP_ENABLED } from "@/lib/bankAccount";
 
 type ContentDetail = {
   id: string;
@@ -232,11 +233,15 @@ export default function DocentDetailPage() {
 
           <button
             onClick={handlePurchase}
-            disabled={purchasing || !session || !withdrawalAck}
+            disabled={purchasing || !session || !withdrawalAck || !TOSS_MEMBERSHIP_ENABLED}
             className="rounded-md bg-gray-800 text-white px-4 py-2 disabled:opacity-50"
           >
             {purchasing ? "처리 중..." : "구매하기"}
           </button>
+
+          {!TOSS_MEMBERSHIP_ENABLED && (
+            <p className="text-xs text-gray-500 mt-2">카드 결제는 준비 중이에요. 구매를 원하시면 하단 사업자 정보의 이메일로 문의해 주세요.</p>
+          )}
 
           {purchaseError && (
             <p className="text-sm text-red-600 mt-2">{purchaseError}</p>

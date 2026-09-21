@@ -59,7 +59,7 @@ export default async function PricingPage() {
     <LegalDocument title="상품 및 가격 안내" business={business}>
       <p>사일로 스토어에서 판매하는 상품과 결제 방식을 안내합니다. 환불·해지 조건은 <Link href="/refund-policy" className="underline">환불 및 구독 해지 안내</Link>를 참고해 주세요.</p>
 
-      <LegalSection title="1. 멤버십 정기구독 — 토스페이먼츠 카드·간편결제 (매월 자동 결제)">
+      <LegalSection title="1. 멤버십 정기구독 — 카드 정기결제(준비 중) 또는 계좌이체 접수">
         {tiers.length === 0 ? (
           <p>멤버십 요금 정보를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</p>
         ) : (
@@ -87,7 +87,7 @@ export default async function PricingPage() {
         <p>구독은 <Link href="/membership" className="underline">멤버십 페이지</Link>에서 카드를 등록하면 시작되며, 첫 결제 즉시 등급이 적용됩니다.</p>
       </LegalSection>
 
-      <LegalSection title="2. 온라인 도슨트 — 토스페이먼츠 카드·간편결제 (단건 결제)">
+      <LegalSection title="2. 온라인 도슨트 — 카드 결제(준비 중, 단건 결제)">
         <p>
           콘텐츠별로 가격이 다르며 각 콘텐츠 상세 페이지에 표시됩니다.
           {docentPrices.length > 0 && ` 유료 콘텐츠 ${docentPrices.length}건, ${range(docentPrices)}.`}

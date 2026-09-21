@@ -56,7 +56,7 @@ export async function fetchBusinessInfo(): Promise<BusinessInfo> {
   return BUSINESS_INFO_FALLBACK;
 }
 
-// 2026-09-21(사용자 확정): 결제대행(토스페이먼츠) 계약 주체는 "살롱데상", "사일로상점"은 실물 상품을 무통장 입금으로만
+// 2026-09-21(사용자 확정): 결제대행사(PG) 계약 주체는 "살롱데상", "사일로상점"은 실물 상품을 무통장 입금으로만
 // 받는다. 푸터 값은 "사일로상점 / 살롱데상" 순서로 " / "를 구분자로 둔 병기 문자열이라, 항목 수가 모두 같을 때만 상호별로 쪼갠다.
 export type BusinessEntity = Pick<BusinessInfo, "name" | "representative" | "businessNumber" | "mailOrderNumber" | "address">;
 
@@ -84,6 +84,6 @@ export function splitBusinessEntities(b: BusinessInfo): BusinessEntity[] | null 
 }
 
 export const ENTITY_ROLE: Record<string, string> = {
-  "살롱데상": "멤버십·온라인 도슨트 판매 및 결제 대행(토스페이먼츠 카드·간편결제) 계약 사업자",
-  "사일로상점": "사일로 상점 실물 상품 판매(무통장 입금·계좌이체 전용, 토스페이먼츠 결제 미사용)",
+  "살롱데상": "멤버십·온라인 도슨트 판매 사업자(결제대행사 계약 주체)",
+  "사일로상점": "사일로 상점 실물 상품 판매(무통장 입금·계좌이체 전용)",
 };

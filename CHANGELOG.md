@@ -1,3 +1,8 @@
+## 2026-09-21 (HOTFIX-159.1 — 스텝페이 health 진단 강화: 재배포가 새 비밀을 반영했는지 확인)
+- **상황**: `/api/payments/steppay/health`가 환경 변수 6종은 전부 true인데 `dbSecretValid=false`(Vercel의 `STEPPAY_DB_RPC_SECRET`이 DB `steppay_rpc` 해시와 불일치). DB/RPC 쪽은 롤백 프로브로 정상 확인, 사용자 요청으로 비밀을 새 값으로 교체(DB 해시 갱신)한 뒤 Vercel 재배포했는데도 계속 false.
+- **추가**: health 응답에 `dbError`(RPC 오류 메시지 앞 120자), `secretFingerprint`(비밀의 sha256 앞 8자리 — 값 자체는 노출 안 됨), `secretLength`, `deployedCommit`(VERCEL_GIT_COMMIT_SHA 앞 7자리), `vercelEnv`를 추가해 "이 배포가 새 비밀·새 커밋을 들고 있는지"를 밖에서 확인할 수 있게 함. 새 비밀의 정상 지문은 `9b4387d2`(길이 64).
+- 검증: `tsc` 통과.
+
 ## 2026-09-21 (상단 사이드바 Patron 가입 링크 + 스텝페이 PG 가입 절차 정리)
 - `site_settings.top_sidebar`(pc/tablet/mobile) links 맨 앞에 "Patron 가입 → /membership" 추가(DB 데이터 변경, 코드 변경 없음).
 - 스텝페이 PG 가입 가이드(나이스페이 For Startup 바로오픈: 호스팅사 '스텝페이' 선택 시 가입비·연회비 면제, 정산은 카드사 심사 후) NEXT_TASK.md에 기록.

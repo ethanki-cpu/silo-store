@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { rpc } from "@/lib/steppayServer";
 
@@ -17,14 +18,27 @@ export async function GET() {
 
   // DB 서버 비밀 검증: 존재하지 않는 회원으로 읽기 전용 RPC를 호출 — 비밀이 맞으면 null, 틀리면 forbidden 오류.
   let dbSecretValid = false;
+  let dbError: string | null = null;
   if (configured.dbRpcSecret) {
     const res = await rpc("steppay_get_customer", { p_member_id: "00000000-0000-0000-0000-000000000000" });
     dbSecretValid = res.error === null;
+    dbError = res.error ? res.error.slice(0, 120) : null;
   }
+
+  // HOTFIX-159.1: 값 자체는 노출하지 않고 "이 배포가 어떤 비밀/어떤 커밋을 들고 있는지"만 알 수 있게 지문(sha256 앞 8자리)과
+  // 배포 커밋을 함께 돌려준다 — 재배포가 실제로 새 환경 변수를 반영했는지 밖에서 확인하기 위한 용도.
+  const secret = process.env.STEPPAY_DB_RPC_SECRET ?? "";
+  const secretFingerprint = secret ? createHash("sha256").update(secret).digest("hex").slice(0, 8) : null;
+  const secretLength = secret.length;
 
   return NextResponse.json({
     ...configured,
     dbSecretValid,
+    dbError,
+    secretFingerprint,
+    secretLength,
+    deployedCommit: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) || null,
+    vercelEnv: process.env.VERCEL_ENV ?? null,
     cardPaymentReady: configured.secretToken && configured.planId && configured.dbRpcSecret && dbSecretValid,
   });
 }

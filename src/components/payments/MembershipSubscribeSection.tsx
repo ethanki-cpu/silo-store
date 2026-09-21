@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
+import { SALON_BANK_ACCOUNT, TOSS_MEMBERSHIP_ENABLED } from "@/lib/bankAccount";
 import {
   fetchTossCustomerInfo,
   requestBillingAuth,
@@ -153,7 +154,7 @@ export function MembershipSubscribeSection() {
             </p>
           )}
 
-          {!active && (
+          {!active && TOSS_MEMBERSHIP_ENABLED && (
             <label className="mt-4 flex items-start gap-2 text-xs leading-5 text-gray-600">
               <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1" />
               <span>
@@ -164,6 +165,11 @@ export function MembershipSubscribeSection() {
             </label>
           )}
 
+          {!TOSS_MEMBERSHIP_ENABLED && !active && (
+            <p className="mt-4 text-sm text-gray-600">카드 정기결제는 준비 중이에요. 그동안은 아래 계좌이체로 접수해 주세요.</p>
+          )}
+
+          {(TOSS_MEMBERSHIP_ENABLED || active) && (
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
             {(info?.tiers ?? []).map((tier) => {
               const isCurrentActive = active && billing?.tier_rank === tier.rank;
@@ -213,6 +219,29 @@ export function MembershipSubscribeSection() {
               );
             })}
           </ul>
+          )}
+
+          {!active && SALON_BANK_ACCOUNT && (
+            <div className="mt-6 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm leading-6 text-gray-700">
+              <p className="font-medium text-gray-900">계좌이체로 접수하기</p>
+              <p className="mt-1">입금 계좌: {SALON_BANK_ACCOUNT}</p>
+              <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-gray-600">
+                {(info?.tiers ?? []).map((tier) => (
+                  <li key={tier.rank}>
+                    {tier.name}: {tier.price.toLocaleString()}원 (1개월, 부가세 포함)
+                  </li>
+                ))}
+              </ul>
+              <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-gray-600">
+                <li>입금자명은 사이트에 가입한 이름과 같게 해 주세요.</li>
+                <li>입금 후 페이지 하단에 안내된 문의 이메일로 가입 이메일과 입금자명을 알려 주세요. 입금 확인 후 영업일 기준 1일 이내에 등급을 적용해 드려요.</li>
+                <li>계좌이체는 1개월 이용권이며 자동으로 갱신·결제되지 않아요. 계속 이용하려면 매월 직접 입금해 주세요.</li>
+                <li>
+                  청약철회·환불은 <Link href="/refund-policy" className="underline">환불 및 구독 해지 안내</Link>를 따라요.
+                </li>
+              </ul>
+            </div>
+          )}
         </>
       )}
       {notice && <p className="mt-3 text-sm text-green-700">{notice}</p>}

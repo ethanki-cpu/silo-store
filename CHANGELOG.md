@@ -1,3 +1,10 @@
+## 2026-09-22 (사용자 요청 4건 — 실로플래닛 UX 보완, 회원가입 OAuth, 멤버십 권한 트리뷰, 글쓰기 버튼 아이콘화)
+- **실로플래닛 UX 보완(라이브 확인 중 발견)**: 자기 행성이 아직 없으면 클릭할 마커 자체가 없어 만들 방법이 없던 문제를 "🪐 내 행성 만들기" 버튼으로 해결, 회원 행성 목록 조회가 `session` 객체 참조 대신 `access_token` 문자열에 의존하도록 좁혀 불필요한 재요청 감소. "'사일로의 우주' 페이지에서는 좌/우 사이드바 아이콘이 안 나오게" — `Navbar.tsx`에서 `/silo-planet`일 때(관리자 편집 모드 제외) `LeftSidebar`/`RightSidebar` 자체를 렌더링하지 않음.
+- **회원가입 페이지에 구글/카카오 로그인 추가**: `/login`에 이미 있던 `signInWithOAuth(google/kakao)` 버튼을 `/signup`에도 동일하게 추가(OAuth는 최초 로그인 시 Supabase가 계정을 자동 생성해 가입/로그인 겸용이라 별도 처리 불필요).
+- **"멤버십 권한" 페이지를 사이트 메뉴처럼 상하위 카테고리 트리로**: `boardLayout.ts`의 `INDIVIDUAL_BOARD_DEFINITIONS`(parent/title_ko)를 그대로 재사용해 새 DB 조회 없이 계층 구성 — 폴더(카테고리) 헤더 클릭으로 펼치기/접기(기본 전체 펼침), 검색어 입력 시 기존처럼 평평한 목록으로 자동 전환, 계층에 안 걸리는 게시판은 "미분류"로 맨 아래 표시.
+- **글쓰기 버튼 아이콘화**: `accountMenuStyleSettings.ts`에 `writeButtonIconUrl`/`writeButtonIconHoverUrl` 추가(둘 다 비어있으면 기존 텍스트 버튼 그대로) — 홈페이지 설정 관리 > 글쓰기 버튼 패널에 기존 사이드바 아이콘과 동일한 업로드 UI(`uploadImage`+`ImageThumb`)로 기본/호버 아이콘을 올릴 수 있음, `Navbar.tsx`는 호버 시 CSS opacity 스왑으로 두 이미지를 교체.
+- 검증: `tsc --noEmit`/`npm run lint`(신규 경고 없음)/`npm run build` 통과.
+
 ## 2026-09-22 (EPIC-161 Phase 4 — 가격 등급 게이팅 확정 + 실로플래닛 프론트 통합, 사용자 확인 후 진행)
 - **가격 표시 = Silo Angel부터(사용자 재확인)**: Phase 3에서 "가격을 비회원에게 숨기면 상점 전환에 영향 줄 수 있다"고 보류했던 것을, 사용자가 "silo angel에게 가격 표시한다고 했잖아"로 원래 의도(비회원은 잠금, 무료 가입만 해도 공개)를 재확인해 그대로 적용. `/api/items/[id]`가 비로그인 요청엔 `price`/`rental_price_per_day`를 `null` + `price_locked:true`로 내려주고, `/shop/[id]`는 잠금 상태에서 가격 대신 "가입하고 가격 보기" 안내를 보여준다.
 - **실로플래닛 3D 프론트 통합 완료**: Phase 3에서 데이터 계층까지만 하고 미뤘던 `AboutSiloUniverse.tsx`(3081줄) 연결을 사용자가 직접 로그인해 화면을 봐줄 수 있게 되어 진행. 기존 SILO/User 행성의 복잡한 드래그·오브젝트·GLB 기계는 전혀 건드리지 않고 완전히 독립된 3개 신규 컴포넌트로 추가: `MemberPlanetMarkers.tsx`(회원 행성을 피보나치 구면 분포로 배치하는 3D 마커 레이어, Canvas 안에서 `<Scene>`과 형제로 렌더링), `MemberPlanetPanel.tsx`(선택한 행성의 2D 오버레이 패널 — 좋아요/자기 행성 glb URL 저장), `SiloPlanetProposeButton.tsx`(Lautrec 전용 하단 우측 제안 버튼+폼). `AboutSiloUniverse.tsx`에는 `useAuth` 훅 추가 + 행성 목록 로드/좋아요/업로드 핸들러만 추가(기존 상태·로직 변경 없음). 로컬 dev 서버(비로그인)에서 스크린샷+콘솔 확인 — 기존 화면 그대로 렌더링되고 신규 에러 없음, 실제 로그인 상태 동작은 dev.silostore.net 배포 후 사용자 계정(Lautrec)으로 확인 예정.

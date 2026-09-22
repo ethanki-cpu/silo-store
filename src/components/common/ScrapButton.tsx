@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
+import { UpgradeHint } from "@/components/membership/UpgradeHint";
 
 // EPIC-085: Frictionless Archiving — 원클릭 스크랩 버튼. 게시글 상세
 // 상/하단, 갤러리 위젯 카드 등 어디에나 postId만 넘기면 꽂을 수 있는
@@ -22,6 +23,7 @@ export function ScrapButton({
   const [scraped, setScraped] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [tierBlockMessage, setTierBlockMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -62,6 +64,10 @@ export function ScrapButton({
       });
       if (!res.ok) {
         setScraped(!next);
+        if (res.status === 403) {
+          const data = await res.json().catch(() => ({}));
+          setTierBlockMessage(data.error ?? null);
+        }
       }
     } catch {
       setScraped(!next);
@@ -116,6 +122,29 @@ export function ScrapButton({
               <button
                 type="button"
                 onClick={() => setShowLoginPrompt(false)}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tierBlockMessage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setTierBlockMessage(null);
+          }}
+        >
+          <div className="w-full max-w-sm rounded-lg bg-white p-6 text-center shadow-lg">
+            <p className="mb-2 text-sm text-gray-700">{tierBlockMessage}</p>
+            <UpgradeHint message={tierBlockMessage} />
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setTierBlockMessage(null)}
                 className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
               >
                 닫기

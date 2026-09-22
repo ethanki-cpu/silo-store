@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestMember } from "@/lib/serverAuth";
+import { getRequestMember, getTier, canBookmarkOnBoard } from "@/lib/serverAuth";
+import { fetchBoard } from "@/lib/boardFetch";
 
 // EPIC-085: Frictionless Archiving — 원클릭 스크랩 토글/조회. own-row RLS가
 // 이미 auth.uid() = user_id로 강제하므로(docs/sql/EPIC-085-user-scraps.sql),
@@ -62,6 +63,24 @@ export async function POST(
       return NextResponse.json({ error: "스크랩 취소에 실패했어요." }, { status: 500 });
     }
     return NextResponse.json({ scraped: false });
+  }
+
+  // EPIC-161: 새로 북마크를 추가할 때만 게시판별 최소 등급을 확인한다(북마크
+  // 취소는 위에서 이미 처리됨 — like route와 동일한 이유).
+  const { data: postRow } = await requester.scopedClient
+    .from("posts")
+    .select("board_id")
+    .eq("id", postId)
+    .maybeSingle();
+  if (postRow?.board_id) {
+    const { board } = await fetchBoard(postRow.board_id as string);
+    if (board) {
+      const tier = await getTier(requester.member.membership_rank);
+      const bookmarkCheck = canBookmarkOnBoard(board, tier, requester.member.is_admin);
+      if (!bookmarkCheck.ok) {
+        return NextResponse.json({ error: bookmarkCheck.error }, { status: 403 });
+      }
+    }
   }
 
   const { error: insertError } = await requester.scopedClient

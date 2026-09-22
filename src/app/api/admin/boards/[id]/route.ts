@@ -60,6 +60,12 @@ const EDITABLE_FIELDS = [
   "widget_settings",
   "min_rank_to_write",
   "min_rank_to_read",
+  // EPIC-161: 게시글 열람/댓글/좋아요/북마크 각각의 최소 등급 + 완독 뱃지 대상 등급.
+  "min_rank_to_view_post",
+  "min_rank_to_comment",
+  "min_rank_to_like",
+  "min_rank_to_bookmark",
+  "badge_min_rank",
   "sort_order",
   "topic",
   "thumbnail_url",

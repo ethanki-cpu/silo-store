@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-import { getRequestMember, getTier, canReadBoard, RANK_LABELS } from "@/lib/serverAuth";
+import { getRequestMember, getTier, canReadBoard, canViewPost, RANK_LABELS } from "@/lib/serverAuth";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
 import { renderPostHtml, type JSONContent } from "@/lib/blockEditorCore";
 import { resolveFallbackEmbedThumbnail } from "@/lib/embedThumbnail";
@@ -98,6 +98,14 @@ export async function GET(
       },
       { status: 403 },
     );
+  }
+
+  // EPIC-161: min_rank_to_read(게시판 목록 열람)는 통과했지만, 게시글 상세는
+  // 더 높은 등급부터 열리게 설정됐을 수 있다(예: 월별모임 — gatsby=페이지열람만,
+  // patron=게시글열람부터).
+  const postViewCheck = canViewPost(board, tier, requester?.member.is_admin);
+  if (!postViewCheck.ok) {
+    return NextResponse.json({ error: postViewCheck.error }, { status: 403 });
   }
 
   if (postError || !post) {

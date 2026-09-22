@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestMember } from "@/lib/serverAuth";
+import { getRequestMember, getTier, canLikeOnBoard } from "@/lib/serverAuth";
 import { fetchBoard } from "@/lib/boardFetch";
 
 // EPIC-079-PHASE-2: posts.slug는 board별로만 UNIQUE라, 실제 post_id를
@@ -56,6 +56,14 @@ export async function POST(
       .eq("id", postId);
 
     return NextResponse.json({ liked: false, likeCount: newCount });
+  }
+
+  // EPIC-161: 좋아요를 새로 누르는 동작만 게이트한다(이미 누른 좋아요를
+  // 취소하는 건 등급이 나중에 바뀌어도 항상 허용 — 위 분기에서 이미 처리됨).
+  const tier = await getTier(requester.member.membership_rank);
+  const likeCheck = canLikeOnBoard(board, tier, requester.member.is_admin);
+  if (!likeCheck.ok) {
+    return NextResponse.json({ error: likeCheck.error }, { status: 403 });
   }
 
   await requester.scopedClient

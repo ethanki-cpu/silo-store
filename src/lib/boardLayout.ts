@@ -1194,6 +1194,16 @@ export type BoardRow = {
   // (기존과 동일하게 전체 공개), 값이 있으면 canReadBoard()가 이 랭크
   // 미만인 방문자/회원을 막는다.
   min_rank_to_read?: number | null;
+  // EPIC-161: min_rank_to_read/write를 "페이지(목록) 열람"/"글쓰기"로 남겨두고,
+  // 게시글 상세 열람·댓글·좋아요·북마크를 각자 독립된 최소 등급으로 세분화한다
+  // (관리자 매트릭스 UI, /admin/board-permissions). 전부 null=게이트 없음(기존 동작 유지).
+  min_rank_to_view_post?: number | null;
+  min_rank_to_comment?: number | null;
+  min_rank_to_like?: number | null;
+  min_rank_to_bookmark?: number | null;
+  // 이 값이 있으면 "이 등급 이상이 게시판을 완독(글 열람+댓글+좋아요)하면 뱃지 지급" 대상 등급.
+  // 자동 지급 엔진은 아직 없음(Phase 2) — 관리자가 대상 등급만 미리 지정해둘 수 있다.
+  badge_min_rank?: number | null;
   is_public?: boolean | null;
   group_key?: string | null;
   render_type?: string | null;
@@ -1222,7 +1232,7 @@ export type BoardRow = {
 // 배경은 src/app/api/boards/[id]/posts/route.ts 참고) — 라이브 DB에 EPIC-066
 // 마이그레이션이 아직 안 됐어도 게시판 읽기 자체는 멈추지 않는다.
 export const BOARD_RICH_FIELDS =
-  "id, name, category, slug, board_type, min_rank_to_write, min_rank_to_read, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
+  "id, name, category, slug, board_type, min_rank_to_write, min_rank_to_read, min_rank_to_view_post, min_rank_to_comment, min_rank_to_like, min_rank_to_bookmark, badge_min_rank, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
 // EPIC-079-PHASE-2: slug는 RICH 단계에만 포함한다 — LEGACY는 "docs/sql/
 // epic-079-phase-2-slug.sql이 아직 적용되지 않은 라이브 DB"를 위한
 // 최후 폴백 단계라, 여기에도 slug를 넣으면 마이그레이션 전엔 게시판

@@ -18,6 +18,7 @@ import { PostFloatingActionBar } from "@/components/boards/PostFloatingActionBar
 import { guessPostCollectionCategory } from "@/lib/collectionCategory";
 import { normalizePostLayoutOrder, type PostLayoutBlock } from "@/lib/postLayout";
 import type { BreadcrumbItem } from "@/components/PageHeader";
+import { UpgradeHint } from "@/components/membership/UpgradeHint";
 
 type PostDetail = {
   id: string;
@@ -362,6 +363,7 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
           showBookmark={definition.bookmarks}
         />
         {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+        <UpgradeHint message={error} />
       </>
     ),
     comments: definition.comments ? (

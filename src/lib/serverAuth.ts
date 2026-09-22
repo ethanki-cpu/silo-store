@@ -112,6 +112,58 @@ export function canReadBoard(
   return true;
 }
 
+// EPIC-161: min_rank_to_read(게시판 목록 열람)와 별개로 게시글 상세 열람/댓글/
+// 좋아요/북마크 각각의 최소 등급을 독립적으로 검사하는 공통 헬퍼 — 전부 같은
+// 모양(컬럼 없거나 null=게이트 없음, 관리자는 항상 통과, 비회원은 rank=-1 취급)
+// 이라 canWriteToBoard의 메시지 패턴(RANK_LABELS 활용)을 그대로 재사용한다.
+function checkMinRank(
+  minRank: number | null | undefined,
+  tier: TierFlags | null,
+  isAdmin: boolean | undefined,
+  actionLabel: string,
+): { ok: true } | { ok: false; error: string } {
+  if (isAdmin) return { ok: true };
+  if (minRank == null) return { ok: true };
+  if ((tier?.rank ?? -1) >= minRank) return { ok: true };
+  const label = RANK_LABELS[minRank] ?? `등급 ${minRank}`;
+  return {
+    ok: false,
+    error: `이 게시판은 ${label} 등급부터 ${actionLabel}이 가능해요. 멤버십 가입 안내에서 등급을 올릴 수 있어요.`,
+  };
+}
+
+export function canViewPost(
+  board: { min_rank_to_view_post?: number | null },
+  tier: TierFlags | null,
+  isAdmin?: boolean,
+) {
+  return checkMinRank(board.min_rank_to_view_post, tier, isAdmin, "게시글 열람");
+}
+
+export function canCommentOnBoard(
+  board: { min_rank_to_comment?: number | null },
+  tier: TierFlags | null,
+  isAdmin?: boolean,
+) {
+  return checkMinRank(board.min_rank_to_comment, tier, isAdmin, "댓글 작성");
+}
+
+export function canLikeOnBoard(
+  board: { min_rank_to_like?: number | null },
+  tier: TierFlags | null,
+  isAdmin?: boolean,
+) {
+  return checkMinRank(board.min_rank_to_like, tier, isAdmin, "좋아요");
+}
+
+export function canBookmarkOnBoard(
+  board: { min_rank_to_bookmark?: number | null },
+  tier: TierFlags | null,
+  isAdmin?: boolean,
+) {
+  return checkMinRank(board.min_rank_to_bookmark, tier, isAdmin, "북마크");
+}
+
 export function canWriteToBoard(
   board: { board_type: string; category: string | null; min_rank_to_write?: number | null },
   tier: TierFlags | null,

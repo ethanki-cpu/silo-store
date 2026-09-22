@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestMember } from "@/lib/serverAuth";
+import { getRequestMember, getTier, canCommentOnBoard } from "@/lib/serverAuth";
 import { fetchBoard } from "@/lib/boardFetch";
 
 // EPIC-079-PHASE-2: posts.slug는 board별로만 UNIQUE라, 실제 post_id를
@@ -18,6 +18,13 @@ export async function POST(
   const { board, boardError } = await fetchBoard(boardSlug);
   if (boardError || !board) {
     return NextResponse.json({ error: "게시판을 찾을 수 없어요." }, { status: 404 });
+  }
+
+  // EPIC-161: 게시판별 댓글 최소 등급.
+  const tier = await getTier(requester.member.membership_rank);
+  const commentCheck = canCommentOnBoard(board, tier, requester.member.is_admin);
+  if (!commentCheck.ok) {
+    return NextResponse.json({ error: commentCheck.error }, { status: 403 });
   }
 
   const { data: post, error: postError } = await requester.scopedClient

@@ -19,6 +19,12 @@
 - **추가**: health 응답에 `dbError`(RPC 오류 메시지 앞 120자), `secretFingerprint`(비밀의 sha256 앞 8자리 — 값 자체는 노출 안 됨), `secretLength`, `deployedCommit`(VERCEL_GIT_COMMIT_SHA 앞 7자리), `vercelEnv`를 추가해 "이 배포가 새 비밀·새 커밋을 들고 있는지"를 밖에서 확인할 수 있게 함. 새 비밀의 정상 지문은 `9b4387d2`(길이 64).
 - 검증: `tsc` 통과.
 
+## 2026-09-21 (세션 마감 요약 — EPIC-159 스텝페이 결제 전환)
+- **결정 변경**: 토스페이먼츠(가입비 220,000원 + 연관리비 110,000원 선결제) 폐기 → 스텝페이(Steppay) 구독 결제 + 나이스페이 For Startup(호스팅사 '스텝페이' 선택 시 가입비·연회비 면제, 사용자 신청 접수 완료).
+- **완료**: 푸터 사업자 정보 DB 입력, 환불/약관/개인정보 정책 세부 확정·중립화, 상단 사이드바 "Patron 가입" 링크(DB), 스텝페이 API 토큰 확인·상품 판매 상태 SALE 전환, Patron 정기구독 결제(고객→주문→결제 페이지)·셀프 해지·상태 API·웹훅 `/api/webhooks/steppay`(서명 검증 9개 시나리오 통과)·DB 테이블/RPC(steppay_*)·`PatronSubscribeSection`(계좌이체 접수 병행), 진단 `/api/payments/steppay/health`.
+- **검증**: `tsc --noEmit` 오류 없음, `npm run lint` 오류 0(경고 81, 대부분 기존 set-state-in-effect), `next build` 성공(웹훅·결제 API·결과 페이지 라우트 생성), dev 배포에서 웹훅 무서명/오서명 401·GET 405, health로 환경 변수 6종 존재 확인.
+- **미해결**: `STEPPAY_DB_RPC_SECRET` Vercel 값 불일치(health `dbSecretValid:false`), 진짜 서명 웹훅 수신 미확인, DB 함수 시나리오 테스트·실결제 미검증, PG(나이스페이) 임시 오픈 대기. 상세 순서는 NEXT_TASK.md "다음 작업".
+
 ## 2026-09-21 (상단 사이드바 Patron 가입 링크 + 스텝페이 PG 가입 절차 정리)
 - `site_settings.top_sidebar`(pc/tablet/mobile) links 맨 앞에 "Patron 가입 → /membership" 추가(DB 데이터 변경, 코드 변경 없음).
 - 스텝페이 PG 가입 가이드(나이스페이 For Startup 바로오픈: 호스팅사 '스텝페이' 선택 시 가입비·연회비 면제, 정산은 카드사 심사 후) NEXT_TASK.md에 기록.

@@ -32,6 +32,19 @@
 - [ ] Vercel Pro 플랜 업그레이드 (한도 해제 및 상업적 이용 정책 준수)
 - [ ] 메인 도메인(`silostore.net`)을 Vercel망에 연결 및 정식 론칭
 
+**▶ 다음 작업(2026-09-21 세션 마감 기준, 위에서부터 순서대로)**
+1. **`STEPPAY_DB_RPC_SECRET` Vercel 값 정정** — `GET /api/payments/steppay/health`가 `dbSecretValid:false`(서버 값이 DB 해시와 불일치, 로컬 원본 값은 DB 통과 확인). 값을 정확히 64자(공백·줄바꿈 없이)로 다시 넣고 develop 재배포 → health가 `dbSecretValid:true`·`cardPaymentReady:true`가 되면 멤버십 페이지 맨 아래에 Patron 정기구독 버튼이 나온다.
+2. **나이스페이 For Startup 전자계약 서명**(신청 접수 완료, 호스팅사 '스텝페이' 선택 여부·계약서의 가입비 0원 확인) → 임시 오픈(1~2일) → 스텝페이 포탈 설정>PG 연동 관리에 MID/키 입력(단건·정기) → 테스트 모드 PG(카카오페이/나이스페이) 삭제. 정산은 카드사 심사(2~3주) 후, 기본 정산 한도 200만원.
+3. **`contact@steppay.kr` 문의**: 바로오픈 기간 정기결제 가능 여부, 스텝빌링 월 이용료 견적.
+4. **웹훅 도착 확인** — `dev.silostore.net`은 무서명/잘못된 서명을 401로 거부(정상). 진짜 서명 이벤트는 미확인: 포탈 웹훅 상세의 전송 내역/응답 코드 확인(시험용 `customer.created` 추가 후에도 DB에 0건이었음 → 시크릿 불일치 또는 미발송 여부 확인), 시험 후 임시 이벤트 제거.
+5. **실결제 시험**(본인 카드 40,000원, 시험 후 해지): 웹훅→Patron 승급, 해지→강등, 도중 DB 함수(`steppay_*`) 시나리오 확인(자동 실행이 권한 분류기에 막혀 미실행).
+6. **정리**: 토스 코드 제거(미사용 `MembershipSubscribeSection`, `/api/payments/toss/*`, `/api/cron/billing`+`vercel.json` 크론, `tossClient`(도슨트 페이지가 아직 사용), DB `member_billing`·`toss_*`), 진단용 `/api/payments/steppay/health`는 확인 후 제거.
+7. **도슨트 결제**: 카드 결제 버튼은 비활성("준비 중") — 스텝페이 단건 결제 연동 또는 계좌이체 접수 방안 결정.
+8. **2026-09-27 Patron 모임 대비**: 카드 결제가 안 열리면 계좌이체(살롱데상 계좌) 접수 + `/admin/members` 수동 등급 변경, 상단 사이드바 "Patron 가입" 링크(→ /membership) 노출됨.
+9. **개인정보처리방침 위탁 목록**에 나이스페이(PG) 업체명 확정 반영, 통신판매업 신고번호(사일로상점 "발급중") 갱신.
+10. Phase 3(최적화·QA)·Phase 4(Vercel Pro·silostore.net 연결)는 위 결제 개통 후.
+- **EPIC 번호 메모**: 사용자는 "EPIC-156"이라 부르지만 저장소에는 EPIC-156/HOTFIX-156.x가 이미 있어 EPIC-159로 기록(변경 원하면 사용자 결정).
+
 **PG 확정 시 갱신할 문서**: `/privacy` 5항 위탁 목록에 결제대행사·정기결제 관리 서비스(스텝페이) 업체명 명시, `/terms` 제6조·`/refund-policy` 0항의 결제 수단 문구, `/pricing` 섹션 제목, 도슨트/멤버십 결제 버튼 활성화(`NEXT_PUBLIC_TOSS_MEMBERSHIP_ENABLED` → 스텝페이용 스위치로 교체).
 
 **배포 환경 변수 진단(2026-09-21)**: `dev.silostore.net`에서 `STEPPAY_WEBHOOK_SECRET`이 500(미설정)이고 배포된 JS에도 `NEXT_PUBLIC_SALON_BANK_ACCOUNT`가 박히지 않아(`env.X ?? ""` 그대로) Vercel 환경 변수가 이 배포에 반영되지 않은 상태 — 빌드 강제 트리거로 재확인 중. 정상이면 무서명 웹훅 POST가 401 `invalid signature`.

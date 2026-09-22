@@ -1282,6 +1282,7 @@ function ControlsPanel({
   const [uploadingSlideIdx, setUploadingSlideIdx] = useState<number | null>(null);
   const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<number | null>(null);
   const [uploadingSidebarField, setUploadingSidebarField] = useState<string | null>(null);
+  const [uploadingWriteButtonField, setUploadingWriteButtonField] = useState<string | null>(null);
   const [uploadingTabDropdownFont, setUploadingTabDropdownFont] = useState(false);
   const [uploadingSideTextFont, setUploadingSideTextFont] = useState(false);
   const [uploadingIconField, setUploadingIconField] = useState<string | null>(null);
@@ -2435,6 +2436,77 @@ function ControlsPanel({
           </div>
         </div>
         <p className="text-[11px] text-gray-400">항상 &ldquo;마이 페이지&rdquo; 탭 바로 오른쪽에 붙어있는 전역 버튼이에요. 위치는 자유롭게 옮길 수 있어요.</p>
+
+        {/* EPIC-161 Phase 4(사용자 지시 — "'글쓰기' 버튼을 아이콘으로 대체할
+            수 있게 하고, hover 할 때의 아이콘도 올릴 수 있게"): 사본 버튼도
+            같은 아이콘을 공유(원본에서만 편집). 기본 이미지를 비우면
+            텍스트 버튼으로 되돌아간다. */}
+        {!isExtraWrite && (
+          <div className="space-y-2 border-t border-gray-100 pt-3">
+            <p className="text-[11px] font-medium text-gray-600">아이콘으로 대체(선택)</p>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">
+                기본 아이콘 {uploadingWriteButtonField === "writeButtonIconUrl" && "(업로드 중...)"}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (!file) return;
+                  setUploadingWriteButtonField("writeButtonIconUrl");
+                  const { url } = await uploadImage(file, "write_button_icon");
+                  setUploadingWriteButtonField(null);
+                  if (url) setAccountMenuStyleValue((prev) => ({ ...prev, writeButtonIconUrl: url }));
+                }}
+                disabled={uploadingWriteButtonField !== null}
+                className="w-full text-[11px]"
+              />
+              <ImageThumb url={accountMenuStyleValue.writeButtonIconUrl ?? ""} alt="글쓰기 버튼 기본 아이콘 미리보기" />
+              {accountMenuStyleValue.writeButtonIconUrl && (
+                <button
+                  type="button"
+                  onClick={() => setAccountMenuStyleValue((prev) => ({ ...prev, writeButtonIconUrl: null }))}
+                  className="mt-1 text-[11px] text-blue-600 hover:underline"
+                >
+                  아이콘 제거(텍스트로 되돌리기)
+                </button>
+              )}
+            </label>
+            {accountMenuStyleValue.writeButtonIconUrl && (
+              <label className="block">
+                <span className="mb-1 block text-gray-600">
+                  호버 아이콘(선택) {uploadingWriteButtonField === "writeButtonIconHoverUrl" && "(업로드 중...)"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (!file) return;
+                    setUploadingWriteButtonField("writeButtonIconHoverUrl");
+                    const { url } = await uploadImage(file, "write_button_icon");
+                    setUploadingWriteButtonField(null);
+                    if (url) setAccountMenuStyleValue((prev) => ({ ...prev, writeButtonIconHoverUrl: url }));
+                  }}
+                  disabled={uploadingWriteButtonField !== null}
+                  className="w-full text-[11px]"
+                />
+                <ImageThumb url={accountMenuStyleValue.writeButtonIconHoverUrl ?? ""} alt="글쓰기 버튼 호버 아이콘 미리보기" />
+                {accountMenuStyleValue.writeButtonIconHoverUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setAccountMenuStyleValue((prev) => ({ ...prev, writeButtonIconHoverUrl: null }))}
+                    className="mt-1 text-[11px] text-blue-600 hover:underline"
+                  >
+                    호버 아이콘 제거
+                  </button>
+                )}
+              </label>
+            )}
+          </div>
+        )}
+
         {accountMenuStyleValue.writeButtonHidden && !isExtraWrite && (
           <button
             type="button"

@@ -43,6 +43,13 @@ export type AccountMenuStyleValue = {
   extraItems: ExtraAccountItem[];
   writeButtonHidden: boolean;
   extraWriteButtonIds: string[];
+  // EPIC-161 Phase 4(사용자 지시 — "'글쓰기' 버튼을 아이콘으로 대체할 수
+  // 있게 하고, hover 할 때의 아이콘도 올릴 수 있게"): 둘 다 비어있으면
+  // 기존처럼 "글쓰기" 텍스트 버튼 그대로, 기본 이미지가 있으면 아이콘으로
+  // 대체한다(사본 버튼들도 같은 아이콘을 공유 — 사이드바 아이콘과 달리
+  // 좌우 구분이 없어 값 하나로 충분).
+  writeButtonIconUrl: string | null;
+  writeButtonIconHoverUrl: string | null;
 };
 
 export function defaultAccountMenuStyleConfig(): AccountMenuStyleConfig {
@@ -64,6 +71,8 @@ export function defaultAccountMenuStyleValue(): AccountMenuStyleValue {
     extraItems: [],
     writeButtonHidden: false,
     extraWriteButtonIds: [],
+    writeButtonIconUrl: null,
+    writeButtonIconHoverUrl: null,
   };
 }
 
@@ -80,6 +89,9 @@ export function normalizeAccountMenuStyle(raw: unknown): AccountMenuStyleValue {
     extraItems: Array.isArray(obj.extraItems) ? (obj.extraItems as ExtraAccountItem[]) : fallback.extraItems,
     writeButtonHidden: typeof obj.writeButtonHidden === "boolean" ? obj.writeButtonHidden : fallback.writeButtonHidden,
     extraWriteButtonIds: Array.isArray(obj.extraWriteButtonIds) ? (obj.extraWriteButtonIds as string[]) : fallback.extraWriteButtonIds,
+    writeButtonIconUrl: typeof obj.writeButtonIconUrl === "string" ? obj.writeButtonIconUrl : fallback.writeButtonIconUrl,
+    writeButtonIconHoverUrl:
+      typeof obj.writeButtonIconHoverUrl === "string" ? obj.writeButtonIconHoverUrl : fallback.writeButtonIconHoverUrl,
   };
   if (obj.pc || obj.tablet || obj.mobile) {
     return {

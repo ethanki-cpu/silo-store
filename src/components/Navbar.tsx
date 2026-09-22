@@ -951,6 +951,11 @@ export function Navbar({
   // 주로 tier2였던 것과 가장 비슷한 자리).
   const writeButtonHidden = resolvedAccountMenuStyleValue?.writeButtonHidden ?? false;
   const extraWriteButtonIds = resolvedAccountMenuStyleValue?.extraWriteButtonIds ?? [];
+  // EPIC-161 Phase 4(사용자 지시 — "'글쓰기' 버튼을 아이콘으로 대체할 수
+  // 있게 하고, hover 할 때의 아이콘도 올릴 수 있게"): 기본 아이콘 URL이
+  // 없으면 지금까지처럼 텍스트 버튼 그대로.
+  const writeButtonIconUrl = resolvedAccountMenuStyleValue?.writeButtonIconUrl || null;
+  const writeButtonIconHoverUrl = resolvedAccountMenuStyleValue?.writeButtonIconHoverUrl || null;
   function writeButtonNode(slotKey: string, label: string) {
     return (
       <HeaderSlot
@@ -964,9 +969,28 @@ export function Navbar({
         onOffsetChange={handleSlotOffsetChange}
         as="span"
       >
-        <Link href={writeHref} className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}>
-          글쓰기
-        </Link>
+        {writeButtonIconUrl ? (
+          <Link href={writeHref} aria-label={label} className="group relative inline-flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={writeButtonIconUrl}
+              alt={label}
+              className={writeButtonIconHoverUrl ? "h-6 w-6 object-contain group-hover:opacity-0" : "h-6 w-6 object-contain"}
+            />
+            {writeButtonIconHoverUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={writeButtonIconHoverUrl}
+                alt={label}
+                className="absolute inset-0 h-6 w-6 object-contain opacity-0 group-hover:opacity-100"
+              />
+            )}
+          </Link>
+        ) : (
+          <Link href={writeHref} className={`${TAB_BUTTON_BASE} ${TAB_BUTTON_INACTIVE}`}>
+            글쓰기
+          </Link>
+        )}
       </HeaderSlot>
     );
   }

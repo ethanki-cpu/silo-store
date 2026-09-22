@@ -45,6 +45,18 @@ export default function SignupPage() {
     router.refresh();
   }
 
+  // EPIC-161 Phase 4(사용자 지시 — "구글과 카톡 로그인도 넣어야지"): /login과
+  // 동일한 signInWithOAuth 흐름 — Supabase가 최초 로그인 시 계정을 자동
+  // 생성하므로 이 페이지에서 따로 처리할 게 없다(로그인/가입 겸용).
+  async function handleOAuth(provider: "google" | "kakao") {
+    setError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) setError(error.message);
+  }
+
   return (
     <>
       <PageEditButton slug="signup" />
@@ -94,6 +106,28 @@ export default function SignupPage() {
           className="w-full rounded-md bg-gray-800 text-white px-3 py-2 disabled:opacity-50"
         >
           {loading ? "가입 중..." : "회원가입"}
+        </button>
+
+        <div className="flex items-center gap-3 text-xs text-gray-400">
+          <div className="flex-1 border-t border-gray-200" />
+          또는
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => handleOAuth("google")}
+          className="w-full rounded-md border border-gray-300 bg-white text-gray-800 px-3 py-2 hover:bg-gray-50"
+        >
+          Google로 계속하기
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleOAuth("kakao")}
+          className="w-full rounded-md bg-[#FEE500] text-[#191600] px-3 py-2 hover:brightness-95"
+        >
+          카카오로 계속하기
         </button>
 
         <p className="text-sm text-gray-600">

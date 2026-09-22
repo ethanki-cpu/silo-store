@@ -2234,6 +2234,12 @@ export function Navbar({
         />
       )}
 
+      {/* EPIC-161 Phase 4(사용자 지시 — "'사일로의 우주' 페이지에서는 좌,우
+          사이드바 아이콘이 안나오게 해줘"): 몰입형 3D 씬이라 다른 페이지와
+          달리 좌/우 사이드바 열기 아이콘을 아예 렌더링하지 않는다(editable
+          모드에서는 관리자가 계속 편집할 수 있어야 하니 예외). */}
+      {!(pathname === "/silo-planet" && !editable) && (
+        <>
       <LeftSidebar
         tabs={leftSidebarTabs}
         open={leftOpen}
@@ -2298,6 +2304,8 @@ export function Navbar({
             : undefined
         }
       />
+        </>
+      )}
     </header>
   );
 }

@@ -9,8 +9,6 @@ import { PageBuilderRenderer } from "@/components/PageBuilderRenderer";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 import { CollectButton } from "@/components/common/CollectButton";
 import { guessDocentCollectionCategory } from "@/lib/collectionCategory";
-import { fetchTossCustomerInfo, requestSinglePayment } from "@/lib/tossClient";
-import { TOSS_MEMBERSHIP_ENABLED } from "@/lib/bankAccount";
 
 type ContentDetail = {
   id: string;
@@ -43,7 +41,6 @@ export default function DocentDetailPage() {
   const [fetching, setFetching] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [purchasing, setPurchasing] = useState(false);
   // HOTFIX-158.6: 디지털 콘텐츠는 열람을 시작하면 청약철회가 제한된다(전자상거래법 제17조 제2항) — 결제 전 안내 + 동의.
   const [withdrawalAck, setWithdrawalAck] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
@@ -54,7 +51,7 @@ export default function DocentDetailPage() {
   // EPIC-067: page_builder(slug="docent-id") 위젯을 본문/구매 영역 아래에
   // 이어서 렌더링(EPIC-066이 발견한 PageEditButton-only 결함 수정, Phase 1).
   const [pageModules, setPageModules] = useState<PageModuleRow[]>([]);
-  // EPIC-158: 토스 결제창에서 돌아온 결과(/api/payments/toss/success 리다이렉트 쿼리).
+  // 결제창에서 돌아온 결과(?payment=success|failed 리다이렉트 쿼리) — 단건 결제 연동 전까지는 미사용.
   const [paymentNotice, setPaymentNotice] = useState<{ kind: "success" | "failed"; reason?: string } | null>(null);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -99,7 +96,6 @@ export default function DocentDetailPage() {
   }, [id, session, authLoading]);
 
   async function handlePurchase() {
-    setPurchasing(true);
     setPurchaseError(null);
 
     const res = await fetch("/api/docent-purchases", {
@@ -114,7 +110,6 @@ export default function DocentDetailPage() {
     });
 
     const data = await res.json();
-    setPurchasing(false);
 
     if (!res.ok) {
       setPurchaseError(data.error);
@@ -125,30 +120,8 @@ export default function DocentDetailPage() {
 
     if (data.payment_status === "confirmed") {
       load();
-      return;
     }
-
-    // EPIC-158: 유료 도슨트는 토스페이먼츠 결제창(카드 + 간편결제)으로 결제한다.
-    if (data.order_id && session && content) {
-      const { data: info, error: infoError } = await fetchTossCustomerInfo(session.access_token);
-      if (!info) {
-        setPurchaseError(infoError ?? "결제 정보를 불러오지 못했어요.");
-        return;
-      }
-      try {
-        await requestSinglePayment({
-          customerKey: info.customerKey,
-          amount: data.price_charged,
-          orderId: data.order_id,
-          orderName: content.title.slice(0, 100),
-          failPath: `/docent/${id}?payment=failed`,
-          customerName: info.customerName,
-          customerEmail: session.user.email ?? undefined,
-        });
-      } catch (e) {
-        setPurchaseError(e instanceof Error ? e.message : "결제 창을 열지 못했어요.");
-      }
-    }
+    // 카드 단건 결제(스텝페이) 연동 전까지 무료/월간무료 확정 결제만 여기서 끝난다 — 유료 결제는 버튼이 비활성 상태라 도달하지 않는다.
   }
 
   if (fetching) {
@@ -231,17 +204,16 @@ export default function DocentDetailPage() {
             </span>
           </label>
 
+          {/* 카드 단건 결제(스텝페이) 연동 전까지 구매 버튼은 항상 비활성 — NEXT_TASK.md 참고 */}
           <button
             onClick={handlePurchase}
-            disabled={purchasing || !session || !withdrawalAck || !TOSS_MEMBERSHIP_ENABLED}
+            disabled
             className="rounded-md bg-gray-800 text-white px-4 py-2 disabled:opacity-50"
           >
-            {purchasing ? "처리 중..." : "구매하기"}
+            구매하기
           </button>
 
-          {!TOSS_MEMBERSHIP_ENABLED && (
-            <p className="text-xs text-gray-500 mt-2">카드 결제는 준비 중이에요. 구매를 원하시면 하단 사업자 정보의 이메일로 문의해 주세요.</p>
-          )}
+          <p className="text-xs text-gray-500 mt-2">카드 결제는 준비 중이에요. 구매를 원하시면 하단 사업자 정보의 이메일로 문의해 주세요.</p>
 
           {purchaseError && (
             <p className="text-sm text-red-600 mt-2">{purchaseError}</p>

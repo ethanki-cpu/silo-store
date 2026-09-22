@@ -6,9 +6,5 @@ export const SILO_BANK_ACCOUNT = process.env.NEXT_PUBLIC_SILO_BANK_ACCOUNT ?? ""
 // 예: NEXT_PUBLIC_SALON_BANK_ACCOUNT="IBK기업은행 000-000000-00-000 (예금주: ○○○)"
 export const SALON_BANK_ACCOUNT = process.env.NEXT_PUBLIC_SALON_BANK_ACCOUNT ?? "";
 
-// 카드 정기결제 UI 노출 스위치 — 2026-09-21 토스페이먼츠 폐기(가입비 선결제)로 기본값을 끔으로 바꿨다. 스텝페이(EPIC-159) 연동 전까지는
-// 카드 결제 버튼을 숨기고 계좌이체 접수만 보여준다. 이전 토스 코드를 시험하려면 NEXT_PUBLIC_TOSS_MEMBERSHIP_ENABLED=true.
-export const TOSS_MEMBERSHIP_ENABLED = process.env.NEXT_PUBLIC_TOSS_MEMBERSHIP_ENABLED === "true";
-
 // EPIC-159: 스텝페이 정기구독 UI 노출 스위치 — 서버 설정(STEPPAY_*)이 없으면 서버가 알아서 숨기고, 이 값이 "false"면 강제로 숨긴다.
 export const STEPPAY_UI_ENABLED = process.env.NEXT_PUBLIC_STEPPAY_ENABLED !== "false";

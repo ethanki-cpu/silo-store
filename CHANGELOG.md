@@ -1,3 +1,10 @@
+## 2026-09-22 (EPIC-159 후속 — 스텝페이 시크릿 확인 + 토스페이먼츠 코드 완전 제거, 사용자 지시)
+- **STEPPAY_DB_RPC_SECRET 정정 확인**: 다른 기기/세션에서 Vercel 값을 재입력, `GET /api/payments/steppay/health`로 `dbSecretValid:true`·`cardPaymentReady:true` 확인(서버 설정은 준비 완료 — 실제 카드 승인은 나이스페이 PG 심사 통과 후).
+- **토스페이먼츠 코드 완전 삭제(사용자 지시 "토스페이먼츠는 다 폐기야 정리해")**: `src/lib/tossClient.ts`·`tossServer.ts`, `/api/payments/toss/*`(billing-auth/cancel/change-tier/customer-key/success), `/api/cron/billing`+`vercel.json` 크론, 미사용 `MembershipSubscribeSection.tsx`, `/payments/toss/billing-success` 페이지 삭제. 도슨트 상세 페이지(`/docent/[id]`)의 토스 단건 결제 호출부 제거 — 카드 결제 버튼은 항상 비활성 + "준비 중" 안내로 단순화(스텝페이 단건 결제 연동 전까지). `bankAccount.ts`의 `TOSS_MEMBERSHIP_ENABLED` 스위치 삭제. `docs/membership-blueprint.md`의 EPIC-158 토스 이원화 섹션에 폐기 표시 추가.
+- **DB 정리는 보류 중**: `member_billing`(0행)·`toss_*` RPC 10종·`docent_purchases.toss_payment_key`/`toss_order_id`(전부 NULL)·`app_private_secrets`의 `toss_rpc` 항목을 지우는 SQL을 준비했으나, 이번 세션 샌드박스의 권한 분류기가 일괄 삭제로 판단해 실행이 막힘 — 사용자 승인/직접 실행 필요(상세는 NEXT_TASK.md).
+- **나이스페이 심사 대비 웹사이트 점검**: `/membership`·`/pricing`이 비로그인 상태에서도 5등급(Silo Angel/Alice/Great Gatsby/Patron/Lautrec) 전부의 가격·접근 게시판·활동·할인 혜택, 사업자 정보(사일로상점/살롱데상 구분), 환불·약관 링크를 노출하는 것을 실측 확인 — EPIC-160에서 이미 완비되어 추가 작업 불필요.
+- 검증: `tsc --noEmit` 오류 없음, `npm run lint` 신규 오류/경고 없음(기존 set-state-in-effect 경고만 남음).
+
 ## 2026-09-22 (EPIC-160 후속 — 등급별 접근 구조·무료→유료 전환 장치 적용, 사용자 지시 "제안한 쪽으로 모두 적용")
 - **접근 구조 강제**: `canWriteToBoard`가 `boards.min_rank_to_write`를 실제로 참조(관리자 통과) — 그동안 DB에 값(나의 보물들=1, 사일로 타임라인=4, 패트론 라운지=3, 아티스트 홍보=99)이 있어도 무효였다. 등급 안내(`tierAccess.ts`)에 "나의 보물들 글쓰기(Alice+)", "Lautrec 라운지·사일로 타임라인(Lautrec+)" 추가.
 - **Lautrec 전용 라운지 신설**(`docs/sql/EPIC-160-funnel.sql`, 적용 완료): 게시판 `lautrec-lounge`(읽기·쓰기 모두 rank 4+). 메뉴(site_navigations) 노출은 아직 안 함 — 주소 `/boards/lautrec-lounge`.

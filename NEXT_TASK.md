@@ -10,7 +10,7 @@
 - [x] 필수 약관 페이지 신설 및 링크 연결 — `/terms`, `/privacy` (법률 검토 후 확정 필요)
 - [x] 상품 및 가격 명시 — `/pricing`(멤버십 4종·온라인 도슨트·사일로 상점, DB 실제 값 연동)
 - [x] 환불 및 구독 해지 안내 정책 명시 — `/refund-policy`(2026-09-21 세부 확정: 등급 변경 다음 결제일부터, 상점 배송 영업일 2~5일, 반품 배송비 3,000원, 환불 3영업일 등)
-- [x] 결제대행사 표기 중립화 — 약관/개인정보처리방침/환불 안내/가격 페이지의 "토스페이먼츠" 문구를 PG 확정 전까지 중립 표기로 정비, 토스 카드 결제 UI 기본 비활성화(`NEXT_PUBLIC_TOSS_MEMBERSHIP_ENABLED=true`일 때만 노출)
+- [x] 결제대행사 표기 중립화 — 약관/개인정보처리방침/환불 안내/가격 페이지의 "토스페이먼츠" 문구를 PG 확정 전까지 중립 표기로 정비, 토스 코드 완전 제거 후(2026-09-22) 카드 결제 UI는 스텝페이 스위치(`NEXT_PUBLIC_STEPPAY_ENABLED`)로만 제어
 - [x] 푸터에 이용약관/개인정보처리방침/환불 및 구독 해지 안내/가격 링크 연결 확인(dev.silostore.net 실측, 링크 4개 + 사업자 정보 반영), `/privacy` 위탁 목록에 스텝페이 명시(PG는 확정 시 갱신)
 - **입력/확인 필요(대표님)**: 통신판매업 신고번호 "발급중"(사일로상점), 개인정보보호책임자 연락처, 약관 법률 검토, 스텝페이 계정 개설 및 연동할 PG 선택(가입비 확인 후)
 
@@ -21,7 +21,7 @@
 - [x] 웹훅 수신 라우트 `/api/webhooks/steppay` — **코드 완료(2026-09-21)**: 서명 검증(`Steppay-Signature` = Base64(HMAC-SHA256(`${timestamp}.${body}`)), 10분 허용, 다중 키, 9개 시나리오 테스트 통과), subscription.created/updated·payment.completed/failed 처리, 이벤트 순서 비보장 대응(last_event_ts), 멱등. **사용자 액션**: 스텝페이 포탈(설정>웹훅)에 URL 등록 + 이벤트 4종 선택 → 웹훅 시크릿을 `STEPPAY_WEBHOOK_SECRET`으로 등록(미설정이면 웹훅은 500으로 거부)
 - [x] `members.membership_rank` 자동 승급/강등 — **DB 적용 완료(2026-09-21, `docs/sql/EPIC-159-steppay.sql`, 시나리오 테스트는 자동 실행이 막혀 미실행)**: 테이블 4종(steppay_customers/subscriptions/payments/webhook_events, RLS)·RPC 6종·비밀 `steppay_rpc`. 구독 상태 ACTIVE/PENDING_CANCEL/PENDING_PAUSE/QUEUEING이면 Patron(3) 승급, INCOMPLETE/UNPAID/PAUSE/EXPIRED/CANCELED면 현재 등급이 정확히 Patron일 때만 기본 등급으로 강등(Lautrec/Artist/수동 부여는 유지)
 - [ ] 실물 상품(사일로 상점)은 기존 수동 승인(무통장입금/페이히어 링크 등) 플로우 유지 — `orders`/`/admin/payments` 그대로
-- [ ] 토스 코드 정리: `tossClient.ts`/`tossServer.ts`/`/api/payments/toss/*`/`/api/cron/billing`/`vercel.json` 크론/`MembershipSubscribeSection`의 토스 호출부를 스텝페이로 교체하고 제거, DB `member_billing`·RPC `toss_*` 정리(데이터 0건, 삭제 전 확인). **그때까지는 비활성 상태.**
+- [x] **토스 코드 정리(2026-09-22, 사용자 지시 "토스페이먼츠는 다 폐기")**: `tossClient.ts`/`tossServer.ts`/`/api/payments/toss/*`/`/api/cron/billing`+`vercel.json` 크론/`MembershipSubscribeSection`(미사용 확인)/도슨트 페이지의 토스 단건 결제 호출부 전부 삭제, `bankAccount.ts`의 `TOSS_MEMBERSHIP_ENABLED` 스위치 제거(도슨트 카드 결제 버튼은 항상 비활성 + "준비 중" 안내로 단순화). `tsc`/`lint` 통과. **DB 정리는 보류 중** — `member_billing`(0행)·`toss_*` RPC 10종·`docent_purchases.toss_payment_key`/`toss_order_id`(전부 NULL)·`app_private_secrets`의 `toss_rpc` 항목까지 삭제하는 SQL을 준비했으나 샌드박스 권한 분류기가 일괄 삭제로 보고 차단함 — 사용자가 직접 실행하거나 권한을 허용해야 함(아래 "DB 정리 대기" 참고).
 - 미결정: Alice/Great Gatsby/Lautrec 등 나머지 유료 등급은 이번 스텝페이 범위(Patron만)에서 제외 — 당분간 계좌이체 접수(살롱데상 계좌) + 관리자 수동 변경(`/admin/members`), 추후 스텝페이 상품 추가 여부 결정
 
 **[Phase 3] 플랫폼 최적화 및 QA (Pre-launch)**
@@ -32,24 +32,22 @@
 - [ ] Vercel Pro 플랜 업그레이드 (한도 해제 및 상업적 이용 정책 준수)
 - [ ] 메인 도메인(`silostore.net`)을 Vercel망에 연결 및 정식 론칭
 
-**▶ 다음 작업(2026-09-21 세션 마감 기준, 위에서부터 순서대로)**
-1. **`STEPPAY_DB_RPC_SECRET` Vercel 값 정정** — `GET /api/payments/steppay/health`가 `dbSecretValid:false`(서버 값이 DB 해시와 불일치, 로컬 원본 값은 DB 통과 확인). 값을 정확히 64자(공백·줄바꿈 없이)로 다시 넣고 develop 재배포 → health가 `dbSecretValid:true`·`cardPaymentReady:true`가 되면 멤버십 페이지 맨 아래에 Patron 정기구독 버튼이 나온다.
-2. **나이스페이 For Startup 전자계약 서명**(신청 접수 완료, 호스팅사 '스텝페이' 선택 여부·계약서의 가입비 0원 확인) → 임시 오픈(1~2일) → 스텝페이 포탈 설정>PG 연동 관리에 MID/키 입력(단건·정기) → 테스트 모드 PG(카카오페이/나이스페이) 삭제. 정산은 카드사 심사(2~3주) 후, 기본 정산 한도 200만원.
-3. **`contact@steppay.kr` 문의**: 바로오픈 기간 정기결제 가능 여부, 스텝빌링 월 이용료 견적.
-4. **웹훅 도착 확인** — `dev.silostore.net`은 무서명/잘못된 서명을 401로 거부(정상). 진짜 서명 이벤트는 미확인: 포탈 웹훅 상세의 전송 내역/응답 코드 확인(시험용 `customer.created` 추가 후에도 DB에 0건이었음 → 시크릿 불일치 또는 미발송 여부 확인), 시험 후 임시 이벤트 제거.
-5. **실결제 시험**(본인 카드 40,000원, 시험 후 해지): 웹훅→Patron 승급, 해지→강등, 도중 DB 함수(`steppay_*`) 시나리오 확인(자동 실행이 권한 분류기에 막혀 미실행).
-6. **정리**: 토스 코드 제거(미사용 `MembershipSubscribeSection`, `/api/payments/toss/*`, `/api/cron/billing`+`vercel.json` 크론, `tossClient`(도슨트 페이지가 아직 사용), DB `member_billing`·`toss_*`), 진단용 `/api/payments/steppay/health`는 확인 후 제거.
-7. **도슨트 결제**: 카드 결제 버튼은 비활성("준비 중") — 스텝페이 단건 결제 연동 또는 계좌이체 접수 방안 결정.
-8. **2026-09-27 Patron 모임 대비**: 카드 결제가 안 열리면 계좌이체(살롱데상 계좌) 접수 + `/admin/members` 수동 등급 변경, 상단 사이드바 "Patron 가입" 링크(→ /membership) 노출됨.
-9. **개인정보처리방침 위탁 목록**에 나이스페이(PG) 업체명 확정 반영, 통신판매업 신고번호(사일로상점 "발급중") 갱신.
+**▶ 다음 작업(2026-09-22 세션 기준, 위에서부터 순서대로)**
+1. ~~`STEPPAY_DB_RPC_SECRET` Vercel 값 정정~~ — **완료(2026-09-22)**: 다른 기기/세션에서 값 재입력 후 `GET /api/payments/steppay/health`로 확인, `dbSecretValid:true`·`cardPaymentReady:true`(`secretFingerprint:"9b4387d2"`, `deployedCommit`이 최신 커밋과 일치). 서버 설정 관점에서는 카드 결제 준비 완료 — 실제 카드 승인은 아래 2번(나이스페이 PG 승인) 이후에만 된다.
+2. **DB 정리 대기(사용자 승인 필요)** — 토스 코드는 삭제했지만 DB 쪽은 이 세션의 샌드박스 권한이 일괄 삭제로 보고 막았다. 실행 대기 중인 SQL: `member_billing` 테이블 삭제(현재 0행, 데이터 없음), `toss_`로 시작하는 RPC 함수 10개 삭제(전부 이 테이블/토스 코드 전용이라 다른 곳에서 안 씀), `docent_purchases`의 `toss_payment_key`/`toss_order_id` 두 컬럼 삭제(둘 다 값이 하나도 없음 — 실제 토스 결제가 한 번도 성사된 적이 없다는 뜻), 그리고 서버 비밀번호 저장소에 남아있는 옛 토스 시크릿 해시 1개 삭제. **모두 지워도 되돌릴 데이터가 없는 안전한 정리지만, 실제로 실행하려면 사용자가 직접 Supabase SQL Editor에서 돌리거나, 이 세션에 권한을 허용해줘야 한다.**
+3. **나이스페이 For Startup 승인 대기 중** — 신청 접수 완료, 심사 결과 기다리는 중. 심사(검수)에서 볼 만한 것들(멤버십 설명, 가격 표시, 등급별 권한·혜택)은 **이미 `/membership`·`/pricing`에 5등급(Silo Angel/Alice/Great Gatsby/Patron/Lautrec) 전부 비로그인 상태에서도 노출되도록 완비돼 있음(EPIC-160, 2026-09-22 확인)** — 등급별 접근 게시판/활동/할인, 가격표, 사업자 정보(사일로상점·살롱데상 구분), 환불/약관 링크까지 공개 페이지에서 확인 가능. 추가 정비가 필요하면 사용자 지시로 진행.
+4. **계좌이체 폴백 플랜 유지** — 나이스페이 승인이 2026-09-27(Patron 모임) 전에 안 나면 계좌이체(살롱데상 계좌) 접수 + `/admin/members` 수동 등급 변경으로 전환. `MembershipPlansSection`은 이미 카드 결제와 계좌이체 접수를 병행 지원.
+5. **`contact@steppay.kr` 문의**(아직 미완료): 바로오픈 기간 정기결제 가능 여부, 스텝빌링 월 이용료 견적.
+6. **웹훅 실도착 확인**(아직 미완료) — `dev.silostore.net`은 무서명/잘못된 서명을 401로 거부(정상 확인됨). 진짜 서명 이벤트 수신은 미확인 — 나이스페이 승인 후 실결제로 확인 예정.
+7. **실결제 시험**(나이스페이 승인 후): 본인 카드 40,000원 결제→해지, 웹훅→Patron 승급/강등, DB 함수(`steppay_*`) 시나리오 확인.
+8. **개인정보처리방침 위탁 목록**에 나이스페이(PG) 업체명 반영은 **승인 확정 후에** — 아직 심사 중이라 미확정 상태로 둠(`/privacy` 5항에 "결제대행사가 확정되면 업체명을 표시합니다" 문구로 이미 대기 중).
+9. 통신판매업 신고번호(사일로상점 "발급중") 갱신.
 10. Phase 3(최적화·QA)·Phase 4(Vercel Pro·silostore.net 연결)는 위 결제 개통 후.
 - **EPIC 번호 메모**: 사용자는 "EPIC-156"이라 부르지만 저장소에는 EPIC-156/HOTFIX-156.x가 이미 있어 EPIC-159로 기록(변경 원하면 사용자 결정).
 
-**PG 확정 시 갱신할 문서**: `/privacy` 5항 위탁 목록에 결제대행사·정기결제 관리 서비스(스텝페이) 업체명 명시, `/terms` 제6조·`/refund-policy` 0항의 결제 수단 문구, `/pricing` 섹션 제목, 도슨트/멤버십 결제 버튼 활성화(`NEXT_PUBLIC_TOSS_MEMBERSHIP_ENABLED` → 스텝페이용 스위치로 교체).
+**PG 확정 시 갱신할 문서**: `/privacy` 5항 위탁 목록에 결제대행사(나이스페이) 업체명 명시, `/terms` 제6조·`/refund-policy` 0항의 결제 수단 문구, `/pricing` "카드 정기결제(준비 중)" 문구 갱신.
 
-**배포 환경 변수 진단(2026-09-21)**: `dev.silostore.net`에서 `STEPPAY_WEBHOOK_SECRET`이 500(미설정)이고 배포된 JS에도 `NEXT_PUBLIC_SALON_BANK_ACCOUNT`가 박히지 않아(`env.X ?? ""` 그대로) Vercel 환경 변수가 이 배포에 반영되지 않은 상태 — 빌드 강제 트리거로 재확인 중. 정상이면 무서명 웹훅 POST가 401 `invalid signature`.
-
-**배포 환경 진단 주소(2026-09-21)**: `GET /api/payments/steppay/health` — 스텝페이 환경 변수 6종의 설정 여부와 DB 서버 비밀 일치 여부를 true/false로만 반환(값 비노출). 웹훅은 `dev.silostore.net`에서 401(서명 검증 동작)까지 확인, 진짜 서명 이벤트 수신은 미확인(포탈 전송 내역 필요). 카드 결제 버튼은 `cardPaymentReady`가 true일 때만 노출됨. 원인 진단 후 필요 없으면 제거.
+**배포 환경 진단 주소**: `GET /api/payments/steppay/health` — 스텝페이 환경 변수 6종의 설정 여부와 DB 서버 비밀 일치 여부를 true/false로만 반환(값 비노출). 2026-09-22 기준 전부 정상(`cardPaymentReady:true`). 나이스페이 승인 후 실결제까지 확인되면 이 진단 라우트는 제거 검토.
 
 **카카오페이 추가 신청(2026-09-22, 사용자 요청 — 대표님 수동 진행)**: 나이스페이와 별도로 카카오페이도 연동한다. 스텝페이 포탈의 PG 연동 관리에 카카오페이가 이미 테스트 모드로 있어 **코드 변경은 필요 없을 가능성이 높다**(결제창은 스텝페이가 제공). 확인/준비 순서: (1) `contact@steppay.kr`에 "카카오페이 라이브 연동 절차, 정기결제(자동결제) 지원/별도 심사 여부, 수수료, 필요 서류" 문의, (2) 카카오페이 가맹 신청 시 나이스페이와 같은 서류 준비(사업자등록증·대표자 신분증·통장 사본·통신판매업 신고증, 사이트 URL — 약관/환불/가격 페이지는 준비 완료), (3) 발급된 키를 스텝페이 포탈에 입력 후 테스트 모드 PG 정리. 계약 주체는 나이스페이와 동일하게 살롱데상. **먼저 확인 필요**: 카카오페이가 정기결제 상품(Patron 월 40,000원)에 쓸 수 있는지(별도 심사가 있는 경우가 많음) — 안 되면 카카오페이는 단건(도슨트 등)용으로만.
 

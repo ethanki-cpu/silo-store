@@ -63,6 +63,7 @@ import {
 import {
   normalizeAccountMenuStyle,
   defaultAccountMenuStyleValue,
+  MEMBERSHIP_RANK_OPTIONS,
   type AccountMenuStyleValue,
   type ExtraAccountItem,
 } from "@/lib/accountMenuStyleSettings";
@@ -1283,6 +1284,7 @@ function ControlsPanel({
   const [uploadingWallpaperIdx, setUploadingWallpaperIdx] = useState<number | null>(null);
   const [uploadingSidebarField, setUploadingSidebarField] = useState<string | null>(null);
   const [uploadingWriteButtonField, setUploadingWriteButtonField] = useState<string | null>(null);
+  const [uploadingTierIconRank, setUploadingTierIconRank] = useState<number | null>(null);
   const [uploadingTabDropdownFont, setUploadingTabDropdownFont] = useState(false);
   const [uploadingSideTextFont, setUploadingSideTextFont] = useState(false);
   const [uploadingIconField, setUploadingIconField] = useState<string | null>(null);
@@ -2362,6 +2364,66 @@ function ControlsPanel({
           <p className="rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-700">
             HOTFIX-141.2: 로그인/로그아웃 버튼은 이제 여기 대신 &ldquo;상단 사이드바&rdquo;(Elements 탭)의 column 1 맨 위에 표시돼요 — 기본적으로 이 계정 영역 자리는 숨김 처리했어요. 계정 영역에도 다시 보이게 하려면 아래 &ldquo;복원&rdquo;을 누르세요.
           </p>
+        )}
+        {/* EPIC-161 Phase 5(사용자 지시 — "'등급/멤버십'도 아이콘을 추가할수
+            있게 해줘, hover 하면 text, hover 안할때는 이미지로, 각 등급별로
+            다른 아이콘을 추가할수 있게"): 등급(membership_rank)마다 독립된
+            아이콘 — 특정 등급에 아이콘을 안 올리면 그 등급은 기존처럼
+            텍스트(등급명) 그대로 보인다. 글쓰기 버튼과 달리 hover 아이콘은
+            없다 — hover하면 항상 등급명 텍스트로 전환되는 게 고정 동작이라서. */}
+        {kind === "tier" && (
+          <div className="space-y-3 border-t border-gray-100 pt-3">
+            <p className="text-[11px] font-medium text-gray-600">등급별 아이콘(선택)</p>
+            <p className="text-[11px] text-gray-400">
+              등급마다 아이콘을 올리면 평소엔 아이콘만 보이고, 마우스를 올리면(모바일은 탭하면) 등급명 텍스트로 바뀌어요. 아이콘을 안 올린 등급은 지금처럼 텍스트만 보여요.
+            </p>
+            {MEMBERSHIP_RANK_OPTIONS.map(({ rank, label }) => {
+              const rankKey = String(rank);
+              const iconUrl = accountMenuStyleValue.tierIcons?.[rankKey] ?? "";
+              return (
+                <label key={rankKey} className="block rounded border border-gray-100 p-2">
+                  <span className="mb-1 block text-gray-600">
+                    {label} {uploadingTierIconRank === rank && "(업로드 중...)"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      if (!file) return;
+                      setUploadingTierIconRank(rank);
+                      const { url } = await uploadImage(file, "tier_icon");
+                      setUploadingTierIconRank(null);
+                      if (url) {
+                        setAccountMenuStyleValue((prev) => ({
+                          ...prev,
+                          tierIcons: { ...prev.tierIcons, [rankKey]: url },
+                        }));
+                      }
+                    }}
+                    disabled={uploadingTierIconRank !== null}
+                    className="w-full text-[11px]"
+                  />
+                  <ImageThumb url={iconUrl} alt={`${label} 등급 아이콘 미리보기`} />
+                  {iconUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAccountMenuStyleValue((prev) => {
+                          const next = { ...prev.tierIcons };
+                          delete next[rankKey];
+                          return { ...prev, tierIcons: next };
+                        })
+                      }
+                      className="mt-1 text-[11px] text-blue-600 hover:underline"
+                    >
+                      아이콘 제거(텍스트로 되돌리기)
+                    </button>
+                  )}
+                </label>
+              );
+            })}
+          </div>
         )}
         {hiddenKinds.length > 0 && (
           <div className="rounded border border-gray-200 p-2">

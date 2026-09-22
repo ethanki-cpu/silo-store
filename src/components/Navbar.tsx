@@ -979,7 +979,18 @@ export function Navbar({
             href={writeHref}
             aria-label={label}
             className="group relative inline-flex items-center justify-center"
-            style={{ width: Math.max(writeButtonIconSizePx, writeButtonIconHoverSizePx), height: Math.max(writeButtonIconSizePx, writeButtonIconHoverSizePx) }}
+            // HOTFIX-161.2(사용자 신고 — "글쓰기 아이콘 크기를 키웠더니 상단 탭의
+            // 위아래 폭이 커졌어"): 예전엔 이 래퍼 자체를 Math.max(아이콘,
+            // hover아이콘) 크기로 잡아서, 아이콘을 크게 설정할수록 이 span이
+            // 속한 <nav>(탭 줄) 자체의 높이(items-center 기준 가장 큰 자식)가
+            // 함께 커졌다 — 관리자가 아이콘만 키우려 해도 옆 텍스트 탭들까지
+            // 위아래로 밀리는 부수 효과였다. 래퍼는 항상 고정된 기본 크기
+            // (DEFAULT_WRITE_BUTTON_ICON_SIZE_PX)만 차지하게 하고, 실제
+            // 이미지는 그 안에서 절대 위치로 중앙 정렬해 설정한 크기 그대로
+            // 그린다 — 기본값보다 크게 설정하면 래퍼 밖으로 시각적으로만
+            // 넘쳐 보일 뿐(위 상단 아이콘들과 같은 자리인 <nav>에 overflow
+            // 제한이 없어 잘리지 않는다), 탭 줄 자체의 레이아웃 높이는 그대로다.
+            style={{ width: DEFAULT_WRITE_BUTTON_ICON_SIZE_PX, height: DEFAULT_WRITE_BUTTON_ICON_SIZE_PX }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -1433,7 +1444,52 @@ export function Navbar({
             </span>
           );
         }
-        return member ? (
+        if (!member) {
+          return (
+            <Link key="tier" href="/membership" className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}>
+              멤버십 신청
+            </Link>
+          );
+        }
+        // EPIC-161 Phase 5(사용자 지시 — "'등급/멤버십'도 아이콘을 추가할수
+        // 있게 해줘, hover 하면 text, hover 안할때는 이미지로, 각 등급별로
+        // 다른 아이콘을 추가할수 있게"): 관리자가 이 회원의 등급(membership_rank)에
+        // 아이콘을 올려둔 경우에만 아이콘 버전으로 대체 — 안 올려둔 등급은
+        // 지금까지처럼 텍스트(tier_name) 그대로라 회귀가 없다. 글쓰기 버튼
+        // 아이콘(HOTFIX-161.2)과 같은 이유로 래퍼 자체는 고정 크기로 두고
+        // 실제 이미지만 설정한 크기로 절대 위치 중앙 정렬해, 아이콘을 크게
+        // 잡아도 이 버튼이 속한 탭 줄의 레이아웃 높이는 커지지 않는다.
+        const tierIconUrl = resolvedAccountMenuStyleValue?.tierIcons?.[String(member.membership_rank)] || null;
+        const tierIconSizePx = accountMenuStyle?.iconSizePx ?? DEFAULT_WRITE_BUTTON_ICON_SIZE_PX;
+        if (tierIconUrl) {
+          return (
+            <button
+              key="tier"
+              type="button"
+              onClick={() => {
+                setPopoverOpen((o) => !o);
+                setUserMenuOpen(false);
+              }}
+              aria-label={member.tier_name}
+              className={`group relative inline-flex items-center justify-center ${ACCOUNT_MENU_ITEM_CLASS}`}
+              style={{ width: DEFAULT_WRITE_BUTTON_ICON_SIZE_PX, height: DEFAULT_WRITE_BUTTON_ICON_SIZE_PX }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={tierIconUrl}
+                alt={member.tier_name}
+                style={{ width: tierIconSizePx, height: tierIconSizePx }}
+                className="absolute inset-0 m-auto object-contain transition-opacity duration-200 group-hover:opacity-0"
+              />
+              <span
+                className="absolute inset-0 flex items-center justify-center whitespace-nowrap text-sm text-gray-600 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+              >
+                {member.tier_name}
+              </span>
+            </button>
+          );
+        }
+        return (
           <button
             key="tier"
             type="button"
@@ -1445,10 +1501,6 @@ export function Navbar({
           >
             {member.tier_name}
           </button>
-        ) : (
-          <Link key="tier" href="/membership" className={`text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}>
-            멤버십 신청
-          </Link>
         );
       }
       case "mypage": {

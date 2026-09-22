@@ -56,7 +56,27 @@ export type AccountMenuStyleValue = {
   // 좌우 구분이 없어 값 하나로 충분).
   writeButtonIconUrl: string | null;
   writeButtonIconHoverUrl: string | null;
+  // EPIC-161 Phase 5(사용자 지시 — "'등급/멤버십'도 아이콘을 추가할수
+  // 있게 해줘, hover 하면 text, hover 안할때는 이미지로, 각 등급별로
+  // 다른 아이콘을 추가할수 있게"): membership_rank(문자열 키, 예: "0"~"4"/"99")
+  // → 아이콘 URL. 특정 rank에 값이 없으면 그 등급은 기존처럼 텍스트(tier_name)만
+  // 보여준다 — writeButtonIconUrl과 달리 hover 아이콘이 아니라 "hover하면
+  // 텍스트로 전환"이 고정 동작이라 등급별 hover URL은 따로 없다.
+  tierIcons: Record<string, string>;
 };
+
+// 등급(membership_rank) 표시용 고정 목록 — src/lib/serverAuth.ts의
+// RANK_LABELS와 값은 동일하지만, serverAuth.ts는 next/server(NextRequest)를
+// import해 클라이언트 컴포넌트(Navbar)에서 그대로 가져다 쓸 수 없어
+// 이 데이터 전용 파일에 별도로 둔다(두 값은 항상 같이 갱신할 것).
+export const MEMBERSHIP_RANK_OPTIONS: { rank: number; label: string }[] = [
+  { rank: 0, label: "Silo Angel" },
+  { rank: 1, label: "Alice" },
+  { rank: 2, label: "Great Gatsby" },
+  { rank: 3, label: "Patron" },
+  { rank: 4, label: "Lautrec" },
+  { rank: 99, label: "Artist" },
+];
 
 export const DEFAULT_WRITE_BUTTON_ICON_SIZE_PX = 24;
 
@@ -83,6 +103,7 @@ export function defaultAccountMenuStyleValue(): AccountMenuStyleValue {
     extraWriteButtonIds: [],
     writeButtonIconUrl: null,
     writeButtonIconHoverUrl: null,
+    tierIcons: {},
   };
 }
 
@@ -107,6 +128,14 @@ export function normalizeAccountMenuStyle(raw: unknown): AccountMenuStyleValue {
     writeButtonIconUrl: typeof obj.writeButtonIconUrl === "string" ? obj.writeButtonIconUrl : fallback.writeButtonIconUrl,
     writeButtonIconHoverUrl:
       typeof obj.writeButtonIconHoverUrl === "string" ? obj.writeButtonIconHoverUrl : fallback.writeButtonIconHoverUrl,
+    tierIcons:
+      obj.tierIcons && typeof obj.tierIcons === "object"
+        ? Object.fromEntries(
+            Object.entries(obj.tierIcons as Record<string, unknown>).filter(
+              (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0,
+            ),
+          )
+        : fallback.tierIcons,
   };
   if (obj.pc || obj.tablet || obj.mobile) {
     return {

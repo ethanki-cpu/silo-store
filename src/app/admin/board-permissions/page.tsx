@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
+import { supabase } from "@/lib/supabaseClient";
+import { uploadImage } from "@/lib/adminImageUpload";
 import {
   fetchNavBranches,
   fetchBoardBranchMap,
@@ -113,6 +115,56 @@ export default function BoardPermissionsPage() {
   const [savedAt, setSavedAt] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+
+  // HOTFIX-161.7(사용자 지시 — "각 멤버십마다 대표 사진을 넣고 싶어",
+  // "이 편집은 기존 화면에 추가"): 등급별 대표 사진(membership_tiers.image_url)
+  // 업로드를 이 화면(관리자가 이미 등급×게시판 권한을 편집하는 곳) 맨 위에
+  // 추가한다 — 새 화면을 따로 만들지 않는다. membership_tiers는 RLS에
+  // 관리자 전용 UPDATE 정책이 이미 있어(membership_tiers_admin_write)
+  // 클라이언트에서 바로 supabase.update()를 호출해도 안전하다.
+  const [tiers, setTiers] = useState<{ rank: number; name: string; image_url: string | null }[] | null>(null);
+  const [uploadingTierRank, setUploadingTierRank] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (loading || memberLoading || !session || !member?.is_admin) return;
+    let cancelled = false;
+    supabase
+      .from("membership_tiers")
+      .select("rank, name, image_url")
+      .order("rank", { ascending: true })
+      .then(({ data }) => {
+        if (!cancelled) setTiers((data ?? []) as { rank: number; name: string; image_url: string | null }[]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, member, loading, memberLoading]);
+
+  async function uploadTierImage(rank: number, file: File) {
+    setUploadingTierRank(rank);
+    const { url, error: uploadError } = await uploadImage(file, "membership_tier_image");
+    if (uploadError || !url) {
+      setUploadingTierRank(null);
+      setError(uploadError ?? "이미지 업로드에 실패했어요.");
+      return;
+    }
+    const { error: updateError } = await supabase.from("membership_tiers").update({ image_url: url }).eq("rank", rank);
+    setUploadingTierRank(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setTiers((prev) => prev?.map((t) => (t.rank === rank ? { ...t, image_url: url } : t)) ?? prev);
+  }
+
+  async function removeTierImage(rank: number) {
+    const { error: updateError } = await supabase.from("membership_tiers").update({ image_url: null }).eq("rank", rank);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setTiers((prev) => prev?.map((t) => (t.rank === rank ? { ...t, image_url: null } : t)) ?? prev);
+  }
 
   // HOTFIX-161.6: 게시판 목록과 나란히, 실제 site_navigations 트리(branches)
   // + "이 게시판이 그 트리의 어느 가지에 연결됐는지"(boardBranchMap)를
@@ -278,6 +330,54 @@ export default function BoardPermissionsPage() {
         누적형이라 특정 등급에서 켜면 그 등급 이상은 전부 자동으로 켜져요(중간만 끄고 위 등급만 유지할 수는 없어요). 행마다 따로
         저장해야 반영돼요.
       </p>
+
+      {/* HOTFIX-161.7(사용자 지시): 등급별 대표 사진 — /membership·/pricing
+          카드 상단에 그대로 보여요. 안 올리면 사진 없이(기존과 동일하게) 나와요. */}
+      <div className="mb-6 rounded-md border border-gray-200 p-4">
+        <p className="mb-1 text-sm font-semibold text-gray-700">등급별 대표 사진</p>
+        <p className="mb-3 text-xs text-gray-400">/membership과 /pricing의 등급 카드 위에 함께 표시돼요.</p>
+        {!tiers ? (
+          <p className="text-xs text-gray-400">불러오는 중...</p>
+        ) : (
+          <div className="flex flex-wrap gap-4">
+            {tiers.map((t) => (
+              <div key={t.rank} className="w-36">
+                <p className="mb-1 text-xs font-medium text-gray-600">
+                  {t.name} {uploadingTierRank === t.rank && "(업로드 중...)"}
+                </p>
+                {t.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.image_url} alt={t.name} className="mb-1 h-24 w-full rounded border border-gray-200 object-cover" />
+                ) : (
+                  <div className="mb-1 flex h-24 w-full items-center justify-center rounded border border-dashed border-gray-300 text-[11px] text-gray-400">
+                    사진 없음
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingTierRank !== null}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (file) uploadTierImage(t.rank, file);
+                    e.target.value = "";
+                  }}
+                  className="w-full text-[10px]"
+                />
+                {t.image_url && (
+                  <button
+                    type="button"
+                    onClick={() => removeTierImage(t.rank)}
+                    className="mt-0.5 text-[11px] text-blue-600 hover:underline"
+                  >
+                    제거
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <input
         value={filter}

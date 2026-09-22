@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabaseClient";
 // 로그인하지 않아도 4개 등급의 가격·접근 게시판·활동·혜택을 볼 수 있고, 가입/해지는 로그인 후 스텝페이로 진행한다.
 // 결제 결과·등급 반영·해지 반영은 웹훅이 하므로 이 컴포넌트는 상태를 읽어 보여주기만 한다.
 type Rates = { shopPurchasePct: number; shopRentalPct: number; clubPct: number; docentPct: number };
-type Plan = { rank: number; name: string; price: number; free?: boolean; available: boolean; access: TierAccess; rates?: Rates };
+type Plan = { rank: number; name: string; price: number; free?: boolean; available: boolean; imageUrl?: string | null; access: TierAccess; rates?: Rates };
 type Spend = { shopPurchase: number; shopRental: number; club: number; docent: number };
 type Sub = { subscription_id: number; status: string; tier_rank: number | null; next_payment_date: string | null; end_date: string | null } | null;
 type StatusInfo = { enabled: boolean; subscription: Sub; membership_rank: number };
@@ -33,19 +33,40 @@ function fmtDate(v: string | null): string {
   return v ? new Date(v).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }) : "";
 }
 
+// HOTFIX-161.7(사용자 지시로 게시판별 상세 권한을 그대로 나열하게 되면서
+// 게시판이 많은 등급은 목록이 수십 줄까지 늘어난다): 카드 첫인상이
+// 압도되지 않도록 앞부분 몇 개만 보여주고, 나머지는 <details>로 접어둔다
+// — 서버 컴포넌트인 /pricing에서도 그대로 쓸 수 있게 순수 HTML만으로
+// 구현(JS 없이도 펼침/접힘 동작).
+const ACCESS_LIST_PREVIEW_COUNT = 6;
+
+function AccessListItems({ items }: { items: string[] }) {
+  return (
+    <ul className="mt-1 space-y-0.5 text-xs leading-5 text-gray-700">
+      {items.map((it) => (
+        <li key={it} className="flex gap-1.5">
+          <span aria-hidden>·</span>
+          <span>{it}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function AccessList({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
+  const preview = items.slice(0, ACCESS_LIST_PREVIEW_COUNT);
+  const rest = items.slice(ACCESS_LIST_PREVIEW_COUNT);
   return (
     <div className="mt-3">
       <p className="text-xs font-semibold text-gray-500">{title}</p>
-      <ul className="mt-1 space-y-0.5 text-xs leading-5 text-gray-700">
-        {items.map((it) => (
-          <li key={it} className="flex gap-1.5">
-            <span aria-hidden>·</span>
-            <span>{it}</span>
-          </li>
-        ))}
-      </ul>
+      <AccessListItems items={preview} />
+      {rest.length > 0 && (
+        <details className="mt-0.5">
+          <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600">{rest.length}개 더보기</summary>
+          <AccessListItems items={rest} />
+        </details>
+      )}
     </div>
   );
 }
@@ -239,6 +260,12 @@ export function MembershipPlansSection() {
                 // 무료 입문 등급: 가입(회원가입)만 하면 되고 결제가 없다. 이미 회원이면 현재 등급 여부만 안내.
                 return (
                   <li key={plan.rank} className="flex flex-col rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 sm:col-span-2">
+                    {/* HOTFIX-161.7(사용자 지시): 등급별 대표 사진 — 관리자가
+                        /admin/board-permissions에서 올리지 않으면 그냥 안 보인다(회귀 없음). */}
+                    {plan.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={plan.imageUrl} alt={plan.name} className="mb-3 h-32 w-full rounded object-cover sm:h-40" />
+                    )}
                     <p className="text-base font-semibold">
                       {plan.name} <span className="ml-1 rounded bg-gray-800 px-1.5 py-0.5 align-middle text-[10px] font-medium text-white">무료</span>
                     </p>
@@ -270,6 +297,10 @@ export function MembershipPlansSection() {
               else if (notUpgrade) label = "현재 등급 이하";
               return (
                 <li key={plan.rank} className={`flex flex-col rounded-md border p-4 ${isCurrent ? "border-green-500" : "border-gray-200"}`}>
+                  {plan.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={plan.imageUrl} alt={plan.name} className="mb-3 h-32 w-full rounded object-cover" />
+                  )}
                   <p className="text-base font-semibold">{plan.name}</p>
                   <p className="mt-1 text-sm text-gray-600">월 {plan.price.toLocaleString()}원 (부가세 포함)</p>
                   <AccessList title="접근 가능한 게시판" items={plan.access.boards} />

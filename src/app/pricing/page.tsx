@@ -3,36 +3,33 @@ import Link from "next/link";
 import { LegalDocument, LegalSection } from "@/components/legal/LegalDocument";
 import { fetchBusinessInfo } from "@/lib/businessInfo";
 import { supabase } from "@/lib/supabaseClient";
-import { describeTierAccess, type TierRow } from "@/lib/tierAccess";
+import { describeTierAccess, describeBoardHighlightsForTier, type TierRow, type BoardPermissionRow } from "@/lib/tierAccess";
 
 export const metadata: Metadata = { title: "상품 및 가격 안내" };
 // 방문마다 DB를 다시 읽지 않도록 1시간 캐시(무료 플랜 데이터 사용량 절약).
 export const revalidate = 3600;
 
-// EPIC-158.0(토스페이먼츠 심사 요건) → EPIC-160(상세화): 판매 상품과 가격을 등급별로 자세히 명시 — 멤버십(무료 입문 등급
-// Silo Angel 포함)/온라인 도슨트/사일로 상점. 금액과 혜택은 DB(membership_tiers, docent_contents, items)의 실제 값에서 계산해
-// 보여준다(하드코딩 없음 — 화면 안내와 실제 적용값이 어긋나지 않는다).
+// EPIC-158.0(토스페이먼츠 심사 요건) → EPIC-160(상세화) → HOTFIX-161.7(온라인 도슨트 등급별 고정가+
+// 하루 무료건수 모델로 전면 개편, 사일로 상점 실제 상품 목록/가격 노출 제거, "표시 가격" 안내는
+// /terms로 이동): 판매 상품과 가격을 등급별로 안내 — 멤버십(무료 입문 등급 Silo Angel 포함)/온라인
+// 도슨트/사일로 상점. 금액과 혜택은 DB(membership_tiers, boards) 실제 값에서 계산해 보여준다(하드코딩
+// 없음 — 화면 안내와 실제 적용값이 어긋나지 않는다).
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
-const range = (nums: number[]) => (Math.min(...nums) === Math.max(...nums) ? won(nums[0]) : `${won(Math.min(...nums))} ~ ${won(Math.max(...nums))}`);
-const discounted = (price: number, pct: number | null | undefined) => Math.round(price * (1 - (pct ?? 0) / 100));
-
-type Docent = { title: string | null; price: number };
-type Item = { name: string | null; price: number; rental_price_per_day: number | null };
 
 export default async function PricingPage() {
   const business = await fetchBusinessInfo();
 
-  const [{ data: tierRows }, { data: docentRows }, { data: itemRows }] = await Promise.all([
+  const [{ data: tierRows }, { data: boardRows }] = await Promise.all([
     supabase.from("membership_tiers").select("*").order("rank", { ascending: true }),
-    supabase.from("docent_contents").select("title, price").eq("is_free", false).gt("price", 0).order("price", { ascending: true }),
-    supabase.from("items").select("name, price, rental_price_per_day").order("price", { ascending: true }),
+    supabase
+      .from("boards")
+      .select(
+        "name, min_rank_to_read, min_rank_to_view_post, min_rank_to_comment, min_rank_to_like, min_rank_to_bookmark, min_rank_to_write, min_rank_to_propose, badge_min_rank",
+      ),
   ]);
 
   const tiers = ((tierRows ?? []) as TierRow[]).filter((t) => (t.price > 0 || t.rank === 0) && !t.is_lifetime && t.rank < 99);
-  const docents = (docentRows ?? []) as Docent[];
-  const items = ((itemRows ?? []) as Item[]).filter((i) => i.price > 0);
-  const sampleDocent = docents[0]?.price ?? null;
-  const sampleItem = items[0]?.price ?? null;
+  const boards = (boardRows ?? []) as BoardPermissionRow[];
 
   const clubText = (t: TierRow) =>
     t.club_all_free
@@ -40,12 +37,11 @@ export default async function PricingPage() {
       : [t.club_monthly_free_sessions ? `월 ${t.club_monthly_free_sessions}회 무료` : "", t.club_participation_discount_pct ? `${t.club_participation_discount_pct}% 할인` : ""]
           .filter(Boolean)
           .join(" + ") || "정가";
-  const docentText = (t: TierRow) =>
-    t.docent_free_only
-      ? "무료 콘텐츠만"
-      : [t.docent_monthly_free_count ? `월 ${t.docent_monthly_free_count}건 무료` : "", t.docent_per_item_discount_pct ? `${t.docent_per_item_discount_pct}% 할인` : ""]
-          .filter(Boolean)
-          .join(" + ") || "정가";
+  // HOTFIX-161.7: 콘텐츠 정가 기준 할인이 아니라 등급별 고정가 + 하루 무료건수 모델.
+  const docentText = (t: TierRow) => {
+    const flat = t.docent_flat_price != null ? won(t.docent_flat_price) : "정가";
+    return t.docent_daily_free_count ? `하루 ${t.docent_daily_free_count}건 무료, 이후 ${flat}` : `단품 ${flat}`;
+  };
   const shopText = (t: TierRow) =>
     [t.shop_purchase_discount_pct ? `구매 ${t.shop_purchase_discount_pct}%` : "", t.shop_rental_discount_pct ? `대여 ${t.shop_rental_discount_pct}%` : ""]
       .filter(Boolean)
@@ -96,28 +92,50 @@ export default async function PricingPage() {
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {tiers.map((t) => {
                 const a = describeTierAccess(t);
+                // HOTFIX-161.7(사용자 지시 — "지금 표시된게 너무 적어"): 게시판별
+                // 실제 권한 설정(/admin/board-permissions)을 그대로 반영한 상세 목록.
                 const groups: [string, string[]][] = [
-                  ["접근 가능한 게시판", a.boards],
+                  ["게시판별 이용 권한", describeBoardHighlightsForTier(boards, t.rank)],
                   ["이용 가능한 활동", a.activities],
                   ["할인·혜택", a.perks],
                 ];
                 return (
                   <div key={t.rank} className="rounded-md border border-gray-200 p-4">
+                    {t.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={t.image_url} alt={t.name} className="mb-3 h-32 w-full rounded object-cover" />
+                    )}
                     <p className="text-base font-semibold text-gray-900">
                       {t.name} <span className="text-sm font-normal text-gray-500">{t.price === 0 ? "무료" : `월 ${won(t.price)}`}</span>
                     </p>
-                    {groups.map(([title, list]) =>
-                      list.length > 0 ? (
+                    {groups.map(([title, list]) => {
+                      if (list.length === 0) return null;
+                      // HOTFIX-161.7: 게시판별 상세 권한이 게시판 수만큼(수십 줄까지)
+                      // 늘어날 수 있어 앞부분만 보여주고 나머지는 <details>로 접는다.
+                      const PREVIEW = 6;
+                      const preview = list.slice(0, PREVIEW);
+                      const rest = list.slice(PREVIEW);
+                      return (
                         <div key={title} className="mt-3">
                           <p className="text-xs font-semibold text-gray-500">{title}</p>
                           <ul className="mt-1 space-y-0.5 text-xs leading-5">
-                            {list.map((line) => (
+                            {preview.map((line) => (
                               <li key={line}>· {line}</li>
                             ))}
                           </ul>
+                          {rest.length > 0 && (
+                            <details className="mt-0.5">
+                              <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600">{rest.length}개 더보기</summary>
+                              <ul className="mt-1 space-y-0.5 text-xs leading-5">
+                                {rest.map((line) => (
+                                  <li key={line}>· {line}</li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
                         </div>
-                      ) : null,
-                    )}
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -139,87 +157,38 @@ export default async function PricingPage() {
 
       <LegalSection title="2. 온라인 도슨트 — 콘텐츠별 단건 결제 (디지털 콘텐츠, 배송 없음)">
         <p>
-          콘텐츠마다 가격이 다르며 각 콘텐츠 상세 페이지에 표시돼요. 무료로 공개된 콘텐츠도 있고, 결제 즉시 열람할 수 있어요.
-          {docents.length > 0 && ` 현재 유료 콘텐츠 ${docents.length}건, ${range(docents.map((d) => d.price))}.`}
+          콘텐츠 자체의 정가와 무관하게, 등급별로 정해진 단품 가격을 적용해요(무료로 공개된 콘텐츠는 등급과 무관하게 항상 무료예요).
+          결제 즉시 열람할 수 있어요.
         </p>
-        {docents.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[360px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-300 text-gray-500">
-                  <th className="py-2 pr-3 font-medium">콘텐츠</th>
-                  <th className="py-2 font-medium">정가</th>
-                </tr>
-              </thead>
-              <tbody>
-                {docents.slice(0, 30).map((d, i) => (
-                  <tr key={`${d.title}-${i}`} className="border-b border-gray-100">
-                    <td className="py-2 pr-3">{d.title ?? "제목 없음"}</td>
-                    <td className="py-2">{won(d.price)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p>등급별 적용{sampleDocent ? ` (정가 ${won(sampleDocent)} 콘텐츠 기준 예시)` : ""}:</p>
-        <ul className="list-disc space-y-0.5 pl-5">
-          {tiers.map((t) => (
-            <li key={t.rank}>
-              {t.name}:{" "}
-              {t.docent_free_only
-                ? "무료 콘텐츠만 열람할 수 있어요."
-                : t.docent_per_item_discount_pct || t.docent_monthly_free_count
-                  ? [
-                      t.docent_monthly_free_count ? `매월 ${t.docent_monthly_free_count}건 무료` : "",
-                      t.docent_per_item_discount_pct
-                        ? `${t.docent_monthly_free_count ? "그 외 " : ""}${t.docent_per_item_discount_pct}% 할인${sampleDocent ? ` (${won(discounted(sampleDocent, t.docent_per_item_discount_pct))})` : ""}`
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join(", ")
-                  : `정가${sampleDocent ? ` (${won(sampleDocent)})` : ""}`}
-            </li>
-          ))}
-        </ul>
+        <table className="w-full min-w-[420px] border-collapse text-left text-sm">
+          <thead>
+            <tr className="border-b border-gray-300 text-gray-500">
+              <th className="py-2 pr-3 font-medium">등급</th>
+              <th className="py-2 font-medium">단품 가격</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-gray-100">
+              <td className="py-2 pr-3">비회원</td>
+              <td className="py-2">3,000원(참고용 — 열람하려면 최소 무료 등급 Silo Angel 가입이 필요해요)</td>
+            </tr>
+            {tiers.map((t) => (
+              <tr key={t.rank} className="border-b border-gray-100">
+                <td className="py-2 pr-3">{t.name}</td>
+                <td className="py-2">{docentText(t)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </LegalSection>
 
       <LegalSection title="3. 사일로 상점 (빈티지·앤틱 실물 상품) — 무통장 입금(계좌이체)">
-        <p>
-          상품마다 구매가와 일 대여가가 다르며 각 상품 상세 페이지에 표시돼요.
-          {items.length > 0 && ` 현재 등록된 상품 ${items.length}점, 구매가 ${range(items.map((i) => i.price))}.`}
-        </p>
-        {items.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[400px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-300 text-gray-500">
-                  <th className="py-2 pr-3 font-medium">상품</th>
-                  <th className="py-2 pr-3 font-medium">구매가</th>
-                  <th className="py-2 font-medium">일 대여가</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.slice(0, 30).map((it, i) => (
-                  <tr key={`${it.name}-${i}`} className="border-b border-gray-100">
-                    <td className="py-2 pr-3">{it.name ?? "이름 없음"}</td>
-                    <td className="py-2 pr-3">{won(it.price)}</td>
-                    <td className="py-2">{it.rental_price_per_day ? won(it.rental_price_per_day) : "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p>등급별 할인{sampleItem ? ` (구매가 ${won(sampleItem)} 상품 기준 예시)` : ""}:</p>
+        <p>상품별 실제 가격은 각 상품 상세 페이지에 표시돼요. 등급이 높을수록 구매·대여 시 아래 할인이 적용돼요.</p>
         <ul className="list-disc space-y-0.5 pl-5">
           {tiers.map((t) => (
             <li key={t.rank}>
-              {t.name}: 구매{" "}
-              {t.shop_purchase_discount_pct
-                ? `${t.shop_purchase_discount_pct}% 할인${sampleItem ? ` (${won(discounted(sampleItem, t.shop_purchase_discount_pct))})` : ""}`
-                : "할인 없음"}
-              , 대여 {t.shop_rental_discount_pct ? `${t.shop_rental_discount_pct}% 할인` : "할인 없음"}
+              {t.name}: 구매 {t.shop_purchase_discount_pct ? `${t.shop_purchase_discount_pct}% 할인` : "할인 없음"}, 대여{" "}
+              {t.shop_rental_discount_pct ? `${t.shop_rental_discount_pct}% 할인` : "할인 없음"}
             </li>
           ))}
         </ul>
@@ -228,10 +197,6 @@ export default async function PricingPage() {
           <Link href="/refund-policy" className="underline">환불 및 구독 해지 안내</Link>를 따라요.{" "}
           <Link href="/shop" className="underline">사일로 상점 바로가기</Link>
         </p>
-      </LegalSection>
-
-      <LegalSection title="표시 가격 안내">
-        <p>모든 금액은 원화(KRW) 기준이며, 결제 화면에 표시되는 최종 금액이 실제 결제 금액입니다. 멤버십 월 요금은 부가세가 포함된 금액이에요.</p>
       </LegalSection>
     </LegalDocument>
   );

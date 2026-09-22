@@ -69,6 +69,7 @@ Phase 1~4(엔진+관리자 UI+실보드 시딩 / 뱃지·하루제한·제안·�
 ---
 
 ## 진행 중
+- **HOTFIX-161.7(구현+로컬 검증 완료, 2026-09-23)**: 등급별 대표 사진(`/admin/board-permissions`에서 업로드) + 게시판별 상세 권한 하이라이트(실제 boards.min_rank_to_* 기반, describeBoardHighlightsForTier) + 온라인 도슨트 등급별 고정가+하루 무료건수 결제 로직 전면 개편 + /pricing 정리(상점 실제 상품/가격 노출 제거, 표시가격 문구를 /terms로 이동)(CHANGELOG.md 참고). **확인 필요**: (1) Artist(rank99) 도슨트 가격을 Lautrec과 동일(하루 3건+1,000원)로 가정했는데 맞는지, (2) 게시판별 하이라이트가 등급당 최대 90여 줄까지 나와 `<details>`로 접어뒀는데 이 정도 분량이 실제 방문자 화면에서 괜찮아 보이는지, (3) dev.silostore.net 배포 후 실제 도슨트 구매(하루 무료건수 차감)와 관리자 사진 업로드를 실사용자 세션에서 확인.
 - **HOTFIX-161.6(구현+로컬 검증 완료, 2026-09-23)**: 멤버십 권한 페이지(`/admin/board-permissions`) 트리를 실제 `site_navigations` 구조(전체 글 관리와 같은 근거, `adminTreeGrouping.ts` 재사용)로 재구성 — `/admin/site-structure`(사이트 메뉴)와 상하위 카테고리가 이제 일치한다(CHANGELOG.md 참고). dev.silostore.net 배포 후 사용자가 직접 확인 필요.
 - **HOTFIX-161.5(구현 완료, 2026-09-23)**: 아이콘 위에 새로 보이던 선(`<nav>`의 `border-t border-gray-100`, HOTFIX-161.3/161.4가 가려져 있던 걸 드러낸 것) 제거(CHANGELOG.md 참고).
 - **HOTFIX-161.4(구현+실사용자 세션에서 검증 완료, 2026-09-23)**: 글쓰기 아이콘 hover 이미지가 "flash만 하고 안 나오던" 버그(z-index 충돌 — 로고 드래그 슬롯의 투명 히트박스가 가로챔) 수정, `<nav>`에 transform이 붙을 때 z-index:30도 함께 부여(CHANGELOG.md 참고). 사용자가 직접 로그인한 세션에서 hover 전/후 opacity 전환을 실측 확인함. **등급 아이콘도 같은 자리(계정 영역)에 있어 같은 계열의 겹침 문제가 날 수 있으니, 등급 아이콘을 실제로 올려 테스트할 때 비슷한 증상(hover 텍스트가 안 나옴)이 있으면 같은 원인(z-index)일 가능성이 높다.**

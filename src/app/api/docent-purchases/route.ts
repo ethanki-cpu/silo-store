@@ -61,46 +61,37 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let priceCharged = content.price;
-  let discountAppliedPct = 0;
-  let isMonthlyFree = false;
+  // HOTFIX-161.7(사용자 지시): 콘텐츠 정가와 무관하게 등급별 고정가를
+  // 받고(docent_flat_price — Silo Angel 2000원/그 외 유료 등급 1000원),
+  // 등급별 하루 무료 열람 건수(docent_daily_free_count)까지는 무료다.
+  // docent_monthly_free_count/docent_per_item_discount_pct/docent_free_only
+  // 는 더 이상 이 계산에 쓰이지 않는다(serverAuth.ts 참고).
+  const flatPrice = tier.docent_flat_price ?? content.price;
+  let priceCharged = flatPrice;
+  const discountAppliedPct = 0;
+  let isDailyFree = false;
   // EPIC-158: 유료 도슨트는 토스페이먼츠 단건 결제 — 결제 완료 전까지 pending_payment(계좌이체 대기가 아님).
   let paymentStatus: "confirmed" | "pending_payment" = "pending_payment";
 
-  if (tier.docent_free_only) {
-    priceCharged = content.price;
-    paymentStatus = "pending_payment";
-  } else {
-    let freeAvailable = false;
+  if (tier.docent_daily_free_count > 0) {
+    // HOTFIX-161.7: 자정(KST, UTC+9) 기준 오늘 하루 무료 건수만 센다 —
+    // post_views의 daily_view_limits와 같은 자정 기준 계산.
+    const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const todayStartUtc = new Date(
+      Date.UTC(nowKst.getUTCFullYear(), nowKst.getUTCMonth(), nowKst.getUTCDate()) - 9 * 60 * 60 * 1000,
+    ).toISOString();
 
-    if (tier.docent_monthly_free_count > 0) {
-      const now = new Date();
-      const monthStart = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        1,
-      ).toISOString();
+    const { count } = await requester.scopedClient
+      .from("docent_purchases")
+      .select("id", { count: "exact", head: true })
+      .eq("member_id", requester.member.id)
+      .eq("is_daily_free", true)
+      .gte("purchased_at", todayStartUtc);
 
-      const { count } = await requester.scopedClient
-        .from("docent_purchases")
-        .select("id", { count: "exact", head: true })
-        .eq("member_id", requester.member.id)
-        .eq("is_monthly_free", true)
-        .gte("purchased_at", monthStart);
-
-      freeAvailable = (count ?? 0) < tier.docent_monthly_free_count;
-    }
-
-    if (freeAvailable) {
+    if ((count ?? 0) < tier.docent_daily_free_count) {
       priceCharged = 0;
-      isMonthlyFree = true;
+      isDailyFree = true;
       paymentStatus = "confirmed";
-    } else {
-      discountAppliedPct = tier.docent_per_item_discount_pct || 0;
-      priceCharged = Math.round(
-        content.price * (1 - discountAppliedPct / 100),
-      );
-      paymentStatus = "pending_payment";
     }
   }
 
@@ -111,7 +102,8 @@ export async function POST(request: NextRequest) {
       content_id: contentId,
       price_charged: priceCharged,
       discount_applied_pct: discountAppliedPct,
-      is_monthly_free: isMonthlyFree,
+      is_monthly_free: false,
+      is_daily_free: isDailyFree,
       payment_status: paymentStatus,
     })
     .select()
@@ -127,7 +119,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     price_charged: priceCharged,
     discount_applied_pct: discountAppliedPct,
-    is_monthly_free: isMonthlyFree,
+    is_monthly_free: false,
+    is_daily_free: isDailyFree,
     payment_status: paymentStatus,
     purchase_id: purchase.id,
     order_id: `docent_${purchase.id}`,

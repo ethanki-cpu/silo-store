@@ -57,6 +57,15 @@ create table membership_tiers (
   docent_per_item_discount_pct numeric(4,2) not null default 0,
   docent_monthly_free_count   int not null default 0,
   docent_needs_agreement      boolean not null default false,
+  -- HOTFIX-161.7: 위 세 docent_* 컬럼은 더 이상 /api/docent-purchases
+  -- 실제 가격 계산에 쓰이지 않는다(테이블에는 남겨둠) — 이제 콘텐츠 정가와
+  -- 무관하게 등급별 고정가(docent_flat_price)를 받고, 하루
+  -- docent_daily_free_count건까지는 무료다.
+  docent_flat_price           int,
+  docent_daily_free_count     int not null default 0,
+
+  -- HOTFIX-161.7: 등급 카드에 보여줄 대표 사진(/membership, /pricing).
+  image_url                   text,
 
   drink_free                  boolean not null default false,
   tour_docent_free            boolean not null default false,
@@ -362,8 +371,12 @@ create table docent_purchases (
   price_charged         int not null,
   discount_applied_pct  numeric(4,2) not null default 0,
   is_monthly_free        boolean not null default false,
+  -- HOTFIX-161.7: 하루 무료 열람 건수(docent_daily_free_count) 판정용 —
+  -- is_monthly_free와 같은 패턴, 자정 기준 오늘치 개수만 센다.
+  is_daily_free          boolean not null default false,
   payment_status        text not null default 'pending_transfer' check (payment_status in ('pending_transfer','confirmed','cancelled')),
-  purchased_at           timestamptz not null default now()
+  purchased_at           timestamptz not null default now(),
+  paid_at                timestamptz
 );
 
 -- 콘텐츠별 구매 건수 집계 뷰. "인기글" 판단 기준(구매 수 많은 순)으로 사용.

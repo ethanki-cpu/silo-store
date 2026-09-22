@@ -20,6 +20,13 @@ export type TierFlags = {
   docent_per_item_discount_pct: number;
   docent_monthly_free_count: number;
   docent_needs_agreement: boolean;
+  // HOTFIX-161.7(사용자 지시): 온라인 도슨트 단품 가격을 "콘텐츠 정가 *
+  // (1-할인율)"에서 "콘텐츠 정가와 무관한 등급별 고정가 + 등급별 하루
+  // 무료 열람 건수"로 교체 — 위 docent_free_only/docent_per_item_discount_pct/
+  // docent_monthly_free_count 3개는 더 이상 /api/docent-purchases 실제
+  // 계산에 쓰이지 않는다(하위 호환을 위해 필드는 남겨둠).
+  docent_flat_price: number | null;
+  docent_daily_free_count: number;
 };
 
 export const RANK_LABELS: Record<number, string> = {
@@ -61,7 +68,7 @@ export async function getTier(rank: number): Promise<TierFlags | null> {
   const { data } = await supabase
     .from("membership_tiers")
     .select(
-      "rank, board_write_scope, board_can_write_docent, board_can_create, board_has_patron_board, board_has_promo_board, venue_rental_point_pct, salon_entry_free, salon_entry_hourly_fee, docent_free_only, docent_per_item_discount_pct, docent_monthly_free_count, docent_needs_agreement",
+      "rank, board_write_scope, board_can_write_docent, board_can_create, board_has_patron_board, board_has_promo_board, venue_rental_point_pct, salon_entry_free, salon_entry_hourly_fee, docent_free_only, docent_per_item_discount_pct, docent_monthly_free_count, docent_needs_agreement, docent_flat_price, docent_daily_free_count",
     )
     .eq("rank", rank)
     .single<TierFlags>();

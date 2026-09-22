@@ -25,8 +25,9 @@ type ItemDetail = {
   id: string;
   name: string;
   photo_url: string | null;
-  price: number;
-  rental_price_per_day: number;
+  price: number | null;
+  rental_price_per_day: number | null;
+  price_locked: boolean;
   category: string | null;
   status: string;
   curation: {
@@ -176,10 +177,19 @@ export default function ItemDetailPage() {
         <h1 className="text-2xl font-bold">{item.name}</h1>
         <WishlistButton itemId={item.id} />
       </div>
-      <p className="text-lg text-gray-700 mt-1">
-        구매가 {item.price.toLocaleString()}원 · 대여가{" "}
-        {item.rental_price_per_day.toLocaleString()}원/일
-      </p>
+      {item.price_locked ? (
+        <div className="mt-2 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <span>🔒 가격은 무료 회원가입 후 확인할 수 있어요.</span>
+          <Link href="/signup" className="text-blue-600 underline">
+            가입하고 가격 보기 →
+          </Link>
+        </div>
+      ) : (
+        <p className="text-lg text-gray-700 mt-1">
+          구매가 {item.price!.toLocaleString()}원 · 대여가{" "}
+          {item.rental_price_per_day!.toLocaleString()}원/일
+        </p>
+      )}
 
       <div className="mt-4 mb-8 rounded-lg border border-gray-200 p-4 space-y-3">
         <div className="flex items-center gap-2">

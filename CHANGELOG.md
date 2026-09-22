@@ -1,3 +1,8 @@
+## 2026-09-22 (EPIC-161 Phase 4 — 가격 등급 게이팅 확정 + 실로플래닛 프론트 통합, 사용자 확인 후 진행)
+- **가격 표시 = Silo Angel부터(사용자 재확인)**: Phase 3에서 "가격을 비회원에게 숨기면 상점 전환에 영향 줄 수 있다"고 보류했던 것을, 사용자가 "silo angel에게 가격 표시한다고 했잖아"로 원래 의도(비회원은 잠금, 무료 가입만 해도 공개)를 재확인해 그대로 적용. `/api/items/[id]`가 비로그인 요청엔 `price`/`rental_price_per_day`를 `null` + `price_locked:true`로 내려주고, `/shop/[id]`는 잠금 상태에서 가격 대신 "가입하고 가격 보기" 안내를 보여준다.
+- **실로플래닛 3D 프론트 통합 완료**: Phase 3에서 데이터 계층까지만 하고 미뤘던 `AboutSiloUniverse.tsx`(3081줄) 연결을 사용자가 직접 로그인해 화면을 봐줄 수 있게 되어 진행. 기존 SILO/User 행성의 복잡한 드래그·오브젝트·GLB 기계는 전혀 건드리지 않고 완전히 독립된 3개 신규 컴포넌트로 추가: `MemberPlanetMarkers.tsx`(회원 행성을 피보나치 구면 분포로 배치하는 3D 마커 레이어, Canvas 안에서 `<Scene>`과 형제로 렌더링), `MemberPlanetPanel.tsx`(선택한 행성의 2D 오버레이 패널 — 좋아요/자기 행성 glb URL 저장), `SiloPlanetProposeButton.tsx`(Lautrec 전용 하단 우측 제안 버튼+폼). `AboutSiloUniverse.tsx`에는 `useAuth` 훅 추가 + 행성 목록 로드/좋아요/업로드 핸들러만 추가(기존 상태·로직 변경 없음). 로컬 dev 서버(비로그인)에서 스크린샷+콘솔 확인 — 기존 화면 그대로 렌더링되고 신규 에러 없음, 실제 로그인 상태 동작은 dev.silostore.net 배포 후 사용자 계정(Lautrec)으로 확인 예정.
+- 검증: `tsc --noEmit`/`npm run lint`(신규 경고 없음)/`npm run build` 통과.
+
 ## 2026-09-22 (EPIC-161 Phase 3 — 사일로상점 재구축·내비게이션 연결·실로플래닛 데이터 계층, 사용자 지시 "진행시켜")
 - **핵심 발견**: 이전에 "라이브 내비게이션 slug가 게시판 slug와 안 맞아 새로 만든 게시판이 안 열릴 수 있다"고 기록했던 문제는 **slug 불일치가 아니라 `page_modules.board_id`(게시판 위젯이 참조하는 실제 FK 컬럼, URL과 무관하게 관리자가 명시적으로 연결)가 비어있거나 잘못 연결된 것**이었다 — slug를 맞추는 작업이 아니라 이 FK만 고치면 되는 훨씬 작은 문제였다.
 - **사일로상점 Treasures 계열 7개 — 재구축 불필요, 6개는 이미 실제 게시판이었음**: `/treasures`(사일로 보물들)를 제외한 6개(사일로 뮤즈/천사들/보내기전마지막사진/입양신청서라이브러리/입양이후/원래주인들+할머니+할아버지)는 이미 `page_modules.board_id`가 Phase 1에서 시딩한 정확한 게시판에 연결돼 있어 글/댓글/좋아요/북마크가 이미 실제로 동작하고 있었다(이전 세션의 "정적 Craft 페이지" 판단은 `/treasures` 자체에만 맞는 얘기였다). `/treasures`만 board 위젯이 아예 없어서(0개 모듈) 새로 추가(→ `boards.id=9bd3b41b`, 기존 "My Treasures 나의 보물들").

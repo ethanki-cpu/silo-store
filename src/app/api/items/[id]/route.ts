@@ -81,21 +81,26 @@ export async function GET(
     item as unknown as { item_personas: Persona | null }
   ).item_personas;
 
+  // EPIC-161 Phase 3(사용자 확인 — "silo angel에게 가격 표시한다고 했잖아"):
+  // 가격은 Silo Angel(무료 가입) 등급부터 공개, 비회원은 가입을 유도하는
+  // 잠금 상태로 본다. 이 API가 실제 상점(/shop/[id]) 구매 페이지에도 쓰이지만
+  // 사용자가 이 방향을 명시적으로 재확인했으므로 그대로 적용한다.
+  const priceUnlocked = rank >= 0;
+
   return NextResponse.json({
     id: item.id,
     name: item.name,
     photo_url: item.photo_url,
-    price: item.price,
-    rental_price_per_day: item.rental_price_per_day,
+    price: priceUnlocked ? item.price : null,
+    rental_price_per_day: priceUnlocked ? item.rental_price_per_day : null,
+    price_locked: !priceUnlocked,
     category: item.category,
     status: item.status,
     curation: {
       // EPIC-161 Phase 2(사용자 스펙 "사일로 보물들" 단계적 공개): era_info(제작 시기)를
       // era_context(시대적 배경)와 함께 Alice 등급으로 묶었다 — 이전엔 era_info만
       // 항상 공개였다. maker_info(Great Gatsby)/previous_owner_story(Patron)는
-      // 스펙과 이미 일치해 그대로 둔다. "가격=Silo Angel부터"는 적용하지 않았다 —
-      // price는 이 API를 공유하는 실제 상점(/shop/[id]) 구매 전환에 쓰이는 값이라
-      // 비회원에게 가격을 숨기면 상점 UX를 해칠 수 있어 별도 확인 필요(NEXT_TASK.md).
+      // 스펙과 이미 일치해 그대로 둔다.
       era_info: buildField(item.era_info, rank >= 1, RANK_LABELS[1]),
       era_context: buildField(item.era_context, rank >= 1, RANK_LABELS[1]),
       maker_info: buildField(item.maker_info, rank >= 2, RANK_LABELS[2]),

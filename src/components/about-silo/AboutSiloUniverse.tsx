@@ -61,6 +61,10 @@ import * as THREE from "three";
 import { fibonacciSphere } from "@/lib/fibonacciSphere";
 import { htmlToExcerpt } from "@/lib/htmlExcerpt";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/AuthProvider";
+import { MemberPlanetMarkers, type MemberPlanet } from "./MemberPlanetMarkers";
+import { MemberPlanetPanel } from "./MemberPlanetPanel";
+import { SiloPlanetProposeButton } from "./SiloPlanetProposeButton";
 import {
   defaultUniverseConfig,
   normalizeUniverseConfig,
@@ -2484,6 +2488,58 @@ const UNIVERSE_SETTINGS_KEY = "about_silo_universe";
 const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000;
 
 export function AboutSiloUniverse() {
+  // EPIC-161 Phase 3: 회원별 행성 — SILO/User 행성과 완전히 독립된 레이어
+  // (member_planets/planet_likes, MemberPlanetMarkers.tsx). Alice 미만은
+  // 서버가 본인 행성만 내려주므로(canViewOthers=false) 그대로 렌더링하면 된다.
+  const { session, member } = useAuth();
+  const memberRank = member?.membership_rank ?? -1;
+  const isAdmin = !!member?.is_admin;
+  const canViewOtherPlanets = isAdmin || memberRank >= 1;
+  const canLikePlanet = isAdmin || memberRank >= 2;
+  const canUploadOwnPlanet = isAdmin || memberRank >= 3;
+  const canProposeToUniverse = isAdmin || memberRank >= 4;
+  const [memberPlanets, setMemberPlanets] = useState<MemberPlanet[]>([]);
+  const [selectedMemberPlanetId, setSelectedMemberPlanetId] = useState<string | null>(null);
+
+  function loadMemberPlanets() {
+    fetch("/api/silo-planet/planets", {
+      headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+    })
+      .then((res) => res.json())
+      .then((data) => setMemberPlanets(data.planets ?? []))
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    loadMemberPlanets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  const selectedMemberPlanet = memberPlanets.find((p) => p.member_id === selectedMemberPlanetId) ?? null;
+
+  async function handleTogglePlanetLike() {
+    if (!session || !selectedMemberPlanetId) return;
+    await fetch(`/api/silo-planet/planets/${selectedMemberPlanetId}/like`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    loadMemberPlanets();
+  }
+
+  async function handleUploadPlanetGlb(glbUrl: string) {
+    if (!session) return;
+    const res = await fetch("/api/silo-planet/planets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ glbUrl }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? "저장에 실패했어요.");
+    }
+    loadMemberPlanets();
+  }
+
   const [siloPosts, setSiloPosts] = useState<FeedPost[] | null>(null);
   const [userPosts, setUserPosts] = useState<FeedPost[] | null>(null);
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
@@ -2984,6 +3040,12 @@ export function AboutSiloUniverse() {
             onSpaceObjectRotated={handleSpaceObjectRotated}
           />
         )}
+        <MemberPlanetMarkers
+          planets={memberPlanets}
+          center={SILO_CENTER.clone().add(USER_CENTER).multiplyScalar(0.5)}
+          selectedMemberId={selectedMemberPlanetId}
+          onSelect={setSelectedMemberPlanetId}
+        />
       </Canvas>
 
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-6">
@@ -3012,6 +3074,12 @@ export function AboutSiloUniverse() {
         {!siloPosts && (
           <div className="pointer-events-auto self-center rounded-full bg-black/40 px-4 py-2 text-xs text-white/70">
             우주를 준비하는 중...
+          </div>
+        )}
+
+        {!canViewOtherPlanets && (
+          <div className="pointer-events-none self-start rounded-full bg-black/40 px-3 py-1 text-[11px] text-white/60">
+            Alice 등급부터 다른 회원의 행성을 볼 수 있어요.
           </div>
         )}
 
@@ -3063,6 +3131,19 @@ export function AboutSiloUniverse() {
             canRotate={canRotateSelectedObject}
           />
         )}
+
+        {selectedMemberPlanet && (
+          <MemberPlanetPanel
+            planet={selectedMemberPlanet}
+            canLike={canLikePlanet}
+            canUploadOwn={canUploadOwnPlanet}
+            onClose={() => setSelectedMemberPlanetId(null)}
+            onToggleLike={handleTogglePlanetLike}
+            onUploadGlb={handleUploadPlanetGlb}
+          />
+        )}
+
+        {canProposeToUniverse && session && <SiloPlanetProposeButton accessToken={session.access_token} />}
 
         {toast && (
           <div className="pointer-events-none fixed right-6 top-6 z-50 rounded-full border border-white/20 bg-black/70 px-4 py-2 text-xs text-white shadow-xl backdrop-blur-sm">

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "제안 목록을 불러오지 못했어요." }, { status: 500 });
   }
 
-  const boardIds = [...new Set(proposals.map((p) => p.board_id))];
+  const boardIds = [...new Set(proposals.map((p) => p.board_id).filter((id): id is string => !!id))];
   const memberIds = [...new Set(proposals.map((p) => p.member_id))];
 
   const [{ data: boards }, { data: members }] = await Promise.all([
@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     proposals.map((p) => ({
       ...p,
-      board_name: boardNameById.get(p.board_id) ?? "알 수 없음",
+      // EPIC-161 Phase 2 후속: board_id가 null이면 실로플래닛처럼 게시판과
+      // 무관한 사이트 전반 제안(kind='planet' 등).
+      board_name: p.board_id ? (boardNameById.get(p.board_id) ?? "알 수 없음") : "(게시판 없음 — 사이트 전반)",
       member_name: memberNameById.get(p.member_id) ?? "알 수 없음",
     })),
   );

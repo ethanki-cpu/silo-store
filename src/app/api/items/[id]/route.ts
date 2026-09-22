@@ -90,7 +90,13 @@ export async function GET(
     category: item.category,
     status: item.status,
     curation: {
-      era_info: buildField(item.era_info, true),
+      // EPIC-161 Phase 2(사용자 스펙 "사일로 보물들" 단계적 공개): era_info(제작 시기)를
+      // era_context(시대적 배경)와 함께 Alice 등급으로 묶었다 — 이전엔 era_info만
+      // 항상 공개였다. maker_info(Great Gatsby)/previous_owner_story(Patron)는
+      // 스펙과 이미 일치해 그대로 둔다. "가격=Silo Angel부터"는 적용하지 않았다 —
+      // price는 이 API를 공유하는 실제 상점(/shop/[id]) 구매 전환에 쓰이는 값이라
+      // 비회원에게 가격을 숨기면 상점 UX를 해칠 수 있어 별도 확인 필요(NEXT_TASK.md).
+      era_info: buildField(item.era_info, rank >= 1, RANK_LABELS[1]),
       era_context: buildField(item.era_context, rank >= 1, RANK_LABELS[1]),
       maker_info: buildField(item.maker_info, rank >= 2, RANK_LABELS[2]),
       previous_owner_story: buildField(
@@ -99,6 +105,10 @@ export async function GET(
         RANK_LABELS[3],
         persona,
       ),
+      // Lautrec 전용 — "프라이빗 도슨트 신청" 자격 여부만 내려준다(다른 curation
+      // 필드와 동일한 {locked,value} 모양이라 프론트가 그대로 재사용 가능). 실제
+      // 신청 접수는 이미 있는 "비밀의 방 도슨트" 게시판(secret-room-docent)으로 안내.
+      private_docent: buildField("프라이빗 도슨트 신청 가능", rank >= 4, RANK_LABELS[4]),
     },
   });
 }

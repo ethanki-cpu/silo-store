@@ -14,7 +14,7 @@ type Proposal = {
   member_id: string;
   member_name: string;
   post_id: string | null;
-  kind: "write" | "category" | "delete_post" | "other";
+  kind: "write" | "category" | "delete_post" | "planet" | "other";
   body: string;
   status: "pending" | "resolved" | "dismissed";
   created_at: string;
@@ -24,6 +24,7 @@ const KIND_LABELS: Record<Proposal["kind"], string> = {
   write: "글쓰기 제안",
   category: "카테고리 제안",
   delete_post: "게시글 삭제 제안",
+  planet: "실로플래닛 제안",
   other: "기타",
 };
 

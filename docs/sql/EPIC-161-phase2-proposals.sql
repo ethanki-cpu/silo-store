@@ -7,9 +7,12 @@ alter table boards add column if not exists min_rank_to_propose integer referenc
 create table if not exists board_proposals (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references members(id) on delete cascade,
-  board_id uuid not null references boards(id) on delete cascade,
+  -- EPIC-161 Phase 2 후속: 실로플래닛처럼 게시판이 아닌 대상에 대한 제안도 담기
+  -- 위해 nullable로 변경(원래는 not null) — null이면 게시판과 무관한 사이트
+  -- 전반 제안(kind='planet' 등).
+  board_id uuid references boards(id) on delete cascade,
   post_id uuid references posts(id) on delete set null,
-  kind text not null default 'other' check (kind in ('write', 'category', 'delete_post', 'other')),
+  kind text not null default 'other' check (kind in ('write', 'category', 'delete_post', 'planet', 'other')),
   body text not null,
   status text not null default 'pending' check (status in ('pending', 'resolved', 'dismissed')),
   created_at timestamptz not null default now(),

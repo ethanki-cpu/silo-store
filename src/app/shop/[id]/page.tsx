@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/lib/AuthProvider";
 import { WishlistButton } from "@/components/WishlistButton";
 import { PageEditButton } from "@/components/admin/PageEditButton";
@@ -33,6 +34,7 @@ type ItemDetail = {
     era_context: CurationField;
     maker_info: CurationField;
     previous_owner_story: CurationField;
+    private_docent: CurationField;
   };
 };
 
@@ -51,6 +53,7 @@ const CURATION_LABELS: Record<keyof ItemDetail["curation"], string> = {
   era_context: "시대 배경",
   maker_info: "제작자·기법",
   previous_owner_story: "이전 주인 사연",
+  private_docent: "프라이빗 도슨트",
 };
 
 const CURATION_ORDER: (keyof ItemDetail["curation"])[] = [
@@ -58,6 +61,7 @@ const CURATION_ORDER: (keyof ItemDetail["curation"])[] = [
   "era_context",
   "maker_info",
   "previous_owner_story",
+  "private_docent",
 ];
 
 export default function ItemDetailPage() {
@@ -286,6 +290,11 @@ export default function ItemDetailPage() {
                   <p className="text-gray-800 whitespace-pre-wrap">
                     {field.value}
                   </p>
+                  {key === "private_docent" && (
+                    <Link href="/boards/secret-room-docent" className="mt-2 inline-block text-sm text-blue-600 underline">
+                      비밀의 방 도슨트 게시판에서 신청하기 →
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

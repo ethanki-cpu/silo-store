@@ -135,7 +135,7 @@ export function MembershipPlansSection() {
     setError(null);
     const { ok, json } = await post("/api/payments/steppay/checkout", { tierRank: rank });
     if (ok && typeof json.payUrl === "string") {
-      window.location.href = json.payUrl;
+      window.location.assign(json.payUrl);
       return;
     }
     setError(String(json.error ?? "결제를 시작하지 못했어요."));

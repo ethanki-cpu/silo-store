@@ -2415,6 +2415,13 @@ function ControlsPanel({
   if (selectedSlotKey === "write-button" || selectedSlotKey.startsWith("write-button:extra:")) {
     const isExtraWrite = selectedSlotKey.startsWith("write-button:extra:");
     const extraWriteId = isExtraWrite ? selectedSlotKey.slice("write-button:extra:".length) : null;
+    // HOTFIX-161.1(사용자 신고 — "글쓰기 버튼 아이콘이 크기를 설정할 수가 없잖아!"): 아이콘 크기는
+    // account: 블록과 동일하게 기기별(PC/태블릿/모바일) 설정 — 위 accountMenuStyle/patchAccount와 이름은
+    // 같지만 이 블록은 selectedSlotKey가 달라 별도 스코프라 여기서 다시 만든다.
+    const accountMenuStyle = accountMenuStyleValue[deviceTab];
+    function patchAccount(patch: Partial<AccountMenuStyleValue["pc"]>) {
+      setAccountMenuStyleValue((prev) => ({ ...prev, [deviceTab]: { ...prev[deviceTab], ...patch } }));
+    }
     function duplicateWriteButton() {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       setAccountMenuStyleValue((prev) => ({ ...prev, extraWriteButtonIds: [...(prev.extraWriteButtonIds ?? []), id] }));
@@ -2504,6 +2511,34 @@ function ControlsPanel({
                 )}
               </label>
             )}
+            {/* HOTFIX-161.1(사용자 신고 — "글쓰기 버튼 아이콘이 크기를 설정할 수가 없잖아!"):
+                기존엔 h-6 w-6(24px)로 하드코딩돼 있어 조절할 방법이 아예 없었다 — 다른 헤더
+                아이콘들(상단 아이콘/사이드바 아이콘)과 동일한 패턴으로 기본/hover 크기를 PC·태블릿·
+                모바일 각각 다르게 지정할 수 있게 한다(지금 편집 중인 기기 탭에만 적용). */}
+            <label className="block">
+              <span className="mb-1 block text-gray-600">아이콘 크기(px) — 지금 편집 중인 기기</span>
+              <input
+                type="number"
+                min={10}
+                max={80}
+                placeholder="24(기본값)"
+                value={accountMenuStyle.iconSizePx ?? ""}
+                onChange={(e) => patchAccount({ iconSizePx: e.target.value ? Math.max(10, Number(e.target.value)) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-gray-600">hover 아이콘 크기(px) — 비우면 기본 아이콘과 같은 크기</span>
+              <input
+                type="number"
+                min={10}
+                max={80}
+                placeholder={String(accountMenuStyle.iconSizePx ?? 24)}
+                value={accountMenuStyle.iconHoverSizePx ?? ""}
+                onChange={(e) => patchAccount({ iconHoverSizePx: e.target.value ? Math.max(10, Number(e.target.value)) : null })}
+                className="w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </label>
           </div>
         )}
 

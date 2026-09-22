@@ -18,6 +18,12 @@ export type AccountMenuStyleConfig = {
   bold: boolean;
   color: string;
   hoverMotion: TabHoverMotion;
+  // HOTFIX-161.1(사용자 신고 — "글쓰기 버튼 아이콘이 크기를 설정할 수가 없잖아!"): 글쓰기 버튼을
+  // 아이콘으로 대체했을 때(writeButtonIconUrl)의 기본/hover 아이콘 크기 — fontSizePx와 동일하게
+  // PC/태블릿/모바일 독립 설정(이 설정 자체가 이미 기기별 슬롯이라 자연히 기기별로 다르게 잡힌다).
+  // null이면 기존 하드코딩값(24px, h-6 w-6)과 동일하게 렌더링된다(하위 호환 — 기존 설정 화면 그대로 봄).
+  iconSizePx: number | null;
+  iconHoverSizePx: number | null;
 };
 
 // HOTFIX-141(사용자 지시 — "글쓰기, 관리자, lautrec, Ethan Ki, 마이 페이지
@@ -52,6 +58,8 @@ export type AccountMenuStyleValue = {
   writeButtonIconHoverUrl: string | null;
 };
 
+export const DEFAULT_WRITE_BUTTON_ICON_SIZE_PX = 24;
+
 export function defaultAccountMenuStyleConfig(): AccountMenuStyleConfig {
   return {
     fontFamily: "",
@@ -59,6 +67,8 @@ export function defaultAccountMenuStyleConfig(): AccountMenuStyleConfig {
     bold: false,
     color: "",
     hoverMotion: DEFAULT_TAB_HOVER_MOTION,
+    iconSizePx: null,
+    iconHoverSizePx: null,
   };
 }
 
@@ -77,7 +87,12 @@ export function defaultAccountMenuStyleValue(): AccountMenuStyleValue {
 }
 
 function normalizeConfig(raw: unknown): AccountMenuStyleConfig {
-  return { ...defaultAccountMenuStyleConfig(), ...((raw as Partial<AccountMenuStyleConfig>) ?? {}) };
+  const merged = { ...defaultAccountMenuStyleConfig(), ...((raw as Partial<AccountMenuStyleConfig>) ?? {}) };
+  return {
+    ...merged,
+    iconSizePx: typeof merged.iconSizePx === "number" && merged.iconSizePx > 0 ? merged.iconSizePx : null,
+    iconHoverSizePx: typeof merged.iconHoverSizePx === "number" && merged.iconHoverSizePx > 0 ? merged.iconHoverSizePx : null,
+  };
 }
 
 export function normalizeAccountMenuStyle(raw: unknown): AccountMenuStyleValue {

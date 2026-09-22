@@ -30,7 +30,7 @@ import {
   type SidebarIconsValue,
 } from "@/lib/sidebarIconsSettings";
 import { normalizeTopTabStyle, type TopTabStyleEntry, type TopTabStyleValue } from "@/lib/topTabStyleSettings";
-import { normalizeAccountMenuStyle, type AccountMenuStyleValue } from "@/lib/accountMenuStyleSettings";
+import { normalizeAccountMenuStyle, DEFAULT_WRITE_BUTTON_ICON_SIZE_PX, type AccountMenuStyleValue } from "@/lib/accountMenuStyleSettings";
 import {
   normalizeHeaderLayout,
   headerItemInlineStyle,
@@ -956,6 +956,11 @@ export function Navbar({
   // 없으면 지금까지처럼 텍스트 버튼 그대로.
   const writeButtonIconUrl = resolvedAccountMenuStyleValue?.writeButtonIconUrl || null;
   const writeButtonIconHoverUrl = resolvedAccountMenuStyleValue?.writeButtonIconHoverUrl || null;
+  // HOTFIX-161.1(사용자 신고 — "글쓰기 버튼 아이콘이 크기를 설정할 수가 없잖아!"): 크기가 h-6 w-6(24px)로
+  // 하드코딩돼 있어 관리자가 올린 아이콘이 항상 24px로만 보였다 — accountMenuStyle(기기별)의 iconSizePx를 쓰고,
+  // 없으면(기존 저장값) 하드코딩값과 동일한 24px로 폴백해 회귀가 없다.
+  const writeButtonIconSizePx = accountMenuStyle?.iconSizePx ?? DEFAULT_WRITE_BUTTON_ICON_SIZE_PX;
+  const writeButtonIconHoverSizePx = accountMenuStyle?.iconHoverSizePx ?? writeButtonIconSizePx;
   function writeButtonNode(slotKey: string, label: string) {
     return (
       <HeaderSlot
@@ -970,19 +975,26 @@ export function Navbar({
         as="span"
       >
         {writeButtonIconUrl ? (
-          <Link href={writeHref} aria-label={label} className="group relative inline-flex items-center justify-center">
+          <Link
+            href={writeHref}
+            aria-label={label}
+            className="group relative inline-flex items-center justify-center"
+            style={{ width: Math.max(writeButtonIconSizePx, writeButtonIconHoverSizePx), height: Math.max(writeButtonIconSizePx, writeButtonIconHoverSizePx) }}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={writeButtonIconUrl}
               alt={label}
-              className={writeButtonIconHoverUrl ? "h-6 w-6 object-contain group-hover:opacity-0" : "h-6 w-6 object-contain"}
+              style={{ width: writeButtonIconSizePx, height: writeButtonIconSizePx }}
+              className={writeButtonIconHoverUrl ? "absolute inset-0 m-auto object-contain group-hover:opacity-0" : "absolute inset-0 m-auto object-contain"}
             />
             {writeButtonIconHoverUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={writeButtonIconHoverUrl}
                 alt={label}
-                className="absolute inset-0 h-6 w-6 object-contain opacity-0 group-hover:opacity-100"
+                style={{ width: writeButtonIconHoverSizePx, height: writeButtonIconHoverSizePx }}
+                className="absolute inset-0 m-auto object-contain opacity-0 group-hover:opacity-100"
               />
             )}
           </Link>

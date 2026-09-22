@@ -1,3 +1,9 @@
+## 2026-09-22 (HOTFIX-161.1 — 글쓰기 버튼 아이콘 크기 설정 추가 + 배포 정리)
+- **사용자 신고**: "글쓰기 버튼 아이콘이 크기를 설정할 수가 없잖아!" — EPIC-161 Phase 4에서 텍스트 대신 아이콘으로 대체하는 기능을 추가할 때 크기가 `h-6 w-6`(24px)로 하드코딩돼 있어 관리자가 조절할 방법이 없었다.
+- **수정**: `accountMenuStyleSettings.ts`의 `AccountMenuStyleConfig`(이미 PC/태블릿/모바일 기기별 슬롯)에 `iconSizePx`/`iconHoverSizePx` 추가(둘 다 null이면 기존 24px 그대로 — 회귀 없음, hover 크기를 비우면 기본 아이콘과 같은 크기). `Navbar.tsx`가 기기별 값을 읽어 기본/hover 이미지 각각 실제 크기로 렌더링(두 크기가 다르면 바깥 래퍼는 큰 쪽 기준으로 중앙 정렬). 관리자 화면(`admin/navigation/settings`)의 "글쓰기 버튼" 설정에 두 크기 입력 필드 추가(지금 편집 중인 기기 탭에만 적용 — 다른 헤더 아이콘들과 동일한 관례).
+- **덤으로 발견/수정**: 다른 컴퓨터에서 들어온 `MembershipPlansSection.tsx`(EPIC-160)의 `window.location.href = ...`가 새 eslint 규칙(`react-hooks/immutability`)에서 에러로 걸려 있던 것을 `window.location.assign(...)`으로 교체(동작 동일, 0 errors 기준선 복구). `.next` 캐시에 삭제된 토스 라우트 잔여 타입 참조가 있어 재생성.
+- 검증: `tsc`/`lint` 0 errors(기존 warning 기준선). 관리자 세션이 없어 화면에서 실제 아이콘 크기 조절은 확인하지 못했다.
+
 ## 2026-09-22 (사용자 요청 4건 — 실로플래닛 UX 보완, 회원가입 OAuth, 멤버십 권한 트리뷰, 글쓰기 버튼 아이콘화)
 - **실로플래닛 UX 보완(라이브 확인 중 발견)**: 자기 행성이 아직 없으면 클릭할 마커 자체가 없어 만들 방법이 없던 문제를 "🪐 내 행성 만들기" 버튼으로 해결, 회원 행성 목록 조회가 `session` 객체 참조 대신 `access_token` 문자열에 의존하도록 좁혀 불필요한 재요청 감소. "'사일로의 우주' 페이지에서는 좌/우 사이드바 아이콘이 안 나오게" — `Navbar.tsx`에서 `/silo-planet`일 때(관리자 편집 모드 제외) `LeftSidebar`/`RightSidebar` 자체를 렌더링하지 않음.
 - **회원가입 페이지에 구글/카카오 로그인 추가**: `/login`에 이미 있던 `signInWithOAuth(google/kakao)` 버튼을 `/signup`에도 동일하게 추가(OAuth는 최초 로그인 시 Supabase가 계정을 자동 생성해 가입/로그인 겸용이라 별도 처리 불필요).

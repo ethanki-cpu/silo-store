@@ -2238,12 +2238,32 @@ export function Navbar({
           해도 모든 하위 그룹의 2차 플라이아웃이 한꺼번에 열려버린다. */}
       <nav
         className="relative flex flex-wrap items-center justify-center gap-1 px-4 border-t border-gray-100"
+        // HOTFIX-161.4(사용자 신고 — "글쓰기 아이콘 hover 하면 나오는 이미지가
+        // flash 하기만 하고 안 나와"): 실제 원인은 hover 자체가 아니라
+        // z-index 충돌이었다(`document.elementFromPoint()`로 직접 확인,
+        // HOTFIX-156.20과 같은 계열의 버그). `tier2OffsetPx`가 설정돼 있으면
+        // 이 <nav>에 `transform`이 붙는데, transform은 값이 0이든 아니든
+        // 그 자체로 새 stacking context를 만든다 — 그러면 이 <nav> 자손인
+        // 글쓰기 버튼(HeaderSlot이 dragged 상태에 주는 z-index:30, HeaderSlot.tsx)이
+        // 그 z-index를 <nav> 안에서만 쓰고, <nav> 자신은 그 바깥(로고 줄) 기준으로
+        // z-index:auto(≈0) 취급된다. 로고도 드래그돼 같은 z-index:30을 받고
+        // 화면상 글쓰기 아이콘과 겹치는 위치까지 옮겨진 상태라, 바깥 기준에서
+        // z:30(로고) vs z:auto(<nav> 전체)로 비교되면서 투명한 로고 슬롯 박스가
+        // 항상 이겨 마우스 이벤트를 가로챘다(아이콘 자체는 그 밑에서 그대로
+        // 보이니 시각적으로는 멀쩡해 보였다) — 아이콘 하나를 클릭/hover하려 할
+        // 때마다 실제로는 그 지점을 덮은 로고 슬롯이 이벤트를 받아갔다. <nav>가
+        // transform으로 stacking context가 되는 경우엔 명시적으로 같은
+        // z-index:30을 줘 로고 같은 다른 드래그된 슬롯과 최소한 동점(그 다음은
+        // DOM 순서 — <nav>가 로고 줄보다 뒤에 렌더링되니 이 경우엔 <nav> 쪽이
+        // 이긴다)으로 만든다.
         style={
           unifiedHeaderItems
             ? undefined
             : {
                 ...(topTabStyle?.rowHeightPx ? { minHeight: topTabStyle.rowHeightPx } : undefined),
-                ...(topTabStyle?.tier2OffsetPx ? { transform: `translateY(-${topTabStyle.tier2OffsetPx}px)` } : undefined),
+                ...(topTabStyle?.tier2OffsetPx
+                  ? { transform: `translateY(-${topTabStyle.tier2OffsetPx}px)`, position: "relative", zIndex: 30 }
+                  : undefined),
               }
         }
       >

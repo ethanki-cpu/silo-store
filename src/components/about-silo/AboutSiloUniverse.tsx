@@ -2512,10 +2512,22 @@ export function AboutSiloUniverse() {
 
   useEffect(() => {
     loadMemberPlanets();
+    // AuthProvider가 초기화 과정에서 session 객체 참조를 여러 번 새로 만들어도
+    // access_token 값 자체가 같으면 다시 불러올 필요가 없다 — 문자열 하나로
+    // 의존성을 좁혀 불필요한 재요청을 줄인다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, [session?.access_token]);
 
   const selectedMemberPlanet = memberPlanets.find((p) => p.member_id === selectedMemberPlanetId) ?? null;
+  const hasOwnPlanet = memberPlanets.some((p) => p.is_mine);
+  // 아직 자기 행성이 없으면(member_planets에 행이 없음) 클릭할 마커 자체가
+  // 없어 만들 방법이 없다 — "내 행성 만들기" 버튼으로 이 가상(초안) 항목을
+  // 선택한 것처럼 취급해 기존 MemberPlanetPanel을 그대로 재사용한다.
+  const [creatingOwnPlanet, setCreatingOwnPlanet] = useState(false);
+  const draftOwnPlanet: MemberPlanet | null =
+    creatingOwnPlanet && member
+      ? { id: "", member_id: member.id, member_name: member.name, glb_url: null, like_count: 0, liked_by_me: false, is_mine: true }
+      : null;
 
   async function handleTogglePlanetLike() {
     if (!session || !selectedMemberPlanetId) return;
@@ -2537,6 +2549,7 @@ export function AboutSiloUniverse() {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error ?? "저장에 실패했어요.");
     }
+    setCreatingOwnPlanet(false);
     loadMemberPlanets();
   }
 
@@ -3132,15 +3145,28 @@ export function AboutSiloUniverse() {
           />
         )}
 
-        {selectedMemberPlanet && (
+        {(selectedMemberPlanet || draftOwnPlanet) && (
           <MemberPlanetPanel
-            planet={selectedMemberPlanet}
+            planet={selectedMemberPlanet ?? draftOwnPlanet!}
             canLike={canLikePlanet}
             canUploadOwn={canUploadOwnPlanet}
-            onClose={() => setSelectedMemberPlanetId(null)}
+            onClose={() => {
+              setSelectedMemberPlanetId(null);
+              setCreatingOwnPlanet(false);
+            }}
             onToggleLike={handleTogglePlanetLike}
             onUploadGlb={handleUploadPlanetGlb}
           />
+        )}
+
+        {canUploadOwnPlanet && !hasOwnPlanet && !creatingOwnPlanet && (
+          <button
+            type="button"
+            onClick={() => setCreatingOwnPlanet(true)}
+            className="pointer-events-auto absolute bottom-6 left-6 z-40 rounded-full border border-amber-300/40 bg-black/60 px-4 py-2 text-xs text-amber-200 backdrop-blur-sm hover:bg-black/80"
+          >
+            🪐 내 행성 만들기
+          </button>
         )}
 
         {canProposeToUniverse && session && <SiloPlanetProposeButton accessToken={session.access_token} />}

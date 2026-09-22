@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
-import { INDIVIDUAL_BOARD_DEFINITIONS, type IndividualBoardSlug } from "@/lib/boardLayout";
+import {
+  fetchNavBranches,
+  fetchBoardBranchMap,
+  buildAdminTree,
+  type NavBranchNode,
+  type AdminTreeRow,
+} from "@/lib/adminTreeGrouping";
 
 // EPIC-161: 게시판별 멤버십 권한 매트릭스 — 행=게시판, 열=등급, 셀=태그(열람/
 // 게시글열람/댓글/좋아요/북마크/글쓰기). 데이터는 boards의 min_rank_to_* 컬럼
@@ -84,86 +90,20 @@ const BADGE_OPTIONS: { value: number | null; label: string }[] = [
   { value: 4, label: "Lautrec부터" },
 ];
 
-// EPIC-161 Phase 4(사용자 지시 — "'사이트 구성관리'의 사이트 메뉴처럼 상하위
-// 카테고리 순서대로 펼치고 닫을 수 있게"): boardLayout.ts의
-// INDIVIDUAL_BOARD_DEFINITIONS가 이미 각 게시판의 parent/title_ko를 갖고
-// 있어(사이트 메뉴 트리와 같은 근거) DB를 새로 조회하지 않고 이 코드 상의
-// 계층을 그대로 재사용한다 — 실제 게시판 행이 없는 상위 카테고리(예:
-// "Gallery" 허브 자체는 boards 행일 수도, 아닐 수도 있음)는 순수 폴더
-// 헤더로만 표시한다.
-type TreeNode = {
-  key: string;
-  title: string;
-  board: BoardRow | null;
-  children: TreeNode[];
-};
-
-function labelFor(slug: string): string {
-  if (slug in INDIVIDUAL_BOARD_DEFINITIONS) {
-    return INDIVIDUAL_BOARD_DEFINITIONS[slug as IndividualBoardSlug].title_ko;
-  }
-  return slug;
-}
-
-function parentOf(slug: string): string | null {
-  if (slug in INDIVIDUAL_BOARD_DEFINITIONS) {
-    return INDIVIDUAL_BOARD_DEFINITIONS[slug as IndividualBoardSlug].parent;
-  }
-  return null;
-}
-
-function buildTree(boards: BoardRow[]): { roots: TreeNode[]; unmatched: BoardRow[] } {
-  const nodes = new Map<string, TreeNode>();
-  const unmatched: BoardRow[] = [];
-
-  function ensureNode(slug: string): TreeNode {
-    let node = nodes.get(slug);
-    if (!node) {
-      node = { key: slug, title: labelFor(slug), board: null, children: [] };
-      nodes.set(slug, node);
-    }
-    return node;
-  }
-
-  for (const board of boards) {
-    const category = board.category;
-    if (!category || !(category in INDIVIDUAL_BOARD_DEFINITIONS)) {
-      unmatched.push(board);
-      continue;
-    }
-    ensureNode(category).board = board;
-  }
-
-  // 모든 노드(게시판이 있는 것 + 순수 폴더)를 parent 체인 끝까지 만들어둔다.
-  for (const slug of [...nodes.keys()]) {
-    let cur: string | null = slug;
-    while (cur) {
-      const parent: string | null = parentOf(cur);
-      if (!parent) break;
-      ensureNode(parent);
-      cur = parent;
-    }
-  }
-
-  const roots: TreeNode[] = [];
-  for (const [slug, node] of nodes) {
-    const parent = parentOf(slug);
-    if (parent && nodes.has(parent)) {
-      nodes.get(parent)!.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-
-  const sortByTitle = (a: TreeNode, b: TreeNode) => a.title.localeCompare(b.title, "ko");
-  function sortTree(list: TreeNode[]) {
-    list.sort(sortByTitle);
-    for (const n of list) sortTree(n.children);
-  }
-  sortTree(roots);
-
-  return { roots, unmatched };
-}
+// HOTFIX-161.6(사용자 신고 — "여전히 내가 원하는 스크린샷의 상위 카테고리와
+// 그 아래 하위 카테고리가 아니야"): EPIC-161 Phase 4가 만든 트리는
+// boardLayout.ts의 INDIVIDUAL_BOARD_DEFINITIONS(코드에 하드코딩된 parent/
+// title_ko)를 근거로 삼았는데, 이건 "/admin/site-structure"(사이트 메뉴,
+// 사용자가 원하는 실제 기준 화면)가 보여주는 실제 site_navigations 트리와
+// 다른 별개의 분류 체계였다 — 그래서 상위/하위 카테고리가 실제 사이트
+// 메뉴와 안 맞았다. adminTreeGrouping.ts(fetchNavBranches/fetchBoardBranchMap/
+// buildAdminTree)가 이미 "전체 글 관리"(AdminPostsBoardView.tsx)에서 같은
+// 문제(게시글을 실제 site_navigations 트리 기준으로 보여주기)를 정확히
+// 풀어둔 공용 유틸이다 — 새로 만들지 않고 그대로 재사용한다: 게시판의
+// "진짜 소속"은 그 게시판을 board 위젯으로 연결한 페이지가 site_navigations
+// 트리의 어느 가지에 있는지로 정확히 계산되고(카테고리 문자열 매칭이
+// 아니라 실제 연결 관계), 매칭 안 되는 게시판은 "기타 / 미분류" 버킷으로
+// (buildAdminTree가 자동으로) 모인다.
 
 export default function BoardPermissionsPage() {
   const { session, member, loading, memberLoading } = useAuth();
@@ -174,23 +114,42 @@ export default function BoardPermissionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
+  // HOTFIX-161.6: 게시판 목록과 나란히, 실제 site_navigations 트리(branches)
+  // + "이 게시판이 그 트리의 어느 가지에 연결됐는지"(boardBranchMap)를
+  // 함께 불러온다 — /admin/site-structure(사이트 메뉴)와 완전히 같은
+  // 근거 데이터라 거기 보이는 상위/하위 구조가 여기서도 그대로 재현된다.
+  const [branches, setBranches] = useState<NavBranchNode[]>([]);
+  const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
+
   useEffect(() => {
     if (loading || memberLoading || !session || !member?.is_admin) return;
     let cancelled = false;
-    fetch("/api/admin/boards", {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
-      .then((res) => res.json())
-      .then((data: BoardRow[]) => {
+    (async () => {
+      try {
+        const [res, navBranches] = await Promise.all([
+          fetch("/api/admin/boards", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+          fetchNavBranches(),
+        ]);
+        const data: BoardRow[] = await res.json();
         if (cancelled) return;
+        if (!res.ok) {
+          setError("게시판 목록을 불러오지 못했어요.");
+          return;
+        }
+        const branchMap = await fetchBoardBranchMap(navBranches);
+        if (cancelled) return;
+        setBranches(navBranches);
+        setBoardBranchMap(branchMap);
         setBoards(data);
         const initial: Record<string, BoardRow> = {};
         for (const b of data) initial[b.id] = b;
         setDrafts(initial);
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setError("게시판 목록을 불러오지 못했어요.");
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -205,10 +164,13 @@ export default function BoardPermissionsPage() {
     );
   }, [boards, filter]);
 
-  const { roots, unmatched } = useMemo(() => buildTree(boards ?? []), [boards]);
+  const treeRows = useMemo(
+    () => buildAdminTree(boards ?? [], (b) => boardBranchMap.get(b.id) ?? null, branches, "all"),
+    [boards, boardBranchMap, branches],
+  );
 
   // 기본은 전부 펼친 상태(매트릭스를 훑어보는 화면이라 접혀 있으면 오히려
-  // 불편) — 이 Set에 들어있는 키만 접힌 것으로 취급한다.
+  // 불편) — 이 Set에 들어있는 브랜치 id만 접힌 것으로 취급한다.
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
   function toggleCollapsed(key: string) {
     setCollapsedKeys((prev) => {
@@ -218,6 +180,26 @@ export default function BoardPermissionsPage() {
       return next;
     });
   }
+
+  // buildAdminTree는 항상 "펼친" 평면 목록을 주므로, 접힌 브랜치의 자손
+  // (더 깊은 depth의 뒤따르는 행들)을 걸러내는 건 이 화면에서 처리한다 —
+  // depth-first로 순회하다 접힌 브랜치를 만나면 그보다 깊은 행을 다음에
+  // depth가 그 이하로 돌아올 때까지 스킵한다.
+  const visibleRows = useMemo(() => {
+    const rows: AdminTreeRow<BoardRow>[] = [];
+    let hideDeeperThan: number | null = null;
+    for (const row of treeRows) {
+      if (hideDeeperThan !== null) {
+        if (row.depth > hideDeeperThan) continue;
+        hideDeeperThan = null;
+      }
+      rows.push(row);
+      if (row.kind === "branch" && collapsedKeys.has(row.id)) {
+        hideDeeperThan = row.depth;
+      }
+    }
+    return rows;
+  }, [treeRows, collapsedKeys]);
 
   function updateDraft(boardId: string, patch: Partial<BoardRow>) {
     setDrafts((prev) => ({ ...prev, [boardId]: { ...prev[boardId], ...patch } }));
@@ -324,71 +306,62 @@ export default function BoardPermissionsPage() {
               </tr>
             </thead>
             <tbody>
-              {filter.trim() ? (
-                filtered.map((board) => (
-                  <BoardEditorRow
-                    key={board.id}
-                    board={board}
-                    depth={0}
-                    draft={drafts[board.id] ?? board}
-                    dirty={isDirty(board.id)}
-                    saving={saving === board.id}
-                    savedAt={!!savedAt[board.id]}
-                    onUpdate={updateDraft}
-                    onUpdateDailyLimit={updateDailyLimit}
-                    onSave={save}
-                  />
-                ))
-              ) : (
-                <TreeRows
-                  nodes={roots}
-                  depth={0}
-                  collapsedKeys={collapsedKeys}
-                  onToggleCollapsed={toggleCollapsed}
-                  drafts={drafts}
-                  saving={saving}
-                  savedAt={savedAt}
-                  onUpdate={updateDraft}
-                  onUpdateDailyLimit={updateDailyLimit}
-                  onSave={save}
-                  isDirty={isDirty}
-                />
-              )}
-              {!filter.trim() &&
-                unmatched.map((board) => (
-                  <BoardEditorRow
-                    key={board.id}
-                    board={board}
-                    depth={0}
-                    draft={drafts[board.id] ?? board}
-                    dirty={isDirty(board.id)}
-                    saving={saving === board.id}
-                    savedAt={!!savedAt[board.id]}
-                    onUpdate={updateDraft}
-                    onUpdateDailyLimit={updateDailyLimit}
-                    onSave={save}
-                  />
-                ))}
+              {filter.trim()
+                ? filtered.map((board) => (
+                    <BoardEditorRow
+                      key={board.id}
+                      board={board}
+                      depth={0}
+                      draft={drafts[board.id] ?? board}
+                      dirty={isDirty(board.id)}
+                      saving={saving === board.id}
+                      savedAt={!!savedAt[board.id]}
+                      onUpdate={updateDraft}
+                      onUpdateDailyLimit={updateDailyLimit}
+                      onSave={save}
+                    />
+                  ))
+                : visibleRows.map((row) =>
+                    row.kind === "branch" ? (
+                      <FolderHeaderRow
+                        key={`branch-${row.id}`}
+                        title={row.title}
+                        depth={row.depth}
+                        collapsed={collapsedKeys.has(row.id)}
+                        onToggle={() => toggleCollapsed(row.id)}
+                      />
+                    ) : (
+                      <BoardEditorRow
+                        key={row.item.id}
+                        board={row.item}
+                        depth={row.depth}
+                        draft={drafts[row.item.id] ?? row.item}
+                        dirty={isDirty(row.item.id)}
+                        saving={saving === row.item.id}
+                        savedAt={!!savedAt[row.item.id]}
+                        onUpdate={updateDraft}
+                        onUpdateDailyLimit={updateDailyLimit}
+                        onSave={save}
+                      />
+                    ),
+                  )}
             </tbody>
           </table>
-          {!filter.trim() && unmatched.length > 0 && (
-            <p className="mt-2 text-[11px] text-gray-400">
-              위 {unmatched.length}개는 사이트 메뉴 카테고리 체계에 없는 게시판이라 미분류로 맨 아래 표시했어요.
-            </p>
-          )}
         </div>
       )}
     </main>
   );
 }
 
+// HOTFIX-161.6: buildAdminTree가 이미 펼친 평면 목록(branch/item)을 주므로
+// 재귀 렌더링 컴포넌트가 더 필요 없다 — 폴더 헤더 하나만 남았다.
 function FolderHeaderRow({
-  node,
+  title,
   depth,
   collapsed,
   onToggle,
 }: {
-  node: TreeNode;
+  title: string;
   depth: number;
   collapsed: boolean;
   onToggle: () => void;
@@ -403,87 +376,11 @@ function FolderHeaderRow({
           className="flex items-center gap-1.5 font-semibold text-gray-700"
         >
           <span className="inline-block w-3 text-gray-400">{collapsed ? "▶" : "▼"}</span>
-          📁 {node.title}
+          📁 {title}
         </button>
       </td>
     </tr>
   );
-}
-
-function TreeRows({
-  nodes,
-  depth,
-  collapsedKeys,
-  onToggleCollapsed,
-  drafts,
-  saving,
-  savedAt,
-  onUpdate,
-  onUpdateDailyLimit,
-  onSave,
-  isDirty,
-}: {
-  nodes: TreeNode[];
-  depth: number;
-  collapsedKeys: Set<string>;
-  onToggleCollapsed: (key: string) => void;
-  drafts: Record<string, BoardRow>;
-  saving: string | null;
-  savedAt: Record<string, number>;
-  onUpdate: (boardId: string, patch: Partial<BoardRow>) => void;
-  onUpdateDailyLimit: (boardId: string, tierRank: number, raw: string) => void;
-  onSave: (boardId: string) => void;
-  isDirty: (boardId: string) => boolean;
-}) {
-  return (
-    <>
-      {nodes.map((node) => {
-        const hasChildren = node.children.length > 0;
-        const collapsed = collapsedKeys.has(node.key);
-        return (
-          <FragmentNode key={node.key}>
-            {hasChildren && (
-              <FolderHeaderRow node={node} depth={depth} collapsed={collapsed} onToggle={() => onToggleCollapsed(node.key)} />
-            )}
-            {(!hasChildren || !collapsed) && node.board && (
-              <BoardEditorRow
-                board={node.board}
-                depth={hasChildren ? depth + 1 : depth}
-                draft={drafts[node.board.id] ?? node.board}
-                dirty={isDirty(node.board.id)}
-                saving={saving === node.board.id}
-                savedAt={!!savedAt[node.board.id]}
-                onUpdate={onUpdate}
-                onUpdateDailyLimit={onUpdateDailyLimit}
-                onSave={onSave}
-              />
-            )}
-            {hasChildren && !collapsed && (
-              <TreeRows
-                nodes={node.children}
-                depth={depth + 1}
-                collapsedKeys={collapsedKeys}
-                onToggleCollapsed={onToggleCollapsed}
-                drafts={drafts}
-                saving={saving}
-                savedAt={savedAt}
-                onUpdate={onUpdate}
-                onUpdateDailyLimit={onUpdateDailyLimit}
-                onSave={onSave}
-                isDirty={isDirty}
-              />
-            )}
-          </FragmentNode>
-        );
-      })}
-    </>
-  );
-}
-
-// <tbody> 안에서는 React.Fragment 대신 실제 태그가 필요 없는 경우에도
-// key가 있는 감싸개가 필요해 별도 헬퍼로 뺐다(<>...</> 는 key를 못 받음).
-function FragmentNode({ children }: { children: ReactNode }) {
-  return <>{children}</>;
 }
 
 function BoardEditorRow({

@@ -1,3 +1,8 @@
+## 2026-09-23 (HOTFIX-161.6 — 멤버십 권한 페이지 트리를 실제 사이트 메뉴 구조로 재구성)
+- **사용자 신고**: "여전히 내가 원하는 스크린샷의 상위 카테고리와 그 아래 하위 카테고리가 아니야" — `/admin/board-permissions`가 EPIC-161 Phase 4에서 상하위 트리로 바뀌긴 했지만, 그 트리는 `boardLayout.ts`의 `INDIVIDUAL_BOARD_DEFINITIONS`(코드에 하드코딩된 parent/title_ko)를 근거로 삼아 실제 `/admin/site-structure`("사이트 메뉴", 사용자가 기준으로 삼은 화면)가 보여주는 진짜 `site_navigations` 트리와 다른 별개의 분류였다.
+- **수정**(`src/app/admin/board-permissions/page.tsx`): 새로 만들지 않고 `AdminPostsBoardView.tsx`(전체 글 관리)가 이미 같은 문제를 정확히 풀어둔 공용 유틸 `adminTreeGrouping.ts`(`fetchNavBranches`/`fetchBoardBranchMap`/`buildAdminTree`)를 그대로 재사용 — 게시판의 소속을 "카테고리 문자열 매칭"이 아니라 "그 게시판을 board 위젯으로 연결한 페이지가 실제 site_navigations 트리의 어느 가지에 있는가"로 정확히 계산한다. 결과적으로 `/admin/site-structure`에서 보이는 것과 완전히 같은 상위(About Silo/사일로 상점/살롱데상/온라인 도슨트/스튜디오/마이 페이지)·하위 구조가 그대로 재현된다. 매칭 안 되는 게시판은 `buildAdminTree`가 자동으로 만드는 "기타 / 미분류" 버킷에 모인다(기존 로직 제거 — 중복 구현 없앰). 펼치기/접기는 `buildAdminTree`가 주는 평면(flat) 목록 위에 이 화면에서 depth 기준으로 직접 필터링해 구현.
+- 검증: `tsc --noEmit`/`npm run lint`(신규 경고 없음), 로컬에서 실제 렌더링 확인(About Silo/사일로 상점/살롱데상 등 최상위 폴더 + 그 아래 실제 하위 게시판 트리 확인, 폴더 펼치기/접기 정상 동작 확인).
+
 ## 2026-09-23 (HOTFIX-161.5 — 아이콘 위에 새로 보이던 선 제거)
 - **사용자 신고**: "아이콘들 위에 줄이 생겼어 없애줘" — 스크린샷으로 확인. `<nav>`(탭 줄)에 원래부터 있던 `border-t border-gray-100`(1단/2단 탭 줄을 구분하는 옅은 장식선)이 원인. 이 선은 예전부터 존재했지만, 지금까지는 다른 헤더 요소들에 가려 실제로는 보이지 않았다 — 방금 연달아 고친 HOTFIX-161.3(아이콘 `max-width` 캡 해제로 아이콘이 실제 설정한 큰 크기로 보이기 시작함)과 HOTFIX-161.4(`<nav>`가 로고와 같은 자리에서 정상적으로 위에 쌓이도록 z-index를 고침)가 둘 다 "가려져 있던 것을 제대로 보이게" 만드는 수정이었던 부수 효과로, `<nav>` 밖까지 삐져나온 큰 아이콘들 위에 이 구분선이 처음으로 드러난 것 — 새로 생긴 버그가 아니라 다른 버그를 걷어내며 드러난 기존 요소.
 - **수정**(`Navbar.tsx`): `<nav>`의 `border-t border-gray-100`을 제거. 순수 장식용 옅은 구분선이라 기능에는 영향 없음.

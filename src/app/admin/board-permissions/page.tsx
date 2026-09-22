@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/AuthProvider";
+import { INDIVIDUAL_BOARD_DEFINITIONS, type IndividualBoardSlug } from "@/lib/boardLayout";
 
 // EPIC-161: 게시판별 멤버십 권한 매트릭스 — 행=게시판, 열=등급, 셀=태그(열람/
 // 게시글열람/댓글/좋아요/북마크/글쓰기). 데이터는 boards의 min_rank_to_* 컬럼
@@ -83,6 +84,87 @@ const BADGE_OPTIONS: { value: number | null; label: string }[] = [
   { value: 4, label: "Lautrec부터" },
 ];
 
+// EPIC-161 Phase 4(사용자 지시 — "'사이트 구성관리'의 사이트 메뉴처럼 상하위
+// 카테고리 순서대로 펼치고 닫을 수 있게"): boardLayout.ts의
+// INDIVIDUAL_BOARD_DEFINITIONS가 이미 각 게시판의 parent/title_ko를 갖고
+// 있어(사이트 메뉴 트리와 같은 근거) DB를 새로 조회하지 않고 이 코드 상의
+// 계층을 그대로 재사용한다 — 실제 게시판 행이 없는 상위 카테고리(예:
+// "Gallery" 허브 자체는 boards 행일 수도, 아닐 수도 있음)는 순수 폴더
+// 헤더로만 표시한다.
+type TreeNode = {
+  key: string;
+  title: string;
+  board: BoardRow | null;
+  children: TreeNode[];
+};
+
+function labelFor(slug: string): string {
+  if (slug in INDIVIDUAL_BOARD_DEFINITIONS) {
+    return INDIVIDUAL_BOARD_DEFINITIONS[slug as IndividualBoardSlug].title_ko;
+  }
+  return slug;
+}
+
+function parentOf(slug: string): string | null {
+  if (slug in INDIVIDUAL_BOARD_DEFINITIONS) {
+    return INDIVIDUAL_BOARD_DEFINITIONS[slug as IndividualBoardSlug].parent;
+  }
+  return null;
+}
+
+function buildTree(boards: BoardRow[]): { roots: TreeNode[]; unmatched: BoardRow[] } {
+  const nodes = new Map<string, TreeNode>();
+  const unmatched: BoardRow[] = [];
+
+  function ensureNode(slug: string): TreeNode {
+    let node = nodes.get(slug);
+    if (!node) {
+      node = { key: slug, title: labelFor(slug), board: null, children: [] };
+      nodes.set(slug, node);
+    }
+    return node;
+  }
+
+  for (const board of boards) {
+    const category = board.category;
+    if (!category || !(category in INDIVIDUAL_BOARD_DEFINITIONS)) {
+      unmatched.push(board);
+      continue;
+    }
+    ensureNode(category).board = board;
+  }
+
+  // 모든 노드(게시판이 있는 것 + 순수 폴더)를 parent 체인 끝까지 만들어둔다.
+  for (const slug of [...nodes.keys()]) {
+    let cur: string | null = slug;
+    while (cur) {
+      const parent: string | null = parentOf(cur);
+      if (!parent) break;
+      ensureNode(parent);
+      cur = parent;
+    }
+  }
+
+  const roots: TreeNode[] = [];
+  for (const [slug, node] of nodes) {
+    const parent = parentOf(slug);
+    if (parent && nodes.has(parent)) {
+      nodes.get(parent)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  const sortByTitle = (a: TreeNode, b: TreeNode) => a.title.localeCompare(b.title, "ko");
+  function sortTree(list: TreeNode[]) {
+    list.sort(sortByTitle);
+    for (const n of list) sortTree(n.children);
+  }
+  sortTree(roots);
+
+  return { roots, unmatched };
+}
+
 export default function BoardPermissionsPage() {
   const { session, member, loading, memberLoading } = useAuth();
   const [boards, setBoards] = useState<BoardRow[] | null>(null);
@@ -122,6 +204,20 @@ export default function BoardPermissionsPage() {
       (b) => b.name?.toLowerCase().includes(q) || b.category?.toLowerCase().includes(q),
     );
   }, [boards, filter]);
+
+  const { roots, unmatched } = useMemo(() => buildTree(boards ?? []), [boards]);
+
+  // 기본은 전부 펼친 상태(매트릭스를 훑어보는 화면이라 접혀 있으면 오히려
+  // 불편) — 이 Set에 들어있는 키만 접힌 것으로 취급한다.
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
+  function toggleCollapsed(key: string) {
+    setCollapsedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   function updateDraft(boardId: string, patch: Partial<BoardRow>) {
     setDrafts((prev) => ({ ...prev, [boardId]: { ...prev[boardId], ...patch } }));
@@ -228,90 +324,257 @@ export default function BoardPermissionsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((board) => {
-                const draft = drafts[board.id] ?? board;
-                const dirty = isDirty(board.id);
-                return (
-                  <tr key={board.id} className="border-b border-gray-100 align-top">
-                    <td className="sticky left-0 bg-white p-2 pr-4">
-                      <div className="font-medium text-gray-900">{board.name}</div>
-                      <div className="text-gray-400">{board.category}</div>
-                    </td>
-                    {TIERS.map((tier) => (
-                      <td key={tier.label} className="p-2">
-                        <div className="flex flex-wrap gap-1">
-                          {CAPS.map((cap) => {
-                            const granted = isGranted(draft[cap.key] as number | null, tier.rank);
-                            return (
-                              <button
-                                key={cap.key}
-                                type="button"
-                                onClick={() =>
-                                  updateDraft(board.id, {
-                                    [cap.key]: toggle(draft[cap.key] as number | null, tier.rank),
-                                  } as Partial<BoardRow>)
-                                }
-                                className={`rounded-full border px-1.5 py-0.5 whitespace-nowrap ${
-                                  granted
-                                    ? "border-gray-800 bg-gray-800 text-white"
-                                    : "border-gray-200 bg-white text-gray-300"
-                                }`}
-                              >
-                                {cap.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {tier.rank != null && (
-                          <div className="mt-1 flex items-center gap-1 text-gray-400">
-                            <span>일일</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={draft.daily_view_limits?.[String(tier.rank)] ?? ""}
-                              onChange={(e) => updateDailyLimit(board.id, tier.rank as number, e.target.value)}
-                              placeholder="무제한"
-                              className="w-14 rounded border border-gray-200 px-1 py-0.5 text-gray-700"
-                            />
-                          </div>
-                        )}
-                      </td>
-                    ))}
-                    <td className="p-2">
-                      <select
-                        value={draft.badge_min_rank ?? ""}
-                        onChange={(e) =>
-                          updateDraft(board.id, {
-                            badge_min_rank: e.target.value === "" ? null : Number(e.target.value),
-                          })
-                        }
-                        className="rounded-md border border-gray-300 px-1.5 py-1"
-                      >
-                        {BADGE_OPTIONS.map((opt) => (
-                          <option key={opt.label} value={opt.value ?? ""}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-2">
-                      <button
-                        type="button"
-                        onClick={() => save(board.id)}
-                        disabled={!dirty || saving === board.id}
-                        className="rounded-md bg-gray-900 px-3 py-1 text-white disabled:opacity-40"
-                      >
-                        {saving === board.id ? "저장 중..." : "저장"}
-                      </button>
-                      {!dirty && savedAt[board.id] && <span className="ml-2 text-green-600">저장됨</span>}
-                    </td>
-                  </tr>
-                );
-              })}
+              {filter.trim() ? (
+                filtered.map((board) => (
+                  <BoardEditorRow
+                    key={board.id}
+                    board={board}
+                    depth={0}
+                    draft={drafts[board.id] ?? board}
+                    dirty={isDirty(board.id)}
+                    saving={saving === board.id}
+                    savedAt={!!savedAt[board.id]}
+                    onUpdate={updateDraft}
+                    onUpdateDailyLimit={updateDailyLimit}
+                    onSave={save}
+                  />
+                ))
+              ) : (
+                <TreeRows
+                  nodes={roots}
+                  depth={0}
+                  collapsedKeys={collapsedKeys}
+                  onToggleCollapsed={toggleCollapsed}
+                  drafts={drafts}
+                  saving={saving}
+                  savedAt={savedAt}
+                  onUpdate={updateDraft}
+                  onUpdateDailyLimit={updateDailyLimit}
+                  onSave={save}
+                  isDirty={isDirty}
+                />
+              )}
+              {!filter.trim() &&
+                unmatched.map((board) => (
+                  <BoardEditorRow
+                    key={board.id}
+                    board={board}
+                    depth={0}
+                    draft={drafts[board.id] ?? board}
+                    dirty={isDirty(board.id)}
+                    saving={saving === board.id}
+                    savedAt={!!savedAt[board.id]}
+                    onUpdate={updateDraft}
+                    onUpdateDailyLimit={updateDailyLimit}
+                    onSave={save}
+                  />
+                ))}
             </tbody>
           </table>
+          {!filter.trim() && unmatched.length > 0 && (
+            <p className="mt-2 text-[11px] text-gray-400">
+              위 {unmatched.length}개는 사이트 메뉴 카테고리 체계에 없는 게시판이라 미분류로 맨 아래 표시했어요.
+            </p>
+          )}
         </div>
       )}
     </main>
+  );
+}
+
+function FolderHeaderRow({
+  node,
+  depth,
+  collapsed,
+  onToggle,
+}: {
+  node: TreeNode;
+  depth: number;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <tr className="border-b border-gray-100 bg-gray-50">
+      <td colSpan={TIERS.length + 3} className="sticky left-0 bg-gray-50 p-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          style={{ paddingLeft: depth * 16 }}
+          className="flex items-center gap-1.5 font-semibold text-gray-700"
+        >
+          <span className="inline-block w-3 text-gray-400">{collapsed ? "▶" : "▼"}</span>
+          📁 {node.title}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function TreeRows({
+  nodes,
+  depth,
+  collapsedKeys,
+  onToggleCollapsed,
+  drafts,
+  saving,
+  savedAt,
+  onUpdate,
+  onUpdateDailyLimit,
+  onSave,
+  isDirty,
+}: {
+  nodes: TreeNode[];
+  depth: number;
+  collapsedKeys: Set<string>;
+  onToggleCollapsed: (key: string) => void;
+  drafts: Record<string, BoardRow>;
+  saving: string | null;
+  savedAt: Record<string, number>;
+  onUpdate: (boardId: string, patch: Partial<BoardRow>) => void;
+  onUpdateDailyLimit: (boardId: string, tierRank: number, raw: string) => void;
+  onSave: (boardId: string) => void;
+  isDirty: (boardId: string) => boolean;
+}) {
+  return (
+    <>
+      {nodes.map((node) => {
+        const hasChildren = node.children.length > 0;
+        const collapsed = collapsedKeys.has(node.key);
+        return (
+          <FragmentNode key={node.key}>
+            {hasChildren && (
+              <FolderHeaderRow node={node} depth={depth} collapsed={collapsed} onToggle={() => onToggleCollapsed(node.key)} />
+            )}
+            {(!hasChildren || !collapsed) && node.board && (
+              <BoardEditorRow
+                board={node.board}
+                depth={hasChildren ? depth + 1 : depth}
+                draft={drafts[node.board.id] ?? node.board}
+                dirty={isDirty(node.board.id)}
+                saving={saving === node.board.id}
+                savedAt={!!savedAt[node.board.id]}
+                onUpdate={onUpdate}
+                onUpdateDailyLimit={onUpdateDailyLimit}
+                onSave={onSave}
+              />
+            )}
+            {hasChildren && !collapsed && (
+              <TreeRows
+                nodes={node.children}
+                depth={depth + 1}
+                collapsedKeys={collapsedKeys}
+                onToggleCollapsed={onToggleCollapsed}
+                drafts={drafts}
+                saving={saving}
+                savedAt={savedAt}
+                onUpdate={onUpdate}
+                onUpdateDailyLimit={onUpdateDailyLimit}
+                onSave={onSave}
+                isDirty={isDirty}
+              />
+            )}
+          </FragmentNode>
+        );
+      })}
+    </>
+  );
+}
+
+// <tbody> 안에서는 React.Fragment 대신 실제 태그가 필요 없는 경우에도
+// key가 있는 감싸개가 필요해 별도 헬퍼로 뺐다(<>...</> 는 key를 못 받음).
+function FragmentNode({ children }: { children: ReactNode }) {
+  return <>{children}</>;
+}
+
+function BoardEditorRow({
+  board,
+  depth,
+  draft,
+  dirty,
+  saving,
+  savedAt,
+  onUpdate,
+  onUpdateDailyLimit,
+  onSave,
+}: {
+  board: BoardRow;
+  depth: number;
+  draft: BoardRow;
+  dirty: boolean;
+  saving: boolean;
+  savedAt: boolean;
+  onUpdate: (boardId: string, patch: Partial<BoardRow>) => void;
+  onUpdateDailyLimit: (boardId: string, tierRank: number, raw: string) => void;
+  onSave: (boardId: string) => void;
+}) {
+  return (
+    <tr className="border-b border-gray-100 align-top">
+      <td className="sticky left-0 bg-white p-2 pr-4" style={{ paddingLeft: 8 + depth * 16 }}>
+        <div className="font-medium text-gray-900">{board.name}</div>
+        <div className="text-gray-400">{board.category}</div>
+      </td>
+      {TIERS.map((tier) => (
+        <td key={tier.label} className="p-2">
+          <div className="flex flex-wrap gap-1">
+            {CAPS.map((cap) => {
+              const granted = isGranted(draft[cap.key] as number | null, tier.rank);
+              return (
+                <button
+                  key={cap.key}
+                  type="button"
+                  onClick={() =>
+                    onUpdate(board.id, {
+                      [cap.key]: toggle(draft[cap.key] as number | null, tier.rank),
+                    } as Partial<BoardRow>)
+                  }
+                  className={`rounded-full border px-1.5 py-0.5 whitespace-nowrap ${
+                    granted ? "border-gray-800 bg-gray-800 text-white" : "border-gray-200 bg-white text-gray-300"
+                  }`}
+                >
+                  {cap.label}
+                </button>
+              );
+            })}
+          </div>
+          {tier.rank != null && (
+            <div className="mt-1 flex items-center gap-1 text-gray-400">
+              <span>일일</span>
+              <input
+                type="number"
+                min={0}
+                value={draft.daily_view_limits?.[String(tier.rank)] ?? ""}
+                onChange={(e) => onUpdateDailyLimit(board.id, tier.rank as number, e.target.value)}
+                placeholder="무제한"
+                className="w-14 rounded border border-gray-200 px-1 py-0.5 text-gray-700"
+              />
+            </div>
+          )}
+        </td>
+      ))}
+      <td className="p-2">
+        <select
+          value={draft.badge_min_rank ?? ""}
+          onChange={(e) => onUpdate(board.id, { badge_min_rank: e.target.value === "" ? null : Number(e.target.value) })}
+          className="rounded-md border border-gray-300 px-1.5 py-1"
+        >
+          {BADGE_OPTIONS.map((opt) => (
+            <option key={opt.label} value={opt.value ?? ""}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="p-2">
+        <button
+          type="button"
+          onClick={() => onSave(board.id)}
+          disabled={!dirty || saving}
+          className="rounded-md bg-gray-900 px-3 py-1 text-white disabled:opacity-40"
+        >
+          {saving ? "저장 중..." : "저장"}
+        </button>
+        {!dirty && savedAt && <span className="ml-2 text-green-600">저장됨</span>}
+      </td>
+    </tr>
   );
 }

@@ -996,7 +996,16 @@ export function Navbar({
             <img
               src={writeButtonIconUrl}
               alt={label}
-              style={{ width: writeButtonIconSizePx, height: writeButtonIconSizePx }}
+              // HOTFIX-161.3(사용자 신고 — "글쓰기 아이콘 크기를 크게 해도 왜
+              // 그대로인거야?"): 방금 위에서 래퍼를 고정 24px로 만들었더니
+              // (HOTFIX-161.2), Tailwind Preflight의 기본 `img { max-width:
+              // 100% }`가 이 절대 위치 img의 containing block(래퍼, 24px)
+              // 기준으로 폭을 다시 24px로 눌러버렸다 — inline style의
+              // width는 값을 지정할 뿐 max-width를 이기지 못해(서로 다른
+              // 속성) 설정한 크기가 시각적으로도 항상 24px로 잘려 보였다.
+              // max-width/max-height를 "none"으로 명시해 그 캡을 풀어야
+              // 실제로 설정한 크기(writeButtonIconSizePx)만큼 커진다.
+              style={{ width: writeButtonIconSizePx, height: writeButtonIconSizePx, maxWidth: "none", maxHeight: "none" }}
               className={writeButtonIconHoverUrl ? "absolute inset-0 m-auto object-contain group-hover:opacity-0" : "absolute inset-0 m-auto object-contain"}
             />
             {writeButtonIconHoverUrl && (
@@ -1004,7 +1013,7 @@ export function Navbar({
               <img
                 src={writeButtonIconHoverUrl}
                 alt={label}
-                style={{ width: writeButtonIconHoverSizePx, height: writeButtonIconHoverSizePx }}
+                style={{ width: writeButtonIconHoverSizePx, height: writeButtonIconHoverSizePx, maxWidth: "none", maxHeight: "none" }}
                 className="absolute inset-0 m-auto object-contain opacity-0 group-hover:opacity-100"
               />
             )}
@@ -1478,7 +1487,10 @@ export function Navbar({
               <img
                 src={tierIconUrl}
                 alt={member.tier_name}
-                style={{ width: tierIconSizePx, height: tierIconSizePx }}
+                // HOTFIX-161.3: 글쓰기 아이콘과 같은 이유(Tailwind Preflight
+                // img{max-width:100%}가 고정 24px 래퍼 기준으로 폭을 눌러버림)
+                // — max-width/max-height를 풀어야 설정한 크기가 실제로 반영된다.
+                style={{ width: tierIconSizePx, height: tierIconSizePx, maxWidth: "none", maxHeight: "none" }}
                 className="absolute inset-0 m-auto object-contain transition-opacity duration-200 group-hover:opacity-0"
               />
               <span

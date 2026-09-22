@@ -2237,7 +2237,18 @@ export function Navbar({
           .group이고 hover 중이면" 매칭하므로, 상위 탭에 마우스를 올리기만
           해도 모든 하위 그룹의 2차 플라이아웃이 한꺼번에 열려버린다. */}
       <nav
-        className="relative flex flex-wrap items-center justify-center gap-1 px-4 border-t border-gray-100"
+        // HOTFIX-161.5(사용자 신고 — "아이콘들 위에 줄이 생겼어 없애줘"): 이
+        // <nav>에 원래 있던 `border-t border-gray-100`(1단/2단 탭 줄을
+        // 구분하는 옅은 구분선) 자체는 예전부터 있었지만, 지금까지는 항상
+        // 로고 등 다른 드래그된 헤더 요소들 "밑에" 가려져 실제로는 안 보였다
+        // — 방금 HOTFIX-161.3(아이콘 max-width 캡 해제로 아이콘이 실제
+        // 설정한 큰 크기로 보이기 시작함)과 HOTFIX-161.4(<nav>가 로고와 같은
+        // 자리에서 정상적으로 위에 쌓이도록 z-index를 고침)를 연달아 고치고
+        // 나서야, 이 구분선이 <nav> 바깥까지 삐져나온 큰 아이콘들 위에 처음
+        // 보이게 됐다(둘 다 이 구분선을 "새로 만든" 게 아니라 계속 있던
+        // 것을 계속 가려온 다른 버그를 걷어내면서 드러난 것). 순수 장식용
+        // 옅은 선이라 완전히 제거해도 기능엔 영향 없음.
+        className="relative flex flex-wrap items-center justify-center gap-1 px-4"
         // HOTFIX-161.4(사용자 신고 — "글쓰기 아이콘 hover 하면 나오는 이미지가
         // flash 하기만 하고 안 나와"): 실제 원인은 hover 자체가 아니라
         // z-index 충돌이었다(`document.elementFromPoint()`로 직접 확인,

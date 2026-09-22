@@ -164,6 +164,14 @@ export function canBookmarkOnBoard(
   return checkMinRank(board.min_rank_to_bookmark, tier, isAdmin, "북마크");
 }
 
+export function canProposeOnBoard(
+  board: { min_rank_to_propose?: number | null },
+  tier: TierFlags | null,
+  isAdmin?: boolean,
+) {
+  return checkMinRank(board.min_rank_to_propose, tier, isAdmin, "제안");
+}
+
 export function canWriteToBoard(
   board: { board_type: string; category: string | null; min_rank_to_write?: number | null },
   tier: TierFlags | null,

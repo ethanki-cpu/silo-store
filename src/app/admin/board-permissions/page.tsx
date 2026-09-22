@@ -21,7 +21,9 @@ type BoardRow = {
   min_rank_to_like: number | null;
   min_rank_to_bookmark: number | null;
   min_rank_to_write: number | null;
+  min_rank_to_propose: number | null;
   badge_min_rank: number | null;
+  daily_view_limits: Record<string, number> | null;
 };
 
 type RankFieldKey =
@@ -30,7 +32,8 @@ type RankFieldKey =
   | "min_rank_to_comment"
   | "min_rank_to_like"
   | "min_rank_to_bookmark"
-  | "min_rank_to_write";
+  | "min_rank_to_write"
+  | "min_rank_to_propose";
 
 const CAPS: { key: RankFieldKey; label: string }[] = [
   { key: "min_rank_to_read", label: "열람" },
@@ -39,6 +42,7 @@ const CAPS: { key: RankFieldKey; label: string }[] = [
   { key: "min_rank_to_like", label: "좋아요" },
   { key: "min_rank_to_bookmark", label: "북마크" },
   { key: "min_rank_to_write", label: "글쓰기" },
+  { key: "min_rank_to_propose", label: "제안" },
 ];
 
 // 비회원은 저장값 null로 표현(다른 min_rank_to_* 컬럼과 동일 컨벤션) — "다음
@@ -127,9 +131,22 @@ export default function BoardPermissionsPage() {
     const original = boards?.find((b) => b.id === boardId);
     const draft = drafts[boardId];
     if (!original || !draft) return false;
-    return [...CAPS.map((c) => c.key), "badge_min_rank" as const].some(
-      (key) => original[key] !== draft[key],
-    );
+    if ([...CAPS.map((c) => c.key), "badge_min_rank" as const].some((key) => original[key] !== draft[key])) {
+      return true;
+    }
+    return JSON.stringify(original.daily_view_limits ?? {}) !== JSON.stringify(draft.daily_view_limits ?? {});
+  }
+
+  function updateDailyLimit(boardId: string, tierRank: number, raw: string) {
+    const draft = drafts[boardId];
+    const next = { ...(draft.daily_view_limits ?? {}) };
+    if (raw.trim() === "") {
+      delete next[String(tierRank)];
+    } else {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 0) next[String(tierRank)] = n;
+    }
+    updateDraft(boardId, { daily_view_limits: next });
   }
 
   async function save(boardId: string) {
@@ -137,9 +154,11 @@ export default function BoardPermissionsPage() {
     const draft = drafts[boardId];
     setSaving(boardId);
     setError(null);
-    const patch: Record<string, number | null> = {};
+    const patch: Record<string, number | null | Record<string, number> | null> = {};
     for (const cap of CAPS) patch[cap.key] = draft[cap.key] as number | null;
     patch.badge_min_rank = draft.badge_min_rank;
+    patch.daily_view_limits =
+      draft.daily_view_limits && Object.keys(draft.daily_view_limits).length > 0 ? draft.daily_view_limits : null;
 
     const res = await fetch(`/api/admin/boards/${boardId}`, {
       method: "PATCH",
@@ -243,6 +262,19 @@ export default function BoardPermissionsPage() {
                             );
                           })}
                         </div>
+                        {tier.rank != null && (
+                          <div className="mt-1 flex items-center gap-1 text-gray-400">
+                            <span>일일</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={draft.daily_view_limits?.[String(tier.rank)] ?? ""}
+                              onChange={(e) => updateDailyLimit(board.id, tier.rank as number, e.target.value)}
+                              placeholder="무제한"
+                              className="w-14 rounded border border-gray-200 px-1 py-0.5 text-gray-700"
+                            />
+                          </div>
+                        )}
                       </td>
                     ))}
                     <td className="p-2">

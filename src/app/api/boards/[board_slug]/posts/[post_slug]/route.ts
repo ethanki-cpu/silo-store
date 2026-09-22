@@ -115,6 +115,39 @@ export async function GET(
     );
   }
 
+  // EPIC-161 Phase 2: 등급별 하루 열람 제한 — 이미 본 적 있는 글은 한도에서
+  // 빼고(post_views에 이미 행이 있으면 통과), 오늘 "새로" 여는 글만 센다.
+  const dailyLimits = (board as { daily_view_limits?: Record<string, number> | null }).daily_view_limits;
+  const dailyLimit = dailyLimits?.[String(tier?.rank ?? -1)];
+  if (requester && !requester.member.is_admin && dailyLimit != null) {
+    const { data: existingView } = await requester.scopedClient
+      .from("post_views")
+      .select("id")
+      .eq("member_id", requester.member.id)
+      .eq("post_id", (post as { id: string }).id)
+      .maybeSingle();
+
+    if (!existingView) {
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+      const { count: todayCount } = await requester.scopedClient
+        .from("post_views")
+        .select("id", { count: "exact", head: true })
+        .eq("member_id", requester.member.id)
+        .eq("board_id", boardId)
+        .gte("viewed_at", todayStart.toISOString());
+
+      if ((todayCount ?? 0) >= dailyLimit) {
+        return NextResponse.json(
+          {
+            error: `오늘 열람 가능한 게시글을 모두 확인했어요(하루 ${dailyLimit}개). 내일 다시 확인하거나 상위 등급으로 한도를 늘릴 수 있어요.`,
+          },
+          { status: 403 },
+        );
+      }
+    }
+  }
+
   const normalizedPost = usedRichFields
     ? (post as unknown as {
         id: string;
@@ -168,7 +201,7 @@ export async function GET(
   // 필요로 하지 않는다. EPIC-085: 북마크 여부는 이제 이 응답에 안 담는다 —
   // ScrapButton(user_scraps)이 자기 상태를 스스로 GET /api/scraps/[postId]로
   // 조회하는 자기완결형 컴포넌트로 바뀌어서다(post_bookmarks는 죽은 기능이라 삭제).
-  const [, { count: postNumber }, { data: comments }, likedByMe] =
+  const [, , { count: postNumber }, { data: comments }, likedByMe] =
     await Promise.all([
       // 조회수 증가 — view_count 컬럼이 없으면(마이그레이션 전) 조용히 무시.
       usedRichFields
@@ -176,6 +209,17 @@ export async function GET(
             .from("posts")
             .update({ view_count: (normalizedPost.view_count ?? 0) + 1 })
             .eq("id", postId)
+        : Promise.resolve(null),
+      // EPIC-161 Phase 2: 회원별 열람 기록 — 하루 열람 제한 카운트와 게시판
+      // 완독 뱃지 트리거(check_and_grant_board_badge) 둘 다의 기반. 이미 본
+      // 글이면 unique(member_id, post_id)가 조용히 막아준다(에러 무시).
+      requester && !requester.member.is_admin
+        ? requester.scopedClient
+            .from("post_views")
+            .upsert(
+              { member_id: requester.member.id, post_id: postId, board_id: boardId },
+              { onConflict: "member_id,post_id", ignoreDuplicates: true },
+            )
         : Promise.resolve(null),
       // EPIC-046: "글 번호(No.)" — 별도 시퀀스 컬럼이 없어, 같은 게시판에서
       // 이 글보다 먼저(또는 동시에) 작성된 글의 개수로 파생 계산한다(1부터 시작).

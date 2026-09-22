@@ -15,6 +15,7 @@ const ADMIN_NAV = [
   { href: "/admin/payments", label: "결제 관리" },
   { href: "/admin/members", label: "회원 관리" },
   { href: "/admin/board-permissions", label: "멤버십 권한" },
+  { href: "/admin/board-proposals", label: "게시판 제안함" },
   { href: "/admin/site-structure", label: "사이트 구성 관리" },
   { href: "/admin/navigation/settings", label: "홈페이지 설정 관리" },
   { href: "/admin/posts", label: "전체 글 관리" },

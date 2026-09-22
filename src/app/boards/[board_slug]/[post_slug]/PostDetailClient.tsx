@@ -49,6 +49,7 @@ type Board = {
   // HOTFIX-093-B(요구사항 1.3): 게시물 출력방식 설정에 저장된 날짜/작성자 스타일.
   // EPIC-096(요구사항 3.1): 5개 블록(메타데이터/태그/본문/좋아요·북마크/댓글) 노출 순서.
   widget_settings?: { postMetaStyle?: PostMetaStyle; postLayoutOrder?: unknown } | null;
+  min_rank_to_propose?: number | null;
 };
 
 type Comment = {
@@ -93,6 +94,13 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
   const [commentBody, setCommentBody] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [likeSubmitting, setLikeSubmitting] = useState(false);
+
+  // EPIC-161 Phase 2: "제안" — 글쓰기보다 약한 권한(카테고리/글쓰기/게시글
+  // 삭제 제안). board.min_rank_to_propose가 설정된 게시판에서만 버튼 노출.
+  const [showProposeForm, setShowProposeForm] = useState(false);
+  const [proposeBody, setProposeBody] = useState("");
+  const [proposeSubmitting, setProposeSubmitting] = useState(false);
+  const [proposeDone, setProposeDone] = useState(false);
 
   // 사용자 지시(2026-08-12): "게시물 출력방식"을 특정 게시판에 저장하는
   // 것과 별개로, "전체 게시판 기본값"(BoardForm.tsx의 "🌐 전체 게시판
@@ -180,6 +188,33 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
           }
         : prev,
     );
+  }
+
+  async function handlePropose(e: FormEvent) {
+    e.preventDefault();
+    if (!proposeBody.trim()) return;
+    setProposeSubmitting(true);
+
+    const res = await fetch(`/api/boards/${boardSlug}/proposals`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({ body: proposeBody, kind: "other", postId: post?.id }),
+    });
+
+    const data = await res.json();
+    setProposeSubmitting(false);
+
+    if (!res.ok) {
+      setError(data.error);
+      return;
+    }
+
+    setProposeBody("");
+    setShowProposeForm(false);
+    setProposeDone(true);
   }
 
   async function handleComment(e: FormEvent) {
@@ -364,6 +399,47 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
         />
         {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
         <UpgradeHint message={error} />
+        {board?.min_rank_to_propose != null && (
+          <div className="mt-3">
+            {proposeDone ? (
+              <p className="text-sm text-gray-500">제안을 보냈어요. 검토 후 반영돼요.</p>
+            ) : showProposeForm ? (
+              <form onSubmit={handlePropose} className="flex flex-col gap-2">
+                <textarea
+                  value={proposeBody}
+                  onChange={(e) => setProposeBody(e.target.value)}
+                  placeholder="이 게시판/게시글에 대한 제안을 적어주세요 (카테고리 추가, 글쓰기 권한, 게시글 삭제 등)"
+                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  rows={3}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={proposeSubmitting || !proposeBody.trim()}
+                    className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+                  >
+                    {proposeSubmitting ? "보내는 중..." : "제안 보내기"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowProposeForm(false)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600"
+                  >
+                    취소
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowProposeForm(true)}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                제안하기
+              </button>
+            )}
+          </div>
+        )}
       </>
     ),
     comments: definition.comments ? (

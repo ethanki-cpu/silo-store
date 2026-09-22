@@ -747,6 +747,15 @@ export const INDIVIDUAL_BOARD_DEFINITIONS = {
     parent: "community",
     description: "Salon des Cent Community 자유게시판(썸네일 없음)",
   }),
+  // EPIC-161 Phase 2: 사용자 스펙에 있었지만 boards 행 자체가 없던 게시판 —
+  // 다른 Community 하위 게시판(events/notice 등)과 동일한 story 패턴.
+  "my-restaurants": story({
+    slug: "my-restaurants",
+    title_ko: "나의 맛집들",
+    title_en: "My Restaurants",
+    parent: "community",
+    description: "회원들이 추천하는 맛집을 나누는 스토리 게시판",
+  }),
 
   "salon-topics": hub({
     slug: "salon-topics",
@@ -986,18 +995,19 @@ export const INDIVIDUAL_BOARD_DEFINITIONS = {
     parent: "membership",
     description: "마음일기를 나누는 게시판",
   }),
-  // "멤버십 권한 적용" 지시를 실제로 반영 — accessLevel:"patron"이면
-  // community()가 membership:3으로도 맞추고, serverAuth.ts의
-  // canReadBoard/canWriteToBoard가 이 accessLevel을 읽어 패트론 등급
-  // 미만은 읽기/쓰기 모두 막는다(이 EPIC에서 유일하게 실제로 인가 로직을
-  // 연결한 게시판 — 나머지 accessLevel은 구조만 유지).
+  // EPIC-161 Phase 2: accessLevel:"patron"을 제거했다 — 이 게이트는
+  // canReadBoard에서 min_rank_to_read를 통과해도 board_has_patron_board
+  // 플래그(대체로 Patron 이상만 true)가 없으면 무조건 막아, 사용자 스펙의
+  // "Gatsby=페이지열람, Patron=게시글열람+댓글+좋아요+북마크"처럼 등급별로
+  // 점진적으로 열리는 구조를 표현할 수 없었다(전부-아니면-전무). 이제는
+  // boards.min_rank_to_* 컬럼(관리자 매트릭스, /admin/board-permissions)이
+  // 그 역할을 대신한다.
   "patron-board": community({
     slug: "patron-board",
     title_ko: "패트론 게시판",
     title_en: "Patron Board",
     parent: "membership",
-    description: "패트론 등급 전용 게시판(실제 읽기/쓰기 권한 적용)",
-    accessLevel: "patron",
+    description: "등급별로 점진적으로 열리는 패트론 관련 게시판(관리자 매트릭스로 게이팅)",
   }),
   "one-line-novel": community({
     slug: "one-line-novel",
@@ -1201,9 +1211,16 @@ export type BoardRow = {
   min_rank_to_comment?: number | null;
   min_rank_to_like?: number | null;
   min_rank_to_bookmark?: number | null;
+  // "글쓰기 가능"보다 약한 "제안 가능"(글쓰기 제안/카테고리 제안/게시글 삭제 제안 등,
+  // EPIC-161 Phase 2) — board_proposals 테이블에 제출, 실제 반영은 관리자가 수동으로.
+  min_rank_to_propose?: number | null;
   // 이 값이 있으면 "이 등급 이상이 게시판을 완독(글 열람+댓글+좋아요)하면 뱃지 지급" 대상 등급.
-  // 자동 지급 엔진은 아직 없음(Phase 2) — 관리자가 대상 등급만 미리 지정해둘 수 있다.
+  // post_views 트리거(check_and_grant_board_badge, EPIC-161 Phase 2)가 실제로 지급한다.
   badge_min_rank?: number | null;
+  // EPIC-161 Phase 2: 등급별 하루 열람 제한 — {"<rank>": <count>} JSON, 키 없는
+  // 등급은 무제한. 이미 본 적 있는 글은 며칠이 지나도 다시 볼 수 있다(오늘 "새로"
+  // 여는 글만 한도에 포함).
+  daily_view_limits?: Record<string, number> | null;
   is_public?: boolean | null;
   group_key?: string | null;
   render_type?: string | null;
@@ -1232,7 +1249,7 @@ export type BoardRow = {
 // 배경은 src/app/api/boards/[id]/posts/route.ts 참고) — 라이브 DB에 EPIC-066
 // 마이그레이션이 아직 안 됐어도 게시판 읽기 자체는 멈추지 않는다.
 export const BOARD_RICH_FIELDS =
-  "id, name, category, slug, board_type, min_rank_to_write, min_rank_to_read, min_rank_to_view_post, min_rank_to_comment, min_rank_to_like, min_rank_to_bookmark, badge_min_rank, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
+  "id, name, category, slug, board_type, min_rank_to_write, min_rank_to_read, min_rank_to_view_post, min_rank_to_comment, min_rank_to_like, min_rank_to_bookmark, min_rank_to_propose, badge_min_rank, daily_view_limits, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
 // EPIC-079-PHASE-2: slug는 RICH 단계에만 포함한다 — LEGACY는 "docs/sql/
 // epic-079-phase-2-slug.sql이 아직 적용되지 않은 라이브 DB"를 위한
 // 최후 폴백 단계라, 여기에도 slug를 넣으면 마이그레이션 전엔 게시판

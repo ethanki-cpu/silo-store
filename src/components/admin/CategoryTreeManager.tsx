@@ -1131,6 +1131,19 @@ function TreeLevel({
             />
             {!collapsed && (
               <>
+                {/* HOTFIX-162.5(사용자 지시 — "커뮤니티 카테고리 바로 아래에 community 게시판이 보이게"): 이 분기에 배정된 게시판을 하위 카테고리보다 먼저(카테고리 바로 아래) 보여준다. EPIC-087-PHASE-B: 이 분기(nav 행)에 배정된 게시판 목록 —
+                    nav 자식과는 별도 SortableContext(boardlist-<id>)라 순서
+                    변경 로직이 서로 섞이지 않는다. */}
+                <div style={{ marginLeft: (depth + 1) * 20 }}>
+                  <BoardListLevel
+                    branchId={child.id}
+                    allBoards={allBoards}
+                    boardBranchMap={boardBranchMap}
+                    onManageBoard={onManageBoard}
+                    selectedIds={selectedIds}
+                    onToggleSelect={onToggleSelect}
+                  />
+                </div>
                 <TreeLevel
                   parentId={child.id}
                   rows={rows}
@@ -1152,19 +1165,6 @@ function TreeLevel({
                   collapsedIds={collapsedIds}
                   onToggleCollapsed={onToggleCollapsed}
                 />
-                {/* EPIC-087-PHASE-B: 이 분기(nav 행)에 배정된 게시판 목록 —
-                    nav 자식과는 별도 SortableContext(boardlist-<id>)라 순서
-                    변경 로직이 서로 섞이지 않는다. */}
-                <div style={{ marginLeft: (depth + 1) * 20 }}>
-                  <BoardListLevel
-                    branchId={child.id}
-                    allBoards={allBoards}
-                    boardBranchMap={boardBranchMap}
-                    onManageBoard={onManageBoard}
-                    selectedIds={selectedIds}
-                    onToggleSelect={onToggleSelect}
-                  />
-                </div>
               </>
             )}
           </div>

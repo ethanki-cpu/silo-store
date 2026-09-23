@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { uploadImage } from "@/lib/adminImageUpload";
@@ -10,7 +10,6 @@ import {
   fetchBoardBranchMap,
   buildAdminTree,
   type NavBranchNode,
-  type AdminTreeRow,
 } from "@/lib/adminTreeGrouping";
 
 // EPIC-161: 게시판별 멤버십 권한 매트릭스 — 행=게시판, 열=등급, 셀=태그(열람/
@@ -108,6 +107,10 @@ const BADGE_OPTIONS: { value: number | null; label: string }[] = [
 // 아니라 실제 연결 관계), 매칭 안 되는 게시판은 "기타 / 미분류" 버킷으로
 // (buildAdminTree가 자동으로) 모인다.
 
+type MergedRow =
+  | { kind: "branch"; id: string; title: string; href: string | null; depth: number; ownBoard: BoardRow | null }
+  | { kind: "item"; depth: number; item: BoardRow };
+
 export default function BoardPermissionsPage() {
   const { session, member, loading, memberLoading } = useAuth();
   const [boards, setBoards] = useState<BoardRow[] | null>(null);
@@ -116,6 +119,18 @@ export default function BoardPermissionsPage() {
   const [savedAt, setSavedAt] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+
+  // HOTFIX-162.3(사용자 신고 — "브라우저의 다른 탭을 보고 오면 항상 리셋돼"): 탭에 돌아오면
+  // Supabase가 세션(토큰)을 갱신하며 session/member 객체가 새로 만들어지는데, 아래 로딩
+  // effect들이 그 객체를 deps로 잡고 있어 매번 다시 실행되며 편집 중이던 draft를 전부 서버
+  // 값으로 덮어썼다. 이제 "관리자로 인증됨"이라는 boolean 하나만 보고, 각 데이터는 최초 1번만
+  // 불러온다(토큰은 ref로 최신값만 읽음).
+  const authReady = !loading && !memberLoading && !!session && !!member?.is_admin;
+  const tokenRef = useRef<string | undefined>(session?.access_token);
+  useEffect(() => {
+    tokenRef.current = session?.access_token;
+  }, [session?.access_token]);
+  const started = useRef({ tiers: false, gates: false, boards: false });
 
   // HOTFIX-161.7(사용자 지시 — "각 멤버십마다 대표 사진을 넣고 싶어",
   // "이 편집은 기존 화면에 추가"): 등급별 대표 사진(membership_tiers.image_url)
@@ -127,19 +142,16 @@ export default function BoardPermissionsPage() {
   const [uploadingTierRank, setUploadingTierRank] = useState<number | null>(null);
 
   useEffect(() => {
-    if (loading || memberLoading || !session || !member?.is_admin) return;
-    let cancelled = false;
+    if (!authReady || started.current.tiers) return;
+    started.current.tiers = true;
     supabase
       .from("membership_tiers")
       .select("rank, name, image_url")
       .order("rank", { ascending: true })
       .then(({ data }) => {
-        if (!cancelled) setTiers((data ?? []) as { rank: number; name: string; image_url: string | null }[]);
+        setTiers((data ?? []) as { rank: number; name: string; image_url: string | null }[]);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [session, member, loading, memberLoading]);
+  }, [authReady]);
 
   async function uploadTierImage(rank: number, file: File) {
     setUploadingTierRank(rank);
@@ -177,23 +189,19 @@ export default function BoardPermissionsPage() {
   const [savingPageId, setSavingPageId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (loading || memberLoading || !session || !member?.is_admin) return;
-    let cancelled = false;
+    if (!authReady || started.current.gates) return;
+    started.current.gates = true;
     supabase
       .from("page_builder")
       .select("id, slug, min_rank_to_read")
       .then(({ data }) => {
-        if (cancelled) return;
         const map: Record<string, { id: string; min: number | null; orig: number | null }> = {};
         for (const r of (data ?? []) as { id: string; slug: string; min_rank_to_read: number | null }[]) {
           map[r.slug] = { id: r.id, min: r.min_rank_to_read, orig: r.min_rank_to_read };
         }
         setPageGates(map);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [session, member, loading, memberLoading]);
+  }, [authReady]);
 
   async function savePageGate(slug: string) {
     const g = pageGates[slug];
@@ -217,24 +225,22 @@ export default function BoardPermissionsPage() {
   const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
-    if (loading || memberLoading || !session || !member?.is_admin) return;
-    let cancelled = false;
+    if (!authReady || started.current.boards) return;
+    started.current.boards = true;
     (async () => {
       try {
         const [res, navBranches] = await Promise.all([
           fetch("/api/admin/boards", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
+            headers: { Authorization: `Bearer ${tokenRef.current}` },
           }),
           fetchNavBranches(),
         ]);
         const data: BoardRow[] = await res.json();
-        if (cancelled) return;
         if (!res.ok) {
           setError("게시판 목록을 불러오지 못했어요.");
           return;
         }
         const branchMap = await fetchBoardBranchMap(navBranches);
-        if (cancelled) return;
         setBranches(navBranches);
         setBoardBranchMap(branchMap);
         setBoards(data);
@@ -242,13 +248,10 @@ export default function BoardPermissionsPage() {
         for (const b of data) initial[b.id] = b;
         setDrafts(initial);
       } catch {
-        if (!cancelled) setError("게시판 목록을 불러오지 못했어요.");
+        setError("게시판 목록을 불러오지 못했어요.");
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [session, member, loading, memberLoading]);
+  }, [authReady]);
 
   const filtered = useMemo(() => {
     if (!boards) return [];
@@ -280,10 +283,29 @@ export default function BoardPermissionsPage() {
   // (더 깊은 depth의 뒤따르는 행들)을 걸러내는 건 이 화면에서 처리한다 —
   // depth-first로 순회하다 접힌 브랜치를 만나면 그보다 깊은 행을 다음에
   // depth가 그 이하로 돌아올 때까지 스킵한다.
+  // HOTFIX-162.2(사용자 신고 — "About Silo 페이지에 게시판이 있는데 '페이지 열람'만 가능하게
+  // 하지 마"): 카테고리에 게시판이 직접 연결돼 있으면 그 카테고리 행 자체가 게시판 권한 행이
+  // 되게(폴더 토글 + 전체 매트릭스) 합친다 — 접어도 그 행은 그대로 편집 가능. 게시판이 둘
+  // 이상이면 첫 번째만 합치고 나머지는 하위 행으로 그대로 둔다.
   const visibleRows = useMemo(() => {
-    const rows: AdminTreeRow<BoardRow>[] = [];
+    const merged: MergedRow[] = [];
+    for (let i = 0; i < treeRows.length; i++) {
+      const row = treeRows[i];
+      if (row.kind === "branch") {
+        const next = treeRows[i + 1];
+        if (next && next.kind === "item" && next.depth === row.depth + 1) {
+          merged.push({ ...row, ownBoard: next.item });
+          i++;
+          continue;
+        }
+        merged.push({ ...row, ownBoard: null });
+      } else {
+        merged.push(row);
+      }
+    }
+    const rows: MergedRow[] = [];
     let hideDeeperThan: number | null = null;
-    for (const row of treeRows) {
+    for (const row of merged) {
       if (hideDeeperThan !== null) {
         if (row.depth > hideDeeperThan) continue;
         hideDeeperThan = null;
@@ -322,11 +344,11 @@ export default function BoardPermissionsPage() {
     updateDraft(boardId, { daily_view_limits: next });
   }
 
-  async function save(boardId: string) {
-    if (!session) return;
+  // 게시판 하나를 서버에 저장하고 성공 여부를 돌려준다(개별 저장/모두 저장 공용).
+  async function saveOne(boardId: string): Promise<boolean> {
+    const token = tokenRef.current;
+    if (!token) return false;
     const draft = drafts[boardId];
-    setSaving(boardId);
-    setError(null);
     const patch: Record<string, number | null | Record<string, number> | null> = {};
     for (const cap of CAPS) patch[cap.key] = draft[cap.key] as number | null;
     patch.badge_min_rank = draft.badge_min_rank;
@@ -335,22 +357,59 @@ export default function BoardPermissionsPage() {
 
     const res = await fetch(`/api/admin/boards/${boardId}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(patch),
     });
-    setSaving(null);
-
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "저장에 실패했어요.");
-      return;
+      setError(`${draft.name}: ${data.error ?? "저장에 실패했어요."}`);
+      return false;
     }
-
     setBoards((prev) => prev?.map((b) => (b.id === boardId ? { ...b, ...draft } : b)) ?? prev);
     setSavedAt((prev) => ({ ...prev, [boardId]: Date.now() }));
+    return true;
+  }
+
+  async function save(boardId: string) {
+    setSaving(boardId);
+    setError(null);
+    await saveOne(boardId);
+    setSaving(null);
+  }
+
+  // HOTFIX-162.3(사용자 지시 — "바뀐 여러 게시판의 설정을 한번에 저장할 수 있는 버튼"): 바뀐
+  // 게시판 + 바뀐 카테고리 페이지 열람 설정을 전부 한 번에 저장한다.
+  const dirtyBoardIds = (boards ?? []).filter((b) => isDirty(b.id)).map((b) => b.id);
+  const dirtyGateSlugs = Object.entries(pageGates)
+    .filter(([, g]) => g.min !== g.orig)
+    .map(([slug]) => slug);
+  const dirtyCount = dirtyBoardIds.length + dirtyGateSlugs.length;
+  const [savingAll, setSavingAll] = useState(false);
+  const [saveAllMessage, setSaveAllMessage] = useState<string | null>(null);
+
+  async function saveAll() {
+    setSavingAll(true);
+    setError(null);
+    setSaveAllMessage(null);
+    let ok = 0;
+    let fail = 0;
+    for (const id of dirtyBoardIds) {
+      if (await saveOne(id)) ok++;
+      else fail++;
+    }
+    for (const slug of dirtyGateSlugs) {
+      const g = pageGates[slug];
+      const { error: gateError } = await supabase.from("page_builder").update({ min_rank_to_read: g.min }).eq("id", g.id);
+      if (gateError) {
+        fail++;
+        setError(`${slug}: ${gateError.message}`);
+      } else {
+        ok++;
+        setPageGates((prev) => ({ ...prev, [slug]: { ...prev[slug], orig: g.min } }));
+      }
+    }
+    setSavingAll(false);
+    setSaveAllMessage(`${ok}건 저장${fail ? `, ${fail}건 실패` : "됨"}`);
   }
 
   if (loading || memberLoading) {
@@ -422,6 +481,19 @@ export default function BoardPermissionsPage() {
         )}
       </div>
 
+      <div className="sticky top-0 z-20 mb-3 flex items-center gap-3 border-b border-gray-200 bg-white/95 py-2 backdrop-blur">
+        <button
+          type="button"
+          onClick={saveAll}
+          disabled={dirtyCount === 0 || savingAll}
+          className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+        >
+          {savingAll ? "저장 중..." : `변경된 ${dirtyCount}건 모두 저장`}
+        </button>
+        {saveAllMessage && dirtyCount === 0 && <span className="text-sm text-green-600">{saveAllMessage}</span>}
+        {dirtyCount > 0 && <span className="text-xs text-amber-600">저장하지 않은 변경이 있어요</span>}
+      </div>
+
       <input
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
@@ -465,7 +537,21 @@ export default function BoardPermissionsPage() {
                     />
                   ))
                 : visibleRows.map((row) =>
-                    row.kind === "branch" ? (
+                    row.kind === "branch" && row.ownBoard ? (
+                      <BoardEditorRow
+                        key={`branch-${row.id}`}
+                        board={row.ownBoard}
+                        depth={row.depth}
+                        draft={drafts[row.ownBoard.id] ?? row.ownBoard}
+                        dirty={isDirty(row.ownBoard.id)}
+                        saving={saving === row.ownBoard.id}
+                        savedAt={!!savedAt[row.ownBoard.id]}
+                        onUpdate={updateDraft}
+                        onUpdateDailyLimit={updateDailyLimit}
+                        onSave={save}
+                        folder={{ title: row.title, collapsed: collapsedKeys.has(row.id), onToggle: () => toggleCollapsed(row.id) }}
+                      />
+                    ) : row.kind === "branch" ? (
                       <FolderHeaderRow
                         key={`branch-${row.id}`}
                         title={row.title}
@@ -590,7 +676,9 @@ function BoardEditorRow({
   onUpdate,
   onUpdateDailyLimit,
   onSave,
+  folder,
 }: {
+  folder?: { title: string; collapsed: boolean; onToggle: () => void };
   board: BoardRow;
   depth: number;
   draft: BoardRow;
@@ -604,8 +692,17 @@ function BoardEditorRow({
   return (
     <tr className="border-b border-gray-100 align-top">
       <td className="sticky left-0 bg-white p-2 pr-4" style={{ paddingLeft: 8 + depth * 16 }}>
-        <div className="font-medium text-gray-900">{board.name}</div>
-        <div className="text-gray-400">{board.category}</div>
+        {folder ? (
+          <button type="button" onClick={folder.onToggle} className="flex items-center gap-1.5 font-semibold text-gray-800">
+            <span className="inline-block w-3 text-gray-400">{folder.collapsed ? "▶" : "▼"}</span>
+            📁 {folder.title}
+          </button>
+        ) : (
+          <div className="font-medium text-gray-900">{board.name}</div>
+        )}
+        <div className="text-gray-400" style={folder ? { paddingLeft: 18 } : undefined}>
+          {folder ? `게시판: ${board.name}` : board.category}
+        </div>
       </td>
       {TIERS.map((tier) => (
         <td key={tier.label} className="p-2">

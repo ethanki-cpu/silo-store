@@ -74,21 +74,27 @@ export default function AdminLayout({
 
   return (
     <div className="flex-1 flex flex-col">
-      <nav className="border-b border-gray-200 px-8 pt-4">
-        <div className="max-w-4xl mx-auto w-full flex gap-1 overflow-x-auto whitespace-nowrap">
-          {ADMIN_NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`px-3 py-2 text-sm border-b-2 -mb-px ${
-                pathname.startsWith(item.href)
-                  ? "border-gray-800 text-gray-900 font-medium"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
+      {/* HOTFIX-162.4(사용자 지시 — "스크롤 없이 한눈에 볼 수 있게 2단으로"): 탭이 11개로 늘어
+          가로 스크롤(overflow-x-auto) 뒤에 가려진 메뉴가 생겼다 — 스크롤을 없애고 줄바꿈되는 칩
+          형태로 바꿔 모든 메뉴가 항상 보이게 한다(넓은 화면에선 자연스럽게 2줄). */}
+      <nav className="border-b border-gray-200 bg-gray-50/60 px-4 py-3 sm:px-8">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap gap-x-1.5 gap-y-2">
+          {ADMIN_NAV.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+                  active
+                    ? "border-gray-900 bg-gray-900 font-medium text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </div>
       </nav>
       {children}

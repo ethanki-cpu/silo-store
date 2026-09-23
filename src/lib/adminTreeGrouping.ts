@@ -118,6 +118,16 @@ export function buildSlugToBranchId(branches: NavBranchNode[]): Map<string, stri
 // board 타입 위젯을 최우선으로 찾고, 그것도 여러 개면 slug가 더 긴(더
 // 구체적인, 즉 트리에서 더 깊은) 쪽을 고른다. board 타입 참조가 전혀 없으면
 // (예: hub 페이지의 slide 미리보기로만 존재) 그중 가장 긴 slug로 대체한다.
+export const HUB_BOARD_PAGE_SLUG: Record<string, string> = {
+  community: "salon-des-cent-community",
+  archive: "salon-des-cent-community-archives",
+  gallery: "salon-des-cent-community-gallery",
+  membership: "salon-des-cent-community-membership",
+  studio: "studio",
+  "salon-weekday": "salon-des-cent-community-daily-club",
+  "digital-ai": "online-docent-digital-ai",
+};
+
 export async function fetchBoardBranchMap(
   branches: NavBranchNode[],
 ): Promise<Map<string, string>> {
@@ -152,6 +162,18 @@ export async function fetchBoardBranchMap(
   for (const [boardId, { slug }] of bestByBoard) {
     const branchId = slugToBranchId.get(slug);
     if (branchId) map.set(boardId, branchId);
+  }
+
+  // HOTFIX-162.5(사용자 지시 — "커뮤니티 카테고리 바로 아래에 community 게시판이 보이게"):
+  // 카테고리 허브 게시판(Community 등)은 페이지의 board 위젯에 연결돼 있지 않아 "기타/미분류"로
+  // 밀려나 있었다. 방문자 화면(페이지 위젯)은 건드리지 않고, 관리 화면들이 공유하는 이 매칭에서
+  // 알려진 짝(게시판 category → 메뉴 페이지 slug)으로만 묶는다.
+  const { data: boardRows } = await supabase.from("boards").select("id, category");
+  for (const b of (boardRows ?? []) as { id: string; category: string | null }[]) {
+    if (map.has(b.id) || !b.category) continue;
+    const target = HUB_BOARD_PAGE_SLUG[b.category];
+    const branchId = target ? slugToBranchId.get(target) : undefined;
+    if (branchId) map.set(b.id, branchId);
   }
   return map;
 }

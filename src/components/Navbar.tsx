@@ -2369,7 +2369,9 @@ export function Navbar({
           사이드바 아이콘이 안나오게 해줘"): 몰입형 3D 씬이라 다른 페이지와
           달리 좌/우 사이드바 열기 아이콘을 아예 렌더링하지 않는다(editable
           모드에서는 관리자가 계속 편집할 수 있어야 하니 예외). */}
-      {!(pathname === "/silo-planet" && !editable) && (
+      {/* HOTFIX-162.6(사용자 지시 — "'관리자' 모드에서는 좌/우 사이드바 안 보이게"): /admin 화면에서는
+          (홈페이지 설정 관리 캔버스처럼 editable 미리보기는 제외) 좌/우 사이드바 트리거를 그리지 않는다. */}
+      {!(pathname === "/silo-planet" && !editable) && !(pathname.startsWith("/admin") && !editable) && (
         <>
       <LeftSidebar
         tabs={leftSidebarTabs}

@@ -6,6 +6,7 @@ import { PageEditButton } from "@/components/admin/PageEditButton";
 import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder";
 import { usePageRankGate } from "@/lib/pageRankGate";
 import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
+import { MembershipCarousel } from "@/components/membership/MembershipCarousel";
 
 // EPIC-061: Membership은 이제 Page Builder(page_builder/page_modules,
 // slug="membership")로만 렌더링한다 — EPIC-054F의 PageTemplate/useHubBoardId
@@ -41,6 +42,8 @@ export default function MembershipPage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* 배치된 위젯이 없을 때 "모듈이 없어요" 안내문이 방문자에게 보이지 않게 한다 */}
           {(modules ?? []).length > 0 && <PageBuilderRenderer modules={modules ?? []} />}
+          {/* HOTFIX-161.9: 캐릭터 선택형 캐러셀(소개/편지/가입→미션) */}
+          <MembershipCarousel />
           {/* EPIC-158: 토스페이먼츠 Patron 정기구독 */}
           <MembershipPlansSection />
         </div>

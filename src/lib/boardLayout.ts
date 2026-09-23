@@ -1221,6 +1221,7 @@ export type BoardRow = {
   // 등급은 무제한. 이미 본 적 있는 글은 며칠이 지나도 다시 볼 수 있다(오늘 "새로"
   // 여는 글만 한도에 포함).
   daily_view_limits?: Record<string, number> | null;
+  daily_limit_group?: string | null;
   is_public?: boolean | null;
   group_key?: string | null;
   render_type?: string | null;
@@ -1249,7 +1250,7 @@ export type BoardRow = {
 // 배경은 src/app/api/boards/[id]/posts/route.ts 참고) — 라이브 DB에 EPIC-066
 // 마이그레이션이 아직 안 됐어도 게시판 읽기 자체는 멈추지 않는다.
 export const BOARD_RICH_FIELDS =
-  "id, name, category, slug, board_type, min_rank_to_write, min_rank_to_read, min_rank_to_view_post, min_rank_to_comment, min_rank_to_like, min_rank_to_bookmark, min_rank_to_propose, badge_min_rank, daily_view_limits, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
+  "id, name, category, slug, board_type, min_rank_to_write, min_rank_to_read, min_rank_to_view_post, min_rank_to_comment, min_rank_to_like, min_rank_to_bookmark, min_rank_to_propose, badge_min_rank, daily_view_limits, daily_limit_group, is_public, group_key, render_type, default_card_type, use_search, use_like, use_comment, use_view_count, default_page_size, default_sort, description, widget_settings, sort_order";
 // EPIC-079-PHASE-2: slug는 RICH 단계에만 포함한다 — LEGACY는 "docs/sql/
 // epic-079-phase-2-slug.sql이 아직 적용되지 않은 라이브 DB"를 위한
 // 최후 폴백 단계라, 여기에도 slug를 넣으면 마이그레이션 전엔 게시판

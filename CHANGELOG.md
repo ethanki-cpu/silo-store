@@ -1,3 +1,7 @@
+## 2026-09-24 (HOTFIX-161.9 — 이전 주인의 사연 전용 일일 한도 + 멤버십 캐러셀/미션 UI, 사용자 지시)
+- **이전 주인의 사연 전용 하루 한도**: `boards.daily_limit_group` 추가 — 같은 그룹 게시판은 하루 열람 한도를 합쳐서 센다. 사일로의 원래 주인들/Grandmas/Grandpas 3개를 `original_owner_stories`로 묶고 Patron=2, Lautrec=2로 설정(기존엔 Patron 무제한/Lautrec 1이라 Lautrec이 더 낮은 역전 상태였음; Lautrec 값은 마스터플랜에 명시가 없어 Patron과 같게 둠). `/api/boards/.../posts/[post_slug]`가 그룹 합산 카운트를 하고, 자정 기준도 UTC(한국 오전 9시)에서 KST로 바로잡음.
+- **멤버십 캐러셀**(`src/components/membership/MembershipCarousel.tsx`, `/membership`): 6개 등급 스와이프/화살표/점/키보드 → 애니메이션(영상/이미지/빈 자리) 아래 등급 이름 버튼 → 소개+편지 패널 → '가입' → 미션 모달(질문 없으면 바로 결제 단계로 스크롤). 카피는 코드에 없음 — `membership_tiers.animation_url/intro_text/letter_text/mission_questions`(신규 컬럼)을 관리자가 패널의 '내용 편집'에서 직접 수정(기존 관리자 UPDATE RLS 사용). 미션 답변은 `membership_mission_answers`(신규, 본인 행 RLS)에 저장되고 `/mypage/missions`("멤버십 미션" 탭)에 표시. 로그인 전 답변은 localStorage 임시 저장. `docs/sql/HOTFIX-161.9-*.sql` 적용 완료.
+
 ## 2026-09-23 (PROJECT_VISION.md — 멤버십 수익화 마스터플랜 추가, 사용자 지시 "핵심적인 웹개발 전략과 철학... 이걸 토대로 개발 방향을 정하길 원해")
 - 국내 플랫폼(카카오페이지/네이버 프리미엄콘텐츠/트레바리) 벤치마킹 + 6단계 멤버십 아키텍처(비회원~Lautrec, 단계별 결핍/보상 설계) + "COO Peter"에게 보낸 개발 지시 메모(심리적 페이월 전략, DB/Cron 구현 지시, 캐러셀 UI 지시) + 캐러셀 UI 동작 스펙(등급 버튼→소개/편지(관리자 수정 가능)→가입 버튼→미션 창)을 `PROJECT_VISION.md`의 앞선 "Membership Tier Narrative" 섹션 바로 뒤에 새 섹션(`## 멤버십 수익화 마스터플랜`)으로 원문 그대로 보존.
 - **이미 구현된 부분과의 접점을 문서에 명시**: 메모의 "기술 구현 지시 A"(온라인 도슨트 하루 열람 제한 + DB 컬럼 + 자정 초기화 Cron)는 HOTFIX-161.7에서 이미 상당 부분 구현됐다(`docent_daily_free_count`/`is_daily_free`, KST 자정 기준 실시간 카운트라 Cron 자체가 불필요) — 향후 이 마스터플랜을 근거로 작업할 때 중복 구현하지 않도록 문서에 명시적으로 남김.

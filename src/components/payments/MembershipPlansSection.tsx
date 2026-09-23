@@ -204,7 +204,7 @@ export function MembershipPlansSection() {
   const spendTotal = spend ? spend.shopPurchase + spend.shopRental + spend.club + spend.docent : 0;
 
   return (
-    <section className="mt-10 rounded-lg border border-gray-200 p-5">
+    <section id="membership-plans" className="mt-10 rounded-lg border border-gray-200 p-5">
       <h2 className="text-lg font-semibold">멤버십 가입</h2>
       <p className="mt-1 text-sm text-gray-500">
         등급마다 접근할 수 있는 게시판과 활동이 달라요. 카드로 매월 자동 결제되고, 언제든 해지할 수 있어요.

@@ -128,14 +128,30 @@ export async function GET(
       .maybeSingle();
 
     if (!existingView) {
-      const todayStart = new Date();
-      todayStart.setUTCHours(0, 0, 0, 0);
+      // HOTFIX-161.9: 자정 기준을 UTC(한국 오전 9시)에서 KST로 바로잡음(도슨트
+      // 하루 무료건수와 동일). 또 daily_limit_group이 있으면 같은 그룹의 모든
+      // 게시판(예: 이전 주인의 사연 = 원래 주인들/Grandmas/Grandpas)을 합쳐서 센다.
+      const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const todayStartIso = new Date(
+        Date.UTC(nowKst.getUTCFullYear(), nowKst.getUTCMonth(), nowKst.getUTCDate()) - 9 * 60 * 60 * 1000,
+      ).toISOString();
+
+      let countedBoardIds: string[] = [boardId];
+      const limitGroup = (board as { daily_limit_group?: string | null }).daily_limit_group;
+      if (limitGroup) {
+        const { data: groupBoards } = await requester.scopedClient
+          .from("boards")
+          .select("id")
+          .eq("daily_limit_group", limitGroup);
+        if (groupBoards && groupBoards.length > 0) countedBoardIds = groupBoards.map((b) => b.id as string);
+      }
+
       const { count: todayCount } = await requester.scopedClient
         .from("post_views")
         .select("id", { count: "exact", head: true })
         .eq("member_id", requester.member.id)
-        .eq("board_id", boardId)
-        .gte("viewed_at", todayStart.toISOString());
+        .in("board_id", countedBoardIds)
+        .gte("viewed_at", todayStartIso);
 
       if ((todayCount ?? 0) >= dailyLimit) {
         return NextResponse.json(

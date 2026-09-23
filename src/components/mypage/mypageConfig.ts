@@ -11,7 +11,8 @@ export type MyPageTabId =
   | "comments"
   | "timeline"
   | "bucketlist"
-  | "visitors";
+  | "visitors"
+  | "missions";
 
 // EPIC-052: "Personal Hub" 확장 — 버킷리스트 탭 추가, 나머지 탭은 그대로
 // 유지(라우트 세그먼트/URL 불변).
@@ -33,6 +34,7 @@ export const MYPAGE_TABS: { id: MyPageTabId; label: string }[] = [
   { id: "timeline", label: "타임라인" },
   { id: "bucketlist", label: "버킷리스트" },
   { id: "visitors", label: "방문자 기록" },
+  { id: "missions", label: "멤버십 미션" },
 ];
 
 // "나의 컬렉션" 9개 서브메뉴. "treasure"는 orders 재사용, 나머지 8개는

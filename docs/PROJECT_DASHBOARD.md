@@ -196,7 +196,7 @@ EPIC-101(홈페이지 Craft.js 이미지 크기 버그 수정)도 같은 세션�
 
 ## Next EPIC
 
-미정 — EPIC-101~107(Kinfolk 홈페이지 재현 + Craft.js 프리폼 에디터 로드맵,
+(2026-09-24 갱신) EPIC-162 "멤버십 아키텍처 & 에디토리얼 랜딩"이 구현 완료 — 이후는 미정 — EPIC-101~107(Kinfolk 홈페이지 재현 + Craft.js 프리폼 에디터 로드맵,
 계획 파일 `C:\Users\nasdo\.claude\plans\fancy-mapping-eich.md`)이 전부
 완료되어 다음 지시 대기. 남은 후보: 관리자 로그인 세션으로 EPIC-102~107의
 "다음에 확인 필요" 항목들(Toolbox 드래그/설정 패널 저장 왕복 등, NEXT_TASK.md

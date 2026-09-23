@@ -53,17 +53,17 @@ export default function MyPageMissionsPage() {
       ) : (
         <div className="space-y-6">
           {[...grouped.entries()].map(([rank, list]) => (
-            <section key={rank} className="rounded-lg border border-gray-200 p-4">
-              <h3 className="mb-3 font-semibold">{tierNames[rank] ?? `등급 ${rank}`}</h3>
-              <ul className="space-y-4 text-sm">
+            <section key={rank} className="rounded-xl border border-amber-100 bg-gradient-to-b from-amber-50/60 to-white p-6 shadow-sm">
+              <h3 className="mb-4 font-serif text-xl tracking-wide text-gray-900">{tierNames[rank] ?? `등급 ${rank}`}</h3>
+              <ul className="space-y-6 text-sm">
                 {list.map((r) => (
                   <li key={r.question_id}>
-                    <p className="font-medium text-gray-800">{r.question_text}</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-amber-800/70">{r.question_text}</p>
                     {r.answer_photo_url && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.answer_photo_url} alt="제출한 사진" className="my-1 h-32 rounded border border-gray-200 object-cover" />
+                      <img src={r.answer_photo_url} alt="제출한 사진" className="my-2 max-h-56 rounded-lg border border-gray-200 object-cover shadow-sm" />
                     )}
-                    <p className="whitespace-pre-line text-gray-600">{r.answer_text || "(답변 없음)"}</p>
+                    <p className="mt-1 whitespace-pre-line border-l-2 border-amber-300 pl-3 font-serif text-base leading-7 text-gray-800">{r.answer_text || "(답변 없음)"}</p>
                   </li>
                 ))}
               </ul>

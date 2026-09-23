@@ -477,7 +477,11 @@ export function MembershipCarousel() {
       </div>
 
       {panelOpen && (
-        <div className="mx-auto mt-5 max-w-2xl rounded-lg border border-gray-200 bg-white p-5">
+        <div
+          className="mx-auto mt-5 max-w-2xl rounded-lg border border-gray-200 bg-white p-5"
+          style={{ animation: "silo-panel-up 0.4s ease-out" }}
+        >
+          <style>{"@keyframes silo-panel-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}"}</style>
           {isAdmin && !editing && (
             <div className="mb-3 flex justify-end">
               <button type="button" onClick={() => setEditing(true)} className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50">

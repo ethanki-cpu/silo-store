@@ -7,6 +7,7 @@ import { resolveFallbackEmbedThumbnail } from "@/lib/embedThumbnail";
 import { enqueueOrphanedImages, enqueueAllImages } from "@/lib/imageGc";
 import { fetchBoard } from "@/lib/boardFetch";
 import { slugify } from "@/lib/slugify";
+import { stripHtml } from "@/lib/sanitize";
 import { fetchAdditionalBoardSlugs, fetchCrossPostedPostIds, syncPostBoards } from "@/lib/postBoards";
 
 const richFields =
@@ -55,6 +56,47 @@ async function fetchPost(
   return { post, postError, usedRichFields };
 }
 
+// EPIC-162 Phase 2(심리적 페이월): 권한이 없어도 404/빈 화면이 아니라 "매력적인
+// 인트로"(제목/썸네일/서론 3줄)만 내려주고 본문은 서버에서 아예 빼서 보낸다 — 클라이언트
+// 조작(DevTools, 블러 제거)으로 본문이 노출되는 일이 없게 하는 게 핵심이다(응답에
+// body/body_json/댓글이 전혀 없다). 클라이언트는 locked:true를 보고 블러 자리표시자+
+// 결제 유도 모달을 그린다.
+function buildTeaserExcerpt(body: string | null | undefined): string {
+  if (!body) return "";
+  const text = stripHtml(body.replace(/<\/(p|div|h[1-6]|li|blockquote)>|<br\s*\/?>/gi, "\n"));
+  return text
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join("\n")
+    .slice(0, 300);
+}
+
+function lockedTeaserResponse(args: {
+  board: unknown;
+  post: { title?: string | null; body?: string | null; featured_image_url?: string | null; photo_url?: string | null } | null;
+  reason: "rank" | "daily_limit";
+  message: string;
+  requiredRank: number | null;
+}) {
+  const { board, post, reason, message, requiredRank } = args;
+  if (!post) return null;
+  return NextResponse.json({
+    locked: true,
+    reason,
+    message,
+    requiredRank,
+    requiredRankLabel: requiredRank != null ? (RANK_LABELS[requiredRank] ?? null) : null,
+    board,
+    teaser: {
+      title: post.title ?? null,
+      excerpt: buildTeaserExcerpt(post.body),
+      image: post.featured_image_url ?? post.photo_url ?? null,
+    },
+  });
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ board_slug: string; post_slug: string }> },
@@ -92,6 +134,14 @@ export async function GET(
     // EPIC-087-PHASE-C: 잠금 사유가 accessLevel과 min_rank_to_read 둘 다일
     // 수 있어 더 높은 랭크 쪽으로 안내한다.
     const requiredRank = Math.max(definition.membership, (board as { min_rank_to_read?: number | null }).min_rank_to_read ?? 0);
+    const lockedRead = lockedTeaserResponse({
+      board,
+      post: (post as { title?: string | null; body?: string | null; featured_image_url?: string | null; photo_url?: string | null } | null) ?? null,
+      reason: "rank",
+      message: `이 게시판은 ${RANK_LABELS[requiredRank] ?? "상위"} 등급부터 열람 가능해요.`,
+      requiredRank,
+    });
+    if (lockedRead) return lockedRead;
     return NextResponse.json(
       {
         error: `이 게시판은 ${RANK_LABELS[requiredRank] ?? "상위"} 등급부터 열람 가능해요.`,
@@ -105,6 +155,14 @@ export async function GET(
   // patron=게시글열람부터).
   const postViewCheck = canViewPost(board, tier, requester?.member.is_admin);
   if (!postViewCheck.ok) {
+    const lockedView = lockedTeaserResponse({
+      board,
+      post: (post as { title?: string | null; body?: string | null; featured_image_url?: string | null; photo_url?: string | null } | null) ?? null,
+      reason: "rank",
+      message: postViewCheck.error,
+      requiredRank: (board as { min_rank_to_view_post?: number | null }).min_rank_to_view_post ?? null,
+    });
+    if (lockedView) return lockedView;
     return NextResponse.json({ error: postViewCheck.error }, { status: 403 });
   }
 
@@ -154,6 +212,14 @@ export async function GET(
         .gte("viewed_at", todayStartIso);
 
       if ((todayCount ?? 0) >= dailyLimit) {
+        const lockedDaily = lockedTeaserResponse({
+          board,
+          post: post as { title?: string | null; body?: string | null; featured_image_url?: string | null; photo_url?: string | null },
+          reason: "daily_limit",
+          message: `오늘 열람 가능한 게시글을 모두 확인했어요(하루 ${dailyLimit}개). 내일 다시 확인하거나 상위 등급으로 한도를 늘릴 수 있어요.`,
+          requiredRank: null,
+        });
+        if (lockedDaily) return lockedDaily;
         return NextResponse.json(
           {
             error: `오늘 열람 가능한 게시글을 모두 확인했어요(하루 ${dailyLimit}개). 내일 다시 확인하거나 상위 등급으로 한도를 늘릴 수 있어요.`,

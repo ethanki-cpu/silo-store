@@ -19,6 +19,7 @@ import { guessPostCollectionCategory } from "@/lib/collectionCategory";
 import { normalizePostLayoutOrder, type PostLayoutBlock } from "@/lib/postLayout";
 import type { BreadcrumbItem } from "@/components/PageHeader";
 import { UpgradeHint } from "@/components/membership/UpgradeHint";
+import { LockedPostTeaser, type LockedPostData } from "@/components/membership/LockedPostTeaser";
 
 type PostDetail = {
   id: string;
@@ -89,6 +90,7 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
   const [comments, setComments] = useState<Comment[]>([]);
   const [likedByMe, setLikedByMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState<LockedPostData | null>(null);
   const [fetching, setFetching] = useState(true);
 
   const [commentBody, setCommentBody] = useState("");
@@ -132,6 +134,7 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
   async function load() {
     setFetching(true);
     setError(null);
+    setLocked(null);
 
     const res = await fetch(`/api/boards/${boardSlug}/posts/${postSlug}`, {
       headers: session
@@ -143,6 +146,13 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
 
     if (!res.ok) {
       setError(data.error ?? "게시글을 불러오지 못했어요.");
+      setFetching(false);
+      return;
+    }
+
+    // EPIC-162 Phase 2: 권한 미달이면 서버가 본문 없이 { locked, teaser }만 준다.
+    if (data.locked) {
+      setLocked(data as LockedPostData);
       setFetching(false);
       return;
     }
@@ -321,6 +331,8 @@ export function PostDetailClient({ breadcrumb = [] }: { breadcrumb?: BreadcrumbI
   if (fetching) {
     return <main className="flex-1 p-8 bg-white">불러오는 중...</main>;
   }
+
+  if (locked) return <LockedPostTeaser data={locked} />;
 
   if (error && !post) {
     return (

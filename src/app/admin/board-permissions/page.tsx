@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { uploadImage } from "@/lib/adminImageUpload";
+import { hrefToSlug } from "@/lib/pageTemplates";
 import {
   fetchNavBranches,
   fetchBoardBranchMap,
@@ -164,6 +165,48 @@ export default function BoardPermissionsPage() {
       return;
     }
     setTiers((prev) => prev?.map((t) => (t.rank === rank ? { ...t, image_url: null } : t)) ?? prev);
+  }
+
+  // HOTFIX-162.1(사용자 신고 — "최상위/중간/최하위 카테고리 중 권한을 입력할 수 없는 곳이
+  // 꽤 있다(사일로 상점/살롱데상/커뮤니티)"): 게시판이 직접 연결되지 않은 카테고리(허브
+  // 페이지) 행에는 지금까지 권한 입력칸이 아예 없었다. 그런 카테고리 페이지 자체의 열람
+  // 등급은 page_builder.min_rank_to_read(이미 usePageRankGate로 강제되는 값)이므로, 그
+  // 한 가지 권한("페이지 열람")을 카테고리 행에서 직접 편집하게 한다 — 댓글/좋아요 같은 나머지는
+  // 게시판에만 있는 개념이라 게시판 행에서 그대로 편집한다.
+  const [pageGates, setPageGates] = useState<Record<string, { id: string; min: number | null; orig: number | null }>>({});
+  const [savingPageId, setSavingPageId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (loading || memberLoading || !session || !member?.is_admin) return;
+    let cancelled = false;
+    supabase
+      .from("page_builder")
+      .select("id, slug, min_rank_to_read")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const map: Record<string, { id: string; min: number | null; orig: number | null }> = {};
+        for (const r of (data ?? []) as { id: string; slug: string; min_rank_to_read: number | null }[]) {
+          map[r.slug] = { id: r.id, min: r.min_rank_to_read, orig: r.min_rank_to_read };
+        }
+        setPageGates(map);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, member, loading, memberLoading]);
+
+  async function savePageGate(slug: string) {
+    const g = pageGates[slug];
+    if (!g) return;
+    setSavingPageId(g.id);
+    setError(null);
+    const { error: updateError } = await supabase.from("page_builder").update({ min_rank_to_read: g.min }).eq("id", g.id);
+    setSavingPageId(null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setPageGates((prev) => ({ ...prev, [slug]: { ...g, orig: g.min } }));
   }
 
   // HOTFIX-161.6: 게시판 목록과 나란히, 실제 site_navigations 트리(branches)
@@ -429,6 +472,13 @@ export default function BoardPermissionsPage() {
                         depth={row.depth}
                         collapsed={collapsedKeys.has(row.id)}
                         onToggle={() => toggleCollapsed(row.id)}
+                        gate={row.href ? pageGates[hrefToSlug(row.href)] : undefined}
+                        gateSaving={row.href ? savingPageId === pageGates[hrefToSlug(row.href)]?.id : false}
+                        onGateToggle={(tierRank) => {
+                          const slug = hrefToSlug(row.href!);
+                          setPageGates((prev) => ({ ...prev, [slug]: { ...prev[slug], min: toggle(prev[slug].min, tierRank) } }));
+                        }}
+                        onGateSave={() => savePageGate(hrefToSlug(row.href!))}
                       />
                     ) : (
                       <BoardEditorRow
@@ -460,24 +510,71 @@ function FolderHeaderRow({
   depth,
   collapsed,
   onToggle,
+  gate,
+  gateSaving,
+  onGateToggle,
+  onGateSave,
 }: {
   title: string;
   depth: number;
   collapsed: boolean;
   onToggle: () => void;
+  gate?: { id: string; min: number | null; orig: number | null };
+  gateSaving: boolean;
+  onGateToggle: (tierRank: number | null) => void;
+  onGateSave: () => void;
 }) {
+  const titleButton = (
+    <button type="button" onClick={onToggle} style={{ paddingLeft: depth * 16 }} className="flex items-center gap-1.5 font-semibold text-gray-700">
+      <span className="inline-block w-3 text-gray-400">{collapsed ? "▶" : "▼"}</span>
+      📁 {title}
+    </button>
+  );
+  if (!gate) {
+    return (
+      <tr className="border-b border-gray-100 bg-gray-50">
+        <td colSpan={TIERS.length + 3} className="sticky left-0 bg-gray-50 p-2">
+          {titleButton}
+        </td>
+      </tr>
+    );
+  }
+  const dirty = gate.min !== gate.orig;
   return (
-    <tr className="border-b border-gray-100 bg-gray-50">
-      <td colSpan={TIERS.length + 3} className="sticky left-0 bg-gray-50 p-2">
+    <tr className="border-b border-gray-100 bg-gray-50 align-top">
+      <td className="sticky left-0 bg-gray-50 p-2 pr-4">
+        {titleButton}
+        <div className="text-[11px] text-gray-400" style={{ paddingLeft: depth * 16 + 18 }}>
+          카테고리 페이지 자체의 열람 권한
+        </div>
+      </td>
+      {TIERS.map((tier) => {
+        const granted = isGranted(gate.min, tier.rank);
+        return (
+          <td key={tier.label} className="p-2">
+            <button
+              type="button"
+              onClick={() => onGateToggle(tier.rank)}
+              className={`rounded-full border px-1.5 py-0.5 whitespace-nowrap ${
+                granted ? "border-gray-800 bg-gray-800 text-white" : "border-gray-200 bg-white text-gray-300"
+              }`}
+            >
+              페이지 열람
+            </button>
+          </td>
+        );
+      })}
+      <td className="p-2" />
+      <td className="p-2">
         <button
           type="button"
-          onClick={onToggle}
-          style={{ paddingLeft: depth * 16 }}
-          className="flex items-center gap-1.5 font-semibold text-gray-700"
+          onClick={onGateSave}
+          disabled={!dirty || gateSaving}
+          className="rounded-md bg-gray-900 px-3 py-1 text-white disabled:opacity-40"
         >
-          <span className="inline-block w-3 text-gray-400">{collapsed ? "▶" : "▼"}</span>
-          📁 {title}
+          {gateSaving ? "저장 중..." : "저장"}
         </button>
+        {!dirty && <span className="ml-2 text-[11px] text-gray-400">{gate.orig == null ? "전체 공개" : `${gate.orig}등급~`}</span>}
       </td>
     </tr>
   );

@@ -1,3 +1,7 @@
+## 2026-09-23 (PROJECT_VISION.md — 멤버십 등급별 서사/온보딩 비전 추가, 사용자 지시 "이 플랫폼 개발의 essential한 근원이 되게")
+- 사용자가 직접 작성한 멤버십 등급별 브랜드 서사(현재 Silo Angel만 완성본, 나머지 5개는 재작성 대상 초안)와 "가입 전/후 캐릭터 선택형 carousel + 미션(구매 인증 사진/취향 설문/시대 호기심/빈티지 애착 계기 등)" 온보딩 UX 컨셉을 `PROJECT_VISION.md`에 새 섹션(`## Membership Tier Narrative & Onboarding Vision`)으로 원문 그대로 보존 — 요약/축약 없이(이 문서의 기존 원칙과 동일). `docs/membership-blueprint.md`(권한/게이팅 SSoT) 맨 위에 상호 참조 링크 추가 — 그쪽은 "무엇이 게이트되는가", 이쪽은 "왜 이 등급이 되고 싶게 만드는가"로 역할을 분리.
+- **의도적으로 코드 변경 없음** — 이번엔 문서 보존만 요청받았고, Alice/Great Gatsby/Patron/Lautrec/Artist 카피 재작성이나 캐러셀 온보딩 UI 구현은 사용자가 별도로 요청할 때 진행.
+
 ## 2026-09-23 (HOTFIX-161.8 — 게시판 위젯은 있는데 board_id가 비어있던 8개 페이지 연결, 사용자 신고 "누락된 게시판이 많다")
 - **사용자 신고**: "멤버십 권한 페이지에 카테고리별로 누락된 게시판이 많은데?" — About Silo > 수미의 good n book n, About Silo > 사일로의 취향 > 4개 게시판, 사일로 상점 > 사일로 보물들을 직접 지목, "더 있나 찾아"라고 추가 조사 요청.
 - **근본 원인**: 이 페이지들은 이미 "board" 위젯이 배치돼 있었지만 `board_id`가 한 번도 실제 게시판에 연결된 적이 없었다(`PageBuilderRenderer.tsx`의 `case "board": return board_id ? <BoardModule/> : <EmptyState title="게시판이 연결되지 않았어요."/>` — 즉 방문자 화면에 실제로 "게시판이 연결되지 않았어요." 안내문만 보이고 있었다). `/admin/board-permissions`(HOTFIX-161.6이 실제 `boards` 연결 관계로 트리를 그리도록 바꿔둔 것)는 연결된 게시판이 없으니 나열할 게 아예 없었고, `/membership`의 게시판별 하이라이트(HOTFIX-161.7)도 같은 이유로 안 잡혔다.

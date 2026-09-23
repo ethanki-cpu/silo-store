@@ -40,12 +40,16 @@ export default function MembershipPage() {
       <PageEditButton slug="membership" />
       <main className="flex-1 bg-white px-6 py-12">
         <div className="max-w-3xl mx-auto w-full">
-          {/* 배치된 위젯이 없을 때 "모듈이 없어요" 안내문이 방문자에게 보이지 않게 한다 */}
-          {(modules ?? []).length > 0 && <PageBuilderRenderer modules={modules ?? []} />}
-          {/* HOTFIX-161.9: 캐릭터 선택형 캐러셀(소개/편지/가입→미션) */}
-          <MembershipCarousel />
-          {/* EPIC-158: 토스페이먼츠 Patron 정기구독 */}
-          <MembershipPlansSection />
+          {/* HOTFIX-162.7: 캐러셀/가입 카드도 이제 위젯이라 "페이지 수정"에서 순서·숨김·추가를
+              자유롭게 바꾼다. 위젯이 하나도 없으면(시드 전) 예전 기본 구성으로 보여준다. */}
+          {(modules ?? []).length > 0 ? (
+            <PageBuilderRenderer modules={modules ?? []} />
+          ) : (
+            <>
+              <MembershipCarousel />
+              <MembershipPlansSection />
+            </>
+          )}
         </div>
       </main>
     </>

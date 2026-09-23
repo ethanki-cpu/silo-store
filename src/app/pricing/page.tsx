@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LegalDocument, LegalSection } from "@/components/legal/LegalDocument";
 import { fetchBusinessInfo } from "@/lib/businessInfo";
 import { supabase } from "@/lib/supabaseClient";
-import { describeTierAccess, describeBoardHighlightsForTier, type TierRow, type BoardPermissionRow } from "@/lib/tierAccess";
+import { describeTierAccess, describeTierBenefits, benefitLine, type TierRow, type BoardPermissionRow } from "@/lib/tierAccess";
 
 export const metadata: Metadata = { title: "상품 및 가격 안내" };
 // 방문마다 DB를 다시 읽지 않도록 1시간 캐시(무료 플랜 데이터 사용량 절약).
@@ -95,7 +95,7 @@ export default async function PricingPage() {
                 // HOTFIX-161.7(사용자 지시 — "지금 표시된게 너무 적어"): 게시판별
                 // 실제 권한 설정(/admin/board-permissions)을 그대로 반영한 상세 목록.
                 const groups: [string, string[]][] = [
-                  ["게시판별 이용 권한", describeBoardHighlightsForTier(boards, t.rank)],
+                  ["이전 등급에 더해 새로 열리는 권한", describeTierBenefits(boards, t.rank).map(benefitLine)],
                   ["이용 가능한 활동", a.activities],
                   ["할인·혜택", a.perks],
                 ];
@@ -103,7 +103,7 @@ export default async function PricingPage() {
                   <div key={t.rank} className="rounded-md border border-gray-200 p-4">
                     {t.image_url && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.image_url} alt={t.name} className="mb-3 h-32 w-full rounded object-cover" />
+                      <img src={t.image_url} alt={t.name} className="mb-3 max-h-72 w-full rounded bg-white object-contain" />
                     )}
                     <p className="text-base font-semibold text-gray-900">
                       {t.name} <span className="text-sm font-normal text-gray-500">{t.price === 0 ? "무료" : `월 ${won(t.price)}`}</span>

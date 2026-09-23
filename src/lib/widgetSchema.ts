@@ -42,6 +42,10 @@ export type PageModuleType =
   | "craft_directory"
   | "craft_newsletter"
   | "craft_footer"
+  // HOTFIX-162.7(사용자 지시 — "/membership 페이지를 자유롭게 수정하게"): 멤버십 페이지의 두 핵심 섹션을
+  // 코드에 고정하지 않고 위젯으로 뺐다 — 순서 변경/숨기기/다른 위젯 끼워넣기를 "페이지 수정"에서 자유롭게 한다.
+  | "membership_carousel"
+  | "membership_plans"
   // 레거시(EPIC-060, 팔레트에는 없지만 기존 DB 행이 있으면 계속 렌더링)
   | "sort"
   | "text";
@@ -74,6 +78,8 @@ export const PAGE_MODULE_TYPES: PageModuleType[] = [
   "craft_directory",
   "craft_newsletter",
   "craft_footer",
+  "membership_carousel",
+  "membership_plans",
 ];
 
 export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
@@ -104,6 +110,8 @@ export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
   craft_directory: "Craft: Text Directory",
   craft_newsletter: "Craft: Newsletter",
   craft_footer: "Craft: Minimal Footer",
+  membership_carousel: "멤버십 캐러셀",
+  membership_plans: "멤버십 가입 카드",
   sort: "Sort (레거시)",
   text: "Text (레거시)",
 };
@@ -136,6 +144,8 @@ export const PAGE_MODULE_ICONS: Record<PageModuleType, string> = {
   craft_directory: "🗂️",
   craft_newsletter: "✉️",
   craft_footer: "🦶",
+  membership_carousel: "🎠",
+  membership_plans: "💳",
   sort: "↕️",
   text: "📝",
 };
@@ -160,6 +170,7 @@ export const WIDGET_GROUPS: { label: string; types: PageModuleType[] }[] = [
   // WidgetInspectorForm의 필드 폼으로만 편집한다(더블클릭 인라인 편집이
   // 아님, Craft 페이지 자체를 편집할 때만 그 방식을 씀).
   { label: "Craft 블록", types: ["craft_hero", "craft_directory", "craft_newsletter", "craft_footer"] },
+  { label: "멤버십", types: ["membership_carousel", "membership_plans"] },
 ];
 
 // board_id 컬럼을 실제로 쓰는 위젯 — 관리자 UI가 이 목록으로 "게시판 선택"
@@ -424,6 +435,8 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "subtitle", label: "부제목", kind: "text" },
     { key: "buttonText", label: "버튼 문구", kind: "text" },
   ],
+  membership_carousel: [],
+  membership_plans: [],
   craft_footer: [
     {
       key: "items",
@@ -499,6 +512,8 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     subtitle: "새로운 컬렉션과 살롱 소식을 가장 먼저 전해드립니다.",
     buttonText: "구독하기",
   },
+  membership_carousel: {},
+  membership_plans: {},
   craft_footer: {
     items: [{ label: "About Silo", href: "/about-silo" }],
     copyright: "© Silo Store. All rights reserved.",

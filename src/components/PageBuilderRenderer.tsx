@@ -8,6 +8,8 @@ import type { BreadcrumbItem } from "@/components/PageHeader";
 import { HeroModule } from "@/components/modules/HeroModule";
 import { BreadcrumbWidget } from "@/components/modules/BreadcrumbWidget";
 import { BoardModule } from "@/components/modules/BoardModule";
+import { MembershipCarousel } from "@/components/membership/MembershipCarousel";
+import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
 import { ApplicationModule } from "@/components/modules/ApplicationModule";
 import { CalendarBoardWidget } from "@/components/modules/CalendarBoardWidget";
 import { SearchInput } from "@/components/modules/SearchInput";
@@ -339,6 +341,10 @@ function renderModule(module: PageModuleRow) {
       return <CraftNewsletterFromSettings settings={settings} />;
     case "craft_footer":
       return <CraftFooterFromSettings settings={settings} />;
+    case "membership_carousel":
+      return <MembershipCarousel />;
+    case "membership_plans":
+      return <MembershipPlansSection />;
     default:
       return null;
   }

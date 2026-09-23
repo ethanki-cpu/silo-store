@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/AuthProvider";
 import { SALON_BANK_ACCOUNT, STEPPAY_UI_ENABLED } from "@/lib/bankAccount";
 import type { TierAccess } from "@/lib/tierAccess";
 import { supabase } from "@/lib/supabaseClient";
+import { TierBenefitList } from "@/components/membership/TierBenefitList";
 
 // EPIC-160: 유료 멤버십 4등급(Alice/Great Gatsby/Patron/Lautrec) 가입 화면. /membership 과 마이페이지 공용.
 // 로그인하지 않아도 4개 등급의 가격·접근 게시판·활동·혜택을 볼 수 있고, 가입/해지는 로그인 후 스텝페이로 진행한다.
@@ -264,14 +265,14 @@ export function MembershipPlansSection() {
                         /admin/board-permissions에서 올리지 않으면 그냥 안 보인다(회귀 없음). */}
                     {plan.imageUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={plan.imageUrl} alt={plan.name} className="mb-3 h-32 w-full rounded object-cover sm:h-40" />
+                      <img src={plan.imageUrl} alt={plan.name} className="mb-3 max-h-80 w-full rounded bg-white object-contain" />
                     )}
                     <p className="text-base font-semibold">
                       {plan.name} <span className="ml-1 rounded bg-gray-800 px-1.5 py-0.5 align-middle text-[10px] font-medium text-white">무료</span>
                     </p>
                     <p className="mt-1 text-sm text-gray-600">월 0원 — 가입만 하면 바로 시작해요. 유료 등급은 언제든 올릴 수 있어요.</p>
                     <div className="grid gap-x-6 sm:grid-cols-3">
-                      <AccessList title="접근 가능한 게시판" items={plan.access.boards} />
+                      <TierBenefitList benefits={plan.access.benefits ?? []} heading={plan.rank === 0 ? "가입하면 열리는 세계" : "이전 등급에 더해, 새로 열려요"} />
                       <AccessList title="이용 가능한 활동" items={plan.access.activities} />
                       <AccessList title="할인·혜택" items={plan.access.perks} />
                     </div>
@@ -299,11 +300,11 @@ export function MembershipPlansSection() {
                 <li key={plan.rank} className={`flex flex-col rounded-md border p-4 ${isCurrent ? "border-green-500" : "border-gray-200"}`}>
                   {plan.imageUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={plan.imageUrl} alt={plan.name} className="mb-3 h-32 w-full rounded object-cover" />
+                    <img src={plan.imageUrl} alt={plan.name} className="mb-3 max-h-72 w-full rounded bg-white object-contain" />
                   )}
                   <p className="text-base font-semibold">{plan.name}</p>
                   <p className="mt-1 text-sm text-gray-600">월 {plan.price.toLocaleString()}원 (부가세 포함)</p>
-                  <AccessList title="접근 가능한 게시판" items={plan.access.boards} />
+                  <TierBenefitList benefits={plan.access.benefits ?? []} heading={plan.rank === 0 ? "가입하면 열리는 세계" : "이전 등급에 더해, 새로 열려요"} />
                   <AccessList title="이용 가능한 활동" items={plan.access.activities} />
                   <AccessList title="할인·혜택" items={plan.access.perks} />
                   <div className="mt-auto pt-4">

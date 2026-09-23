@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { uploadFileToR2 } from "@/lib/r2Upload";
+import { TierBenefitList } from "@/components/membership/TierBenefitList";
+import type { TierBenefit } from "@/lib/tierAccess";
 
 // HOTFIX-161.9(사용자 지시 — PROJECT_VISION.md "멤버십 수익화 마스터플랜" 캐러셀 UI 스펙):
 // 게임의 캐릭터 선택창처럼 등급을 스와이프로 고르고 → 애니메이션(대표가 나중에 전달할 영상,
@@ -37,13 +39,13 @@ function TierMedia({ tier, playVideo }: { tier: TierContent; playVideo: boolean 
       {src ? (
         isVideoUrl(src) ? (
           playVideo ? (
-            <video src={src} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+            <video src={src} autoPlay muted loop playsInline className="h-full w-full object-contain" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">{tier.name}</div>
           )
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt={tier.name} className="h-full w-full object-cover" />
+          <img src={src} alt={tier.name} className="h-full w-full object-contain" />
         )
       ) : (
         <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-gray-400">
@@ -350,6 +352,16 @@ export function MembershipCarousel() {
   const [editing, setEditing] = useState(false);
   const [missionOpen, setMissionOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const [benefitsByRank, setBenefitsByRank] = useState<Record<number, TierBenefit[]>>({});
+
+  useEffect(() => {
+    fetch("/api/membership/plans")
+      .then((r) => (r.ok ? r.json() : { plans: [] }))
+      .then((j: { plans?: { rank: number; access: { benefits?: TierBenefit[] } }[] }) => {
+        setBenefitsByRank(Object.fromEntries((j.plans ?? []).map((p) => [p.rank, p.access.benefits ?? []])));
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -505,6 +517,7 @@ export function MembershipCarousel() {
               {tier.letter_text && (
                 <div className="mt-5 whitespace-pre-line rounded-md border border-amber-100 bg-amber-50/50 p-5 text-sm leading-8 text-gray-800">{tier.letter_text}</div>
               )}
+              <TierBenefitList benefits={benefitsByRank[tier.rank] ?? []} heading="이 멤버십으로 새로 열리는 세계" />
               <div className="mt-5 flex flex-col items-center gap-2">
                 {honorary ? (
                   <p className="text-xs text-gray-500">공연·전시에 참여한 예술가에게 자동으로 부여되는 명예 등급이에요.</p>

@@ -33,6 +33,47 @@ export type TierRow = {
   image_url?: string | null;
 };
 
+// HOTFIX-162.8(사용자 지시 — "board-permissions를 분석해서 자동으로 그 권한을 이해하고 싶고 탐나게
+// 표현"): 게시판 수십 개를 나열하는 대신, 이전 등급 대비 "새로 열리는 것"을 종류별(읽기/글쓰기/댓글/
+// 좋아요/저장/뱃지/제안)로 묶어 개수와 대표 예시로 요약한다 — 등급마다 차이가 한눈에 보이고
+// "올라가면 이게 생긴다"가 읽힌다. 값은 전부 boards의 실제 권한 설정에서 계산한다.
+export type TierBenefit = { icon: string; title: string; count: number; examples: string[] };
+
+export const TIER_LADDER: (number | null)[] = [null, 0, 1, 2, 3, 4];
+
+const grantedAt = (min: number | null, r: number | null): boolean => (min == null ? true : r != null && r >= min);
+
+export function describeTierBenefits(boards: BoardPermissionRow[], rank: number): TierBenefit[] {
+  const cur = rank >= 99 ? 4 : rank;
+  const idx = TIER_LADDER.indexOf(cur);
+  const prev = idx > 0 ? TIER_LADDER[idx - 1] : null;
+  const canRead = (b: BoardPermissionRow, r: number | null) => grantedAt(b.min_rank_to_read, r) && grantedAt(b.min_rank_to_view_post, r);
+
+  const defs: { icon: string; title: string; test: (b: BoardPermissionRow, r: number | null) => boolean }[] = [
+    { icon: "📖", title: "새로 읽을 수 있는 이야기", test: canRead },
+    { icon: "✍️", title: "글을 남길 수 있는 곳", test: (b, r) => canRead(b, r) && grantedAt(b.min_rank_to_write, r) },
+    { icon: "💬", title: "대화에 참여(댓글)", test: (b, r) => canRead(b, r) && grantedAt(b.min_rank_to_comment, r) },
+    { icon: "❤️", title: "마음을 표현(좋아요)", test: (b, r) => canRead(b, r) && grantedAt(b.min_rank_to_like, r) },
+    { icon: "🔖", title: "내 아카이브에 저장(북마크)", test: (b, r) => canRead(b, r) && grantedAt(b.min_rank_to_bookmark, r) },
+    { icon: "🏅", title: "완독하면 받는 뱃지", test: (b, r) => b.badge_min_rank != null && r != null && r >= b.badge_min_rank },
+    { icon: "💡", title: "사일로에 제안하기", test: (b, r) => b.min_rank_to_propose != null && r != null && r >= b.min_rank_to_propose },
+  ];
+
+  const out: TierBenefit[] = [];
+  for (const d of defs) {
+    const names = boards.filter((b) => d.test(b, cur) && !d.test(b, prev)).map((b) => b.name.trim());
+    if (names.length === 0) continue;
+    names.sort((a, b) => a.localeCompare(b, "ko"));
+    out.push({ icon: d.icon, title: d.title, count: names.length, examples: names.slice(0, 3) });
+  }
+  return out;
+}
+
+export function benefitLine(b: TierBenefit): string {
+  const more = b.count > b.examples.length ? ` 외 ${b.count - b.examples.length}곳` : "";
+  return `${b.icon} ${b.title} ${b.count}곳 — ${b.examples.join(", ")}${more}`;
+}
+
 export type TierAccess = {
   /** 접근·이용할 수 있는 게시판 — HOTFIX-161.7: describeTierAccess는 더 이상 이 필드를 채우지
    * 않는다(빈 배열) — 호출부가 describeBoardHighlightsForTier()의 결과로 덮어써서 채운다. */
@@ -41,6 +82,8 @@ export type TierAccess = {
   activities: string[];
   /** 상점·도슨트 할인과 열람 혜택 */
   perks: string[];
+  /** HOTFIX-162.8: 이전 등급 대비 새로 열리는 권한 요약(호출부가 채움) */
+  benefits?: TierBenefit[];
 };
 
 // HOTFIX-161.7(사용자 신고 — "각 멤버십마다 어떤 게시판의 게시글 열람가능하게

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-import { describeTierAccess, describeBoardHighlightsForTier, type TierRow, type BoardPermissionRow } from "@/lib/tierAccess";
+import { describeTierAccess, describeTierBenefits, type TierRow, type BoardPermissionRow } from "@/lib/tierAccess";
 import { steppayConfigured, tierProducts } from "@/lib/steppayServer";
 
 // EPIC-160: 로그인하지 않아도 볼 수 있는 유료 멤버십 4등급(Alice/Great Gatsby/Patron/Lautrec) 목록.
@@ -37,7 +37,7 @@ export async function GET() {
     free: t.price === 0,
     available: t.price === 0 ? true : products.has(t.rank),
     imageUrl: t.image_url ?? null,
-    access: { ...describeTierAccess(t), boards: describeBoardHighlightsForTier(boards, t.rank) },
+    access: { ...describeTierAccess(t), boards: [], benefits: describeTierBenefits(boards, t.rank) },
     // 절약 계산기용 할인율(마이페이지/멤버십 화면이 지난 30일 이용 금액에 곱해 추정한다)
     rates: {
       shopPurchasePct: t.shop_purchase_discount_pct ?? 0,

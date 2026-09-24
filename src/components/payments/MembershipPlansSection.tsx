@@ -12,7 +12,7 @@ import { TierBenefitList } from "@/components/membership/TierBenefitList";
 // 로그인하지 않아도 4개 등급의 가격·접근 게시판·활동·혜택을 볼 수 있고, 가입/해지는 로그인 후 스텝페이로 진행한다.
 // 결제 결과·등급 반영·해지 반영은 웹훅이 하므로 이 컴포넌트는 상태를 읽어 보여주기만 한다.
 type Rates = { shopPurchasePct: number; shopRentalPct: number; clubPct: number; docentPct: number };
-type Plan = { rank: number; name: string; price: number; free?: boolean; available: boolean; imageUrl?: string | null; access: TierAccess; rates?: Rates };
+type Plan = { rank: number; name: string; price: number; free?: boolean; honorary?: boolean; available: boolean; imageUrl?: string | null; access: TierAccess; rates?: Rates };
 type Spend = { shopPurchase: number; shopRental: number; club: number; docent: number };
 type Sub = { subscription_id: number; status: string; tier_rank: number | null; next_payment_date: string | null; end_date: string | null } | null;
 type StatusInfo = { enabled: boolean; subscription: Sub; membership_rank: number };
@@ -124,7 +124,7 @@ export function MembershipPlansSection({ showPlanCards = true }: { showPlanCards
       .then((r) => (r.ok ? r.json() : { plans: [] }))
       .then((j: { plans?: Plan[] }) => {
         if (cancelled) return;
-        setPlans(j.plans ?? []);
+        setPlans((j.plans ?? []).filter((p) => !p.honorary));
         setPlansLoaded(true);
       })
       .catch(() => setPlansLoaded(true));

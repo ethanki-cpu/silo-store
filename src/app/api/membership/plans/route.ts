@@ -20,7 +20,11 @@ export async function GET() {
   ]);
   const boards = (boardRows ?? []) as BoardPermissionRow[];
   // 무료 입문 등급(Silo Angel, rank 0)을 맨 앞에 포함 — 무료로 먼저 유입시킨 뒤 유료로 전환하는 흐름의 시작점.
-  const tiers = ((data ?? []) as TierRow[]).filter((t) => !t.is_lifetime && t.rank >= 0 && t.rank < 99 && (t.price > 0 || t.rank === 0));
+  const allTiers = (data ?? []) as TierRow[];
+  const tiers = allTiers.filter((t) => !t.is_lifetime && t.rank >= 0 && t.rank < 99 && (t.price > 0 || t.rank === 0));
+  // HOTFIX-162.14: 명예 등급(Artist, 가입 불가·초청)도 카드/비교표에 권한을 보여주려고 함께 내려주되 honorary로 표시한다.
+  const honoraryTiers = allTiers.filter((t) => t.is_lifetime || t.rank >= 99);
+  const shown = [...tiers, ...honoraryTiers];
 
   let products = new Map<number, unknown>();
   if (steppayConfigured()) {
@@ -34,16 +38,17 @@ export async function GET() {
   // HOTFIX-163.1: 카드 안에 보여줄 "카테고리별 이용 가능 항목"(사이트 메뉴 트리 + 실제 권한 설정 기반).
   let categoryAccess = new Map<number, Awaited<ReturnType<typeof computeTierCategoryAccess>> extends Map<number, infer V> ? V : never>();
   try {
-    categoryAccess = await computeTierCategoryAccess(tiers.map((t) => t.rank));
+    categoryAccess = await computeTierCategoryAccess(shown.map((t) => t.rank));
   } catch {
     /* 계산 실패 시 카드에서 카테고리 영역만 생략 */
   }
 
-  const plans = tiers.map((t) => ({
+  const plans = shown.map((t) => ({
     rank: t.rank,
     name: t.name,
     price: t.price,
-    free: t.price === 0,
+    honorary: t.is_lifetime === true || t.rank >= 99,
+    free: t.price === 0 && !(t.is_lifetime === true || t.rank >= 99),
     available: t.price === 0 ? true : products.has(t.rank),
     imageUrl: t.image_url ?? null,
     access: { ...describeTierAccess(t), boards: [], benefits: describeTierBenefits(boards, t.rank) },
@@ -57,5 +62,5 @@ export async function GET() {
     },
   }));
 
-  return NextResponse.json({ plans, conditionRows: describeConditionRows(tiers) }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
+  return NextResponse.json({ plans, conditionRows: describeConditionRows(shown) }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
 }

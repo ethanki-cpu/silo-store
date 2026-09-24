@@ -1,3 +1,4 @@
+import { DEFAULT_GROUP_COPY } from "./tierContent";
 // EPIC-065: Visual Widget Builder — 위젯 23종의 타입/라벨/아이콘/그룹/설정
 // 필드 스키마를 한 곳에 모은다. 운영자는 이 파일이 선언한 체크박스/드롭다운/
 // 텍스트/목록 필드로만 위젯을 설정하며, JSON을 직접 입력하지 않는다
@@ -502,10 +503,17 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "showJoin", label: "가입 버튼 보이기", kind: "checkbox" },
     { key: "showLetter", label: "'소개와 편지 보기' 버튼 보이기", kind: "checkbox" },
     { key: "excludeCategories", label: "카드에서 숨길 카테고리(쉼표로 구분)", kind: "text", placeholder: "예: 마이 페이지" },
-    { key: "commonNotes", label: "모든 등급 공통 안내(한 줄에 하나)", kind: "textarea", placeholder: "사일로 상점 물품 구매 시 포인트 적립" },
+    { key: "commonNotes", label: "모든 등급 공통 안내(한 줄에 하나)", kind: "textarea" },
+    { key: "firstTitle", label: "문구: 첫 등급의 열리는 세계 제목", kind: "text" },
+    { key: "newTitle", label: "문구: 새로 열리는 문 제목", kind: "text" },
+    { key: "perksTitle", label: "문구: 특별한 대접 제목", kind: "text" },
+    { key: "fullListLabel", label: "문구: 전체 펼치기({n}=개수)", kind: "text" },
+    { key: "notesTitle", label: "문구: 요금·이용 방식 제목", kind: "text" },
+    { key: "storyButton", label: "문구: 편지 버튼({name}=등급 이름)", kind: "text" },
+    { key: "groupCopy", label: "카테고리 소개 문장(한 줄에 하나, '이름|문장' · '@이름'은 큰 갈래 소개)", kind: "textarea" },
   ],
   membership_matrix: [
-    { key: "heading", label: "제목", kind: "text", placeholder: "등급별 권한 한눈에 비교" },
+    { key: "heading", label: "제목", kind: "text", placeholder: "자리마다 열리는 문, 한눈에" },
     { key: "subtitle", label: "부제목", kind: "textarea" },
     { key: "showConditions", label: "요금·이용 조건 비교 보이기", kind: "checkbox" },
     { key: "expandAll", label: "카테고리를 처음부터 펼쳐서 보이기", kind: "checkbox" },
@@ -590,8 +598,8 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     buttonText: "구독하기",
   },
   membership_carousel: {
-    heading: "멤버십 혜택 한눈에 보기",
-    subtitle: "옆으로 넘기며 등급마다 열리는 세계를 비교해 보세요. 높은 등급은 낮은 등급의 혜택을 모두 포함해요.",
+    heading: "당신은 어떤 ‘사일로의 사람’이 되고 싶으세요?",
+    subtitle: "첫눈처럼 찾아온 사람부터 예술가의 곁을 지키는 후원자까지. 옆으로 넘기며 지금의 나에게 맞는 자리를 찾아보세요. 새로운 자리는 앞선 자리의 문을 모두 품고 있어요.",
     layout: "stack",
     textAlign: "center",
     cardMaxWidthPx: 672,
@@ -616,11 +624,18 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     showJoin: true,
     showLetter: true,
     excludeCategories: "",
-    commonNotes: "사일로 상점 물품 구매 시 포인트 적립",
+    commonNotes: "사일로 상점에서 물건을 만날 때마다 포인트가 쌓여요",
+    firstTitle: "이 자리에서 열리는 세계",
+    newTitle: "이 자리에서 새롭게 열리는 문",
+    perksTitle: "이 자리에서만 받는 특별한 대접",
+    fullListLabel: "지금까지 열린 {n}개의 문 모두 펼쳐보기",
+    notesTitle: "마음 편히 알아두세요 · 요금과 이용 방식",
+    storyButton: "✉ {name}의 이야기와 편지 읽기",
+    groupCopy: DEFAULT_GROUP_COPY,
   },
   membership_matrix: {
-    heading: "등급별 권한 한눈에 비교",
-    subtitle: "✓는 이용할 수 있는 곳, ✕는 아직 열리지 않는 곳이에요. 카테고리를 눌러 세부 항목을 펼쳐보세요.",
+    heading: "자리마다 열리는 문, 한눈에",
+    subtitle: "✓ 열려 있어요 · ✕ 아직 닫혀 있어요. 방 이름을 눌러 그곳에서 어떤 이야기가 기다리는지 펼쳐보세요.",
     showConditions: true,
     expandAll: false,
     excludeCategories: "",

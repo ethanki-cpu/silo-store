@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
+import { DEFAULT_GROUP_COPY, copyForGroup, copyForRoot, parseGroupCopy } from "@/lib/tierContent";
 import type { ConditionRow } from "@/lib/tierAccess";
 import type { BenefitGroup, TierCategoryAccess } from "@/lib/tierCategoryAccess";
 
 // HOTFIX-162.12(사용자 지시 — 캐러셀 아래에 "각 등급별로 되는 권한과 아닌 권한을 비교하는 매트릭스"):
 // 행 = 카테고리(펼치면 세부 게시판/페이지) · 요금/이용 조건, 열 = 등급, 셀 = ✓/✕/조건 문구.
 // 데이터는 캐러셀과 같은 /api/membership/plans(실제 권한 설정에서 계산) 하나만 쓴다.
-type Plan = { rank: number; name: string; price: number; categories: TierCategoryAccess | null };
+type Plan = { rank: number; name: string; price: number; honorary?: boolean; categories: TierCategoryAccess | null };
 
 const keyOf = (g: BenefitGroup) => `${g.root}/${g.title}`;
 
@@ -22,12 +23,14 @@ export function MembershipMatrix({
   showConditions,
   expandAll,
   excludeCategories,
+  groupCopy,
 }: {
   heading: string;
   subtitle: string;
   showConditions: boolean;
   expandAll: boolean;
   excludeCategories: string;
+  groupCopy: string;
 }) {
   const { member } = useAuth();
   const [plans, setPlans] = useState<Plan[] | null>(null);
@@ -44,6 +47,7 @@ export function MembershipMatrix({
       .catch(() => setPlans([]));
   }, []);
 
+  const copy = parseGroupCopy(groupCopy || DEFAULT_GROUP_COPY);
   const excluded = excludeCategories.split(",").map((x) => x.trim()).filter(Boolean);
 
   // 누적형이라 가장 높은 등급이 모든 카테고리를 포함한다 — 그 등급의 그룹을 행 틀로 쓴다.
@@ -75,11 +79,11 @@ export function MembershipMatrix({
 
   const head = (
     <tr className="border-b border-gray-200 bg-gray-50 text-xs">
-      <th className="sticky left-0 z-10 min-w-[10rem] bg-gray-50 px-3 py-2.5 text-left font-semibold text-gray-600">권한</th>
+      <th className="sticky left-0 z-10 min-w-[10rem] bg-gray-50 px-3 py-2.5 text-left font-semibold text-gray-600">열리는 문</th>
       {plans.map((p) => (
         <th key={p.rank} className={`min-w-[5.5rem] px-2 py-2.5 text-center font-semibold text-gray-900 ${colClass(p.rank)}`}>
           {p.name}
-          <span className="block text-[10px] font-normal text-gray-400">{p.price === 0 ? "무료" : `월 ${p.price.toLocaleString()}원`}</span>
+          <span className="block text-[10px] font-normal text-gray-400">{p.honorary ? "초대받는 자리" : p.price === 0 ? "무료" : `월 ${p.price.toLocaleString()}원`}</span>
         </th>
       ))}
     </tr>
@@ -107,6 +111,7 @@ export function MembershipMatrix({
                     <tr className="bg-gray-100/70">
                       <td colSpan={plans.length + 1} className="sticky left-0 px-3 py-1.5 text-xs font-bold tracking-wide text-gray-700">
                         {r.group.root}
+                        {copyForRoot(copy, r.group.root) && <span className="ml-2 font-normal normal-case italic text-gray-500">{copyForRoot(copy, r.group.root)}</span>}
                       </td>
                     </tr>
                   )}
@@ -134,6 +139,13 @@ export function MembershipMatrix({
                       );
                     })}
                   </tr>
+                  {isOpen(r.key) && copyForGroup(copy, r.group.title) && (
+                    <tr className="border-t border-gray-50">
+                      <td colSpan={plans.length + 1} className="sticky left-0 bg-white px-3 py-2 text-xs italic leading-5 text-gray-500">
+                        {copyForGroup(copy, r.group.title)}
+                      </td>
+                    </tr>
+                  )}
                   {!single &&
                     isOpen(r.key) &&
                     r.group.items.map((it) => (
@@ -154,7 +166,7 @@ export function MembershipMatrix({
               <>
                 <tr className="bg-gray-100/70">
                   <td colSpan={plans.length + 1} className="sticky left-0 px-3 py-1.5 text-xs font-bold tracking-wide text-gray-700">
-                    요금·이용 조건
+                    요금과 이용 방식
                   </td>
                 </tr>
                 {conditions.map((c) => (

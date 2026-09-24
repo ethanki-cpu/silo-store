@@ -373,14 +373,22 @@ function renderModule(module: PageModuleRow) {
             showLetter: bool(settings.showLetter, true),
             excludeCategories: str(settings.excludeCategories, MEMBERSHIP_CAROUSEL_DEFAULTS.excludeCategories),
             commonNotes: str(settings.commonNotes, MEMBERSHIP_CAROUSEL_DEFAULTS.commonNotes),
+            firstTitle: str(settings.firstTitle, MEMBERSHIP_CAROUSEL_DEFAULTS.firstTitle),
+            newTitle: str(settings.newTitle, MEMBERSHIP_CAROUSEL_DEFAULTS.newTitle),
+            perksTitle: str(settings.perksTitle, MEMBERSHIP_CAROUSEL_DEFAULTS.perksTitle),
+            fullListLabel: str(settings.fullListLabel, MEMBERSHIP_CAROUSEL_DEFAULTS.fullListLabel),
+            notesTitle: str(settings.notesTitle, MEMBERSHIP_CAROUSEL_DEFAULTS.notesTitle),
+            storyButton: str(settings.storyButton, MEMBERSHIP_CAROUSEL_DEFAULTS.storyButton),
+            groupCopy: str(settings.groupCopy, "") || MEMBERSHIP_CAROUSEL_DEFAULTS.groupCopy,
           }}
         />
       );
     case "membership_matrix":
       return (
         <MembershipMatrix
-          heading={str(settings.heading, "등급별 권한 한눈에 비교")}
-          subtitle={str(settings.subtitle, "✓는 이용할 수 있는 곳, ✕는 아직 열리지 않는 곳이에요. 카테고리를 눌러 세부 항목을 펼쳐보세요.")}
+          heading={str(settings.heading, "자리마다 열리는 문, 한눈에")}
+          subtitle={str(settings.subtitle, "✓ 열려 있어요 · ✕ 아직 닫혀 있어요. 방 이름을 눌러 그곳에서 어떤 이야기가 기다리는지 펼쳐보세요.")}
+          groupCopy={str(settings.groupCopy, "")}
           showConditions={bool(settings.showConditions, true)}
           expandAll={bool(settings.expandAll, false)}
           excludeCategories={str(settings.excludeCategories, "")}

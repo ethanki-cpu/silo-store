@@ -9,7 +9,8 @@ import { useMembershipBilling } from "@/lib/useMembershipBilling";
 import type { BenefitGroup, TierCategoryAccess } from "@/lib/tierCategoryAccess";
 import { TierStory } from "@/components/membership/TierStory";
 import { TierEditor } from "@/components/membership/TierEditor";
-import { TIER_SELECT, aspectCss, isVideoUrl, type TierContent, type TierMediaSettings } from "@/lib/tierContent";
+import { DEFAULT_GROUP_COPY, TIER_SELECT, aspectCss, copyForGroup, copyForRoot, isVideoUrl, parseGroupCopy, type GroupCopy, type TierContent, type TierMediaSettings } from "@/lib/tierContent";
+import type { ConditionRow } from "@/lib/tierAccess";
 
 // HOTFIX-161.9(사용자 지시 — PROJECT_VISION.md "멤버십 수익화 마스터플랜" 캐러셀 UI 스펙):
 // 게임의 캐릭터 선택창처럼 등급을 스와이프로 고르고 → 이미지/애니메이션 → 소개와 편지 → '가입' → 미션 창.
@@ -252,11 +253,19 @@ export type MembershipCarouselOptions = {
   showLetter: boolean;
   excludeCategories: string;
   commonNotes: string;
+  // HOTFIX-162.14: 카드 안 문구(사일로의 결에 맞춘 말투) — 전부 위젯 설정에서 고친다. {name}/{n}은 자리표시자.
+  firstTitle: string;
+  newTitle: string;
+  perksTitle: string;
+  fullListLabel: string;
+  notesTitle: string;
+  storyButton: string;
+  groupCopy: string;
 };
 
 export const MEMBERSHIP_CAROUSEL_DEFAULTS: MembershipCarouselOptions = {
-  heading: "멤버십 혜택 한눈에 보기",
-  subtitle: "옆으로 넘기며 등급마다 열리는 세계를 비교해 보세요. 높은 등급은 낮은 등급의 혜택을 모두 포함해요.",
+  heading: "당신은 어떤 ‘사일로의 사람’이 되고 싶으세요?",
+  subtitle: "첫눈처럼 찾아온 사람부터 예술가의 곁을 지키는 후원자까지. 옆으로 넘기며 지금의 나에게 맞는 자리를 찾아보세요. 새로운 자리는 앞선 자리의 문을 모두 품고 있어요.",
   layout: "stack",
   textAlign: "center",
   cardMaxWidthPx: 672,
@@ -281,7 +290,14 @@ export const MEMBERSHIP_CAROUSEL_DEFAULTS: MembershipCarouselOptions = {
   showNotes: true,
   showLetter: true,
   excludeCategories: "",
-  commonNotes: "사일로 상점 물품 구매 시 포인트 적립",
+  commonNotes: "사일로 상점에서 물건을 만날 때마다 포인트가 쌓여요",
+  firstTitle: "이 자리에서 열리는 세계",
+  newTitle: "이 자리에서 새롭게 열리는 문",
+  perksTitle: "이 자리에서만 받는 특별한 대접",
+  fullListLabel: "지금까지 열린 {n}개의 문 모두 펼쳐보기",
+  notesTitle: "마음 편히 알아두세요 · 요금과 이용 방식",
+  storyButton: "✉ {name}의 이야기와 편지 읽기",
+  groupCopy: DEFAULT_GROUP_COPY,
 };
 
 type Plan = {
@@ -289,6 +305,7 @@ type Plan = {
   name: string;
   price: number;
   free?: boolean;
+  honorary?: boolean;
   available: boolean;
   access: { activities: string[]; perks: string[] };
   categories: TierCategoryAccess | null;
@@ -301,7 +318,7 @@ function filterGroups(groups: BenefitGroup[], excluded: string[], onlyNew: boole
     .filter((g) => g.items.length > 0);
 }
 
-function GroupedChips({ groups, highlightNew }: { groups: BenefitGroup[]; highlightNew: boolean }) {
+function GroupedChips({ groups, highlightNew, copy }: { groups: BenefitGroup[]; highlightNew: boolean; copy: GroupCopy }) {
   const roots: { root: string; groups: BenefitGroup[] }[] = [];
   for (const g of groups) {
     const last = roots[roots.length - 1];
@@ -309,35 +326,43 @@ function GroupedChips({ groups, highlightNew }: { groups: BenefitGroup[]; highli
     else roots.push({ root: g.root, groups: [g] });
   }
   return (
-    <div className="space-y-4">
-      {roots.map((r) => (
-        <div key={r.root}>
-          <p className="text-xs font-bold tracking-wide text-gray-900">{r.root}</p>
-          <div className="mt-1.5 space-y-2.5 border-l-2 border-gray-100 pl-3">
-            {r.groups.map((g) => (
-              <div key={`${g.root}/${g.title}`}>
-                {g.title !== r.root && (
-                  <p className="mb-1 text-[11px] font-semibold text-gray-500">
-                    {g.title} <span className="font-normal text-gray-400">{g.items.length}</span>
-                  </p>
-                )}
-                <ul className="flex flex-wrap gap-1.5">
-                  {g.items.map((it) => (
-                    <li
-                      key={it.name}
-                      className={`rounded-full px-2.5 py-1 text-xs leading-4 ${
-                        highlightNew && it.isNew ? "bg-amber-100 font-medium text-amber-900" : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {it.name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+    <div className="space-y-6">
+      {roots.map((r) => {
+        const rootCopy = copyForRoot(copy, r.root);
+        return (
+          <div key={r.root}>
+            <p className="text-sm font-bold tracking-wide text-gray-900">{r.root}</p>
+            {rootCopy && <p className="mt-1 text-xs italic leading-5 text-gray-500">{rootCopy}</p>}
+            <div className="mt-2 space-y-4 border-l-2 border-gray-100 pl-3">
+              {r.groups.map((g) => {
+                const line = copyForGroup(copy, g.title);
+                return (
+                  <div key={`${g.root}/${g.title}`}>
+                    {g.title !== r.root && (
+                      <p className="text-xs font-semibold text-gray-700">
+                        {g.title} <span className="font-normal text-gray-400">{g.items.length}</span>
+                      </p>
+                    )}
+                    {line && <p className="mb-1.5 mt-0.5 text-xs leading-5 text-gray-500">{line}</p>}
+                    <ul className="flex flex-wrap gap-1.5">
+                      {g.items.map((it) => (
+                        <li
+                          key={it.name}
+                          className={`rounded-full px-2.5 py-1 text-xs leading-4 ${
+                            highlightNew && it.isNew ? "bg-amber-100 font-medium text-amber-900" : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {it.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -401,17 +426,17 @@ type Billing = ReturnType<typeof useMembershipBilling>;
 
 // 가입 버튼 상태 — 예전 결제 화면(MembershipPlansSection)에서 쓰던 규칙 그대로.
 function joinState(plan: Plan | undefined, billing: Billing): { label: string; disabled: boolean } {
-  if (!plan) return { label: "준비 중", disabled: true };
+  if (!plan) return { label: "문을 열 준비 중이에요", disabled: true };
   if (plan.free) {
-    if (!billing.session) return { label: "무료로 시작하기", disabled: false };
-    return { label: billing.currentRank === 0 ? "현재 이용 중인 등급이에요" : "기본(무료) 등급이에요", disabled: true };
+    if (!billing.session) return { label: "무료로 사일로의 사람이 되기", disabled: false };
+    return { label: billing.currentRank === 0 ? "지금 머무는 자리예요" : "누구나 시작하는 기본 자리예요", disabled: true };
   }
   const isCurrent = billing.entitled && billing.sub?.tier_rank === plan.rank;
-  if (!plan.available || !billing.cardAvailable) return { label: "결제 준비 중", disabled: true };
-  if (isCurrent) return { label: "구독 중", disabled: true };
-  if (billing.entitled) return { label: "구독 중에는 등급 변경이 준비 중이에요", disabled: true };
-  if (billing.session && billing.currentRank >= plan.rank) return { label: "현재 등급 이하", disabled: true };
-  return { label: `${plan.name} 가입하기`, disabled: false };
+  if (!plan.available || !billing.cardAvailable) return { label: "문을 열 준비 중이에요", disabled: true };
+  if (isCurrent) return { label: "지금 이 자리에 계세요", disabled: true };
+  if (billing.entitled) return { label: "자리를 옮기는 기능을 준비 중이에요", disabled: true };
+  if (billing.session && billing.currentRank >= plan.rank) return { label: "이미 더 깊은 곳에 계세요", disabled: true };
+  return { label: `${plan.name}, 이 자리로 들어가기`, disabled: false };
 }
 
 function TierCard({
@@ -424,7 +449,9 @@ function TierCard({
   isAdmin,
   onJoin,
   onSaved,
+  perks,
 }: {
+  perks: string[];
   tier: TierContent;
   plan: Plan | undefined;
   nearActive: boolean;
@@ -440,6 +467,7 @@ function TierCard({
   const honorary = tier.rank >= 99 || tier.is_lifetime;
   const excluded = opts.excludeCategories.split(",").map((x) => x.trim()).filter(Boolean);
   const commonNotes = opts.commonNotes.split("\n").map((x) => x.trim()).filter(Boolean);
+  const copy = parseGroupCopy(opts.groupCopy);
   const join = joinState(plan, billing);
   const accent = opts.accentColor || undefined;
 
@@ -486,14 +514,18 @@ function TierCard({
               {!honorary && tier.price > 0 && <span className="ml-1 text-xs font-normal text-gray-400">부가세 포함</span>}
             </p>
           )}
-          {opts.showSummary && plan && !honorary && opts.showCategories && totalCount > 0 && (
+          {opts.showSummary && plan && opts.showCategories && totalCount > 0 && (
             <p className="mt-2 text-xs leading-5 text-gray-500">
-              총 <strong className="text-gray-800">{totalCount}곳</strong> 이용 가능
+              <strong className="text-gray-800">{totalCount}개의 방</strong>이 열려 있어요
               {hasPrevious ? (
-                <>
-                  {" "}
-                  · 이전 등급 혜택을 모두 포함하고 <strong className="text-amber-700">새로 {newCount}곳</strong>이 열려요
-                </>
+                newCount > 0 ? (
+                  <>
+                    {" "}
+                    · 앞선 자리의 문을 모두 품고, <strong className="text-amber-700">새로 {newCount}개의 문</strong>이 더 열려요
+                  </>
+                ) : (
+                  " · 앞선 자리의 문을 하나도 빠짐없이 품고 있어요"
+                )
               ) : (
                 ""
               )}
@@ -502,43 +534,59 @@ function TierCard({
         </div>
       </div>
 
-      <div className="mt-6">
-        {honorary ? (
-          <p className="rounded-md bg-gray-50 p-3 text-xs text-gray-600">공연·전시에 참여한 예술가에게 자동으로 부여되는 명예 등급이에요. 모든 등급의 혜택을 이용할 수 있어요.</p>
-        ) : (
-          <>
-            {opts.showCategories && shownNew.length > 0 && (
-              <div>
-                <p className="mb-3 text-sm font-semibold text-gray-900">{hasPrevious ? "이 등급에서 새로 열리는 곳" : "이 등급으로 이용할 수 있는 곳"}</p>
-                <GroupedChips groups={shownNew} highlightNew={false} />
-              </div>
-            )}
-            {opts.showCategories && shownNew.length === 0 && hasPrevious && (
-              <p className="rounded-md bg-gray-50 p-3 text-xs text-gray-600">열람할 수 있는 게시판·페이지 범위는 이전 등급과 같아요. 아래 이용 혜택이 더 좋아져요.</p>
-            )}
-            {opts.showCategories && opts.showFullList && hasPrevious && (
-              <details className="mt-4 rounded-md border border-gray-200 p-3">
-                <summary className="cursor-pointer text-xs font-medium text-gray-600">이 등급으로 이용할 수 있는 전체 {totalCount}곳 보기</summary>
-                <div className="mt-3">
-                  <GroupedChips groups={shownAll} highlightNew />
-                </div>
-              </details>
-            )}
+      <div className="mt-6 space-y-6">
+        {honorary && (
+          <p className="rounded-md bg-amber-50/70 p-3 text-xs leading-5 text-gray-700">
+            공연과 전시로 사일로의 무대를 채워 준 예술가에게, 사일로가 먼저 건네는 명예로운 자리예요. 신청하는 곳이 아니라, 초대받는 자리랍니다.
+          </p>
+        )}
 
-            {opts.showNotes && notes.length > 0 && (
-              <div className="mt-5 rounded-md bg-gray-50 p-4">
-                <p className="text-xs font-semibold text-gray-700">요금·이용 조건</p>
-                <ul className="mt-2 space-y-1 text-xs leading-5 text-gray-700">
-                  {notes.map((n) => (
-                    <li key={n} className="flex gap-1.5">
-                      <span aria-hidden>·</span>
-                      <span>{n}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </>
+        {perks.length > 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50/60 p-4">
+            <p className="text-sm font-semibold text-gray-900">{opts.perksTitle}</p>
+            <ul className="mt-2 space-y-1 text-sm leading-6 text-gray-800">
+              {perks.map((t) => (
+                <li key={t} className="flex gap-2">
+                  <span aria-hidden className="text-amber-600">
+                    ✦
+                  </span>
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {opts.showCategories && shownNew.length > 0 && (
+          <div>
+            <p className="mb-3 text-sm font-semibold text-gray-900">{hasPrevious ? opts.newTitle : opts.firstTitle}</p>
+            <GroupedChips groups={shownNew} highlightNew={false} copy={copy} />
+          </div>
+        )}
+        {opts.showCategories && shownNew.length === 0 && hasPrevious && (
+          <p className="rounded-md bg-gray-50 p-3 text-xs leading-5 text-gray-600">앞선 자리의 모든 방을 그대로 품고 있어요. 이 자리만의 이야기는 위의 특별한 대접에 담겨 있어요.</p>
+        )}
+        {opts.showCategories && opts.showFullList && hasPrevious && (
+          <details className="rounded-md border border-gray-200 p-3">
+            <summary className="cursor-pointer text-xs font-medium text-gray-600">{opts.fullListLabel.replace("{n}", String(totalCount))}</summary>
+            <div className="mt-4">
+              <GroupedChips groups={shownAll} highlightNew copy={copy} />
+            </div>
+          </details>
+        )}
+
+        {opts.showNotes && notes.length > 0 && (
+          <div className="rounded-md bg-gray-50 p-4">
+            <p className="text-xs font-semibold text-gray-700">{opts.notesTitle}</p>
+            <ul className="mt-2 space-y-1 text-xs leading-5 text-gray-700">
+              {notes.map((n) => (
+                <li key={n} className="flex gap-1.5">
+                  <span aria-hidden>·</span>
+                  <span>{n}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
 
@@ -563,7 +611,7 @@ function TierCard({
                 aria-expanded={panelOpen}
                 className="rounded-full border border-gray-400 px-5 py-2 text-sm text-gray-800 hover:bg-gray-50"
               >
-                ✉ {panelOpen ? "소개·편지 닫기" : `${tier.name}의 소개와 편지 보기`}
+                {panelOpen ? "편지 접기" : opts.storyButton.replace("{name}", tier.name)}
               </button>
             )}
             {isAdmin && (
@@ -592,6 +640,7 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
   const billing = useMembershipBilling();
   const [tiers, setTiers] = useState<TierContent[] | null>(null);
   const [plans, setPlans] = useState<Record<number, Plan>>({});
+  const [conditionRows, setConditionRows] = useState<ConditionRow[]>([]);
   const [active, setActive] = useState(0);
   const [settled, setSettled] = useState(true);
   const [missionOpen, setMissionOpen] = useState(false);
@@ -602,7 +651,10 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
   useEffect(() => {
     fetch("/api/membership/plans")
       .then((r) => (r.ok ? r.json() : { plans: [] }))
-      .then((j: { plans?: Plan[] }) => setPlans(Object.fromEntries((j.plans ?? []).map((p) => [p.rank, p]))))
+      .then((j: { plans?: Plan[]; conditionRows?: ConditionRow[] }) => {
+        setPlans(Object.fromEntries((j.plans ?? []).map((p) => [p.rank, p])));
+        setConditionRows(j.conditionRows ?? []);
+      })
       .catch(() => {});
   }, []);
 
@@ -649,6 +701,20 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
 
   const tier = tiers[active];
   const plan = plans[tier.rank] as Plan | undefined;
+
+  // 이전 자리와 달라진 조건 중 "받는 것"만 뽑아 특별한 대접으로 보여준다(없어졌거나 같은 것은 제외).
+  const perksFor = (rank: number): string[] => {
+    const ranks = Object.keys(plans).map(Number).sort((a, b) => a - b);
+    const prev = ranks[ranks.indexOf(rank) - 1];
+    if (prev == null) return [];
+    const out: string[] = [];
+    for (const row of conditionRows) {
+      const cur = row.cells[rank];
+      if (cur === undefined || cur === false || cur === row.cells[prev]) continue;
+      out.push(typeof cur === "string" ? `${row.label} — ${cur}` : row.label);
+    }
+    return out;
+  };
   const questions = tier.mission_questions ?? [];
 
   function afterMission() {
@@ -722,6 +788,7 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
                 opts={opts}
                 billing={billing}
                 isAdmin={!!member?.is_admin}
+                perks={perksFor(t.rank)}
                 onJoin={handleJoin}
                 onSaved={(updated) => setTiers((prev) => prev?.map((x) => (x.rank === updated.rank ? updated : x)) ?? prev)}
               />

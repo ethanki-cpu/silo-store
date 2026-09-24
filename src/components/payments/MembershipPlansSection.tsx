@@ -72,7 +72,10 @@ function AccessList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-export function MembershipPlansSection() {
+// HOTFIX-163.1: showPlanCards=false면 등급별 소개 카드(=/membership 캐러셀 카드와 같은 정보)는 숨기고
+// 구독 상태·해지·절약 계산기·계좌이체 안내만 보여준다 — 카드 안에서 가입이 되므로 정보가 두 번 나오지 않게.
+// 마이페이지는 기본값(true)으로 예전처럼 카드까지 보인다.
+export function MembershipPlansSection({ showPlanCards = true }: { showPlanCards?: boolean } = {}) {
   const { session, loading } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansLoaded, setPlansLoaded] = useState(false);
@@ -203,13 +206,17 @@ export function MembershipPlansSection() {
         }))
         .filter((s) => s.amount > 0);
   const spendTotal = spend ? spend.shopPurchase + spend.shopRental + spend.club + spend.docent : 0;
+  const showBank = !!session && !entitled && !!SALON_BANK_ACCOUNT;
+  if (!showPlanCards && !sub && !(session && savings.length > 0) && !showBank) return null;
 
   return (
     <section id="membership-plans" className="mt-10 rounded-lg border border-gray-200 p-5">
-      <h2 className="text-lg font-semibold">멤버십 가입</h2>
-      <p className="mt-1 text-sm text-gray-500">
-        등급마다 접근할 수 있는 게시판과 활동이 달라요. 카드로 매월 자동 결제되고, 언제든 해지할 수 있어요.
-      </p>
+      <h2 className="text-lg font-semibold">{showPlanCards ? "멤버십 가입" : "내 멤버십 결제·구독"}</h2>
+      {showPlanCards && (
+        <p className="mt-1 text-sm text-gray-500">
+          등급마다 접근할 수 있는 게시판과 활동이 달라요. 카드로 매월 자동 결제되고, 언제든 해지할 수 있어요.
+        </p>
+      )}
 
       {sub && (
         <div className="mt-3 space-y-1 text-sm">
@@ -249,7 +256,7 @@ export function MembershipPlansSection() {
         </div>
       )}
 
-      {!plansLoaded ? (
+      {!showPlanCards ? null : !plansLoaded ? (
         <p className="mt-6 text-sm text-gray-400">멤버십 정보를 불러오는 중...</p>
       ) : plans.length === 0 ? (
         <p className="mt-6 text-sm text-gray-500">멤버십 정보를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</p>
@@ -339,7 +346,7 @@ export function MembershipPlansSection() {
         </>
       )}
 
-      {session && !entitled && SALON_BANK_ACCOUNT && (
+      {showBank && (
         <div className="mt-6 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm leading-6 text-gray-700">
           <p className="font-medium text-gray-900">계좌이체로 접수하기</p>
           <p className="mt-1">입금 계좌: {SALON_BANK_ACCOUNT}</p>

@@ -435,8 +435,19 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "subtitle", label: "부제목", kind: "text" },
     { key: "buttonText", label: "버튼 문구", kind: "text" },
   ],
-  membership_carousel: [],
-  membership_plans: [],
+  membership_carousel: [
+    { key: "heading", label: "제목", kind: "text", placeholder: "멤버십 혜택 한눈에 보기" },
+    { key: "subtitle", label: "부제목", kind: "textarea" },
+    { key: "showCategories", label: "카테고리별 이용 가능 게시판·페이지 보이기", kind: "checkbox" },
+    { key: "showFullList", label: "'이용 가능한 전체 보기' 펼침 보이기(높은 등급)", kind: "checkbox" },
+    { key: "showNotes", label: "요금·이용 조건 안내 보이기", kind: "checkbox" },
+    { key: "showLetter", label: "'소개와 편지 보기' 버튼 보이기", kind: "checkbox" },
+    { key: "excludeCategories", label: "카드에서 숨길 카테고리(쉼표로 구분)", kind: "text", placeholder: "스튜디오" },
+    { key: "commonNotes", label: "모든 등급 공통 안내(한 줄에 하나)", kind: "textarea", placeholder: "사일로 상점 물품 구매 시 포인트 적립" },
+  ],
+  membership_plans: [
+    { key: "showPlanCards", label: "등급별 소개 카드도 함께 보이기(캐러셀 카드와 같은 내용이라 보통 끔)", kind: "checkbox" },
+  ],
   craft_footer: [
     {
       key: "items",
@@ -512,8 +523,17 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     subtitle: "새로운 컬렉션과 살롱 소식을 가장 먼저 전해드립니다.",
     buttonText: "구독하기",
   },
-  membership_carousel: {},
-  membership_plans: {},
+  membership_carousel: {
+    heading: "멤버십 혜택 한눈에 보기",
+    subtitle: "옆으로 넘기며 등급마다 열리는 세계를 비교해 보세요. 높은 등급은 낮은 등급의 혜택을 모두 포함해요.",
+    showCategories: true,
+    showFullList: true,
+    showNotes: true,
+    showLetter: true,
+    excludeCategories: "스튜디오",
+    commonNotes: "사일로 상점 물품 구매 시 포인트 적립",
+  },
+  membership_plans: { showPlanCards: false },
   craft_footer: {
     items: [{ label: "About Silo", href: "/about-silo" }],
     copyright: "© Silo Store. All rights reserved.",

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { describeTierAccess, describeTierBenefits, type TierRow, type BoardPermissionRow } from "@/lib/tierAccess";
+import { computeTierCategoryAccess } from "@/lib/tierCategoryAccess";
 import { steppayConfigured, tierProducts } from "@/lib/steppayServer";
 
 // EPIC-160: 로그인하지 않아도 볼 수 있는 유료 멤버십 4등급(Alice/Great Gatsby/Patron/Lautrec) 목록.
@@ -30,6 +31,14 @@ export async function GET() {
     }
   }
 
+  // HOTFIX-163.1: 카드 안에 보여줄 "카테고리별 이용 가능 항목"(사이트 메뉴 트리 + 실제 권한 설정 기반).
+  let categoryAccess = new Map<number, Awaited<ReturnType<typeof computeTierCategoryAccess>> extends Map<number, infer V> ? V : never>();
+  try {
+    categoryAccess = await computeTierCategoryAccess(tiers.map((t) => t.rank));
+  } catch {
+    /* 계산 실패 시 카드에서 카테고리 영역만 생략 */
+  }
+
   const plans = tiers.map((t) => ({
     rank: t.rank,
     name: t.name,
@@ -39,6 +48,7 @@ export async function GET() {
     imageUrl: t.image_url ?? null,
     access: { ...describeTierAccess(t), boards: [], benefits: describeTierBenefits(boards, t.rank) },
     // 절약 계산기용 할인율(마이페이지/멤버십 화면이 지난 30일 이용 금액에 곱해 추정한다)
+    categories: categoryAccess.get(t.rank) ?? null,
     rates: {
       shopPurchasePct: t.shop_purchase_discount_pct ?? 0,
       shopRentalPct: t.shop_rental_discount_pct ?? 0,

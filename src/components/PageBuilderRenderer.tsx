@@ -8,7 +8,7 @@ import type { BreadcrumbItem } from "@/components/PageHeader";
 import { HeroModule } from "@/components/modules/HeroModule";
 import { BreadcrumbWidget } from "@/components/modules/BreadcrumbWidget";
 import { BoardModule } from "@/components/modules/BoardModule";
-import { MembershipCarousel } from "@/components/membership/MembershipCarousel";
+import { MembershipCarousel, MEMBERSHIP_CAROUSEL_DEFAULTS } from "@/components/membership/MembershipCarousel";
 import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
 import { ApplicationModule } from "@/components/modules/ApplicationModule";
 import { CalendarBoardWidget } from "@/components/modules/CalendarBoardWidget";
@@ -342,9 +342,22 @@ function renderModule(module: PageModuleRow) {
     case "craft_footer":
       return <CraftFooterFromSettings settings={settings} />;
     case "membership_carousel":
-      return <MembershipCarousel />;
+      return (
+        <MembershipCarousel
+          options={{
+            heading: str(settings.heading, MEMBERSHIP_CAROUSEL_DEFAULTS.heading),
+            subtitle: str(settings.subtitle, MEMBERSHIP_CAROUSEL_DEFAULTS.subtitle),
+            showCategories: bool(settings.showCategories, true),
+            showFullList: bool(settings.showFullList, true),
+            showNotes: bool(settings.showNotes, true),
+            showLetter: bool(settings.showLetter, true),
+            excludeCategories: str(settings.excludeCategories, MEMBERSHIP_CAROUSEL_DEFAULTS.excludeCategories),
+            commonNotes: str(settings.commonNotes, MEMBERSHIP_CAROUSEL_DEFAULTS.commonNotes),
+          }}
+        />
+      );
     case "membership_plans":
-      return <MembershipPlansSection />;
+      return <MembershipPlansSection showPlanCards={bool(settings.showPlanCards, false)} />;
     default:
       return null;
   }

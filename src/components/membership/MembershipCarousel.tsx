@@ -5,8 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { uploadFileToR2 } from "@/lib/r2Upload";
-import { TierBenefitList } from "@/components/membership/TierBenefitList";
-import type { TierBenefit } from "@/lib/tierAccess";
+import { useMembershipBilling } from "@/lib/useMembershipBilling";
+import type { BenefitGroup, TierCategoryAccess } from "@/lib/tierCategoryAccess";
 
 // HOTFIX-161.9(사용자 지시 — PROJECT_VISION.md "멤버십 수익화 마스터플랜" 캐러셀 UI 스펙):
 // 게임의 캐릭터 선택창처럼 등급을 스와이프로 고르고 → 애니메이션(대표가 나중에 전달할 영상,
@@ -35,7 +35,7 @@ const newId = () => `q-${Date.now().toString(36)}-${Math.random().toString(36).s
 function TierMedia({ tier, playVideo }: { tier: TierContent; playVideo: boolean }) {
   const src = tier.animation_url || tier.image_url;
   return (
-    <div className="mx-auto aspect-[4/5] w-full max-w-sm overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+    <div className="mx-auto aspect-[4/5] w-full max-w-[15rem] overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
       {src ? (
         isVideoUrl(src) ? (
           playVideo ? (
@@ -343,23 +343,328 @@ function MissionModal({ tier, onClose, onDone }: { tier: TierContent; onClose: (
   );
 }
 
-export function MembershipCarousel() {
-  const { member } = useAuth();
-  const isAdmin = !!member?.is_admin;
-  const [tiers, setTiers] = useState<TierContent[] | null>(null);
-  const [active, setActive] = useState(0);
+// HOTFIX-163.1(사용자 지시 — "Carousel 안에 멤버십 카드가 있어야 해. 각 멤버십의 이 플랫폼에서의 혜택이
+// 한눈에 보여야 해"): 슬라이드 한 장이 곧 멤버십 카드다 — 대표 이미지 · 이름/월 요금 · 카테고리별로 이용 가능한
+// 게시판/페이지 · 요금/이용 조건 · 소개·편지 · 가입 버튼이 한 카드 안에 있고, 아래 별도 "가입 카드" 목록은 없다.
+export type MembershipCarouselOptions = {
+  heading: string;
+  subtitle: string;
+  showCategories: boolean;
+  showFullList: boolean;
+  showNotes: boolean;
+  showLetter: boolean;
+  excludeCategories: string;
+  commonNotes: string;
+};
+
+export const MEMBERSHIP_CAROUSEL_DEFAULTS: MembershipCarouselOptions = {
+  heading: "멤버십 혜택 한눈에 보기",
+  subtitle: "옆으로 넘기며 등급마다 열리는 세계를 비교해 보세요. 높은 등급은 낮은 등급의 혜택을 모두 포함해요.",
+  showCategories: true,
+  showFullList: true,
+  showNotes: true,
+  showLetter: true,
+  excludeCategories: "스튜디오",
+  commonNotes: "사일로 상점 물품 구매 시 포인트 적립",
+};
+
+type Plan = {
+  rank: number;
+  name: string;
+  price: number;
+  free?: boolean;
+  available: boolean;
+  access: { activities: string[]; perks: string[] };
+  categories: TierCategoryAccess | null;
+};
+
+function filterGroups(groups: BenefitGroup[], excluded: string[], onlyNew: boolean): BenefitGroup[] {
+  return groups
+    .filter((g) => !excluded.includes(g.title) && !excluded.includes(g.root))
+    .map((g) => ({ ...g, items: onlyNew ? g.items.filter((i) => i.isNew) : g.items }))
+    .filter((g) => g.items.length > 0);
+}
+
+function GroupedChips({ groups, highlightNew }: { groups: BenefitGroup[]; highlightNew: boolean }) {
+  const roots: { root: string; groups: BenefitGroup[] }[] = [];
+  for (const g of groups) {
+    const last = roots[roots.length - 1];
+    if (last && last.root === g.root) last.groups.push(g);
+    else roots.push({ root: g.root, groups: [g] });
+  }
+  return (
+    <div className="space-y-4">
+      {roots.map((r) => (
+        <div key={r.root}>
+          <p className="text-xs font-bold tracking-wide text-gray-900">{r.root}</p>
+          <div className="mt-1.5 space-y-2.5 border-l-2 border-gray-100 pl-3">
+            {r.groups.map((g) => (
+              <div key={`${g.root}/${g.title}`}>
+                {g.title !== r.root && (
+                  <p className="mb-1 text-[11px] font-semibold text-gray-500">
+                    {g.title} <span className="font-normal text-gray-400">{g.items.length}</span>
+                  </p>
+                )}
+                <ul className="flex flex-wrap gap-1.5">
+                  {g.items.map((it) => (
+                    <li
+                      key={it.name}
+                      className={`rounded-full px-2.5 py-1 text-xs leading-4 ${
+                        highlightNew && it.isNew ? "bg-amber-100 font-medium text-amber-900" : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {it.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PayConfirmModal({
+  tier,
+  plan,
+  loggedIn,
+  busy,
+  error,
+  onPay,
+  onClose,
+}: {
+  tier: TierContent;
+  plan: Plan;
+  loggedIn: boolean;
+  busy: boolean;
+  error: string | null;
+  onPay: () => void;
+  onClose: () => void;
+}) {
+  const [agreed, setAgreed] = useState(false);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label={`${tier.name} 가입`}>
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between">
+          <h3 className="text-lg font-semibold">{tier.name} 가입</h3>
+          <button type="button" onClick={onClose} aria-label="닫기" className="text-gray-400 hover:text-gray-700">
+            ✕
+          </button>
+        </div>
+        <p className="mt-2 text-sm text-gray-700">월 {plan.price.toLocaleString()}원 (부가세 포함) · 카드로 매월 자동 결제되고, 언제든 해지할 수 있어요.</p>
+        <label className="mt-4 flex items-start gap-2 text-xs leading-5 text-gray-600">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1" />
+          <span>
+            멤버십은 매월 자동 결제되며, 결제 후 7일 이내라도 등급 혜택(전용 콘텐츠·할인·무료 이용권 등)을 이용하면 청약철회가 제한되거나 이용분이 공제될 수 있음을
+            확인했고, <Link href="/refund-policy" className="underline">환불 및 구독 해지 안내</Link>와 <Link href="/terms" className="underline">이용약관</Link>에 동의합니다.
+          </span>
+        </label>
+        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+        <div className="mt-4 flex gap-2">
+          {loggedIn ? (
+            <button type="button" onClick={onPay} disabled={!agreed || busy} className="rounded bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+              {busy ? "결제 창으로 이동 중..." : "결제 창으로 이동"}
+            </button>
+          ) : (
+            <Link href="/login" className={`rounded bg-gray-900 px-4 py-2 text-sm text-white ${agreed ? "" : "pointer-events-none opacity-50"}`}>
+              로그인하고 결제 계속
+            </Link>
+          )}
+          <button type="button" onClick={onClose} className="rounded border border-gray-300 px-4 py-2 text-sm">
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type Billing = ReturnType<typeof useMembershipBilling>;
+
+// 가입 버튼 상태 — 예전 결제 화면(MembershipPlansSection)에서 쓰던 규칙 그대로.
+function joinState(plan: Plan | undefined, billing: Billing): { label: string; disabled: boolean } {
+  if (!plan) return { label: "준비 중", disabled: true };
+  if (plan.free) {
+    if (!billing.session) return { label: "무료로 시작하기", disabled: false };
+    return { label: billing.currentRank === 0 ? "현재 이용 중인 등급이에요" : "기본(무료) 등급이에요", disabled: true };
+  }
+  const isCurrent = billing.entitled && billing.sub?.tier_rank === plan.rank;
+  if (!plan.available || !billing.cardAvailable) return { label: "결제 준비 중", disabled: true };
+  if (isCurrent) return { label: "구독 중", disabled: true };
+  if (billing.entitled) return { label: "구독 중에는 등급 변경이 준비 중이에요", disabled: true };
+  if (billing.session && billing.currentRank >= plan.rank) return { label: "현재 등급 이하", disabled: true };
+  return { label: `${plan.name} 가입하기`, disabled: false };
+}
+
+function TierCard({
+  tier,
+  plan,
+  nearActive,
+  playVideo,
+  opts,
+  billing,
+  isAdmin,
+  onJoin,
+  onSaved,
+}: {
+  tier: TierContent;
+  plan: Plan | undefined;
+  nearActive: boolean;
+  playVideo: boolean;
+  opts: MembershipCarouselOptions;
+  billing: Billing;
+  isAdmin: boolean;
+  onJoin: () => void;
+  onSaved: (t: TierContent) => void;
+}) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const honorary = tier.rank >= 99 || tier.is_lifetime;
+  const excluded = opts.excludeCategories.split(",").map((x) => x.trim()).filter(Boolean);
+  const commonNotes = opts.commonNotes.split("\n").map((x) => x.trim()).filter(Boolean);
+  const join = joinState(plan, billing);
+
+  const cats = plan?.categories ?? null;
+  const shownAll = cats && opts.showCategories ? filterGroups(cats.groups, excluded, false) : [];
+  const shownNew = cats && opts.showCategories ? filterGroups(cats.groups, excluded, true) : [];
+  const totalCount = shownAll.reduce((n, g) => n + g.items.length, 0);
+  const newCount = shownNew.reduce((n, g) => n + g.items.length, 0);
+  const hasPrevious = totalCount > newCount;
+  const notes = plan ? [...commonNotes, ...plan.access.activities, ...plan.access.perks] : [];
+
+  return (
+    <article className="mx-auto max-w-2xl overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-4">
+        <div className="w-28 shrink-0 sm:w-36">
+          {nearActive ? <TierMedia tier={tier} playVideo={playVideo} /> : <div className="aspect-[4/5]" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-2xl font-bold text-gray-900">{tier.name}</h3>
+          <p className="mt-1 text-base font-semibold text-gray-800">
+            {honorary ? "명예 등급" : tier.price === 0 ? "무료" : `월 ${tier.price.toLocaleString()}원`}
+            {!honorary && tier.price > 0 && <span className="ml-1 text-xs font-normal text-gray-400">부가세 포함</span>}
+          </p>
+          {plan && !honorary && opts.showCategories && totalCount > 0 && (
+            <p className="mt-2 text-xs leading-5 text-gray-500">
+              총 <strong className="text-gray-800">{totalCount}곳</strong> 이용 가능
+              {hasPrevious ? <> · 이전 등급 혜택을 모두 포함하고 <strong className="text-amber-700">새로 {newCount}곳</strong>이 열려요</> : ""}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5">
+        {honorary ? (
+          <p className="rounded-md bg-gray-50 p-3 text-xs text-gray-600">공연·전시에 참여한 예술가에게 자동으로 부여되는 명예 등급이에요. 모든 등급의 혜택을 이용할 수 있어요.</p>
+        ) : (
+          <>
+            {opts.showCategories && shownNew.length > 0 && (
+              <div>
+                <p className="mb-3 text-sm font-semibold text-gray-900">{hasPrevious ? "이 등급에서 새로 열리는 곳" : "이 등급으로 이용할 수 있는 곳"}</p>
+                <GroupedChips groups={shownNew} highlightNew={false} />
+              </div>
+            )}
+            {opts.showCategories && shownNew.length === 0 && hasPrevious && (
+              <p className="rounded-md bg-gray-50 p-3 text-xs text-gray-600">열람할 수 있는 게시판·페이지 범위는 이전 등급과 같아요. 아래 이용 혜택이 더 좋아져요.</p>
+            )}
+            {opts.showCategories && opts.showFullList && hasPrevious && (
+              <details className="mt-4 rounded-md border border-gray-200 p-3">
+                <summary className="cursor-pointer text-xs font-medium text-gray-600">이 등급으로 이용할 수 있는 전체 {totalCount}곳 보기</summary>
+                <div className="mt-3">
+                  <GroupedChips groups={shownAll} highlightNew />
+                </div>
+              </details>
+            )}
+
+            {opts.showNotes && notes.length > 0 && (
+              <div className="mt-5 rounded-md bg-gray-50 p-4">
+                <p className="text-xs font-semibold text-gray-700">요금·이용 조건</p>
+                <ul className="mt-2 space-y-1 text-xs leading-5 text-gray-700">
+                  {notes.map((n) => (
+                    <li key={n} className="flex gap-1.5">
+                      <span aria-hidden>·</span>
+                      <span>{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="mt-5 flex flex-col items-center gap-2">
+        {!honorary && (
+          <button
+            type="button"
+            onClick={onJoin}
+            disabled={join.disabled}
+            className="w-full max-w-xs rounded-md bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:bg-gray-300 disabled:text-gray-600"
+          >
+            {join.label}
+          </button>
+        )}
+        {(opts.showLetter || isAdmin) && (
+          <button
+            type="button"
+            onClick={() => setPanelOpen((o) => !o)}
+            aria-expanded={panelOpen}
+            className="text-xs text-gray-500 underline underline-offset-2 hover:text-gray-800"
+          >
+            {panelOpen ? "소개·편지 닫기" : `${tier.name}의 소개와 편지 보기`}
+          </button>
+        )}
+      </div>
+
+      {panelOpen && (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-5" style={{ animation: "silo-panel-up 0.4s ease-out" }}>
+          <style>{"@keyframes silo-panel-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}"}</style>
+          {isAdmin && !editing && (
+            <div className="mb-3 flex justify-end">
+              <button type="button" onClick={() => setEditing(true)} className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50">
+                내용 편집(관리자)
+              </button>
+            </div>
+          )}
+          {editing ? (
+            <TierContentEditor tier={tier} onClose={() => setEditing(false)} onSaved={onSaved} />
+          ) : (
+            <>
+              {tier.intro_text ? (
+                <p className="whitespace-pre-line text-sm leading-7 text-gray-700">{tier.intro_text}</p>
+              ) : (
+                <p className="text-sm text-gray-400">아직 소개가 준비되지 않았어요.</p>
+              )}
+              {tier.letter_text && (
+                <div className="mt-5 whitespace-pre-line rounded-md border border-amber-100 bg-amber-50/50 p-5 text-sm leading-8 text-gray-800">{tier.letter_text}</div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+export function MembershipCarousel({ options }: { options?: Partial<MembershipCarouselOptions> } = {}) {
+  const opts = { ...MEMBERSHIP_CAROUSEL_DEFAULTS, ...options };
+  const { member } = useAuth();
+  const billing = useMembershipBilling();
+  const [tiers, setTiers] = useState<TierContent[] | null>(null);
+  const [plans, setPlans] = useState<Record<number, Plan>>({});
+  const [active, setActive] = useState(0);
+  const [settled, setSettled] = useState(true);
   const [missionOpen, setMissionOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
-  const [benefitsByRank, setBenefitsByRank] = useState<Record<number, TierBenefit[]>>({});
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch("/api/membership/plans")
       .then((r) => (r.ok ? r.json() : { plans: [] }))
-      .then((j: { plans?: { rank: number; access: { benefits?: TierBenefit[] } }[] }) => {
-        setBenefitsByRank(Object.fromEntries((j.plans ?? []).map((p) => [p.rank, p.access.benefits ?? []])));
-      })
+      .then((j: { plans?: Plan[] }) => setPlans(Object.fromEntries((j.plans ?? []).map((p) => [p.rank, p]))))
       .catch(() => {});
   }, []);
 
@@ -377,34 +682,45 @@ export function MembershipCarousel() {
     };
   }, []);
 
+  useEffect(
+    () => () => {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+    },
+    [],
+  );
+
+  // 슬라이드가 넘어가는 동안엔 모든 카드를 원래 높이로 두고(가로 이동이 자연스럽게), 끝나면 안 보이는 카드는
+  // 높이를 접어서 캐러셀 전체 높이가 지금 카드에 맞게 줄어들게 한다.
+  const select = useCallback((index: number) => {
+    setActive(index);
+    setSettled(false);
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => setSettled(true), 520);
+  }, []);
+
   const go = useCallback(
     (delta: number) => {
       if (!tiers || tiers.length === 0) return;
-      setActive((cur) => Math.min(tiers.length - 1, Math.max(0, cur + delta)));
-      setPanelOpen(false);
-      setEditing(false);
+      select(Math.min(tiers.length - 1, Math.max(0, active + delta)));
     },
-    [tiers],
+    [tiers, active, select],
   );
 
   if (!tiers) return <p className="py-10 text-center text-sm text-gray-400">멤버십을 불러오는 중...</p>;
   if (tiers.length === 0) return null;
 
   const tier = tiers[active];
+  const plan = plans[tier.rank] as Plan | undefined;
   const questions = tier.mission_questions ?? [];
-  const honorary = tier.rank >= 99 || tier.is_lifetime;
 
-  function proceedToPayment() {
-    if (tier.price > 0) document.getElementById("membership-plans")?.scrollIntoView({ behavior: "smooth" });
+  function afterMission() {
+    if (plan && !plan.free) setConfirmOpen(true);
+    else if (!member) window.location.assign("/signup");
   }
 
   function handleJoin() {
-    if (questions.length === 0) {
-      proceedToPayment();
-      if (tier.price === 0 && !member) window.location.assign("/signup");
-      return;
-    }
-    setMissionOpen(true);
+    if (questions.length > 0) setMissionOpen(true);
+    else afterMission();
   }
 
   return (
@@ -418,6 +734,30 @@ export function MembershipCarousel() {
         if (e.key === "ArrowRight") go(1);
       }}
     >
+      {(opts.heading || opts.subtitle) && (
+        <div className="mb-5 text-center">
+          {opts.heading && <h2 className="text-xl font-semibold text-gray-900">{opts.heading}</h2>}
+          {opts.subtitle && <p className="mt-1 text-sm text-gray-500">{opts.subtitle}</p>}
+        </div>
+      )}
+
+      <div className="mb-4 flex justify-start gap-1.5 overflow-x-auto pb-1 sm:justify-center" role="tablist" aria-label="등급 목록">
+        {tiers.map((t, i) => (
+          <button
+            key={t.rank}
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            onClick={() => select(i)}
+            className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+              i === active ? "border-gray-900 bg-gray-900 font-semibold text-white" : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+
       <div
         className="relative overflow-hidden"
         onTouchStart={(e) => {
@@ -430,109 +770,61 @@ export function MembershipCarousel() {
           if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
         }}
       >
-        <div className="flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${active * 100}%)` }}>
+        <div className="flex items-start transition-transform duration-500 ease-out" style={{ transform: `translateX(-${active * 100}%)` }}>
           {tiers.map((t, i) => (
-            <div key={t.rank} className="min-w-full px-10" aria-hidden={i !== active}>
-              {Math.abs(i - active) <= 1 ? <TierMedia tier={t} playVideo={i === active} /> : <div className="aspect-[4/5]" />}
+            <div key={t.rank} className={`min-w-full px-1 ${settled && i !== active ? "h-0 overflow-hidden" : ""}`} aria-hidden={i !== active}>
+              <TierCard
+                tier={t}
+                plan={plans[t.rank]}
+                nearActive={Math.abs(i - active) <= 1}
+                playVideo={i === active}
+                opts={opts}
+                billing={billing}
+                isAdmin={!!member?.is_admin}
+                onJoin={handleJoin}
+                onSaved={(updated) => setTiers((prev) => prev?.map((x) => (x.rank === updated.rank ? updated : x)) ?? prev)}
+              />
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-center gap-3">
         <button
           type="button"
           onClick={() => go(-1)}
           disabled={active === 0}
           aria-label="이전 등급"
-          className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-2 py-3 text-xl shadow disabled:opacity-30"
+          className="rounded-full border border-gray-300 bg-white px-3 py-1 text-lg disabled:opacity-30"
         >
           ‹
         </button>
+        <span className="text-xs text-gray-500">
+          {active + 1} / {tiers.length}
+        </span>
         <button
           type="button"
           onClick={() => go(1)}
           disabled={active === tiers.length - 1}
           aria-label="다음 등급"
-          className="absolute right-0 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-2 py-3 text-xl shadow disabled:opacity-30"
+          className="rounded-full border border-gray-300 bg-white px-3 py-1 text-lg disabled:opacity-30"
         >
           ›
         </button>
       </div>
 
-      <div className="mt-4 flex justify-center">
-        <button
-          type="button"
-          onClick={() => setPanelOpen((o) => !o)}
-          aria-expanded={panelOpen}
-          className={`rounded-full border px-6 py-2 text-base font-semibold ${
-            panelOpen ? "border-gray-900 bg-gray-900 text-white" : "border-gray-400 bg-white text-gray-900 hover:bg-gray-50"
-          }`}
-        >
-          {tier.name}
-        </button>
-      </div>
-
-      <div className="mt-3 flex justify-center gap-1.5" role="tablist" aria-label="등급 목록">
-        {tiers.map((t, i) => (
-          <button
-            key={t.rank}
-            type="button"
-            role="tab"
-            aria-selected={i === active}
-            aria-label={t.name}
-            onClick={() => {
-              setActive(i);
-              setPanelOpen(false);
-              setEditing(false);
-            }}
-            className={`h-2 rounded-full transition-all ${i === active ? "w-6 bg-gray-900" : "w-2 bg-gray-300"}`}
-          />
-        ))}
-      </div>
-
-      {panelOpen && (
-        <div
-          className="mx-auto mt-5 max-w-2xl rounded-lg border border-gray-200 bg-white p-5"
-          style={{ animation: "silo-panel-up 0.4s ease-out" }}
-        >
-          <style>{"@keyframes silo-panel-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}"}</style>
-          {isAdmin && !editing && (
-            <div className="mb-3 flex justify-end">
-              <button type="button" onClick={() => setEditing(true)} className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50">
-                내용 편집(관리자)
-              </button>
-            </div>
-          )}
-          {editing ? (
-            <TierContentEditor
-              tier={tier}
-              onClose={() => setEditing(false)}
-              onSaved={(updated) => setTiers((prev) => prev?.map((t) => (t.rank === updated.rank ? updated : t)) ?? prev)}
-            />
-          ) : (
-            <>
-              {tier.intro_text ? (
-                <p className="whitespace-pre-line text-sm leading-7 text-gray-700">{tier.intro_text}</p>
-              ) : (
-                <p className="text-sm text-gray-400">아직 소개가 준비되지 않았어요.</p>
-              )}
-              {tier.letter_text && (
-                <div className="mt-5 whitespace-pre-line rounded-md border border-amber-100 bg-amber-50/50 p-5 text-sm leading-8 text-gray-800">{tier.letter_text}</div>
-              )}
-              <TierBenefitList benefits={benefitsByRank[tier.rank] ?? []} heading="이 멤버십으로 새로 열리는 세계" />
-              <div className="mt-5 flex flex-col items-center gap-2">
-                {honorary ? (
-                  <p className="text-xs text-gray-500">공연·전시에 참여한 예술가에게 자동으로 부여되는 명예 등급이에요.</p>
-                ) : (
-                  <button type="button" onClick={handleJoin} className="rounded-md bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white hover:bg-gray-700">
-                    가입
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+      {missionOpen && <MissionModal tier={tier} onClose={() => setMissionOpen(false)} onDone={afterMission} />}
+      {confirmOpen && plan && (
+        <PayConfirmModal
+          tier={tier}
+          plan={plan}
+          loggedIn={!!billing.session}
+          busy={billing.busyRank === plan.rank}
+          error={billing.error}
+          onPay={() => billing.startCheckout(plan.rank)}
+          onClose={() => setConfirmOpen(false)}
+        />
       )}
-
-      {missionOpen && <MissionModal tier={tier} onClose={() => setMissionOpen(false)} onDone={proceedToPayment} />}
     </section>
   );
 }

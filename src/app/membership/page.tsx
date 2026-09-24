@@ -47,7 +47,7 @@ export default function MembershipPage() {
           ) : (
             <>
               <MembershipCarousel />
-              <MembershipPlansSection />
+              <MembershipPlansSection showPlanCards={false} />
             </>
           )}
         </div>

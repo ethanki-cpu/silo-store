@@ -1,3 +1,9 @@
+## 2026-09-25 (HOTFIX-162.10 — /membership 캐러셀 안에 멤버십 카드 통합 + 카테고리별 혜택 한눈에 + 위젯 설정, 사용자 지시)
+- **문제**: 캐러셀(이미지만) 아래에 "멤버십 가입 카드"가 따로 있어 같은 정보가 두 번 나왔고, 혜택도 "읽기 N곳" 식 요약이라 어떤 카테고리의 무엇이 열리는지 안 보였다. 캐러셀 위젯 "설정"은 항목이 없었다.
+- **카드 통합**: `MembershipCarousel.tsx` 재작성 — 슬라이드 한 장 = 멤버십 카드(대표 이미지·이름·월 요금·"총 N곳 이용 가능, 새로 M곳"·카테고리별 이용 가능 항목·요금/이용 조건·가입 버튼·소개/편지). 등급 이름 탭으로 바로 이동, 높은 등급은 이전 등급 혜택을 포함하고 "새로 열리는 곳"만 크게 + "전체 N곳 보기" 펼침. 가입은 카드에서 미션 → 결제 확인 모달(약관 동의) → 스텝페이(`useMembershipBilling.ts` 신규, 예전 가입 카드의 상태 규칙 그대로). `MembershipPlansSection`은 `showPlanCards` prop으로 소개 카드를 숨기고 구독 상태·해지·절약 계산·계좌이체 안내만 남김(마이페이지는 기본값 true라 그대로).
+- **카테고리별 혜택 자동 계산**: `tierCategoryAccess.ts`(신규) — 사이트 메뉴(site_navigations) 트리 + 실제 권한(boards.min_rank_to_read/view_post, page_builder.min_rank_to_read, 조상 페이지 게이트 포함)으로 등급별 "카테고리 → 항목"을 계산해 `/api/membership/plans`의 `categories`로 내려준다. Silo Angel 결과가 사용자가 지정한 목록(커뮤니티 7·주제별 클럽 A 7·마이페이지 8/5/6·About Silo·사일로 상점 3)과 일치함을 실측. 영문 병기 제거(`shortKoreanTitle`), 사일로 플레닛은 실제 게이팅 코드 기준(`PLANET_FEATURES`: Alice+ 다른 행성 열람, Patron+ 내 행성 만들기).
+- **위젯 설정**: 캐러셀에 제목/부제목/카테고리 표시/전체 보기/요금·이용 조건/소개·편지 버튼/숨길 카테고리(기본 "스튜디오")/공통 안내(기본 "사일로 상점 물품 구매 시 포인트 적립") 설정 추가, 가입 카드 위젯엔 "등급별 소개 카드도 보이기"(기본 끔). 기존 위젯 행은 `docs/sql/HOTFIX-162.10-*.sql`로 시딩(실행 완료).
+
 ## 2026-09-24 (HOTFIX-162.7~162.9 — /membership 자유 편집 + 이미지 잘림 + 권한 자동 요약 + 마이페이지 게시판, 사용자 지시)
 - **162.7 /membership 자유 편집**: 원인 — `page_builder`에 slug=`membership` 행 자체가 없어 "페이지 수정"이 편집할 대상이 없었고, 캐러셀/가입 카드는 코드에 고정돼 있었다. 새 위젯 타입 `membership_carousel`/`membership_plans`(widgetSchema/PageBuilderRenderer 등록, "멤버십" 그룹)를 만들고 `page_builder` 행+두 위젯을 시딩(`docs/sql/HOTFIX-162.7-*.sql`) — 이제 "페이지 수정"에서 순서 변경/숨기기/다른 위젯(이미지·텍스트·HTML 등) 추가가 가능. 위젯이 없으면 예전 구성으로 폴백.
 - **이미지 잘림**: 등급 카드/캐러셀/가격 페이지의 등급 이미지가 `object-cover`+고정 높이로 잘리던 것을 `object-contain`(비율 유지, 잘림 없음)으로 변경.

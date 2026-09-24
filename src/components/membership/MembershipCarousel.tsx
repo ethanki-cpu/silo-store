@@ -364,7 +364,7 @@ export const MEMBERSHIP_CAROUSEL_DEFAULTS: MembershipCarouselOptions = {
   showFullList: true,
   showNotes: true,
   showLetter: true,
-  excludeCategories: "스튜디오",
+  excludeCategories: "",
   commonNotes: "사일로 상점 물품 구매 시 포인트 적립",
 };
 

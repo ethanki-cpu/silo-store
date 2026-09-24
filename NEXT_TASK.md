@@ -1,8 +1,5 @@
 # NEXT_TASK
 
-## 🔎 확인 필요 — 사일로 플레닛 등급 조건 (HOTFIX-162.10, 2026-09-25)
-- 사용자 안내는 "Silo Angel부터 내 행성 생성·다른 행성 열람"이지만 실제 코드는 다른 회원 행성 열람 = Alice+, 내 행성 만들기(.glb 업로드) = Patron+(`/api/silo-planet/planets`). 카드는 실제 코드 기준으로 표시 중 — 정책을 바꾸려면 API 게이트와 `tierCategoryAccess.ts`의 `PLANET_FEATURES`를 함께 수정.
-
 ## 🔐 게시판 멤버십 권한 매트릭스 (EPIC-161, 2026-09-22 — Phase 1~4 진행, 남은 항목 아래)
 
 Phase 1~4(엔진+관리자 UI+실보드 시딩 / 뱃지·하루제한·제안·누락게시판 / 사일로상점·내비게이션·실로플래닛 데이터 / 가격게이팅·실로플래닛 프론트) 전부 완료됐다(`/admin/board-permissions`, `/admin/board-proposals`, 상세는 CHANGELOG.md 네 항목). 아래는 아직 남은 것 — 순서 무관, 다음 세션에서 사용자 지시로 진행:

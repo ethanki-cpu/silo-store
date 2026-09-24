@@ -12,8 +12,9 @@ export type BenefitGroup = { root: string; title: string; items: BenefitItem[] }
 export type TierCategoryAccess = { groups: BenefitGroup[]; total: number; newCount: number };
 
 // 게시판이 아닌 기능(사일로 플레닛)의 등급 조건 — 실제 게이팅 코드와 동일하게 유지할 것:
-// GET /api/silo-planet/planets (다른 회원 행성 열람 = rank>=1), POST 같은 파일 (내 행성 만들기 = rank>=3).
+// GET /api/silo-planet/planets (내 행성 = 전 등급, 다른 회원 행성 열람 = rank>=1), POST 같은 파일 (내 행성 만들기 = rank>=3).
 export const PLANET_FEATURES: { minRank: number; name: string }[] = [
+  { minRank: 0, name: "내 행성 보기" },
   { minRank: 1, name: "다른 회원의 행성 구경·좋아요" },
   { minRank: 3, name: "나만의 행성 만들기" },
 ];
@@ -87,7 +88,8 @@ export async function computeTierCategoryAccess(ranks: number[]): Promise<Map<nu
     if (!chainOk(b, rank)) return false;
     const boards = boardsByBranch.get(b.id);
     if (boards && boards.length > 0) return boards.some((x) => passes(x.min_rank_to_read, rank) && passes(x.min_rank_to_view_post, rank));
-    return !!b.slug && timelineSlugs.has(b.slug);
+    // 스튜디오(공간 대관·물품 대여·스타일링·기억의 습작 등)는 게시판이 없는 서비스 페이지라, 산하 페이지 전부를 이용 가능 항목으로 센다.
+    return b.domain === "studio" || (!!b.slug && timelineSlugs.has(b.slug));
   };
 
   // 등급별 "이용 가능한 잎(leaf) 가지" 집합. 자손 중에 이용 가능한 게 있으면 그 가지는 항목이 아니라 카테고리 제목이 된다.

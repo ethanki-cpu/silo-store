@@ -442,7 +442,7 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "showFullList", label: "'이용 가능한 전체 보기' 펼침 보이기(높은 등급)", kind: "checkbox" },
     { key: "showNotes", label: "요금·이용 조건 안내 보이기", kind: "checkbox" },
     { key: "showLetter", label: "'소개와 편지 보기' 버튼 보이기", kind: "checkbox" },
-    { key: "excludeCategories", label: "카드에서 숨길 카테고리(쉼표로 구분)", kind: "text", placeholder: "스튜디오" },
+    { key: "excludeCategories", label: "카드에서 숨길 카테고리(쉼표로 구분)", kind: "text", placeholder: "예: 마이 페이지" },
     { key: "commonNotes", label: "모든 등급 공통 안내(한 줄에 하나)", kind: "textarea", placeholder: "사일로 상점 물품 구매 시 포인트 적립" },
   ],
   membership_plans: [
@@ -530,7 +530,7 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     showFullList: true,
     showNotes: true,
     showLetter: true,
-    excludeCategories: "스튜디오",
+    excludeCategories: "",
     commonNotes: "사일로 상점 물품 구매 시 포인트 적립",
   },
   membership_plans: { showPlanCards: false },

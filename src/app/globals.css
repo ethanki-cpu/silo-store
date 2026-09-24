@@ -61,6 +61,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* EPIC-163.1: 멤버십별 3색 팔레트(Base/Highlight/Depth) — src/lib/tierPalette.ts와 같은 값 */
+  --tier-guest-base: #E8E8E9; --tier-guest-highlight: #D1D1D6; --tier-guest-depth: #8E8E93;
+  --tier-angel-base: #FDFBF7; --tier-angel-highlight: #F2E6D8; --tier-angel-depth: #D4C9C1;
+  --tier-alice-base: #EAEAF2; --tier-alice-highlight: #D2C4DF; --tier-alice-depth: #5B5678;
+  --tier-gatsby-base: #F4F0E6; --tier-gatsby-highlight: #D4AF37; --tier-gatsby-depth: #1A3C34;
+  --tier-patron-base: #EBE5DF; --tier-patron-highlight: #C5A059; --tier-patron-depth: #6B2D31;
+  --tier-lautrec-base: #EFEBE3; --tier-lautrec-highlight: #B65E47; --tier-lautrec-depth: #5A6B5D;
 }
 
 @theme inline {

@@ -1,3 +1,4 @@
+import { DEFAULT_DEPTHS, DEFAULT_EXPERIENCE_ROWS } from "./membershipContentDefaults";
 import { DEFAULT_GROUP_COPY } from "./tierContent";
 // EPIC-065: Visual Widget Builder — 위젯 23종의 타입/라벨/아이콘/그룹/설정
 // 필드 스키마를 한 곳에 모은다. 운영자는 이 파일이 선언한 체크박스/드롭다운/
@@ -47,6 +48,8 @@ export type PageModuleType =
   // 코드에 고정하지 않고 위젯으로 뺐다 — 순서 변경/숨기기/다른 위젯 끼워넣기를 "페이지 수정"에서 자유롭게 한다.
   | "membership_carousel"
   | "membership_matrix"
+  | "membership_depths"
+  | "membership_experience"
   | "membership_plans"
   // 레거시(EPIC-060, 팔레트에는 없지만 기존 DB 행이 있으면 계속 렌더링)
   | "sort"
@@ -82,6 +85,8 @@ export const PAGE_MODULE_TYPES: PageModuleType[] = [
   "craft_footer",
   "membership_carousel",
   "membership_matrix",
+  "membership_depths",
+  "membership_experience",
   "membership_plans",
 ];
 
@@ -115,6 +120,8 @@ export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
   craft_footer: "Craft: Minimal Footer",
   membership_carousel: "멤버십 캐러셀",
   membership_matrix: "멤버십 권한 비교표",
+  membership_depths: "심연으로의 스크롤(패럴랙스)",
+  membership_experience: "감성적 권한 표",
   membership_plans: "멤버십 가입 카드",
   sort: "Sort (레거시)",
   text: "Text (레거시)",
@@ -150,6 +157,8 @@ export const PAGE_MODULE_ICONS: Record<PageModuleType, string> = {
   craft_footer: "🦶",
   membership_carousel: "🎠",
   membership_matrix: "📊",
+  membership_depths: "🌀",
+  membership_experience: "🗝️",
   membership_plans: "💳",
   sort: "↕️",
   text: "📝",
@@ -175,7 +184,7 @@ export const WIDGET_GROUPS: { label: string; types: PageModuleType[] }[] = [
   // WidgetInspectorForm의 필드 폼으로만 편집한다(더블클릭 인라인 편집이
   // 아님, Craft 페이지 자체를 편집할 때만 그 방식을 씀).
   { label: "Craft 블록", types: ["craft_hero", "craft_directory", "craft_newsletter", "craft_footer"] },
-  { label: "멤버십", types: ["membership_carousel", "membership_matrix", "membership_plans"] },
+  { label: "멤버십", types: ["membership_carousel", "membership_depths", "membership_experience", "membership_matrix", "membership_plans"] },
 ];
 
 // board_id 컬럼을 실제로 쓰는 위젯 — 관리자 UI가 이 목록으로 "게시판 선택"
@@ -510,7 +519,42 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "fullListLabel", label: "문구: 전체 펼치기({n}=개수)", kind: "text" },
     { key: "notesTitle", label: "문구: 요금·이용 방식 제목", kind: "text" },
     { key: "storyButton", label: "문구: 편지 버튼({name}=등급 이름)", kind: "text" },
+    { key: "joinLabel", label: "문구: 가입(초대장) 버튼", kind: "text" },
     { key: "groupCopy", label: "카테고리 소개 문장(한 줄에 하나, '이름|문장' · '@이름'은 큰 갈래 소개)", kind: "textarea" },
+  ],
+  membership_depths: [
+    { key: "heading", label: "제목(비우면 표시 안 함)", kind: "text" },
+    { key: "sceneHeightVh", label: "깊이 하나당 스크롤 길이(화면 높이 %)", kind: "number", min: 60, max: 300 },
+    {
+      key: "depths",
+      label: "깊이별 이야기",
+      kind: "list",
+      addLabel: "+ 깊이 추가",
+      itemFields: [
+        { key: "title", label: "제목", kind: "text", placeholder: "Depth 1 · 문 앞 광장" },
+        { key: "text", label: "문장", kind: "textarea" },
+      ],
+    },
+  ],
+  membership_experience: [
+    { key: "heading", label: "제목", kind: "text" },
+    { key: "subtitle", label: "부제목", kind: "textarea" },
+    {
+      key: "rows",
+      label: "경험 행(칸이 🔒로 시작하면 흐린 자물쇠 칸, '-'는 빈 칸)",
+      kind: "list",
+      addLabel: "+ 행 추가",
+      itemFields: [
+        { key: "label", label: "경험 이름", kind: "text" },
+        { key: "sub", label: "괄호 설명", kind: "text" },
+        { key: "guest", label: "비회원", kind: "text" },
+        { key: "angel", label: "Silo Angel", kind: "text" },
+        { key: "alice", label: "Alice", kind: "text" },
+        { key: "gatsby", label: "Great Gatsby", kind: "text" },
+        { key: "patron", label: "Patron", kind: "text" },
+        { key: "lautrec", label: "Lautrec & Artist", kind: "text" },
+      ],
+    },
   ],
   membership_matrix: [
     { key: "heading", label: "제목", kind: "text", placeholder: "자리마다 열리는 문, 한눈에" },
@@ -631,7 +675,14 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     fullListLabel: "지금까지 열린 {n}개의 문 모두 펼쳐보기",
     notesTitle: "마음 편히 알아두세요 · 요금과 이용 방식",
     storyButton: "✉ {name}의 이야기와 편지 읽기",
+    joinLabel: "초대장 열어보기",
     groupCopy: DEFAULT_GROUP_COPY,
+  },
+  membership_depths: { heading: "", sceneHeightVh: 130, depths: DEFAULT_DEPTHS },
+  membership_experience: {
+    heading: "사일로에서의 경험, 한눈에",
+    subtitle: "자리마다 열리는 세계를 은유로 담았어요. 흐리게 잠긴 곳은 다음 자리에서 열려요.",
+    rows: DEFAULT_EXPERIENCE_ROWS,
   },
   membership_matrix: {
     heading: "자리마다 열리는 문, 한눈에",

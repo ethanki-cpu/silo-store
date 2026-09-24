@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { uploadFileToR2 } from "@/lib/r2Upload";
 import { useMembershipBilling } from "@/lib/useMembershipBilling";
 import type { BenefitGroup, TierCategoryAccess } from "@/lib/tierCategoryAccess";
+import { AnimatePresence, motion } from "framer-motion";
+import { TierBackdrop } from "@/components/membership/TierBackdrop";
+import { MagneticButton } from "@/components/membership/MagneticButton";
+import { setActiveMembershipRank } from "@/lib/membershipActiveStore";
+import { TIER_PALETTE, paletteKeyForRank } from "@/lib/tierPalette";
 import { TierStory } from "@/components/membership/TierStory";
 import { TierEditor } from "@/components/membership/TierEditor";
 import { DEFAULT_GROUP_COPY, TIER_SELECT, aspectCss, copyForGroup, copyForRoot, isVideoUrl, parseGroupCopy, type GroupCopy, type TierContent, type TierMediaSettings } from "@/lib/tierContent";
@@ -20,13 +25,13 @@ type Answer = { text: string; photoUrl: string | null };
 
 type MediaView = { widthPx: number; aspect: string; fit: "contain" | "cover"; radiusPx: number; border: boolean; background: string };
 
-function TierMedia({ tier, playVideo, view }: { tier: TierContent; playVideo: boolean; view: MediaView }) {
+function TierMedia({ tier, playVideo, view, fill = false }: { tier: TierContent; playVideo: boolean; view: MediaView; fill?: boolean }) {
   const src = tier.animation_url || tier.image_url;
   const fit = view.fit === "cover" ? "object-cover" : "object-contain";
   return (
     <div
-      className={`mx-auto max-w-full overflow-hidden ${view.border ? "border border-gray-200" : ""} ${view.background ? "" : "bg-gray-100"}`}
-      style={{ width: view.widthPx, aspectRatio: aspectCss(view.aspect), borderRadius: view.radiusPx, background: view.background || undefined }}
+      className={`mx-auto max-w-full overflow-hidden ${fill ? "h-full w-full" : ""} ${view.border && !fill ? "border border-gray-200" : ""} ${view.background ? "" : "bg-gray-100"}`}
+      style={fill ? { background: view.background || undefined } : { width: view.widthPx, aspectRatio: aspectCss(view.aspect), borderRadius: view.radiusPx, background: view.background || undefined }}
     >
       {src ? (
         isVideoUrl(src) ? (
@@ -261,6 +266,7 @@ export type MembershipCarouselOptions = {
   notesTitle: string;
   storyButton: string;
   groupCopy: string;
+  joinLabel: string;
 };
 
 export const MEMBERSHIP_CAROUSEL_DEFAULTS: MembershipCarouselOptions = {
@@ -298,6 +304,7 @@ export const MEMBERSHIP_CAROUSEL_DEFAULTS: MembershipCarouselOptions = {
   notesTitle: "마음 편히 알아두세요 · 요금과 이용 방식",
   storyButton: "✉ {name}의 이야기와 편지 읽기",
   groupCopy: DEFAULT_GROUP_COPY,
+  joinLabel: "초대장 열어보기",
 };
 
 type Plan = {
@@ -439,11 +446,96 @@ function joinState(plan: Plan | undefined, billing: Billing): { label: string; d
   return { label: `${plan.name}, 이 자리로 들어가기`, disabled: false };
 }
 
+export function resolveMediaView(tier: TierContent, opts: MembershipCarouselOptions): MediaView {
+  const ms: TierMediaSettings = tier.media_settings ?? {};
+  return {
+    widthPx: ms.widthPx ?? opts.mediaWidthPx,
+    aspect: ms.aspect ?? opts.mediaAspect,
+    fit: ms.fit ?? opts.mediaFit,
+    radiusPx: ms.radiusPx ?? opts.mediaRadiusPx,
+    border: opts.mediaBorder,
+    background: opts.mediaBackground,
+  };
+}
+
+const ROMAN = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ"];
+
+// EPIC-163: 타로 카드 덱 — 활성 카드는 가운데, 이웃 카드는 기울어져 뒤에 겹쳐 보이며 좌우 스와이프(드래그)/클릭으로 넘긴다.
+function TarotDeck({
+  tiers,
+  active,
+  opts,
+  onSelect,
+  onSwipe,
+}: {
+  tiers: TierContent[];
+  active: number;
+  opts: MembershipCarouselOptions;
+  onSelect: (i: number) => void;
+  onSwipe: (d: number) => void;
+}) {
+  const view = resolveMediaView(tiers[active], opts);
+  const [aw, ah] = (view.aspect === "auto" ? "4:5" : view.aspect).split(":").map(Number);
+  const w = view.widthPx;
+  const h = Math.round(w * (ah / aw));
+  return (
+    <div className="relative mx-auto w-full select-none overflow-hidden" style={{ height: h + 64 }}>
+      {tiers.map((t, i) => {
+        const offset = i - active;
+        const abs = Math.abs(offset);
+        if (abs > 2) return null;
+        const p = TIER_PALETTE[paletteKeyForRank(t.rank)];
+        const isActive = offset === 0;
+        const plate = p.depth === "#D4C9C1" ? "#5a4d44" : p.depth;
+        return (
+          <motion.div
+            key={t.rank}
+            className="absolute left-1/2 top-8 cursor-pointer"
+            style={{ width: w, height: h, marginLeft: -w / 2, zIndex: 10 - abs, touchAction: "pan-y" }}
+            initial={false}
+            animate={{ x: offset * Math.min(w * 0.62, 190), scale: isActive ? 1 : 0.82, rotate: offset * 7, opacity: isActive ? 1 : abs === 1 ? 0.6 : 0.3, y: isActive ? 0 : 14 }}
+            transition={{ type: "spring", stiffness: 240, damping: 26 }}
+            drag={isActive ? "x" : false}
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.35}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -50 || info.velocity.x < -450) onSwipe(1);
+              else if (info.offset.x > 50 || info.velocity.x > 450) onSwipe(-1);
+            }}
+            onClick={() => {
+              if (!isActive) onSelect(i);
+            }}
+            whileHover={isActive ? { y: -6 } : undefined}
+            aria-hidden={!isActive}
+          >
+            <div
+              className="relative h-full w-full rounded-[20px] p-2"
+              style={{
+                background: `linear-gradient(160deg, ${p.base}, ${p.highlight})`,
+                border: `2px solid ${p.highlight}`,
+                boxShadow: `0 22px 44px ${p.depth}50, inset 0 0 0 1px ${p.depth}55${isActive ? `, 0 0 38px ${p.highlight}99` : ""}`,
+              }}
+            >
+              <div className="relative h-full w-full overflow-hidden rounded-[14px]" style={{ border: `1px solid ${p.depth}88` }}>
+                <TierMedia tier={t} playVideo={isActive} view={{ ...view, radiusPx: 0, border: false }} fill />
+                <span className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full px-3 py-0.5 text-[11px] font-semibold tracking-[0.25em]" style={{ background: `${p.base}dd`, color: plate }}>
+                  ✦ {ROMAN[i] ?? i + 1} ✦
+                </span>
+                <div className="absolute inset-x-0 bottom-0 px-3 pb-3 pt-10 text-center" style={{ background: `linear-gradient(to top, ${plate}ee, transparent)` }}>
+                  <span className="text-sm font-bold tracking-wide text-white drop-shadow">{t.name}</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
 function TierCard({
   tier,
   plan,
-  nearActive,
-  playVideo,
   opts,
   billing,
   isAdmin,
@@ -454,8 +546,6 @@ function TierCard({
   perks: string[];
   tier: TierContent;
   plan: Plan | undefined;
-  nearActive: boolean;
-  playVideo: boolean;
   opts: MembershipCarouselOptions;
   billing: Billing;
   isAdmin: boolean;
@@ -471,16 +561,6 @@ function TierCard({
   const join = joinState(plan, billing);
   const accent = opts.accentColor || undefined;
 
-  const ms: TierMediaSettings = tier.media_settings ?? {};
-  const mediaView: MediaView = {
-    widthPx: ms.widthPx ?? opts.mediaWidthPx,
-    aspect: ms.aspect ?? opts.mediaAspect,
-    fit: ms.fit ?? opts.mediaFit,
-    radiusPx: ms.radiusPx ?? opts.mediaRadiusPx,
-    border: opts.mediaBorder,
-    background: opts.mediaBackground,
-  };
-
   const cats = plan?.categories ?? null;
   const shownAll = cats && opts.showCategories ? filterGroups(cats.groups, excluded, false) : [];
   const shownNew = cats && opts.showCategories ? filterGroups(cats.groups, excluded, true) : [];
@@ -488,7 +568,6 @@ function TierCard({
   const newCount = shownNew.reduce((n, g) => n + g.items.length, 0);
   const hasPrevious = totalCount > newCount;
   const notes = plan ? [...commonNotes, ...plan.access.activities, ...plan.access.perks] : [];
-  const center = opts.layout === "stack" && opts.textAlign === "center";
   const hasStory = !!(tier.intro_html || tier.letter_html || tier.intro_text || tier.letter_text);
 
   return (
@@ -496,15 +575,8 @@ function TierCard({
       className={`mx-auto overflow-hidden p-5 shadow-sm ${opts.cardBackground ? "" : "bg-white"} ${opts.cardBorder ? "border border-gray-200" : ""}`}
       style={{ maxWidth: opts.cardMaxWidthPx, background: opts.cardBackground || undefined, borderRadius: opts.cardRadiusPx }}
     >
-      <div className={opts.layout === "side" ? "flex items-center gap-4" : "flex flex-col items-center gap-4"}>
-        <div className={opts.layout === "side" ? "shrink-0" : "w-full"} style={opts.layout === "side" ? { maxWidth: "45%" } : undefined}>
-          {nearActive ? (
-            <TierMedia tier={tier} playVideo={playVideo} view={mediaView} />
-          ) : (
-            <div style={{ aspectRatio: aspectCss(mediaView.aspect), width: mediaView.widthPx }} className="mx-auto max-w-full" />
-          )}
-        </div>
-        <div className={`min-w-0 ${opts.layout === "side" ? "flex-1" : "w-full"} ${center ? "text-center" : "text-left"}`}>
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-full min-w-0 text-center">
           <h3 className="font-bold text-gray-900" style={{ fontSize: opts.nameSizePx }}>
             {tier.name}
           </h3>
@@ -592,15 +664,14 @@ function TierCard({
 
       <div className="mt-6 flex flex-col items-center gap-3">
         {!honorary && opts.showJoin && (
-          <button
-            type="button"
+          <MagneticButton
             onClick={onJoin}
             disabled={join.disabled}
-            style={join.disabled ? undefined : { background: accent }}
-            className="w-full max-w-xs rounded-md bg-gray-900 px-8 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-600"
+            style={join.disabled ? undefined : { background: accent || TIER_PALETTE[paletteKeyForRank(tier.rank)].depth }}
+            className="rounded-full bg-gray-900 px-10 py-3.5 text-sm font-semibold tracking-wide text-white shadow-lg hover:opacity-95 disabled:bg-gray-300 disabled:text-gray-600 disabled:shadow-none"
           >
-            {join.label}
-          </button>
+            {join.disabled ? join.label : opts.joinLabel}
+          </MagneticButton>
         )}
         {((opts.showLetter && hasStory) || isAdmin) && (
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -627,6 +698,19 @@ function TierCard({
         <div className="mt-5" style={{ animation: "silo-panel-up 0.4s ease-out" }}>
           <style>{"@keyframes silo-panel-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}"}</style>
           <TierStory tier={tier} />
+          {!honorary && opts.showJoin && (
+            <div className="mt-8 flex flex-col items-center gap-2 border-t border-black/5 pt-6">
+              <p className="text-xs text-gray-500">편지를 다 읽으셨다면, 이제 초대장을 열어 볼 차례예요.</p>
+              <MagneticButton
+                onClick={onJoin}
+                disabled={join.disabled}
+                style={join.disabled ? undefined : { background: accent || TIER_PALETTE[paletteKeyForRank(tier.rank)].depth }}
+                className="rounded-full bg-gray-900 px-10 py-3.5 text-sm font-semibold tracking-wide text-white shadow-lg hover:opacity-95 disabled:bg-gray-300 disabled:text-gray-600 disabled:shadow-none"
+              >
+                {join.disabled ? join.label : opts.joinLabel}
+              </MagneticButton>
+            </div>
+          )}
         </div>
       )}
       {editing && <TierEditor tier={tier} onClose={() => setEditing(false)} onSaved={onSaved} />}
@@ -642,11 +726,8 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
   const [plans, setPlans] = useState<Record<number, Plan>>({});
   const [conditionRows, setConditionRows] = useState<ConditionRow[]>([]);
   const [active, setActive] = useState(0);
-  const [settled, setSettled] = useState(true);
   const [missionOpen, setMissionOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const touchStartX = useRef<number | null>(null);
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch("/api/membership/plans")
@@ -672,21 +753,7 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
     };
   }, []);
 
-  useEffect(
-    () => () => {
-      if (settleTimer.current) clearTimeout(settleTimer.current);
-    },
-    [],
-  );
-
-  // 슬라이드가 넘어가는 동안엔 모든 카드를 원래 높이로 두고(가로 이동이 자연스럽게), 끝나면 안 보이는 카드는
-  // 높이를 접어서 캐러셀 전체 높이가 지금 카드에 맞게 줄어들게 한다.
-  const select = useCallback((index: number) => {
-    setActive(index);
-    setSettled(false);
-    if (settleTimer.current) clearTimeout(settleTimer.current);
-    settleTimer.current = setTimeout(() => setSettled(true), 520);
-  }, []);
+  const select = useCallback((index: number) => setActive(index), []);
 
   const go = useCallback(
     (delta: number) => {
@@ -695,6 +762,11 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
     },
     [tiers, active, select],
   );
+
+  const activeRank = tiers?.[active]?.rank;
+  useEffect(() => {
+    if (activeRank != null) setActiveMembershipRank(activeRank);
+  }, [activeRank]);
 
   if (!tiers) return <p className="py-10 text-center text-sm text-gray-400">멤버십을 불러오는 중...</p>;
   if (tiers.length === 0) return null;
@@ -738,6 +810,8 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
         if (e.key === "ArrowRight") go(1);
       }}
     >
+      <TierBackdrop rank={tier.rank} />
+
       {(opts.heading || opts.subtitle) && (
         <div className="mb-5 text-center">
           {opts.heading && <h2 className="text-xl font-semibold text-gray-900">{opts.heading}</h2>}
@@ -765,37 +839,28 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
         </div>
       )}
 
-      <div
-        className="relative overflow-hidden"
-        onTouchStart={(e) => {
-          touchStartX.current = e.touches[0].clientX;
-        }}
-        onTouchEnd={(e) => {
-          if (touchStartX.current == null) return;
-          const dx = e.changedTouches[0].clientX - touchStartX.current;
-          touchStartX.current = null;
-          if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
-        }}
-      >
-        <div className="flex items-start transition-transform duration-500 ease-out" style={{ transform: `translateX(-${active * 100}%)` }}>
-          {tiers.map((t, i) => (
-            <div key={t.rank} className={`min-w-full px-1 ${settled && i !== active ? "h-0 overflow-hidden" : ""}`} aria-hidden={i !== active}>
-              <TierCard
-                tier={t}
-                plan={plans[t.rank]}
-                nearActive={Math.abs(i - active) <= 1}
-                playVideo={i === active}
-                opts={opts}
-                billing={billing}
-                isAdmin={!!member?.is_admin}
-                perks={perksFor(t.rank)}
-                onJoin={handleJoin}
-                onSaved={(updated) => setTiers((prev) => prev?.map((x) => (x.rank === updated.rank ? updated : x)) ?? prev)}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      <TarotDeck tiers={tiers} active={active} opts={opts} onSelect={select} onSwipe={go} />
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tier.rank}
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.35, ease: "easeInOut" }}
+        >
+          <TierCard
+            tier={tier}
+            plan={plans[tier.rank]}
+            opts={opts}
+            billing={billing}
+            isAdmin={!!member?.is_admin}
+            perks={perksFor(tier.rank)}
+            onJoin={handleJoin}
+            onSaved={(updated) => setTiers((prev) => prev?.map((x) => (x.rank === updated.rank ? updated : x)) ?? prev)}
+          />
+        </motion.div>
+      </AnimatePresence>
 
       {opts.showArrows && (
         <div className="mt-4 flex items-center justify-center gap-3">

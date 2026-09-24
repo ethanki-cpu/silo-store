@@ -38,7 +38,7 @@ export default function MembershipPage() {
   return (
     <>
       <PageEditButton slug="membership" />
-      <main className="flex-1 bg-white px-6 py-12">
+      <main className="flex-1 bg-transparent px-6 py-12">
         <div className="max-w-3xl mx-auto w-full">
           {/* HOTFIX-162.7: 캐러셀/가입 카드도 이제 위젯이라 "페이지 수정"에서 순서·숨김·추가를
               자유롭게 바꾼다. 위젯이 하나도 없으면(시드 전) 예전 기본 구성으로 보여준다. */}

@@ -1,3 +1,12 @@
+## 2026-09-25 (EPIC-163 / 163.1 — 멤버십 몰입형 UX + 심리적 페이월 고도화, 사용자 지시)
+- **3색 팔레트(163.1)**: 6개 티어(비회원/Silo Angel/Alice/Great Gatsby/Patron/Lautrec & Artist)의 Base·Highlight·Depth Hex를 `globals.css` CSS 변수(`--tier-<key>-base/highlight/depth`)와 `src/lib/tierPalette.ts`에 등록.
+- **타로 덱 + 그라데이션 배경**: `/membership` 캐러셀을 타로 카드 덱(활성 카드 중앙·이웃 카드 기울어진 겹침, 드래그 스와이프/클릭, 로마 숫자·이름 플레이트, 팔레트색 프레임)으로 교체하고, 활성 티어가 바뀔 때마다 페이지 전체 배경이 해당 티어 3색 다층 radial/linear 그라데이션 + 종이 결 노이즈로 `framer-motion` 크로스페이드(0.8s easeInOut, `TierBackdrop.tsx`). "초대장 열어보기(가입)" 버튼은 `MagneticButton`(자석 호버), 편지 하단에도 같은 버튼.
+- **감성적 권한 표(위젯 `membership_experience`)**: 첨부 이미지 7행×6열을 그대로 옮김(O/X 없이 이모지·은유 문구, 🔒 칸은 반투명 `backdrop-blur` 위 자물쇠). 스크롤 도달 시 페이드인, 캐러셀 활성 티어 열이 Highlight 색 글로우로 실시간 강조(`membershipActiveStore`), 모바일은 경험 열 sticky + 가로 스와이프. 문구는 위젯 설정(rows)에서 편집. 기존 ✓/✕ 비교표는 페이지에서 숨김(위젯은 유지).
+- **심연으로의 스크롤(위젯 `membership_depths`)**: 캐러셀 바로 아래, 스크롤할수록 4개 깊이(문 앞 광장→살롱의 서재→무도회장→비밀의 방)로 줌인하며 지정 문구가 나타남. body가 overflow-x:hidden이라 CSS sticky가 안 먹어 스크롤 위치 기반 고정(fixed) 방식 사용, `prefers-reduced-motion`이면 정적 카드로.
+- **살아있는 자물쇠(Task 1)**: `LockedPostTeaser` 개편 — 서론+`backdrop-blur-md` 자리표시 본문, 큰 🔒(hover 시 좌우 shake), "{등급}의 열쇠가 필요합니다" 발광 문구, 멤버십 CTA + 하루 이용권/단건 열기 버튼(결제 기능은 아직 없어 안내 문구만 — NEXT_TASK 참고).
+- **시딩(Task 2/3)**: Alice/Great Gatsby/Patron/Lautrec/Artist 소개를 `PROJECT_VISION.md` 원문 그대로(비어 있는 등급만) 시딩, Patron/Lautrec 미션 질문 추가(`docs/sql/EPIC-163-membership-immersive.sql`, 실행 완료). 미션 저장→`/mypage/missions` 연동은 EPIC-162 구현 그대로 사용.
+- **상단 아이콘 hover**는 HOTFIX-162.13에서 별도 수정.
+
 ## 2026-09-25 (HOTFIX-162.14 — Patron/Lautrec/Artist 권한 표시 + 사일로의 결로 문구 전면 교체, 사용자 지시)
 - **Patron·Lautrec·Artist가 비어 보이던 문제**: Lautrec는 "새로 열리는 곳 0"이라 빈 카드, Artist는 플랜 자체가 API에 없어 설명 한 줄뿐이었다. → (1) 카드에 "이 자리에서만 받는 특별한 대접"을 추가 — 이전 등급과 달라진 조건(클럽 전체 무료, 음료·투어 도슨트 무료, 할인율, 도슨트 하루 무료 건수 등)을 `conditionRows`의 등급 간 차이로 자동 계산, (2) 명예 등급 Artist를 `/api/membership/plans`에 `honorary: true`로 포함(카드·비교표에 권한 표시, 마이페이지 가입 카드에서는 제외), (3) 새로 열리는 문이 0이면 "앞선 자리의 문을 하나도 빠짐없이 품고 있어요"로 표시, 항상 "지금까지 열린 N개의 문 모두 펼쳐보기" 제공.
 - **문구를 사일로의 결로**(PROJECT_VISION의 Silo Angel 서사 톤 — 첫눈 같은 사람들, 보물, 새 주인, 취향의 방): 제목/부제, 섹션 제목, 가입 버튼·상태 문구, 비교표 제목까지 교체하고 전부 위젯 설정에서 고칠 수 있게 함(`firstTitle/newTitle/perksTitle/fullListLabel/notesTitle/storyButton`).

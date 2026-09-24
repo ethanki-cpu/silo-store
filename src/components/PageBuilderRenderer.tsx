@@ -8,6 +8,9 @@ import type { BreadcrumbItem } from "@/components/PageHeader";
 import { HeroModule } from "@/components/modules/HeroModule";
 import { BreadcrumbWidget } from "@/components/modules/BreadcrumbWidget";
 import { BoardModule } from "@/components/modules/BoardModule";
+import { MembershipDepths } from "@/components/membership/MembershipDepths";
+import { MembershipExperienceTable } from "@/components/membership/MembershipExperienceTable";
+import { DEFAULT_DEPTHS, DEFAULT_EXPERIENCE_ROWS, type DepthScene, type ExperienceRow } from "@/lib/membershipContentDefaults";
 import { MembershipMatrix } from "@/components/membership/MembershipMatrix";
 import { MembershipCarousel, MEMBERSHIP_CAROUSEL_DEFAULTS } from "@/components/membership/MembershipCarousel";
 import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
@@ -379,10 +382,25 @@ function renderModule(module: PageModuleRow) {
             fullListLabel: str(settings.fullListLabel, MEMBERSHIP_CAROUSEL_DEFAULTS.fullListLabel),
             notesTitle: str(settings.notesTitle, MEMBERSHIP_CAROUSEL_DEFAULTS.notesTitle),
             storyButton: str(settings.storyButton, MEMBERSHIP_CAROUSEL_DEFAULTS.storyButton),
+            joinLabel: str(settings.joinLabel, MEMBERSHIP_CAROUSEL_DEFAULTS.joinLabel),
             groupCopy: str(settings.groupCopy, "") || MEMBERSHIP_CAROUSEL_DEFAULTS.groupCopy,
           }}
         />
       );
+    case "membership_depths": {
+      const scenes = arr<DepthScene>(settings.depths).filter((d) => d && typeof d.text === "string");
+      return <MembershipDepths heading={str(settings.heading, "")} scenes={scenes.length > 0 ? scenes : DEFAULT_DEPTHS} sceneHeightVh={num(settings.sceneHeightVh, 130)} />;
+    }
+    case "membership_experience": {
+      const rows = arr<Partial<ExperienceRow>>(settings.rows).filter((r) => r && typeof r.label === "string");
+      return (
+        <MembershipExperienceTable
+          heading={str(settings.heading, "사일로에서의 경험, 한눈에")}
+          subtitle={str(settings.subtitle, "자리마다 열리는 세계를 은유로 담았어요. 흐리게 잠긴 곳은 다음 자리에서 열려요.")}
+          rows={rows.length > 0 ? rows.map((r) => ({ label: "", sub: "", guest: "", angel: "", alice: "", gatsby: "", patron: "", lautrec: "", ...r })) : DEFAULT_EXPERIENCE_ROWS}
+        />
+      );
+    }
     case "membership_matrix":
       return (
         <MembershipMatrix

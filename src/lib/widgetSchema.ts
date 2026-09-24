@@ -45,6 +45,7 @@ export type PageModuleType =
   // HOTFIX-162.7(사용자 지시 — "/membership 페이지를 자유롭게 수정하게"): 멤버십 페이지의 두 핵심 섹션을
   // 코드에 고정하지 않고 위젯으로 뺐다 — 순서 변경/숨기기/다른 위젯 끼워넣기를 "페이지 수정"에서 자유롭게 한다.
   | "membership_carousel"
+  | "membership_matrix"
   | "membership_plans"
   // 레거시(EPIC-060, 팔레트에는 없지만 기존 DB 행이 있으면 계속 렌더링)
   | "sort"
@@ -79,6 +80,7 @@ export const PAGE_MODULE_TYPES: PageModuleType[] = [
   "craft_newsletter",
   "craft_footer",
   "membership_carousel",
+  "membership_matrix",
   "membership_plans",
 ];
 
@@ -111,6 +113,7 @@ export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
   craft_newsletter: "Craft: Newsletter",
   craft_footer: "Craft: Minimal Footer",
   membership_carousel: "멤버십 캐러셀",
+  membership_matrix: "멤버십 권한 비교표",
   membership_plans: "멤버십 가입 카드",
   sort: "Sort (레거시)",
   text: "Text (레거시)",
@@ -145,6 +148,7 @@ export const PAGE_MODULE_ICONS: Record<PageModuleType, string> = {
   craft_newsletter: "✉️",
   craft_footer: "🦶",
   membership_carousel: "🎠",
+  membership_matrix: "📊",
   membership_plans: "💳",
   sort: "↕️",
   text: "📝",
@@ -170,7 +174,7 @@ export const WIDGET_GROUPS: { label: string; types: PageModuleType[] }[] = [
   // WidgetInspectorForm의 필드 폼으로만 편집한다(더블클릭 인라인 편집이
   // 아님, Craft 페이지 자체를 편집할 때만 그 방식을 씀).
   { label: "Craft 블록", types: ["craft_hero", "craft_directory", "craft_newsletter", "craft_footer"] },
-  { label: "멤버십", types: ["membership_carousel", "membership_plans"] },
+  { label: "멤버십", types: ["membership_carousel", "membership_matrix", "membership_plans"] },
 ];
 
 // board_id 컬럼을 실제로 쓰는 위젯 — 관리자 UI가 이 목록으로 "게시판 선택"
@@ -445,6 +449,13 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "excludeCategories", label: "카드에서 숨길 카테고리(쉼표로 구분)", kind: "text", placeholder: "예: 마이 페이지" },
     { key: "commonNotes", label: "모든 등급 공통 안내(한 줄에 하나)", kind: "textarea", placeholder: "사일로 상점 물품 구매 시 포인트 적립" },
   ],
+  membership_matrix: [
+    { key: "heading", label: "제목", kind: "text", placeholder: "등급별 권한 한눈에 비교" },
+    { key: "subtitle", label: "부제목", kind: "textarea" },
+    { key: "showConditions", label: "요금·이용 조건 비교 보이기", kind: "checkbox" },
+    { key: "expandAll", label: "카테고리를 처음부터 펼쳐서 보이기", kind: "checkbox" },
+    { key: "excludeCategories", label: "표에서 숨길 카테고리(쉼표로 구분)", kind: "text" },
+  ],
   membership_plans: [
     { key: "showPlanCards", label: "등급별 소개 카드도 함께 보이기(캐러셀 카드와 같은 내용이라 보통 끔)", kind: "checkbox" },
   ],
@@ -532,6 +543,13 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     showLetter: true,
     excludeCategories: "",
     commonNotes: "사일로 상점 물품 구매 시 포인트 적립",
+  },
+  membership_matrix: {
+    heading: "등급별 권한 한눈에 비교",
+    subtitle: "✓는 이용할 수 있는 곳, ✕는 아직 열리지 않는 곳이에요. 카테고리를 눌러 세부 항목을 펼쳐보세요.",
+    showConditions: true,
+    expandAll: false,
+    excludeCategories: "",
   },
   membership_plans: { showPlanCards: false },
   craft_footer: {

@@ -1490,8 +1490,10 @@ export function Navbar({
                 // HOTFIX-161.3: 글쓰기 아이콘과 같은 이유(Tailwind Preflight
                 // img{max-width:100%}가 고정 24px 래퍼 기준으로 폭을 눌러버림)
                 // — max-width/max-height를 풀어야 설정한 크기가 실제로 반영된다.
+                // HOTFIX-162.12: inset-0+m-auto는 이미지가 래퍼(24px)보다 크면 왼쪽 끝에 붙어 오른쪽으로 삐져나가
+                // hover 텍스트(래퍼 중앙)가 아이콘보다 왼쪽에 떴다 → left/top 50% + translate로 진짜 중앙 정렬.
                 style={{ width: tierIconSizePx, height: tierIconSizePx, maxWidth: "none", maxHeight: "none" }}
-                className="absolute inset-0 m-auto object-contain transition-opacity duration-200 group-hover:opacity-0"
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 object-contain transition-opacity duration-200 group-hover:opacity-0"
               />
               <span
                 className="absolute inset-0 flex items-center justify-center whitespace-nowrap text-sm text-gray-600 opacity-0 transition-opacity duration-200 group-hover:opacity-100"

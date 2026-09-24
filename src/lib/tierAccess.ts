@@ -171,3 +171,36 @@ export function describeTierAccess(t: TierRow): TierAccess {
 
   return { boards, activities, perks };
 }
+
+// HOTFIX-162.12(사용자 지시 — /membership 캐러셀 아래 "등급별 되는 권한/아닌 권한 비교 매트릭스"): 게시판 접근이 아닌
+// 요금·이용 조건을 등급 열마다 한 줄로 비교하기 위한 행. 값은 membership_tiers 플래그(실제 게이팅 값)에서 파생한다.
+// cell: true=가능(✓), false=불가(✕), string=조건 문구(예: "월 1회 무료").
+export type ConditionCell = boolean | string;
+export type ConditionRow = { label: string; cells: Record<number, ConditionCell> };
+
+export function describeConditionRows(tiers: TierRow[]): ConditionRow[] {
+  const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+  const defs: { label: string; get: (t: TierRow) => ConditionCell }[] = [
+    { label: "사일로 상점 구매 포인트 적립", get: () => true },
+    { label: "사일로 상점 구매 할인", get: (t) => (t.shop_purchase_discount_pct ? `${t.shop_purchase_discount_pct}% 할인` : false) },
+    { label: "사일로 상점 대여 할인", get: (t) => (t.shop_rental_discount_pct ? `${t.shop_rental_discount_pct}% 할인` : false) },
+    {
+      label: "클럽 모임 참여",
+      get: (t) =>
+        t.club_all_free ? "전체 무료" : t.club_monthly_free_sessions ? `월 ${t.club_monthly_free_sessions}회 무료` : t.club_participation_discount_pct ? `${t.club_participation_discount_pct}% 할인` : "정가",
+    },
+    { label: "클럽 우선 예약", get: (t) => !!t.club_priority_booking },
+    { label: "살롱 입장", get: (t) => (t.salon_entry_free ? "무료" : t.salon_entry_hourly_fee ? `시간당 ${won(t.salon_entry_hourly_fee)}` : "정가") },
+    { label: "살롱 음료 무료", get: (t) => !!t.drink_free },
+    { label: "투어 도슨트 무료", get: (t) => !!t.tour_docent_free },
+    { label: "월별 살롱 모임(패트론의 살롱) 초대", get: (t) => !!t.monthly_salon_meeting_invite },
+    { label: "비밀의 방 도슨트 신청", get: (t) => !!t.secret_room_access && t.secret_room_access !== "none" },
+    {
+      label: "온라인 도슨트",
+      get: (t) =>
+        t.docent_daily_free_count ? `하루 ${t.docent_daily_free_count}건 무료, 이후 ${won(t.docent_flat_price ?? 0)}` : t.docent_flat_price != null ? `단품 ${won(t.docent_flat_price)}` : false,
+    },
+    { label: "상품 큐레이션 열람", get: (t) => (t.curation_level ? `${t.curation_level}단계` : false) },
+  ];
+  return defs.map((d) => ({ label: d.label, cells: Object.fromEntries(tiers.map((t) => [t.rank, d.get(t)])) }));
+}

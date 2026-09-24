@@ -8,6 +8,7 @@ import type { BreadcrumbItem } from "@/components/PageHeader";
 import { HeroModule } from "@/components/modules/HeroModule";
 import { BreadcrumbWidget } from "@/components/modules/BreadcrumbWidget";
 import { BoardModule } from "@/components/modules/BoardModule";
+import { MembershipMatrix } from "@/components/membership/MembershipMatrix";
 import { MembershipCarousel, MEMBERSHIP_CAROUSEL_DEFAULTS } from "@/components/membership/MembershipCarousel";
 import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
 import { ApplicationModule } from "@/components/modules/ApplicationModule";
@@ -354,6 +355,16 @@ function renderModule(module: PageModuleRow) {
             excludeCategories: str(settings.excludeCategories, MEMBERSHIP_CAROUSEL_DEFAULTS.excludeCategories),
             commonNotes: str(settings.commonNotes, MEMBERSHIP_CAROUSEL_DEFAULTS.commonNotes),
           }}
+        />
+      );
+    case "membership_matrix":
+      return (
+        <MembershipMatrix
+          heading={str(settings.heading, "등급별 권한 한눈에 비교")}
+          subtitle={str(settings.subtitle, "✓는 이용할 수 있는 곳, ✕는 아직 열리지 않는 곳이에요. 카테고리를 눌러 세부 항목을 펼쳐보세요.")}
+          showConditions={bool(settings.showConditions, true)}
+          expandAll={bool(settings.expandAll, false)}
+          excludeCategories={str(settings.excludeCategories, "")}
         />
       );
     case "membership_plans":

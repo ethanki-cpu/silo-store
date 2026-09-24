@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-import { describeTierAccess, describeTierBenefits, type TierRow, type BoardPermissionRow } from "@/lib/tierAccess";
+import { describeConditionRows, describeTierAccess, describeTierBenefits, type TierRow, type BoardPermissionRow } from "@/lib/tierAccess";
 import { computeTierCategoryAccess } from "@/lib/tierCategoryAccess";
 import { steppayConfigured, tierProducts } from "@/lib/steppayServer";
 
@@ -57,5 +57,5 @@ export async function GET() {
     },
   }));
 
-  return NextResponse.json({ plans }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
+  return NextResponse.json({ plans, conditionRows: describeConditionRows(tiers) }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
 }

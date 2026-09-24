@@ -7,165 +7,43 @@ import { supabase } from "@/lib/supabaseClient";
 import { uploadFileToR2 } from "@/lib/r2Upload";
 import { useMembershipBilling } from "@/lib/useMembershipBilling";
 import type { BenefitGroup, TierCategoryAccess } from "@/lib/tierCategoryAccess";
+import { TierStory } from "@/components/membership/TierStory";
+import { TierEditor } from "@/components/membership/TierEditor";
+import { TIER_SELECT, aspectCss, isVideoUrl, type TierContent, type TierMediaSettings } from "@/lib/tierContent";
 
 // HOTFIX-161.9(사용자 지시 — PROJECT_VISION.md "멤버십 수익화 마스터플랜" 캐러셀 UI 스펙):
-// 게임의 캐릭터 선택창처럼 등급을 스와이프로 고르고 → 애니메이션(대표가 나중에 전달할 영상,
-// 지금은 자리만) 아래 등급 이름 버튼 → 소개와 편지 → '가입' → 미션 창. 카피는 코드에 하나도
-// 넣지 않는다 — 소개/편지/애니메이션/미션 질문은 전부 membership_tiers 컬럼이고 관리자가 이
-// 화면에서 바로 수정한다(RLS의 membership_tiers_admin_write 정책으로 관리자만 저장됨).
-type MissionQuestion = { id: string; text: string; type: "text" | "photo" };
-
-type TierContent = {
-  rank: number;
-  name: string;
-  price: number;
-  is_lifetime: boolean;
-  image_url: string | null;
-  animation_url: string | null;
-  intro_text: string | null;
-  letter_text: string | null;
-  mission_questions: MissionQuestion[] | null;
-};
-
+// 게임의 캐릭터 선택창처럼 등급을 스와이프로 고르고 → 이미지/애니메이션 → 소개와 편지 → '가입' → 미션 창.
+// 카피는 코드에 하나도 넣지 않는다 — 소개/편지/애니메이션/미션 질문은 전부 membership_tiers 컬럼이고
+// 관리자가 이 화면에서 바로 수정한다(RLS의 membership_tiers_admin_write 정책으로 관리자만 저장됨).
 type Answer = { text: string; photoUrl: string | null };
 
-const isVideoUrl = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
-const newId = () => `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+type MediaView = { widthPx: number; aspect: string; fit: "contain" | "cover"; radiusPx: number; border: boolean; background: string };
 
-function TierMedia({ tier, playVideo }: { tier: TierContent; playVideo: boolean }) {
+function TierMedia({ tier, playVideo, view }: { tier: TierContent; playVideo: boolean; view: MediaView }) {
   const src = tier.animation_url || tier.image_url;
+  const fit = view.fit === "cover" ? "object-cover" : "object-contain";
   return (
-    <div className="mx-auto aspect-[4/5] w-full max-w-[15rem] overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+    <div
+      className={`mx-auto max-w-full overflow-hidden ${view.border ? "border border-gray-200" : ""} ${view.background ? "" : "bg-gray-100"}`}
+      style={{ width: view.widthPx, aspectRatio: aspectCss(view.aspect), borderRadius: view.radiusPx, background: view.background || undefined }}
+    >
       {src ? (
         isVideoUrl(src) ? (
           playVideo ? (
-            <video src={src} autoPlay muted loop playsInline className="h-full w-full object-contain" />
+            <video src={src} autoPlay muted loop playsInline className={`h-full w-full ${fit}`} />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">{tier.name}</div>
+            <div className="flex h-full min-h-24 w-full items-center justify-center text-sm text-gray-400">{tier.name}</div>
           )
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt={tier.name} className="h-full w-full object-contain" />
+          <img src={src} alt={tier.name} className={`${view.aspect === "auto" ? "h-auto" : "h-full"} w-full ${fit}`} style={{ maxWidth: "100%" }} />
         )
       ) : (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-gray-400">
+        <div className="flex h-full min-h-32 w-full flex-col items-center justify-center gap-1 text-gray-400">
           <span className="text-lg font-semibold text-gray-500">{tier.name}</span>
-          <span className="text-xs">캐릭터 애니메이션이 들어갈 자리</span>
+          <span className="text-xs">이미지·영상이 들어갈 자리</span>
         </div>
       )}
-    </div>
-  );
-}
-
-function TierContentEditor({ tier, onSaved, onClose }: { tier: TierContent; onSaved: (t: TierContent) => void; onClose: () => void }) {
-  const [animationUrl, setAnimationUrl] = useState(tier.animation_url ?? "");
-  const [intro, setIntro] = useState(tier.intro_text ?? "");
-  const [letter, setLetter] = useState(tier.letter_text ?? "");
-  const [questions, setQuestions] = useState<MissionQuestion[]>(tier.mission_questions ?? []);
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function upload(file: File) {
-    setUploading(true);
-    setError(null);
-    const { url, error: uploadError } = await uploadFileToR2(file);
-    setUploading(false);
-    if (uploadError || !url) {
-      setError(uploadError ?? "업로드에 실패했어요.");
-      return;
-    }
-    setAnimationUrl(url);
-  }
-
-  async function save() {
-    setSaving(true);
-    setError(null);
-    const payload = {
-      animation_url: animationUrl.trim() || null,
-      intro_text: intro.trim() || null,
-      letter_text: letter.trim() || null,
-      mission_questions: questions.filter((q) => q.text.trim()).map((q) => ({ ...q, text: q.text.trim() })),
-    };
-    const { error: updateError } = await supabase.from("membership_tiers").update(payload).eq("rank", tier.rank);
-    setSaving(false);
-    if (updateError) {
-      setError(updateError.message);
-      return;
-    }
-    onSaved({ ...tier, ...payload });
-    onClose();
-  }
-
-  return (
-    <div className="mt-4 space-y-3 rounded-md border border-blue-200 bg-blue-50/40 p-4 text-sm">
-      <p className="font-semibold text-blue-800">{tier.name} 내용 편집(관리자)</p>
-      <label className="block">
-        <span className="mb-1 block text-gray-600">애니메이션/영상 URL (mp4·webm 또는 이미지 — 비우면 대표 사진, 그것도 없으면 빈 자리)</span>
-        <input value={animationUrl} onChange={(e) => setAnimationUrl(e.target.value)} className="w-full rounded border border-gray-300 px-2 py-1" />
-        <input
-          type="file"
-          accept="video/*,image/*"
-          disabled={uploading}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) upload(f);
-            e.target.value = "";
-          }}
-          className="mt-1 w-full text-xs"
-        />
-        {uploading && <span className="text-xs text-gray-500">업로드 중...</span>}
-      </label>
-      <label className="block">
-        <span className="mb-1 block text-gray-600">소개</span>
-        <textarea value={intro} onChange={(e) => setIntro(e.target.value)} rows={5} className="w-full rounded border border-gray-300 px-2 py-1" />
-      </label>
-      <label className="block">
-        <span className="mb-1 block text-gray-600">편지 (줄바꿈 그대로 표시돼요)</span>
-        <textarea value={letter} onChange={(e) => setLetter(e.target.value)} rows={12} className="w-full rounded border border-gray-300 px-2 py-1" />
-      </label>
-      <div>
-        <span className="mb-1 block text-gray-600">가입 미션 질문 (없으면 &lsquo;가입&rsquo;이 바로 다음 단계로 넘어가요)</span>
-        <ul className="space-y-2">
-          {questions.map((q, i) => (
-            <li key={q.id} className="flex flex-wrap items-center gap-2">
-              <input
-                value={q.text}
-                onChange={(e) => setQuestions((prev) => prev.map((p, j) => (j === i ? { ...p, text: e.target.value } : p)))}
-                placeholder="질문"
-                className="min-w-[12rem] flex-1 rounded border border-gray-300 px-2 py-1"
-              />
-              <select
-                value={q.type}
-                onChange={(e) => setQuestions((prev) => prev.map((p, j) => (j === i ? { ...p, type: e.target.value as "text" | "photo" } : p)))}
-                className="rounded border border-gray-300 px-1 py-1"
-              >
-                <option value="text">글 답변</option>
-                <option value="photo">사진 + 글</option>
-              </select>
-              <button type="button" onClick={() => setQuestions((prev) => prev.filter((_, j) => j !== i))} className="text-xs text-red-600">
-                삭제
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button
-          type="button"
-          onClick={() => setQuestions((prev) => [...prev, { id: newId(), text: "", type: "text" }])}
-          className="mt-2 rounded border border-gray-300 px-2 py-1 text-xs hover:bg-white"
-        >
-          + 질문 추가
-        </button>
-      </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button type="button" onClick={save} disabled={saving || uploading} className="rounded bg-gray-900 px-3 py-1.5 text-white disabled:opacity-50">
-          {saving ? "저장 중..." : "저장"}
-        </button>
-        <button type="button" onClick={onClose} className="rounded border border-gray-300 px-3 py-1.5">
-          취소
-        </button>
-      </div>
     </div>
   );
 }
@@ -343,12 +221,31 @@ function MissionModal({ tier, onClose, onDone }: { tier: TierContent; onClose: (
   );
 }
 
-// HOTFIX-163.1(사용자 지시 — "Carousel 안에 멤버십 카드가 있어야 해. 각 멤버십의 이 플랫폼에서의 혜택이
-// 한눈에 보여야 해"): 슬라이드 한 장이 곧 멤버십 카드다 — 대표 이미지 · 이름/월 요금 · 카테고리별로 이용 가능한
-// 게시판/페이지 · 요금/이용 조건 · 소개·편지 · 가입 버튼이 한 카드 안에 있고, 아래 별도 "가입 카드" 목록은 없다.
+// HOTFIX-163.1(사용자 지시 — "Carousel 안에 멤버십 카드가 있어야 해") + HOTFIX-162.13(사용자 지시 — "carousel 안의 모든 걸
+// 설정할 수 있게"): 슬라이드 한 장이 곧 멤버십 카드다. 카드의 배치·이미지 크기/비율·색·표시 요소는 전부 위젯 설정으로
+// 조정하고, 등급별 이미지 표시는 등급 편집(media_settings)에서 개별로 덮어쓴다.
 export type MembershipCarouselOptions = {
   heading: string;
   subtitle: string;
+  layout: "stack" | "side";
+  textAlign: "center" | "left";
+  cardMaxWidthPx: number;
+  cardBackground: string;
+  cardRadiusPx: number;
+  cardBorder: boolean;
+  accentColor: string;
+  nameSizePx: number;
+  mediaWidthPx: number;
+  mediaAspect: string;
+  mediaFit: "contain" | "cover";
+  mediaRadiusPx: number;
+  mediaBorder: boolean;
+  mediaBackground: string;
+  showTabs: boolean;
+  showPrice: boolean;
+  showSummary: boolean;
+  showJoin: boolean;
+  showArrows: boolean;
   showCategories: boolean;
   showFullList: boolean;
   showNotes: boolean;
@@ -360,6 +257,25 @@ export type MembershipCarouselOptions = {
 export const MEMBERSHIP_CAROUSEL_DEFAULTS: MembershipCarouselOptions = {
   heading: "멤버십 혜택 한눈에 보기",
   subtitle: "옆으로 넘기며 등급마다 열리는 세계를 비교해 보세요. 높은 등급은 낮은 등급의 혜택을 모두 포함해요.",
+  layout: "stack",
+  textAlign: "center",
+  cardMaxWidthPx: 672,
+  cardBackground: "",
+  cardRadiusPx: 12,
+  cardBorder: true,
+  accentColor: "",
+  nameSizePx: 26,
+  mediaWidthPx: 260,
+  mediaAspect: "4:5",
+  mediaFit: "contain",
+  mediaRadiusPx: 10,
+  mediaBorder: true,
+  mediaBackground: "",
+  showTabs: true,
+  showPrice: true,
+  showSummary: true,
+  showJoin: true,
+  showArrows: true,
   showCategories: true,
   showFullList: true,
   showNotes: true,
@@ -525,6 +441,17 @@ function TierCard({
   const excluded = opts.excludeCategories.split(",").map((x) => x.trim()).filter(Boolean);
   const commonNotes = opts.commonNotes.split("\n").map((x) => x.trim()).filter(Boolean);
   const join = joinState(plan, billing);
+  const accent = opts.accentColor || undefined;
+
+  const ms: TierMediaSettings = tier.media_settings ?? {};
+  const mediaView: MediaView = {
+    widthPx: ms.widthPx ?? opts.mediaWidthPx,
+    aspect: ms.aspect ?? opts.mediaAspect,
+    fit: ms.fit ?? opts.mediaFit,
+    radiusPx: ms.radiusPx ?? opts.mediaRadiusPx,
+    border: opts.mediaBorder,
+    background: opts.mediaBackground,
+  };
 
   const cats = plan?.categories ?? null;
   const shownAll = cats && opts.showCategories ? filterGroups(cats.groups, excluded, false) : [];
@@ -533,29 +460,49 @@ function TierCard({
   const newCount = shownNew.reduce((n, g) => n + g.items.length, 0);
   const hasPrevious = totalCount > newCount;
   const notes = plan ? [...commonNotes, ...plan.access.activities, ...plan.access.perks] : [];
+  const center = opts.layout === "stack" && opts.textAlign === "center";
+  const hasStory = !!(tier.intro_html || tier.letter_html || tier.intro_text || tier.letter_text);
 
   return (
-    <article className="mx-auto max-w-2xl overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-4">
-        <div className="w-28 shrink-0 sm:w-36">
-          {nearActive ? <TierMedia tier={tier} playVideo={playVideo} /> : <div className="aspect-[4/5]" />}
+    <article
+      className={`mx-auto overflow-hidden p-5 shadow-sm ${opts.cardBackground ? "" : "bg-white"} ${opts.cardBorder ? "border border-gray-200" : ""}`}
+      style={{ maxWidth: opts.cardMaxWidthPx, background: opts.cardBackground || undefined, borderRadius: opts.cardRadiusPx }}
+    >
+      <div className={opts.layout === "side" ? "flex items-center gap-4" : "flex flex-col items-center gap-4"}>
+        <div className={opts.layout === "side" ? "shrink-0" : "w-full"} style={opts.layout === "side" ? { maxWidth: "45%" } : undefined}>
+          {nearActive ? (
+            <TierMedia tier={tier} playVideo={playVideo} view={mediaView} />
+          ) : (
+            <div style={{ aspectRatio: aspectCss(mediaView.aspect), width: mediaView.widthPx }} className="mx-auto max-w-full" />
+          )}
         </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-2xl font-bold text-gray-900">{tier.name}</h3>
-          <p className="mt-1 text-base font-semibold text-gray-800">
-            {honorary ? "명예 등급" : tier.price === 0 ? "무료" : `월 ${tier.price.toLocaleString()}원`}
-            {!honorary && tier.price > 0 && <span className="ml-1 text-xs font-normal text-gray-400">부가세 포함</span>}
-          </p>
-          {plan && !honorary && opts.showCategories && totalCount > 0 && (
+        <div className={`min-w-0 ${opts.layout === "side" ? "flex-1" : "w-full"} ${center ? "text-center" : "text-left"}`}>
+          <h3 className="font-bold text-gray-900" style={{ fontSize: opts.nameSizePx }}>
+            {tier.name}
+          </h3>
+          {opts.showPrice && (
+            <p className="mt-1 text-base font-semibold text-gray-800">
+              {honorary ? "명예 등급" : tier.price === 0 ? "무료" : `월 ${tier.price.toLocaleString()}원`}
+              {!honorary && tier.price > 0 && <span className="ml-1 text-xs font-normal text-gray-400">부가세 포함</span>}
+            </p>
+          )}
+          {opts.showSummary && plan && !honorary && opts.showCategories && totalCount > 0 && (
             <p className="mt-2 text-xs leading-5 text-gray-500">
               총 <strong className="text-gray-800">{totalCount}곳</strong> 이용 가능
-              {hasPrevious ? <> · 이전 등급 혜택을 모두 포함하고 <strong className="text-amber-700">새로 {newCount}곳</strong>이 열려요</> : ""}
+              {hasPrevious ? (
+                <>
+                  {" "}
+                  · 이전 등급 혜택을 모두 포함하고 <strong className="text-amber-700">새로 {newCount}곳</strong>이 열려요
+                </>
+              ) : (
+                ""
+              )}
             </p>
           )}
         </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-6">
         {honorary ? (
           <p className="rounded-md bg-gray-50 p-3 text-xs text-gray-600">공연·전시에 참여한 예술가에게 자동으로 부여되는 명예 등급이에요. 모든 등급의 혜택을 이용할 수 있어요.</p>
         ) : (
@@ -595,55 +542,46 @@ function TierCard({
         )}
       </div>
 
-      <div className="mt-5 flex flex-col items-center gap-2">
-        {!honorary && (
+      <div className="mt-6 flex flex-col items-center gap-3">
+        {!honorary && opts.showJoin && (
           <button
             type="button"
             onClick={onJoin}
             disabled={join.disabled}
-            className="w-full max-w-xs rounded-md bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:bg-gray-300 disabled:text-gray-600"
+            style={join.disabled ? undefined : { background: accent }}
+            className="w-full max-w-xs rounded-md bg-gray-900 px-8 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-600"
           >
             {join.label}
           </button>
         )}
-        {(opts.showLetter || isAdmin) && (
-          <button
-            type="button"
-            onClick={() => setPanelOpen((o) => !o)}
-            aria-expanded={panelOpen}
-            className="text-xs text-gray-500 underline underline-offset-2 hover:text-gray-800"
-          >
-            {panelOpen ? "소개·편지 닫기" : `${tier.name}의 소개와 편지 보기`}
-          </button>
+        {((opts.showLetter && hasStory) || isAdmin) && (
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {opts.showLetter && (hasStory || isAdmin) && (
+              <button
+                type="button"
+                onClick={() => setPanelOpen((o) => !o)}
+                aria-expanded={panelOpen}
+                className="rounded-full border border-gray-400 px-5 py-2 text-sm text-gray-800 hover:bg-gray-50"
+              >
+                ✉ {panelOpen ? "소개·편지 닫기" : `${tier.name}의 소개와 편지 보기`}
+              </button>
+            )}
+            {isAdmin && (
+              <button type="button" onClick={() => setEditing(true)} className="rounded border border-blue-300 px-3 py-2 text-xs text-blue-700 hover:bg-blue-50">
+                카드 편집(관리자)
+              </button>
+            )}
+          </div>
         )}
       </div>
 
       {panelOpen && (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-5" style={{ animation: "silo-panel-up 0.4s ease-out" }}>
+        <div className="mt-5" style={{ animation: "silo-panel-up 0.4s ease-out" }}>
           <style>{"@keyframes silo-panel-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}"}</style>
-          {isAdmin && !editing && (
-            <div className="mb-3 flex justify-end">
-              <button type="button" onClick={() => setEditing(true)} className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50">
-                내용 편집(관리자)
-              </button>
-            </div>
-          )}
-          {editing ? (
-            <TierContentEditor tier={tier} onClose={() => setEditing(false)} onSaved={onSaved} />
-          ) : (
-            <>
-              {tier.intro_text ? (
-                <p className="whitespace-pre-line text-sm leading-7 text-gray-700">{tier.intro_text}</p>
-              ) : (
-                <p className="text-sm text-gray-400">아직 소개가 준비되지 않았어요.</p>
-              )}
-              {tier.letter_text && (
-                <div className="mt-5 whitespace-pre-line rounded-md border border-amber-100 bg-amber-50/50 p-5 text-sm leading-8 text-gray-800">{tier.letter_text}</div>
-              )}
-            </>
-          )}
+          <TierStory tier={tier} />
         </div>
       )}
+      {editing && <TierEditor tier={tier} onClose={() => setEditing(false)} onSaved={onSaved} />}
     </article>
   );
 }
@@ -672,7 +610,7 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
     let cancelled = false;
     supabase
       .from("membership_tiers")
-      .select("rank, name, price, is_lifetime, image_url, animation_url, intro_text, letter_text, mission_questions")
+      .select(TIER_SELECT)
       .order("rank", { ascending: true })
       .then(({ data }) => {
         if (!cancelled) setTiers((data ?? []) as TierContent[]);
@@ -741,22 +679,25 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
         </div>
       )}
 
-      <div className="mb-4 flex justify-start gap-1.5 overflow-x-auto pb-1 sm:justify-center" role="tablist" aria-label="등급 목록">
-        {tiers.map((t, i) => (
-          <button
-            key={t.rank}
-            type="button"
-            role="tab"
-            aria-selected={i === active}
-            onClick={() => select(i)}
-            className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
-              i === active ? "border-gray-900 bg-gray-900 font-semibold text-white" : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            {t.name}
-          </button>
-        ))}
-      </div>
+      {opts.showTabs && (
+        <div className="mb-4 flex justify-start gap-1.5 overflow-x-auto pb-1 sm:justify-center" role="tablist" aria-label="등급 목록">
+          {tiers.map((t, i) => (
+            <button
+              key={t.rank}
+              type="button"
+              role="tab"
+              aria-selected={i === active}
+              onClick={() => select(i)}
+              style={i === active && opts.accentColor ? { background: opts.accentColor, borderColor: opts.accentColor } : undefined}
+              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+                i === active ? "border-gray-900 bg-gray-900 font-semibold text-white" : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div
         className="relative overflow-hidden"
@@ -789,29 +730,19 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-center gap-3">
-        <button
-          type="button"
-          onClick={() => go(-1)}
-          disabled={active === 0}
-          aria-label="이전 등급"
-          className="rounded-full border border-gray-300 bg-white px-3 py-1 text-lg disabled:opacity-30"
-        >
-          ‹
-        </button>
-        <span className="text-xs text-gray-500">
-          {active + 1} / {tiers.length}
-        </span>
-        <button
-          type="button"
-          onClick={() => go(1)}
-          disabled={active === tiers.length - 1}
-          aria-label="다음 등급"
-          className="rounded-full border border-gray-300 bg-white px-3 py-1 text-lg disabled:opacity-30"
-        >
-          ›
-        </button>
-      </div>
+      {opts.showArrows && (
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <button type="button" onClick={() => go(-1)} disabled={active === 0} aria-label="이전 등급" className="rounded-full border border-gray-300 bg-white px-3 py-1 text-lg disabled:opacity-30">
+            ‹
+          </button>
+          <span className="text-xs text-gray-500">
+            {active + 1} / {tiers.length}
+          </span>
+          <button type="button" onClick={() => go(1)} disabled={active === tiers.length - 1} aria-label="다음 등급" className="rounded-full border border-gray-300 bg-white px-3 py-1 text-lg disabled:opacity-30">
+            ›
+          </button>
+        </div>
+      )}
 
       {missionOpen && <MissionModal tier={tier} onClose={() => setMissionOpen(false)} onDone={afterMission} />}
       {confirmOpen && plan && (

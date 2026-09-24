@@ -231,7 +231,8 @@ export function HeaderSlot({
   const wholeElementDraggable = editable && selected && !value.locked;
   const wrapperStyle: CSSProperties = {
     ...style,
-    ...(moved || (selected && editable) ? { position: "relative", zIndex: 30 } : undefined),
+    // HOTFIX-162.13: 옮겨진 슬롯(상단 아이콘 등)이 상단 탭 줄(<nav>, z-30)에 아래쪽이 가려져 hover/클릭이 안 먹던 것 — 탭 줄보다 위(35)로.
+    ...(moved || (selected && editable) ? { position: "relative", zIndex: 35 } : undefined),
     ...(moved ? { transform: `translate(${effectiveDx}px, ${value.dyPx}px)` } : undefined),
     ...(wholeElementDraggable ? { cursor: "move" } : undefined),
   };

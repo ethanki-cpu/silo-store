@@ -55,6 +55,9 @@ export type MainLogoConfig = {
   leftTextBold: boolean | null;
   leftTextFontSizePx: number | null;
   leftTextColor: string;
+  /** HOTFIX-163.6: 헤더 줄에서 이 텍스트가 차지하는 폭(px)을 고정 — 글자 크기를 바꿔도 다른 요소가 움직이지 않는다. null = 글자 폭을 그대로 따름(기존 동작). */
+  leftTextLayoutWidthPx: number | null;
+  rightTextLayoutWidthPx: number | null;
   rightTextFontFamily: string;
   rightTextCustomFonts: CustomFontEntry[];
   /** null = 로고 자체의 bold를 그대로 상속(기본값, 기존 데이터 호환). */
@@ -110,6 +113,8 @@ export function defaultMainLogoConfig(): MainLogoConfig {
     leftTextBold: null,
     leftTextFontSizePx: null,
     leftTextColor: "",
+    leftTextLayoutWidthPx: null,
+    rightTextLayoutWidthPx: null,
     rightTextFontFamily: "",
     rightTextCustomFonts: [],
     rightTextBold: null,

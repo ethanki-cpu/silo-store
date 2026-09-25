@@ -1911,7 +1911,7 @@ export function Navbar({
             style={{ gap: mainLogo.groupGapPx ?? 16 }}
           >
             {mainLogo.leftText && (
-              <span className="shrink-0 whitespace-nowrap" style={leftTextStyle}>
+              <span className="shrink-0 whitespace-nowrap" style={mainLogo.leftTextLayoutWidthPx ? { ...leftTextStyle, width: mainLogo.leftTextLayoutWidthPx, display: "inline-block" } : leftTextStyle}>
                 {mainLogo.leftText}
               </span>
             )}
@@ -1923,7 +1923,7 @@ export function Navbar({
               )}
             </Link>
             {mainLogo.rightText && (
-              <span className="shrink-0 whitespace-nowrap" style={rightTextStyle}>
+              <span className="shrink-0 whitespace-nowrap" style={mainLogo.rightTextLayoutWidthPx ? { ...rightTextStyle, width: mainLogo.rightTextLayoutWidthPx, display: "inline-block" } : rightTextStyle}>
                 {mainLogo.rightText}
               </span>
             )}
@@ -1941,6 +1941,7 @@ export function Navbar({
                 onOffsetChange={handleSlotOffsetChange}
                 as="span"
                 className="shrink-0 whitespace-nowrap self-center"
+                style={mainLogo.leftTextLayoutWidthPx ? { width: mainLogo.leftTextLayoutWidthPx, display: "inline-block" } : undefined}
               >
                 <span style={leftTextStyle}>{mainLogo.leftText}</span>
               </HeaderSlot>
@@ -1974,6 +1975,7 @@ export function Navbar({
                 onOffsetChange={handleSlotOffsetChange}
                 as="span"
                 className="shrink-0 whitespace-nowrap self-center"
+                style={mainLogo.rightTextLayoutWidthPx ? { width: mainLogo.rightTextLayoutWidthPx, display: "inline-block" } : undefined}
               >
                 <span style={rightTextStyle}>{mainLogo.rightText}</span>
               </HeaderSlot>

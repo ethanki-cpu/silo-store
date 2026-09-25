@@ -1858,8 +1858,22 @@ function ControlsPanel({
       bold?: boolean | null;
       fontSizePx?: number | null;
       color?: string;
+      layoutWidthPx?: number | null;
     }) {
       const prefixed: Partial<MainLogoValue["pc"]> = {};
+      // HOTFIX-163.6(사용자 신고 — "글자 크기를 바꾸면 다른 요소들도 같이 움직여"): 헤더 요소들은 이 텍스트의 폭만큼 밀려 놓여 있어서 글자 크기가
+      // 바뀌면 폭이 변해 뒤따르는 요소가 전부 이동했다. 크기/서체/굵기를 처음 바꾸는 순간, 지금 폭을 "고정 폭"으로 기억해 다른 요소를 붙잡아 둔다.
+      const changesWidth = patch.fontSizePx !== undefined || patch.fontFamily !== undefined || patch.bold !== undefined || patch.customFonts !== undefined;
+      if (changesWidth && (isLeft ? mainLogo.leftTextLayoutWidthPx : mainLogo.rightTextLayoutWidthPx) == null) {
+        // 그룹 모드(왼쪽 텍스트+로고+오른쪽 텍스트를 하나로 묶음)에서는 텍스트가 별도 슬롯이 아니라 그룹 안의 첫/마지막 자식이다.
+        const group = document.querySelector<HTMLElement>('[data-header-slot="logo-group"]');
+        const el =
+          document.querySelector<HTMLElement>(`[data-header-slot="${isLeft ? "logo-left-text" : "logo-right-text"}"]`) ??
+          ((isLeft ? group?.firstElementChild : group?.lastElementChild) as HTMLElement | null | undefined);
+        const w = el ? Math.round(el.offsetWidth) : 0;
+        if (w > 0) Object.assign(prefixed, isLeft ? { leftTextLayoutWidthPx: w } : { rightTextLayoutWidthPx: w });
+      }
+      if (patch.layoutWidthPx !== undefined) Object.assign(prefixed, isLeft ? { leftTextLayoutWidthPx: patch.layoutWidthPx } : { rightTextLayoutWidthPx: patch.layoutWidthPx });
       if (patch.fontFamily !== undefined) Object.assign(prefixed, isLeft ? { leftTextFontFamily: patch.fontFamily } : { rightTextFontFamily: patch.fontFamily });
       if (patch.customFonts !== undefined) Object.assign(prefixed, isLeft ? { leftTextCustomFonts: patch.customFonts } : { rightTextCustomFonts: patch.customFonts });
       if (patch.bold !== undefined) Object.assign(prefixed, isLeft ? { leftTextBold: patch.bold } : { rightTextBold: patch.bold });
@@ -1930,6 +1944,17 @@ function ControlsPanel({
               <input type="file" accept=".woff,.woff2,.ttf,.otf" disabled={uploadingSideTextFont} onChange={(e) => handleSideTextFontFile(e.target.files?.[0] ?? null)} className="w-full text-[11px]" />
             </label>
           </div>
+          <label className="block rounded border border-dashed border-gray-300 p-2">
+            <span className="mb-1 block text-gray-600">헤더에서 차지하는 폭 고정(px)</span>
+            <input
+              type="number"
+              value={(isLeft ? mainLogo.leftTextLayoutWidthPx : mainLogo.rightTextLayoutWidthPx) ?? ""}
+              placeholder="비어 있음 = 글자 폭을 따라감"
+              onChange={(e) => patchSide({ layoutWidthPx: e.target.value ? Number(e.target.value) : null })}
+              className="w-full rounded border border-gray-300 px-2 py-1"
+            />
+            <span className="mt-1 block text-[11px] text-gray-400">글자 크기·서체를 처음 바꿀 때 지금 폭으로 자동 고정돼요 — 그래서 다른 요소가 따라 움직이지 않아요. 비우면 예전처럼 글자 폭을 따라가요.</span>
+          </label>
           <label className="block">
             <span className="mb-1 block text-gray-600">글자 크기(px)</span>
             <input

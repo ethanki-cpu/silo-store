@@ -1,6 +1,54 @@
 "use client";
 
+import { useState } from "react";
+import { uploadFileToR2 } from "@/lib/r2Upload";
 import type { FieldDef, ListItemFieldDef } from "@/lib/widgetSchema";
+
+// HOTFIX-163.4: 목록 항목의 이미지 칸 — 파일을 올리거나 URL을 붙여넣고, 미리보기/지우기를 제공한다.
+function ImageItemField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function upload(file: File) {
+    setBusy(true);
+    setErr(null);
+    const { url, error } = await uploadFileToR2(file);
+    setBusy(false);
+    if (error || !url) setErr(error ?? "업로드에 실패했어요.");
+    else onChange(url);
+  }
+  return (
+    <div className="space-y-1 rounded-md border border-dashed border-gray-300 p-2">
+      <p className="text-[11px] font-medium text-gray-500">{label}</p>
+      {value && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={value} alt="" className="h-24 w-24 rounded border border-gray-200 bg-gray-50 object-contain" />
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="cursor-pointer rounded border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-50">
+          {busy ? "업로드 중..." : value ? "다른 이미지 올리기" : "이미지 올리기"}
+          <input
+            type="file"
+            accept="image/*"
+            disabled={busy}
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) upload(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {value && (
+          <button type="button" onClick={() => onChange("")} className="text-xs text-red-500">
+            지우기
+          </button>
+        )}
+      </div>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder="또는 이미지 URL 붙여넣기" className="w-full rounded-md border border-gray-300 px-2 py-1 text-xs" />
+      {err && <p className="text-xs text-red-600">{err}</p>}
+    </div>
+  );
+}
 
 // EPIC-065: Visual Widget Builder의 핵심 규칙 — 운영자는 JSON을 절대 직접
 // 입력하지 않는다. 위젯 23종 전부가 이 하나의 스키마 기반 폼으로 설정되고
@@ -53,7 +101,9 @@ function ListFieldEditor({
             <div className="flex items-start gap-1.5">
               <div className="flex-1 space-y-1.5">
                 {field.itemFields.map((itemField: ListItemFieldDef) =>
-                  itemField.kind === "textarea" ? (
+                  itemField.kind === "image" ? (
+                    <ImageItemField key={itemField.key} label={itemField.label} value={item[itemField.key] ?? ""} onChange={(v) => updateItem(index, itemField.key, v)} />
+                  ) : itemField.kind === "textarea" ? (
                     <textarea
                       key={itemField.key}
                       value={item[itemField.key] ?? ""}

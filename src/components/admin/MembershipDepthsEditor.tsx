@@ -103,6 +103,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
   if (!cur) return null;
   const [px, py] = parsePos(cur.imagePos);
   const zoom = clamp(cur.imageZoom ?? 100, 100, 250) / 100;
+  const fit = cur.imageFit ?? "contain";
   const c1 = cur.color1 || "#888888";
   const c2 = cur.color2 || "#cccccc";
   const accent = cur.accent || "#ffffff";
@@ -174,10 +175,16 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
               onPointerCancel={onPointerUp}
             >
               {cur.imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={cur.imageUrl} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ objectPosition: `${px}% ${py}%`, transform: `scale(${zoom})`, transformOrigin: `${px}% ${py}%` }} />
+                <>
+                  {fit === "contain" && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={cur.imageUrl} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-90 blur-2xl" />
+                  )}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={cur.imageUrl} alt="" draggable={false} className={`pointer-events-none absolute inset-0 h-full w-full ${fit === "cover" ? "object-cover" : "object-contain"}`} style={{ objectPosition: `${px}% ${py}%`, transform: `scale(${zoom})`, transformOrigin: `${px}% ${py}%` }} />
+                </>
               )}
-              <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}66 0%, transparent 40%, ${c2}80 100%)` }} />
+              <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
               <div className="pointer-events-none absolute left-1/2 top-[8%] h-[84%] w-[36%] -translate-x-1/2 rounded-t-[999px] border-2 border-dashed" style={{ borderColor: `${accent}cc` }} />
               {(cur.sprites ?? []).map((sp) => (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -211,6 +218,15 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                   </button>
                 )}
               </div>
+              {cur.imageUrl && (
+                <label className="block">
+                  <span className="mb-1 block text-xs text-gray-600">보이는 방식</span>
+                  <select value={fit} onChange={(e) => patch({ imageFit: e.target.value as "contain" | "cover" })} className={input}>
+                    <option value="contain">이미지 전체가 잘리지 않게(기본)</option>
+                    <option value="cover">화면을 꽉 채우기(위아래/좌우 잘림)</option>
+                  </select>
+                </label>
+              )}
               {cur.imageUrl && (
                 <label className="block">
                   <span className="mb-1 block text-xs text-gray-600">확대 {Math.round(zoom * 100)}%</span>

@@ -40,6 +40,8 @@ export type DepthScene = {
   imageUrl?: string;
   imagePos?: string;
   imageZoom?: number;
+  /** "contain"(기본) = 이미지 전체가 잘리지 않고 다 보임(남는 좌우/상하는 흐린 같은 이미지로 채움), "cover" = 화면을 꽉 채우되 잘림 */
+  imageFit?: "contain" | "cover";
   /** 깊이의 주요 색 두 가지(배경 그라데이션)와 강조색 */
   color1?: string;
   color2?: string;

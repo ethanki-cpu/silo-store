@@ -47,20 +47,28 @@ function SceneBackdrop({ scene, index }: { scene: DepthScene; index: number }) {
   const { c1, c2, accent, hasImage } = resolveTheme(scene, index);
   const [px, py] = parsePos(scene.imagePos);
   const zoom = Math.min(250, Math.max(100, scene.imageZoom ?? 100)) / 100;
+  const fit = scene.imageFit ?? "contain";
   return (
     <>
       <div className="absolute inset-0" style={{ background: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)` }} />
       {hasImage && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={scene.imageUrl}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{ objectPosition: `${px}% ${py}%`, transform: `scale(${zoom})`, transformOrigin: `${px}% ${py}%` }}
-        />
+        <>
+          {/* 남는 자리(이미지 비율이 화면과 다를 때)는 같은 이미지를 흐리게 깔아 채운다 */}
+          {fit === "contain" && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={scene.imageUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-90 blur-2xl" />
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={scene.imageUrl}
+            alt=""
+            className={`absolute inset-0 h-full w-full ${fit === "cover" ? "object-cover" : "object-contain"}`}
+            style={{ objectPosition: `${px}% ${py}%`, transform: `scale(${zoom})`, transformOrigin: `${px}% ${py}%` }}
+          />
+        </>
       )}
       {/* 깊이의 색 정체성 — 이미지 위에 색을 얇게 덮어 글씨가 읽히고 깊이마다 색이 분명해지게 */}
-      <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}${hasImage ? "66" : "00"} 0%, transparent 40%, ${c2}${hasImage ? "80" : "00"} 100%)` }} />
+      <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}${hasImage ? "30" : "00"} 0%, transparent 40%, ${c2}${hasImage ? "40" : "00"} 100%)` }} />
       <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 45%, transparent 45%, ${accent}33 100%)` }} />
       {(scene.sprites ?? []).map((sp) =>
         sp.url ? (
@@ -88,12 +96,12 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
   const color = dark ? "#fdfbf7" : "#2b2740";
   return (
     <div
-      className={`relative flex flex-col items-center justify-center border-2 text-center backdrop-blur-md ${"w-[88%] sm:w-[60%]"}`}
+      className={`relative flex flex-col items-center justify-center border-2 text-center ${hasImage ? "" : "backdrop-blur-md"} ${"w-[88%] sm:w-[60%]"}`}
       style={{
         height: variant === "stage" ? "min(82vh, 880px)" : "480px",
         borderRadius: DOOR_RADIUS,
         borderColor: `${accent}cc`,
-        background: dark ? "rgba(10,10,20,0.42)" : "rgba(255,255,255,0.5)",
+        background: hasImage ? "rgba(8,10,16,0.10)" : dark ? "rgba(10,10,20,0.42)" : "rgba(255,255,255,0.5)",
         boxShadow: `0 0 70px ${accent}55, inset 0 0 44px ${accent}22`,
         color,
         padding: "8% 10%",
@@ -105,8 +113,8 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
           <DepthArt index={index} accent={accent} />
         </div>
       )}
-      <p className="relative text-xs font-semibold uppercase tracking-[0.3em] opacity-80">{scene.title}</p>
-      <p className="relative mt-5 max-w-[34rem] text-lg font-medium leading-8 sm:text-2xl sm:leading-[2.6rem]" style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif' }}>
+      <p className="relative text-xs font-semibold uppercase tracking-[0.3em] opacity-90" style={hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : undefined}>{scene.title}</p>
+      <p className="relative mt-5 max-w-[34rem] text-lg font-medium leading-8 sm:text-2xl sm:leading-[2.6rem]" style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif', ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}>
         {scene.text}
       </p>
     </div>

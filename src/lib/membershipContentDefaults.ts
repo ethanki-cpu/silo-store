@@ -42,6 +42,11 @@ export type DepthScene = {
   imageZoom?: number;
   /** "contain"(기본) = 이미지 전체가 잘리지 않고 다 보임(남는 좌우/상하는 흐린 같은 이미지로 채움), "cover" = 화면을 꽉 채우되 잘림 */
   imageFit?: "contain" | "cover";
+  /** 아치문: 높이(화면 높이 %, 기본 82), 폭(문 높이 대비 %, 기본 60 = 3:5), 안쪽 블러(px, 기본 12), 안쪽 어둡기(%, 기본 42) */
+  doorHeightPct?: number;
+  doorWidthPct?: number;
+  doorBlurPx?: number;
+  doorDarkPct?: number;
   /** 깊이의 주요 색 두 가지(배경 그라데이션)와 강조색 */
   color1?: string;
   color2?: string;

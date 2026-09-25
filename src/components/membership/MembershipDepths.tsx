@@ -91,20 +91,29 @@ function SceneBackdrop({ scene, index }: { scene: DepthScene; index: number }) {
 const DOOR_RADIUS = "50% 50% 16px 16px / 26% 26% 16px 16px";
 
 function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; index: number; variant?: "stage" | "card" }) {
-  const { accent, dark, hasImage } = resolveTheme(scene, index);
+  const { accent, dark } = resolveTheme(scene, index);
+  const hasImage = !!scene.imageUrl;
   const hasSprites = (scene.sprites ?? []).some((s) => s.url);
   const color = dark ? "#fdfbf7" : "#2b2740";
+  // HOTFIX-163.12: 문 크기(높이·폭 비율)와 안쪽 블러/어둡기를 깊이마다 관리자가 정한다.
+  const hPct = Math.min(98, Math.max(30, scene.doorHeightPct ?? 82));
+  const wPct = Math.min(140, Math.max(30, scene.doorWidthPct ?? 60));
+  const blur = Math.min(40, Math.max(0, scene.doorBlurPx ?? 12));
+  const darkPct = Math.min(90, Math.max(0, scene.doorDarkPct ?? 42));
+  const heightCss = variant === "stage" ? `min(${hPct}vh, ${Math.round(hPct * 10.7)}px)` : `${Math.round(hPct * 5.85)}px`;
+  const widthCss = variant === "stage" ? `min(92vw, calc(${heightCss} * ${wPct / 100}))` : `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
   return (
     <div
-      className={`relative flex flex-col items-center justify-center border-2 text-center ${hasImage ? "" : "backdrop-blur-md"}`}
+      className="relative flex flex-col items-center justify-center border-2 text-center"
       style={{
-        // 문의 비율은 가로:세로 = 3:5 — 폭은 높이의 3/5(화면이 좁으면 화면 폭의 92%까지만).
-        height: variant === "stage" ? "min(82vh, 880px)" : "480px",
-        width: variant === "stage" ? "min(92vw, calc(min(82vh, 880px) * 0.6))" : "288px",
+        height: heightCss,
+        width: widthCss,
         maxWidth: "92%",
         borderRadius: DOOR_RADIUS,
         borderColor: `${accent}cc`,
-        background: hasImage ? "rgba(8,10,16,0.10)" : dark ? "rgba(10,10,20,0.42)" : "rgba(255,255,255,0.5)",
+        background: dark || hasImage ? `rgba(10,10,20,${darkPct / 100})` : "rgba(255,255,255,0.5)",
+        backdropFilter: blur > 0 ? `blur(${blur}px)` : undefined,
+        WebkitBackdropFilter: blur > 0 ? `blur(${blur}px)` : undefined,
         boxShadow: `0 0 70px ${accent}55, inset 0 0 44px ${accent}22`,
         color,
         padding: "10% 9%",
@@ -116,8 +125,13 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
           <DepthArt index={index} accent={accent} />
         </div>
       )}
-      <p className="relative text-xs font-semibold uppercase tracking-[0.3em] opacity-90" style={hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : undefined}>{scene.title}</p>
-      <p className="relative mt-4 text-base font-medium leading-7 sm:text-lg sm:leading-8" style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif', ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}>
+      <p className="relative whitespace-pre-line text-xs font-semibold uppercase tracking-[0.3em] opacity-90" style={hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : undefined}>
+        {scene.title}
+      </p>
+      <p
+        className="relative mt-4 whitespace-pre-line text-base font-medium leading-7 sm:text-lg sm:leading-8"
+        style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif', ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}
+      >
         {scene.text}
       </p>
     </div>

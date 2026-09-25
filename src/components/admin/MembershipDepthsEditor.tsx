@@ -185,7 +185,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                 </>
               )}
               <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
-              <div className="pointer-events-none absolute left-1/2 top-[8%] h-[84%] w-[36%] -translate-x-1/2 rounded-t-[999px] border-2 border-dashed" style={{ borderColor: `${accent}cc` }} />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-dashed" style={{ height: `${cur.doorHeightPct ?? 82}%`, aspectRatio: `${(cur.doorWidthPct ?? 60) / 100}`, maxWidth: "92%", borderRadius: "50% 50% 16px 16px / 26% 26% 16px 16px", borderColor: `${accent}cc` }} />
               {(cur.sprites ?? []).map((sp) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -247,6 +247,24 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
               </div>
               <p className="text-xs text-gray-500">배경 그라데이션과 이미지 위 색 덮개, 효과의 색으로 쓰여요.</p>
             </div>
+          </div>
+
+          <div className="rounded-md border border-gray-200 p-3">
+            <p className="mb-2 text-sm font-semibold text-gray-800">아치문 크기·유리 효과</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([
+                ["doorHeightPct", "문 높이(화면 높이의 %)", 30, 98, 82],
+                ["doorWidthPct", "문 폭(문 높이 대비 %, 60 = 3:5)", 30, 140, 60],
+                ["doorBlurPx", "문 안쪽 블러(px)", 0, 40, 12],
+                ["doorDarkPct", "문 안쪽 어둡기(%)", 0, 90, 42],
+              ] as const).map(([key, label, min, max, def]) => (
+                <label key={key} className="block text-xs text-gray-600">
+                  {label} <b className="text-gray-900">{cur[key] ?? def}</b>
+                  <input type="range" min={min} max={max} value={cur[key] ?? def} onChange={(e) => patch({ [key]: Number(e.target.value) } as Partial<DepthScene>)} className="w-full" />
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400">위 무대의 점선 아치는 대략의 자리예요. 실제 크기는 저장 후 페이지에서 확인하세요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요.</p>
           </div>
 
           <div className="rounded-md border border-gray-200 p-3">

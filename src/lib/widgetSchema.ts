@@ -525,17 +525,6 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
   membership_depths: [
     { key: "heading", label: "제목(비우면 표시 안 함)", kind: "text" },
     { key: "sceneHeightVh", label: "깊이 하나당 스크롤 길이(화면 높이 %)", kind: "number", min: 60, max: 300 },
-    {
-      key: "depths",
-      label: "깊이별 이야기",
-      kind: "list",
-      addLabel: "+ 깊이 추가",
-      itemFields: [
-        { key: "title", label: "제목", kind: "text", placeholder: "Depth 1 · 문 앞 광장" },
-        { key: "text", label: "문장", kind: "textarea" },
-        { key: "imageUrl", label: "상징 이미지(비우면 기본 일러스트)", kind: "image" },
-      ],
-    },
   ],
   membership_experience: [
     { key: "heading", label: "제목", kind: "text" },

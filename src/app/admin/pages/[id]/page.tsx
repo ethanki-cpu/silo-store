@@ -33,6 +33,8 @@ import {
 import { WidgetPalette } from "@/components/admin/WidgetPalette";
 import { WidgetInspectorForm } from "@/components/admin/WidgetInspectorForm";
 import { TimelineWidgetEditor } from "@/components/admin/TimelineWidgetEditor";
+import { MembershipDepthsEditor } from "@/components/admin/MembershipDepthsEditor";
+import { DEFAULT_DEPTHS, type DepthScene } from "@/lib/membershipContentDefaults";
 import { CraftHomeEditor } from "@/components/admin/craft/CraftHomeEditor";
 import { CraftShopEditor } from "@/components/admin/craft/CraftShopEditor";
 import { CraftDocentEditor } from "@/components/admin/craft/CraftDocentEditor";
@@ -907,6 +909,9 @@ function WidgetRow({
   const needsBoard = BOARD_LINKED_MODULE_TYPES.includes(type);
   const fields = WIDGET_FIELDS[type] ?? [];
   const isTimeline = type === "timeline";
+  const isDepths = type === "membership_depths";
+  const [depthsEditorOpen, setDepthsEditorOpen] = useState(false);
+  const depthScenes: DepthScene[] = Array.isArray(draftSettings.depths) && (draftSettings.depths as unknown[]).length > 0 ? (draftSettings.depths as DepthScene[]) : DEFAULT_DEPTHS;
   const [timelineEditorOpen, setTimelineEditorOpen] = useState(false);
   const timelineItems = Array.isArray(draftSettings.items) ? (draftSettings.items as TimelineItemSettings[]) : [];
 
@@ -1063,7 +1068,19 @@ function WidgetRow({
               )}
             </div>
           ) : (
-            <WidgetInspectorForm fields={fields} settings={draftSettings} onChange={onDraftSettingsChange} />
+            <>
+              {isDepths && (
+                <div className="mb-3">
+                  <button type="button" onClick={() => setDepthsEditorOpen(true)} className="w-full rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-700">
+                    깊이별 이미지·색·효과 편집 열기 ({depthScenes.length}개 깊이)
+                  </button>
+                  {depthsEditorOpen && (
+                    <MembershipDepthsEditor depths={depthScenes} onChange={(next) => onDraftSettingsChange({ ...draftSettings, depths: next })} onClose={() => setDepthsEditorOpen(false)} />
+                  )}
+                </div>
+              )}
+              <WidgetInspectorForm fields={fields} settings={draftSettings} onChange={onDraftSettingsChange} />
+            </>
           )}
 
           {devMode && (

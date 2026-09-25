@@ -2,6 +2,7 @@
 
 import { useMemo, type CSSProperties } from "react";
 import type { DepthEffect } from "@/lib/membershipContentDefaults";
+import { FEATHERS, STAR_VARIANTS } from "@/lib/depthShapes";
 
 // EPIC-163.5: 깊이(Depth)마다 화면 전체에 깔리는 분위기 효과 — 별/깃털/반딧불/기포/불씨/먼지/꽃잎.
 // 위치·속도는 시드 기반 의사난수라 서버/클라이언트 렌더가 항상 같다(하이드레이션 안전). 애니메이션은 전부 CSS(transform/opacity)만 써서 가볍다.
@@ -19,6 +20,7 @@ function rng(seed: number) {
 const KEYFRAMES = `
 @keyframes silo-fx-twinkle{0%,100%{opacity:.15;transform:scale(.6)}50%{opacity:1;transform:scale(1.25)}}
 @keyframes silo-fx-fall{0%{transform:translate3d(0,-12vh,0) rotate(0deg)}25%{transform:translate3d(var(--sway),22vh,0) rotate(60deg)}50%{transform:translate3d(calc(var(--sway) * -1),50vh,0) rotate(150deg)}75%{transform:translate3d(var(--sway),78vh,0) rotate(230deg)}100%{transform:translate3d(0,112vh,0) rotate(320deg)}}
+@keyframes silo-fx-float{0%{transform:translate3d(0,-14vh,0) rotate(-18deg)}20%{transform:translate3d(var(--sway),18vh,0) rotate(16deg)}40%{transform:translate3d(calc(var(--sway) * -.8),42vh,0) rotate(-14deg)}60%{transform:translate3d(calc(var(--sway) * .9),66vh,0) rotate(20deg)}80%{transform:translate3d(calc(var(--sway) * -.5),90vh,0) rotate(-12deg)}100%{transform:translate3d(0,114vh,0) rotate(10deg)}}
 @keyframes silo-fx-rise{0%{transform:translate3d(0,112vh,0);opacity:0}10%{opacity:.9}80%{opacity:.7}100%{transform:translate3d(var(--sway),-12vh,0);opacity:0}}
 @keyframes silo-fx-wander{0%,100%{transform:translate3d(0,0,0);opacity:.2}25%{transform:translate3d(var(--sway),-30px,0);opacity:1}50%{transform:translate3d(calc(var(--sway) * -.6),-8px,0);opacity:.35}75%{transform:translate3d(calc(var(--sway) * .5),24px,0);opacity:1}}
 `;
@@ -39,11 +41,21 @@ function makeParticles(count: number, seed: number, sizeMin: number, sizeMax: nu
   }));
 }
 
-function FeatherSvg({ color }: { color: string }) {
+function FeatherSvg({ index, color }: { index: number; color: string }) {
+  const f = FEATHERS[index % FEATHERS.length];
   return (
-    <svg viewBox="0 0 40 100" className="h-full w-full" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M20 96C6 70 4 40 20 4c16 36 14 66 0 92z" fill={color} fillOpacity=".22" />
-      <path d="M20 96V10M20 30l-10 10M20 44l-11 11M20 58l-9 9M20 30l10 10M20 44l11 11M20 58l9 9" />
+    <svg viewBox={f.viewBox} className="h-full w-full" aria-hidden style={{ filter: "drop-shadow(0 2px 6px rgba(120,100,40,.35))" }}>
+      <path d={f.d} fill={color} fillOpacity=".95" />
+    </svg>
+  );
+}
+
+function StarSvg({ variant }: { variant: number }) {
+  const v = STAR_VARIANTS[variant % STAR_VARIANTS.length];
+  return (
+    <svg viewBox="0 0 100 100" className="h-full w-full" fill="currentColor" aria-hidden>
+      <path d={v.d} />
+      {v.extra && <path d={v.extra} />}
     </svg>
   );
 }
@@ -51,7 +63,7 @@ function FeatherSvg({ color }: { color: string }) {
 export function DepthEffects({ effects, effectImages, accent, seed }: { effects: DepthEffect[]; effectImages: string[]; accent: string; seed: number }) {
   const has = (e: DepthEffect) => effects.includes(e);
   const stars = useMemo(() => makeParticles(30, seed * 7 + 1, 6, 16, 2.2, 5), [seed]);
-  const feathers = useMemo(() => makeParticles(14, seed * 7 + 2, 26, 64, 14, 26, Math.max(1, effectImages.length)), [seed, effectImages.length]);
+  const feathers = useMemo(() => makeParticles(18, seed * 7 + 2, 30, 70, 16, 30, Math.max(1, effectImages.length)), [seed, effectImages.length]);
   const fireflies = useMemo(() => makeParticles(24, seed * 7 + 3, 4, 9, 6, 12), [seed]);
   const bubbles = useMemo(() => makeParticles(22, seed * 7 + 4, 8, 30, 9, 18), [seed]);
   const embers = useMemo(() => makeParticles(30, seed * 7 + 5, 3, 7, 6, 13), [seed]);
@@ -69,23 +81,21 @@ export function DepthEffects({ effects, effectImages, accent, seed }: { effects:
           <span
             key={`s${i}`}
             className="absolute"
-            style={{ left: `${p.left}%`, top: `${p.top}%`, width: p.size, height: p.size, color: accent, animation: `silo-fx-twinkle ${p.dur}s ease-in-out ${p.delay}s infinite`, filter: `drop-shadow(0 0 6px ${accent})` }}
+            style={{ left: `${p.left}%`, top: `${p.top}%`, width: p.size * (i % 3 === 2 ? 1.6 : 1), height: p.size * (i % 3 === 2 ? 1.6 : 1.7), color: accent, animation: `silo-fx-twinkle ${p.dur}s ease-in-out ${p.delay}s infinite`, filter: `drop-shadow(0 0 6px ${accent})` }}
           >
-            <svg viewBox="0 0 20 20" className="h-full w-full" fill="currentColor">
-              <path d="M10 0l2.2 7.8L20 10l-7.8 2.2L10 20l-2.2-7.8L0 10l7.8-2.2z" />
-            </svg>
+            <StarSvg variant={i % 3} />
           </span>
         ))}
 
       {has("feathers") &&
         feathers.map((p, i) => (
-          <span key={`f${i}`} style={{ ...abs(p), width: p.size, height: p.size * (effectImages.length ? 1 : 2.4), animation: `silo-fx-fall ${p.dur}s linear ${p.delay}s infinite` }}>
-            <span className="block h-full w-full" style={{ transform: `rotate(${p.rot}deg)`, opacity: 0.9 }}>
+          <span key={`f${i}`} style={{ ...abs(p), width: p.size, height: p.size * (effectImages.length ? 1 : FEATHERS[i % FEATHERS.length].aspect), animation: `silo-fx-float ${p.dur}s linear ${p.delay}s infinite` }}>
+            <span className="block h-full w-full" style={{ transform: `rotate(${(p.rot % 60) - 30}deg)`, opacity: 0.92 }}>
               {effectImages.length > 0 ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={effectImages[p.img % effectImages.length]} alt="" className="h-full w-full object-contain" />
               ) : (
-                <FeatherSvg color="#fff" />
+                <FeatherSvg index={i} color="#fffdf5" />
               )}
             </span>
           </span>

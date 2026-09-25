@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { uploadFileToR2 } from "@/lib/r2Upload";
 import { CUSTOM_EFFECT_DEFAULTS, EFFECT_DEFAULTS } from "@/components/membership/DepthEffects";
-import { DEPTH_EFFECT_LABELS, EFFECT_MOTION_LABELS, type CustomEffect, type DepthEffect, type DepthScene, type DepthSprite, type EffectConfig, type EffectMotion } from "@/lib/membershipContentDefaults";
+import { ArchText } from "@/components/membership/MembershipDepths";
+import { DEPTH_FONTS, DEPTH_EFFECT_LABELS, EFFECT_MOTION_LABELS, type CustomEffect, type DepthEffect, type DepthScene, type DepthSprite, type EffectConfig, type EffectMotion } from "@/lib/membershipContentDefaults";
 
 // EPIC-163.5(사용자 지시 — 심연으로의 스크롤: 이미지가 화면 전체를 덮고, 깊이마다 색·효과, 이미지를 드래그 앤 드롭으로 배치):
 // 깊이별 편집기. 아래 미리보기 무대에서 ① 빈 곳을 드래그하면 배경 이미지의 초점(어느 부분이 보일지)이 움직이고,
@@ -88,6 +89,17 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
     return true;
   }
   const stageRef = useRef<HTMLDivElement>(null);
+  // 미리보기는 "가상 화면"(PC 1280×720 등)에 실제 규칙 그대로 그린 뒤 무대 폭에 맞춰 축소해 보여준다 → 실제 출력과 문 크기·글자·블러가 같다.
+  const [device, setDevice] = useState<"pc" | "tablet" | "mobile">("pc");
+  const VP = { pc: { w: 1280, h: 720 }, tablet: { w: 820, h: 1000 }, mobile: { w: 390, h: 800 } }[device];
+  const [scale, setScale] = useState(0.4);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setScale(el.clientWidth / VP.w));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [VP.w]);
   const drag = useRef<Drag | null>(null);
   const cur = depths[Math.min(idx, depths.length - 1)];
   const at = Math.min(idx, depths.length - 1);
@@ -198,12 +210,21 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-semibold text-gray-800">이미지 배치 (드래그 앤 드롭)</p>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-800">이미지 배치 (드래그 앤 드롭)</p>
+              <div className="flex gap-1 text-xs">
+                {([["pc", "PC"], ["tablet", "태블릿"], ["mobile", "모바일"]] as const).map(([k, l]) => (
+                  <button key={k} type="button" onClick={() => setDevice(k)} className={`rounded border px-2 py-0.5 ${device === k ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-600"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
             <p className="mb-2 text-xs text-gray-500">빈 곳을 드래그하면 배경 이미지의 보이는 부분(초점)이 움직이고, 등장인물 이미지는 잡아서 원하는 자리로 옮기세요. 점선 아치가 문구가 놓일 자리예요.</p>
             <div
               ref={stageRef}
-              className="relative aspect-video w-full cursor-grab touch-none select-none overflow-hidden rounded-lg border border-gray-300 active:cursor-grabbing"
-              style={{ background: `linear-gradient(160deg, ${c1}, ${c2})` }}
+              className={`relative w-full cursor-grab touch-none select-none overflow-hidden rounded-lg border border-gray-300 active:cursor-grabbing ${device === "mobile" ? "mx-auto max-w-[260px]" : device === "tablet" ? "mx-auto max-w-[420px]" : ""}`}
+              style={{ aspectRatio: `${VP.w} / ${VP.h}`, background: `linear-gradient(160deg, ${c1}, ${c2})` }}
               onPointerDown={(e) => onPointerDown(e)}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
@@ -220,7 +241,12 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                 </>
               )}
               <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
-              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-dashed" style={{ height: `${cur.doorHeightPct ?? 58}%`, aspectRatio: `${(cur.doorWidthPct ?? 52) / 100}`, maxWidth: "92%", borderRadius: "50% 50% 16px 16px / 26% 26% 16px 16px", borderColor: `${accent}cc` }} />
+              {/* 실제 출력과 같은 문(반응형 폭·좌우 하단 비대칭·블러·글꼴) — 가상 화면을 축소해서 그린다 */}
+              <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: VP.w, height: VP.h, transform: `scale(${scale})` }}>
+                <div className={`flex h-full items-end ${VP.w >= 768 ? (at % 2 === 0 ? "justify-start" : "justify-end") : "justify-center"}`} style={{ paddingInline: VP.w >= 768 ? VP.w * 0.05 : 16, paddingBottom: VP.h * 0.07, paddingTop: 80 }}>
+                  <ArchText scene={cur} index={at} variant="preview" vp={VP} />
+                </div>
+              </div>
               {(cur.sprites ?? []).map((sp) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -288,18 +314,27 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
             <p className="mb-2 text-sm font-semibold text-gray-800">아치문 크기·유리 효과</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {([
-                ["doorHeightPct", "문 높이(화면 높이의 %)", 30, 98, 58],
-                ["doorWidthPct", "문 폭(문 높이 대비 %)", 30, 140, 52],
-                ["doorBlurPx", "문 안쪽 블러(px)", 0, 40, 12],
-                ["doorDarkPct", "문 안쪽 어둡기(%)", 0, 90, 42],
+                ["doorBlurPx", "문 안쪽 블러(px)", 0, 40, 24],
+                ["doorDarkPct", "문 안쪽 어둡기(%)", 0, 90, 24],
+                ["fontSizePx", "글자 크기(px, 0 = 문 크기에 맞춰 자동)", 0, 40, 0],
               ] as const).map(([key, label, min, max, def]) => (
                 <label key={key} className="block text-xs text-gray-600">
                   {label} <b className="text-gray-900">{cur[key] ?? def}</b>
                   <input type="range" min={min} max={max} value={cur[key] ?? def} onChange={(e) => patch({ [key]: Number(e.target.value) } as Partial<DepthScene>)} className="w-full" />
                 </label>
               ))}
+              <label className="block text-xs text-gray-600">
+                글꼴
+                <select value={cur.fontFamily ?? "myeongjo"} onChange={(e) => patch({ fontFamily: e.target.value })} className={input}>
+                  {Object.entries(DEPTH_FONTS).map(([k, f]) => (
+                    <option key={k} value={k}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-            <p className="mt-1 text-[11px] text-gray-400">위 무대의 점선 아치는 대략의 자리예요. 실제 크기는 저장 후 페이지에서 확인하세요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요.</p>
+            <p className="mt-1 text-[11px] text-gray-400">위 무대에 실제 출력과 같은 문(폭은 PC 35% · 태블릿 50% · 모바일 85%)이 그대로 보여요. 문 크기는 화면 폭에 따라 자동이에요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요. 글꼴은 기기에 있는 폰트를 써서 새로 내려받지 않아요.</p>
           </div>
 
           <div className="rounded-md border border-gray-200 p-3">

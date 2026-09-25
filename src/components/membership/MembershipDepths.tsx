@@ -9,7 +9,7 @@ import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { DepthArt } from "@/components/membership/DepthArt";
 import { DepthEffects } from "@/components/membership/DepthEffects";
 import { DepthVfx, VFX_BY_INDEX } from "@/components/membership/DepthVfx";
-import type { DepthScene } from "@/lib/membershipContentDefaults";
+import { DEPTH_FONTS, type DepthScene } from "@/lib/membershipContentDefaults";
 
 // EPIC-163 / 163.5: Scroll Storytelling "심연으로의 스크롤" — 스크롤할수록 사일로의 깊은 공간으로 줌인하며 깊이(Depth)마다
 // ① 운영자가 올린 이미지가 화면 전체를 덮고 ② 그 위에 등장인물/장면 이미지가 자유 배치로 놓이고 ③ 깊이의 색·분위기 효과(별·깃털 등)가 깔리며
@@ -98,7 +98,8 @@ const DOOR_RADIUS = "50% 50% 16px 16px / 26% 26% 16px 16px";
 export const DEFAULT_DOOR_HEIGHT_PCT = 58;
 export const DEFAULT_DOOR_WIDTH_PCT = 52;
 
-function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; index: number; variant?: "stage" | "card" }) {
+// variant "preview" = 관리자 편집기 미리보기: vp(가상 화면 크기, px)를 기준으로 실제 출력과 똑같은 규칙(반응형 폭, 3:5 안팎 비율, 블러, 글자 맞춤)을 계산한다.
+export function ArchText({ scene, index, variant = "stage", vp }: { scene: DepthScene; index: number; variant?: "stage" | "card" | "preview"; vp?: { w: number; h: number } }) {
   const { accent, dark } = resolveTheme(scene, index);
   const hasImage = !!scene.imageUrl;
   const hasSprites = (scene.sprites ?? []).some((s) => s.url);
@@ -110,8 +111,15 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
   const darkPct = Math.min(90, Math.max(0, scene.doorDarkPct ?? 24));
   // 무대(stage)의 문 크기는 반응형 규칙(.silo-door: 모바일 85% / 태블릿 50% / PC 30%)이 정하고, 관리자 미리보기 카드만 저장된 크기를 쓴다.
   const stage = variant === "stage";
-  const heightCss = `${Math.round(hPct * 5.85)}px`;
-  const widthCss = `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
+  let heightCss = `${Math.round(hPct * 5.85)}px`;
+  let widthCss = `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
+  if (variant === "preview" && vp) {
+    const w = vp.w >= 1280 ? vp.w * 0.35 : vp.w >= 768 ? vp.w * 0.5 : vp.w * 0.85;
+    widthCss = `${Math.round(w)}px`;
+    heightCss = `${Math.round(Math.min(vp.h * 0.7, w * 1.6))}px`;
+  }
+  const fontStack = (DEPTH_FONTS[scene.fontFamily ?? ""] ?? DEPTH_FONTS.myeongjo).stack;
+  const manualSize = scene.fontSizePx && scene.fontSizePx > 0 ? Math.min(60, Math.max(8, scene.fontSizePx)) : null;
 
   // HOTFIX-163.13(사용자 신고 — 문을 줄였더니 글자가 한 글자씩 세로로 늘어짐): 문 크기가 어떻게 바뀌어도 글이 문 안에 들어오도록,
   // 실제 문 크기를 재서 글자 크기와 안쪽 여백을 정한다(글이 길면 글자가 작아짐). % 패딩은 부모 폭 기준이라 쓰지 않는다.
@@ -144,7 +152,7 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
       ref={doorRef}
       className={`relative flex flex-col items-center justify-center overflow-hidden border-2 text-center${stage ? " silo-door" : ""}`}
       style={{
-        ...(stage ? {} : { height: heightCss, width: widthCss, maxWidth: "92%" }),
+        ...(stage ? {} : { height: heightCss, width: widthCss, maxWidth: variant === "preview" ? undefined : "92%" }),
         borderRadius: DOOR_RADIUS,
         borderColor: `${accent}cc`,
         background: dark || hasImage ? `rgba(10,10,20,${darkPct / 100})` : "rgba(255,255,255,0.5)",
@@ -161,12 +169,12 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
           <DepthArt index={index} accent={accent} />
         </div>
       )}
-      <p className="relative w-full whitespace-pre-line text-[10px] font-semibold uppercase tracking-[0.25em] opacity-90" style={hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : undefined}>
+      <p className="relative w-full whitespace-pre-line font-semibold uppercase tracking-[0.25em] opacity-90" style={{ fontFamily: fontStack, fontSize: Math.max(10, Math.round((manualSize ?? fit.fs) * 0.62)), ...(hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : {}) }}>
         {scene.title}
       </p>
       <p
         className="relative mt-3 w-full whitespace-pre-line break-keep font-medium"
-        style={{ fontSize: fit.fs, lineHeight: 1.75, fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif', ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}
+        style={{ fontSize: manualSize ?? fit.fs, lineHeight: 1.75, fontFamily: fontStack, ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}
       >
         {text}
       </p>

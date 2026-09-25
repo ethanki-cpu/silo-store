@@ -84,6 +84,18 @@ export type DepthScene = {
   sprites?: DepthSprite[];
   /** EPIC-164: 등급별 하이엔드 VFX(깊이 순서대로 Angel~Artist). false로 끌 수 있고, 비우면 켜진다. */
   hyperVfx?: boolean;
+  /** HOTFIX-164.3: 문 안 문구의 글꼴(DEPTH_FONTS 키, 비우면 명조)과 글자 크기(px, 0/비우면 문 크기에 맞춰 자동) */
+  fontFamily?: string;
+  fontSizePx?: number;
+};
+
+// 글꼴은 웹폰트를 새로 받지 않고(트래픽 0) 기기에 있는 폰트 스택만 쓴다.
+export const DEPTH_FONTS: Record<string, { label: string; stack: string }> = {
+  myeongjo: { label: "명조(기본)", stack: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif' },
+  gothic: { label: "고딕", stack: '"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif' },
+  round: { label: "둥근 고딕", stack: '"Nanum Gothic","Nanum Barun Gothic","Malgun Gothic",system-ui,sans-serif' },
+  handwriting: { label: "손글씨", stack: '"Nanum Pen Script","Gaegu","Comic Sans MS",cursive' },
+  classic: { label: "영문 클래식(Georgia)", stack: 'Georgia,"Times New Roman","Noto Serif KR",serif' },
 };
 
 export const DEFAULT_DEPTHS: DepthScene[] = [

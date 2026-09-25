@@ -1,3 +1,6 @@
+## 2026-09-26 (HOTFIX-164.2 — /membership에서 좌/우 사이드바 숨김, 사용자 지시)
+- `Navbar.tsx`의 좌/우 사이드바 렌더 조건에 `/membership`(편집 모드 제외)을 추가 — /silo-planet, /admin과 같은 방식. 상단 메뉴는 그대로.
+
 ## 2026-09-26 (HOTFIX-164.1 — 시네마틱 API 스택 도입: GSAP+Lenis / React Spring / tsParticles, 사용자 지시)
 - **Phase 1 스크롤 텔링**: 심연 스크롤의 진행도·스냅을 **GSAP ScrollTrigger**가 맡고(`snap`: 시작·각 깊이 중심·끝, power2.inOut 0.25~0.75s), 휠은 **Lenis**(lerp 0.1)로 부드럽게 보간(모달·`.overflow-y-auto`·`[data-lenis-prevent]`는 가로채지 않음, 컴포넌트 언마운트 시 완전 해제). 이전의 CSS `scroll-snap y mandatory`는 GSAP 스냅과 충돌해 제거. 카메라 Z 줌: 깊이가 0.55배에서 다가와 지나갈 땐 2.2배로 문 안으로 파고들고, 문 패널은 0.78→1→1.5배로 더 빨리 다가와 패럴랙스를 만든다.
 - **Phase 2 마이크로 모션**: 가입 버튼 Magnetic Hover를 **React Spring**(tension 220 / friction 14 / mass 0.6 스프링 물리, 눌림 scale)으로 재구현. 문 열기 카드(3D 회전+문틈 빛)는 EPIC-164 그대로 유지.

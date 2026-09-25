@@ -2426,7 +2426,8 @@ export function Navbar({
           모드에서는 관리자가 계속 편집할 수 있어야 하니 예외). */}
       {/* HOTFIX-162.6(사용자 지시 — "'관리자' 모드에서는 좌/우 사이드바 안 보이게"): /admin 화면에서는
           (홈페이지 설정 관리 캔버스처럼 editable 미리보기는 제외) 좌/우 사이드바 트리거를 그리지 않는다. */}
-      {!(pathname === "/silo-planet" && !editable) && !(pathname.startsWith("/admin") && !editable) && (
+      {/* HOTFIX-164.2(사용자 지시 — "멤버십 페이지에선 좌, 우 사이드바 안 나오게"): /membership은 몰입형 랜딩이라 좌/우 사이드바 트리거를 그리지 않는다. */}
+      {!(pathname === "/silo-planet" && !editable) && !(pathname.startsWith("/admin") && !editable) && !(pathname.startsWith("/membership") && !editable) && (
         <>
       <LeftSidebar
         tabs={leftSidebarTabs}

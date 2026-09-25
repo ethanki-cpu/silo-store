@@ -1,3 +1,8 @@
+## 2026-09-25 (EPIC-163.2 — 심연으로의 스크롤 Depth 1~6 + 깊이별 상징 일러스트, 사용자 지시)
+- 깊이를 4→6단계로 확장: Depth 5 "몽마르트르의 밤"(Lautrec 원문의 뜻), Depth 6 "예술가의 살롱"(Artist 원문의 뜻) — 5·6은 원문에서 뜻을 가져온 **초안**이라 위젯 설정에서 고쳐야 한다(Depth 1~4 문구는 지정 원문 그대로). 깊이가 깊어질수록 어두운 팔레트(Depth 3·4·6은 다크).
+- 깊이마다 상징적 일러스트(`DepthArt.tsx`, 직접 그린 SVG): 눈 내리는 문 앞 가로등과 아치문 / 토끼굴 나선·열쇠·책 / 샹들리에와 샴페인 잔 / 붉은 봉인 편지 / 몽마르트르 풍차 / 이젤·팔레트·월계관. 위젯 설정의 깊이별 "상징 이미지 URL"에 직접 고른 이미지(명화/사진)를 넣으면 그것이 우선. 스크롤에 따라 글보다 더 크게 시차 이동.
+- 위젯 설정 시딩(`docs/sql/EPIC-163.2-depths-six.sql`, 실행 완료).
+
 ## 2026-09-25 (EPIC-163 / 163.1 — 멤버십 몰입형 UX + 심리적 페이월 고도화, 사용자 지시)
 - **3색 팔레트(163.1)**: 6개 티어(비회원/Silo Angel/Alice/Great Gatsby/Patron/Lautrec & Artist)의 Base·Highlight·Depth Hex를 `globals.css` CSS 변수(`--tier-<key>-base/highlight/depth`)와 `src/lib/tierPalette.ts`에 등록.
 - **타로 덱 + 그라데이션 배경**: `/membership` 캐러셀을 타로 카드 덱(활성 카드 중앙·이웃 카드 기울어진 겹침, 드래그 스와이프/클릭, 로마 숫자·이름 플레이트, 팔레트색 프레임)으로 교체하고, 활성 티어가 바뀔 때마다 페이지 전체 배경이 해당 티어 3색 다층 radial/linear 그라데이션 + 종이 결 노이즈로 `framer-motion` 크로스페이드(0.8s easeInOut, `TierBackdrop.tsx`). "초대장 열어보기(가입)" 버튼은 `MagneticButton`(자석 호버), 편지 하단에도 같은 버튼.

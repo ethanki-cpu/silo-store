@@ -3,17 +3,19 @@
 import { motion, useMotionValue, useReducedMotion, useTransform, type MotionValue } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import type { DepthScene } from "@/lib/membershipContentDefaults";
+import { DepthArt } from "@/components/membership/DepthArt";
 import { TIER_PALETTE, type TierPaletteKey } from "@/lib/tierPalette";
 
 // EPIC-163: Scroll Storytelling "심연으로의 스크롤" — 스크롤할수록 사일로의 깊은 공간(문 앞 광장 → 살롱의 서재 → 무도회장 → 비밀의 방)으로
 // 3D 줌인(Z축 이동)하며 깊이마다 이야기가 나타난다. 위젯 설정(depths)에서 문구를 고칠 수 있다.
-const SCENE_TIERS: TierPaletteKey[] = ["angel", "alice", "gatsby", "patron"];
-const DARK = new Set<TierPaletteKey>(["gatsby", "patron"]);
+// 깊이 1~6의 팔레트(등급 색) — 깊어질수록 어두워진다.
+const SCENE_TIERS: TierPaletteKey[] = ["angel", "alice", "gatsby", "patron", "lautrec", "lautrec"];
+const DARK_INDEX = new Set([2, 3, 5]);
 
 function Scene({ index, count, progress, scene }: { index: number; count: number; progress: MotionValue<number>; scene: DepthScene }) {
   const key = SCENE_TIERS[index % SCENE_TIERS.length];
   const c = TIER_PALETTE[key];
-  const dark = DARK.has(key);
+  const dark = DARK_INDEX.has(index % SCENE_TIERS.length);
   const step = 1 / count;
   const center = (index + 0.5) * step;
   // 입력 구간은 0~1로 자르고(framer-motion은 0 미만/1 초과 오프셋을 허용하지 않는다), 첫/마지막 장면은 바깥쪽 끝에서 사라지지 않게 한다.
@@ -23,13 +25,14 @@ function Scene({ index, count, progress, scene }: { index: number; count: number
   const scale = useTransform(progress, [cl(center - step), cl(center), cl(center + step)], [first ? 1 : 0.6, 1, last ? 1 : 1.7]);
   const opacity = useTransform(progress, [cl(center - step), cl(center - step * 0.35), cl(center + step * 0.3), cl(center + step)], [first ? 1 : 0, 1, 1, last ? 1 : 0]);
   const textY = useTransform(progress, [cl(center - step * 0.5), cl(center), cl(center + step * 0.5)], [first ? 0 : 40, 0, last ? 0 : -40]);
+  const artY = useTransform(progress, [cl(center - step * 0.5), cl(center), cl(center + step * 0.5)], [first ? 0 : 70, 0, last ? 0 : -90]);
   const textColor = dark ? "#fdfbf7" : c.depth === "#D4C9C1" ? "#5a4d44" : "#2b2740";
 
   return (
     <motion.div className="absolute inset-0 flex items-center justify-center" style={{ opacity, scale }}>
       <div
         className="absolute inset-0"
-        style={{ background: `radial-gradient(ellipse at 50% 40%, ${c.base} 0%, ${c.highlight} 55%, ${c.depth} 130%)` }}
+        style={{ background: index === 5 ? `radial-gradient(ellipse at 50% 40%, ${c.depth} 0%, #2f3a31 100%)` : `radial-gradient(ellipse at 50% 40%, ${c.base} 0%, ${c.highlight} 55%, ${c.depth} 130%)` }}
       />
       {/* 문틀/아치가 겹겹이 이어지는 복도 — 줌인할수록 안쪽으로 들어가는 느낌 */}
       {[0, 1, 2].map((n) => (
@@ -45,7 +48,15 @@ function Scene({ index, count, progress, scene }: { index: number; count: number
           }}
         />
       ))}
-      <motion.div className="relative z-10 mx-auto max-w-xl px-8 text-center" style={{ y: textY, color: textColor }}>
+      <motion.div className="relative z-10 mx-auto flex max-w-xl flex-col items-center px-8 pt-16 text-center" style={{ y: textY, color: textColor }}>
+        <motion.div className="mb-5 h-36 w-36 sm:h-52 sm:w-52" style={{ y: artY, color: textColor }}>
+          {scene.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={scene.imageUrl} alt="" className="h-full w-full rounded-xl object-contain drop-shadow-xl" />
+          ) : (
+            <DepthArt index={index} accent={dark ? c.highlight : c.depth === "#D4C9C1" ? "#C5A059" : c.depth} />
+          )}
+        </motion.div>
         <p className="text-xs font-semibold uppercase tracking-[0.3em] opacity-70">{scene.title}</p>
         <p className="mt-5 text-xl font-medium leading-9 sm:text-2xl sm:leading-10" style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif' }}>
           {scene.text}
@@ -91,7 +102,7 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
         {scenes.map((s, i) => {
           const c = TIER_PALETTE[SCENE_TIERS[i % SCENE_TIERS.length]];
           return (
-            <div key={s.title} className="rounded-2xl p-8 text-center" style={{ background: `linear-gradient(160deg, ${c.base}, ${c.highlight})`, color: DARK.has(SCENE_TIERS[i % SCENE_TIERS.length]) ? "#fff" : "#2b2740" }}>
+            <div key={s.title} className="rounded-2xl p-8 text-center" style={{ background: `linear-gradient(160deg, ${c.base}, ${c.highlight})`, color: DARK_INDEX.has(i % SCENE_TIERS.length) ? "#fff" : "#2b2740" }}>
               <p className="text-xs font-semibold uppercase tracking-[0.25em] opacity-70">{s.title}</p>
               <p className="mt-3 text-lg leading-8">{s.text}</p>
             </div>

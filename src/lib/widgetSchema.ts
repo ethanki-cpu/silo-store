@@ -533,6 +533,7 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
       itemFields: [
         { key: "title", label: "제목", kind: "text", placeholder: "Depth 1 · 문 앞 광장" },
         { key: "text", label: "문장", kind: "textarea" },
+        { key: "imageUrl", label: "상징 이미지 URL(비우면 기본 일러스트)", kind: "text" },
       ],
     },
   ],

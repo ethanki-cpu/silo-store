@@ -21,12 +21,15 @@ export const DEFAULT_EXPERIENCE_ROWS: ExperienceRow[] = [
 ];
 
 
-export type DepthScene = { title: string; text: string };
+export type DepthScene = { title: string; text: string; imageUrl?: string };
 
 export const DEFAULT_DEPTHS: DepthScene[] = [
-  { title: "Depth 1 · 문 앞 광장", text: "사일로를 운명적으로 찾아와 준 첫눈 같은 사람들. 따뜻한 광장에서 당신의 취향을 기록해 보세요." },
-  { title: "Depth 2 · 살롱의 서재", text: "호기심의 열쇠를 쥐고 토끼굴로 뛰어든 탐험가. 굳게 닫혀있던 시대의 지식과 영감의 서랍장이 열립니다." },
-  { title: "Depth 3 · 살롱의 무도회장", text: "낭만과 열정을 수집하는 파티의 주인공. 당신만의 아카이브를 완성하고 찬란한 모임을 즐겨보세요." },
-  { title: "Depth 4 · 비밀의 방", text: "예술과 문명을 지켜내는 수호자. 오래된 물건의 내밀한 사연과 가장 프라이빗한 살롱의 문이 열립니다." },
+  { title: "Depth 1 · 문 앞 광장", text: "사일로를 운명적으로 찾아와 준 첫눈 같은 사람들. 따뜻한 광장에서 당신의 취향을 기록해 보세요.", imageUrl: "" },
+  { title: "Depth 2 · 살롱의 서재", text: "호기심의 열쇠를 쥐고 토끼굴로 뛰어든 탐험가. 굳게 닫혀있던 시대의 지식과 영감의 서랍장이 열립니다.", imageUrl: "" },
+  { title: "Depth 3 · 살롱의 무도회장", text: "낭만과 열정을 수집하는 파티의 주인공. 당신만의 아카이브를 완성하고 찬란한 모임을 즐겨보세요.", imageUrl: "" },
+  { title: "Depth 4 · 비밀의 방", text: "예술과 문명을 지켜내는 수호자. 오래된 물건의 내밀한 사연과 가장 프라이빗한 살롱의 문이 열립니다.", imageUrl: "" },
+  // Depth 5·6은 Lautrec/Artist의 원문(PROJECT_VISION.md)에서 뜻을 가져온 초안 — 운영자가 위젯 설정에서 고친다.
+  { title: "Depth 5 · 몽마르트르의 밤", text: "가장 낮은 곳에서 세상을 바라봤지만 누구보다 삶을 애정했던 사람. 있는 그대로의 삶을 기록하며 본질을 아름답게 담아내는, 찬란하게 쓸모없는 존재들의 무대가 열립니다.", imageUrl: "" },
+  { title: "Depth 6 · 예술가의 살롱", text: "무대와 전시로 사일로를 채워 준 모든 예술가들께. 120여 년 전 파리, 자신들만의 작은 공간에서 독립전시회를 열었던 살롱데상의 문이 존경과 응원의 마음으로 활짝 열립니다.", imageUrl: "" },
 ];
 

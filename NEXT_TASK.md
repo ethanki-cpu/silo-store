@@ -1,6 +1,7 @@
 # NEXT_TASK
 
 ## 🎬 EPIC-164 후속 확인 필요 (2026-09-26)
+- **(HOTFIX-164.1) 실기 확인**: Lenis 부드러운 스크롤 + GSAP 스냅이 사이트 전체 스크롤에 걸린다(/membership에서만). 모바일 터치·트랙패드에서 끈적임/스냅 튀김이 없는지, tsParticles 깃털·황금 가루가 보이는지 dev.silostore.net에서 확인. Vanta/Curtains/Rive/Spline 미도입 사유는 CHANGELOG 참고.
 - **VFX 실기 확인**: 개발용 브라우저가 렌더링을 멈춰(rAF·IntersectionObserver 미작동) Alice/Gatsby/Artist WebGL과 Patron/Lautrec/Angel CSS 효과의 실제 화면을 못 봤다(셰이더 컴파일·DOM 상태만 확인). dev.silostore.net에서 6개 깊이를 스크롤하며 ① 효과가 보이는지 ② 모바일 성능 ③ Artist의 R2 배경 이미지가 CORS로 WebGL 텍스처에 읽히는지(안 읽히면 절차적 물결 배경으로 대체됨 — R2 버킷 CORS에 Access-Control-Allow-Origin 추가하면 이미지가 일렁임) 확인.
 - **Gatsby "WebM 연기 소스"**: 요구서의 경량 WebM 연기 자산은 아직 없어 fbm 셰이더 연기로 대체했다. 자산이 준비되면 `DepthVfxGl.tsx`의 `Smoke` 자리에 교체.
 - **Patron 나비/Alice 카드**: 스프라이트 이미지 대신 SVG/canvas 절차적 그래픽 — 사진같은 나비·카드가 필요하면 R2에 초경량 알파 PNG를 올려 교체.

@@ -2,6 +2,9 @@
 
 import { motion, useMotionValue, useMotionValueEvent, useReducedMotion, useTransform, type MotionValue } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import Lenis from "lenis";
 import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { DepthArt } from "@/components/membership/DepthArt";
 import { DepthEffects } from "@/components/membership/DepthEffects";
@@ -171,8 +174,8 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
   );
 }
 
-// 문 패널 반응형 크기(모바일 85% · 태블릿 50% · PC 30%, 너비는 화면 기준)와 3:5 안팎의 비율 — 높이는 화면의 70%를 넘지 않는다.
-const DOOR_CSS = `.silo-door{--dw:85vw;width:var(--dw);height:min(70vh,calc(var(--dw) * 1.6))}@media(min-width:768px){.silo-door{--dw:50vw}}@media(min-width:1280px){.silo-door{--dw:30vw}}`;
+// 문 패널 반응형 크기(모바일 85% · 태블릿 50% · PC 35%, 너비는 화면 기준)와 3:5 안팎의 비율 — 높이는 화면의 70%를 넘지 않는다.
+const DOOR_CSS = `.silo-door{--dw:85vw;width:var(--dw);height:min(70vh,calc(var(--dw) * 1.6))}@media(min-width:768px){.silo-door{--dw:50vw}}@media(min-width:1280px){.silo-door{--dw:35vw}}`;
 
 function Scene({ index, count, progress, scene, near, active }: { index: number; count: number; progress: MotionValue<number>; scene: DepthScene; near: boolean; active: boolean }) {
   const { accent, c1, c2 } = resolveTheme(scene, index);
@@ -186,7 +189,9 @@ function Scene({ index, count, progress, scene, near, active }: { index: number;
   const cl = (v: number) => Math.min(1, Math.max(0, v));
   const first = index === 0;
   const last = index === count - 1;
-  const scale = useTransform(progress, [cl(center - step), cl(center), cl(center + step)], [first ? 1 : 0.7, 1, last ? 1 : 1.5]);
+  // HOTFIX-164.1 카메라 워킹: 깊이가 다가올 땐 멀리서(0.55) 다가오고, 지나갈 땐 문 안으로 파고들듯(2.2) 확대된다. 문 패널은 배경보다 더 빨리 다가와 시차(패럴랙스)를 만든다.
+  const scale = useTransform(progress, [cl(center - step), cl(center), cl(center + step)], [first ? 1 : 0.55, 1, last ? 1 : 2.2]);
+  const panelScale = useTransform(progress, [cl(center - step * 0.8), cl(center), cl(center + step * 0.8)], [first ? 1 : 0.78, 1, last ? 1 : 1.5]);
   const opacity = useTransform(progress, [cl(center - step), cl(center - step * 0.35), cl(center + step * 0.3), cl(center + step)], [first ? 1 : 0, 1, 1, last ? 1 : 0]);
   const textY = useTransform(progress, [cl(center - step * 0.5), cl(center), cl(center + step * 0.5)], [first ? 0 : 50, 0, last ? 0 : -50]);
 
@@ -195,7 +200,7 @@ function Scene({ index, count, progress, scene, near, active }: { index: number;
       <SceneBackdrop scene={scene} index={index} />
       {near && vfxKind && <DepthVfx kind={vfxKind} accent={accent} color1={c1} color2={c2} imageUrl={scene.imageUrl} imagePos={scene.imagePos} active={active} />}
       {near && <DepthEffects effects={scene.effects ?? []} effectImages={(scene.effectImages ?? []).filter(Boolean)} effectConfig={scene.effectConfig} customEffects={scene.customEffects} accent={accent} seed={index + 1} />}
-      <motion.div className={`relative z-10 flex h-full items-end justify-center px-4 pb-[7vh] pt-20 md:px-[5vw] ${side}`} style={{ y: textY }}>
+      <motion.div className={`relative z-10 flex h-full items-end justify-center px-4 pb-[7vh] pt-20 md:px-[5vw] ${side}`} style={{ y: textY, scale: panelScale }}>
         <style>{DOOR_CSS}</style>
         <ArchText scene={scene} index={index} />
       </motion.div>
@@ -213,10 +218,15 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
   const dot = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
   useMotionValueEvent(scrollYProgress, "change", (v) => setActiveIdx(Math.min(Math.max(0, scenes.length - 1), Math.floor(v * scenes.length))));
 
-  // body가 overflow-x:hidden(=스크롤 컨테이너)라 CSS sticky가 먹지 않아, 스크롤 위치로 직접 고정(fixed)/해제한다.
+  // HOTFIX-164.1: GSAP ScrollTrigger가 진행도(progress)와 스냅을 맡고, Lenis가 휠 스크롤을 부드럽게 보간한다.
+  // body가 overflow-x:hidden(=스크롤 컨테이너)라 CSS sticky가 먹지 않아, 스크롤 위치로 직접 고정(fixed)/해제하는 방식은 그대로 유지한다.
+  const snapKey = scenes.length;
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || reduce || preview) return;
+    const n = snapKey;
+    const points = Array.from({ length: n }, (_, i) => (i === 0 ? 0 : i === n - 1 ? 1 : (i + 0.5) / n));
+    gsap.registerPlugin(ScrollTrigger);
     const update = () => {
       const r = el.getBoundingClientRect();
       const vh = window.innerHeight;
@@ -224,27 +234,35 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
       scrollYProgress.set(Math.min(1, Math.max(0, -r.top / total)));
       setMode(r.top > 0 ? "before" : r.bottom <= vh ? "after" : "pinned");
     };
+    const lenis = new Lenis({
+      lerp: 0.1,
+      // 모달·내부 스크롤 영역에서는 Lenis가 휠을 가로채지 않게 한다.
+      prevent: (node) => !!(node as HTMLElement).closest?.('[role="dialog"], .overflow-y-auto, [data-lenis-prevent]'),
+    });
+    lenis.on("scroll", ScrollTrigger.update);
+    const tick = (t: number) => lenis.raf(t * 1000);
+    gsap.ticker.add(tick);
+    gsap.ticker.lagSmoothing(0);
+    const st = ScrollTrigger.create({
+      trigger: el,
+      start: "top top",
+      end: "bottom bottom",
+      // 각 깊이에서 쫀득하게 멈춘다 — 관성이 끝나면 가장 가까운 깊이로 부드럽게 당겨 붙는다.
+      snap: { snapTo: points, duration: { min: 0.25, max: 0.75 }, delay: 0.06, ease: "power2.inOut" },
+      onUpdate: update,
+      onRefresh: update,
+    });
     update();
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
     return () => {
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
+      st.kill();
+      gsap.ticker.remove(tick);
+      lenis.destroy();
     };
-  }, [scrollYProgress, scenes.length]);
-
-  // EPIC-164 Phase 2: 고정(pinned) 구간에서만 y mandatory 스냅 — 각 깊이가 화면에 쫀득하게 붙는다. 구간 밖에서는 즉시 해제해 페이지의 다른 스크롤을 막지 않는다.
-  useEffect(() => {
-    if (mode !== "pinned") return;
-    const root = document.documentElement;
-    const prev = root.style.scrollSnapType;
-    root.style.scrollSnapType = "y mandatory";
-    return () => {
-      root.style.scrollSnapType = prev;
-    };
-  }, [mode]);
-
-  const snapPoints = scenes.map((_, i) => (i === 0 ? 0 : i === scenes.length - 1 ? 1 : (i + 0.5) / scenes.length));
+  }, [scrollYProgress, snapKey, reduce, preview]);
 
   if (scenes.length === 0) return null;
 
@@ -273,10 +291,6 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
     <section className="relative mb-12 -mx-6" aria-label={heading || "심연으로의 스크롤"}>
       {heading && <h2 className="mb-4 px-6 text-center text-xl font-semibold text-gray-900">{heading}</h2>}
       <div ref={ref} className="relative" style={{ height: `${scenes.length * sceneHeightVh}vh` }}>
-        {/* 스냅 지점: 시작·각 깊이의 중심·끝(끝은 구간을 벗어나는 출구) */}
-        {snapPoints.map((pt, k) => (
-          <span key={k} aria-hidden className="pointer-events-none absolute left-0 h-px w-px" style={{ top: `${pt * (scenes.length * sceneHeightVh - 100)}vh`, scrollSnapAlign: "start" }} />
-        ))}
         <div
           className={`h-screen overflow-hidden ${mode === "pinned" ? "fixed inset-x-0 top-0" : `absolute left-1/2 w-screen -translate-x-1/2 ${mode === "after" ? "bottom-0" : "top-0"}`}`}
           style={{ zIndex: 1 }}

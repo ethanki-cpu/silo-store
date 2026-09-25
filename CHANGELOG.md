@@ -1,3 +1,11 @@
+## 2026-09-26 (HOTFIX-164.1 — 시네마틱 API 스택 도입: GSAP+Lenis / React Spring / tsParticles, 사용자 지시)
+- **Phase 1 스크롤 텔링**: 심연 스크롤의 진행도·스냅을 **GSAP ScrollTrigger**가 맡고(`snap`: 시작·각 깊이 중심·끝, power2.inOut 0.25~0.75s), 휠은 **Lenis**(lerp 0.1)로 부드럽게 보간(모달·`.overflow-y-auto`·`[data-lenis-prevent]`는 가로채지 않음, 컴포넌트 언마운트 시 완전 해제). 이전의 CSS `scroll-snap y mandatory`는 GSAP 스냅과 충돌해 제거. 카메라 Z 줌: 깊이가 0.55배에서 다가와 지나갈 땐 2.2배로 문 안으로 파고들고, 문 패널은 0.78→1→1.5배로 더 빨리 다가와 패럴랙스를 만든다.
+- **Phase 2 마이크로 모션**: 가입 버튼 Magnetic Hover를 **React Spring**(tension 220 / friction 14 / mass 0.6 스프링 물리, 눌림 scale)으로 재구현. 문 열기 카드(3D 회전+문틈 빛)는 EPIC-164 그대로 유지.
+- **Phase 3**: **tsParticles v3 slim**으로 Angel 깃털 낙하(SVG data URI 9종, 흔들림·회전)와 Patron 커서 궤적 황금 가루(`trail` 상호작용 + 바탕 금빛 먼지)로 교체(SVG 에셋 없음, 화면에 보일 때만 청크 로드). Alice·Gatsby·Artist는 EPIC-164의 R3F 셰이더 유지.
+- **Phase 4**: 문 패널 PC 35% / 태블릿 50% / 모바일 85%(30%에서 조정). 권한표 아이콘·자물쇠는 EPIC-164 그대로.
+- **도입하지 않은 것**: Vanta.js(three r185와 호환 불안·사실상 유지보수 중단, 이미 있는 fbm 연기 셰이더로 대체), Curtains.js(같은 물결 셰이더를 R3F로 이미 구현해 중복), Rive/Spline(작업 파일(.riv/.splinecode)이 있어야 하고 파일 다운로드 = 트래픽), tsParticles v4(옵션 구조가 크게 바뀌어 v3로 고정), WebGL Fluid Simulation(트랙 효과는 tsParticles trail로 대체). 필요하면 별도 요청.
+- **검증**: tsc/eslint 통과, /membership 로드 시 Lenis 활성·콘솔 오류 없음. **미확인**: 검증 브라우저 렌더링 정지(rAF 미작동)로 스크롤 스냅 체감·tsParticles·WebGL 실화면은 못 봄.
+
 ## 2026-09-26 (EPIC-164 — 멤버십 랜딩 초실감형 UX + 6단계 VFX + 권한 매트릭스/Silo Angel 제한, 사용자 지시)
 - **Phase 1 "문 열기" 캐러셀**: 장황한 설명 대신 핵심 카테고리 4장(사일로의 하루/온라인 도슨트/나만의 아카이브/살롱데상 초대)의 문 카드(`BenefitDoors.tsx`, 새 위젯 `membership_doors`). 카드를 누르면 framer-motion transform(scale·translate·rotateY)만으로 카메라 줌인 + 문짝 3D 회전, 문틈 빛은 CSS box-shadow + backdrop-filter 글로우, 문이 다 열린 뒤에야 짧은 문구가 블러→선명·자간 수렴으로 떠오른다(3D 라이브러리 없음, prefers-reduced-motion은 페이드로 대체). /membership 맨 위에 삽입(`docs/sql/EPIC-164-doors-widget.sql`, 실행 완료).
 - **Phase 2 심연 스크롤**: 고정 구간에서 `scroll-snap-type: y mandatory`(구간 밖에서는 즉시 해제 — 시작·각 깊이 중심·끝에 스냅 마커), 문 패널 크기를 화면 기준 PC 30% / 태블릿 50% / 모바일 85%로 대폭 축소, 짝수 깊이=좌하단·홀수=우하단 비대칭 배치, `backdrop-filter: blur(24px) brightness(0.6)` 프로스티드 글래스(저장돼 있던 Depth 1의 blur 15px는 `EPIC-164-door-blur.sql`로 24px로 정리). 관리자 미리보기 카드는 기존 저장 크기 유지.

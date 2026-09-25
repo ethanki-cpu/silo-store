@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { FEATHERS } from "@/lib/depthShapes";
 
 // EPIC-164 Phase 3: 6단계(등급별) 하이엔드 VFX.
 // 원칙(EPIC-154 트래픽 교훈): .glb/영상 같은 무거운 에셋을 받지 않는다 — CSS/SVG(Angel·Patron·Lautrec)와
@@ -37,10 +36,11 @@ function useInView<T extends Element>(): [React.RefObject<T | null>, boolean] {
 }
 
 const GlVfx = dynamic(() => import("./DepthVfxGl"), { ssr: false });
+// HOTFIX-164.1: 깃털 낙하(Angel)와 커서 궤적 황금 가루(Patron)는 tsParticles — 화면에 보일 때만 청크를 불러온다.
+const TsLayer = dynamic(() => import("./TsParticlesLayer"), { ssr: false });
 
 const CSS = `
 @keyframes silo-vfx-ray{0%,100%{opacity:.35;transform:translateX(-2%) skewX(-12deg)}50%{opacity:.75;transform:translateX(3%) skewX(-12deg)}}
-@keyframes silo-vfx-feather{0%{transform:translate3d(0,-14vh,0) rotate(-20deg)}25%{transform:translate3d(var(--sw),22vh,0) rotate(18deg)}50%{transform:translate3d(calc(var(--sw) * -.8),50vh,0) rotate(-16deg)}75%{transform:translate3d(var(--sw),80vh,0) rotate(22deg)}100%{transform:translate3d(0,116vh,0) rotate(-10deg)}}
 @keyframes silo-vfx-flap{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.22)}}
 @keyframes silo-vfx-fly{0%{offset-distance:0%;opacity:0}8%{opacity:1}92%{opacity:1}100%{offset-distance:100%;opacity:0}}
 @keyframes silo-vfx-candle{0%,100%{opacity:.85;transform:translate(-50%,-50%) scale(1)}18%{opacity:.6;transform:translate(-50%,-50%) scale(.9)}37%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}61%{opacity:.7;transform:translate(-50%,-50%) scale(.95)}80%{opacity:.95;transform:translate(-50%,-50%) scale(1.04)}}
@@ -50,12 +50,8 @@ const CSS = `
 @media (prefers-reduced-motion: reduce){.silo-vfx *{animation:none!important}}
 `;
 
-// ── 1. Silo Angel — 빛과 깃털: CSS 그라데이션 빛내림 + SVG 깃털 낙하 ─────────────────────────────
+// ── 1. Silo Angel — 빛과 깃털: CSS 볼류메트릭 빛내림 + tsParticles 깃털 낙하 ─────────────────────────────
 function AngelVfx({ accent }: { accent: string }) {
-  const items = useMemo(() => {
-    const r = rng(11);
-    return Array.from({ length: 16 }, () => ({ left: r() * 100, size: 26 + r() * 40, dur: 16 + r() * 14, delay: -r() * 30, sw: (r() * 2 - 1) * 90, pick: Math.floor(r() * 9) }));
-  }, []);
   return (
     <>
       <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse 60% 70% at 50% -10%, #fffbe8cc 0%, ${accent}22 45%, transparent 75%)` }} />
@@ -73,21 +69,12 @@ function AngelVfx({ accent }: { accent: string }) {
           }}
         />
       ))}
-      {items.map((p, i) => {
-        const f = FEATHERS[p.pick % FEATHERS.length];
-        return (
-          <span key={i} className="absolute top-0" style={{ left: `${p.left}%`, width: p.size, height: p.size * f.aspect, ["--sw" as string]: `${p.sw}px`, animation: `silo-vfx-feather ${p.dur}s linear ${p.delay}s infinite`, opacity: 0.9 } as CSSProperties}>
-            <svg viewBox={f.viewBox} className="h-full w-full" style={{ filter: "drop-shadow(0 0 6px #fff8d8)" }} aria-hidden>
-              <path d={f.d} fill="#fffdf5" fillOpacity=".95" />
-            </svg>
-          </span>
-        );
-      })}
+      <TsLayer kind="angel" accent={accent} />
     </>
   );
 }
 
-// ── 4. Patron — 나비와 먼지: 베지어 궤적(offset-path)을 따르는 SVG 나비 + 커서를 따르는 Glow Trail ─────────
+// ── 4. Patron — 나비와 먼지: 베지어 궤적(offset-path)을 따르는 SVG 나비 + tsParticles 커서 궤적 황금 가루 ─────────
 // 0~100 좌표(화면 %)로 그린 베지어 — 실제 픽셀 크기에 맞춰 곱해서 offset-path에 넣는다.
 const BUTTERFLY_PATHS = [
   [[-5, 70], [20, 20], [40, 90], [60, 45], [95, 15], [108, 30]],
@@ -111,45 +98,6 @@ function Butterfly({ color, size }: { color: string; size: number }) {
       </g>
       <rect x="29" y="12" width="2" height="18" rx="1" fill="#2a2140" />
     </svg>
-  );
-}
-
-function CursorTrail({ color }: { color: string }) {
-  const dots = useRef<(HTMLSpanElement | null)[]>([]);
-  useEffect(() => {
-    const target = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    const pts = Array.from({ length: 8 }, () => ({ ...target }));
-    const onMove = (e: PointerEvent) => {
-      target.x = e.clientX;
-      target.y = e.clientY;
-    };
-    window.addEventListener("pointermove", onMove, { passive: true });
-    let raf = 0;
-    const tick = () => {
-      let px = target.x;
-      let py = target.y;
-      pts.forEach((p, i) => {
-        p.x += (px - p.x) * (0.34 - i * 0.03);
-        p.y += (py - p.y) * (0.34 - i * 0.03);
-        const el = dots.current[i];
-        if (el) el.style.transform = `translate3d(${p.x}px,${p.y}px,0) translate(-50%,-50%)`;
-        px = p.x;
-        py = p.y;
-      });
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      cancelAnimationFrame(raf);
-    };
-  }, []);
-  return (
-    <div className="pointer-events-none fixed left-0 top-0 z-0">
-      {Array.from({ length: 8 }, (_, i) => (
-        <span key={i} ref={(el) => { dots.current[i] = el; }} className="absolute left-0 top-0 rounded-full" style={{ width: 46 - i * 5, height: 46 - i * 5, background: `radial-gradient(circle, ${color}${i === 0 ? "aa" : "55"} 0%, transparent 70%)`, opacity: 1 - i * 0.1 }} />
-      ))}
-    </div>
   );
 }
 
@@ -187,7 +135,7 @@ function PatronVfx({ accent }: { accent: string }) {
       {motes.map((m, i) => (
         <span key={i} className="absolute rounded-full" style={{ left: `${m.left}%`, top: `${m.top}%`, width: m.s, height: m.s, background: accent, boxShadow: `0 0 8px ${accent}`, ["--dx" as string]: `${m.dx}px`, animation: `silo-vfx-mote ${m.dur}s ease-in-out ${m.delay}s infinite` } as CSSProperties} />
       ))}
-      <CursorTrail color={accent} />
+      <TsLayer kind="patron" accent={accent} />
     </div>
   );
 }

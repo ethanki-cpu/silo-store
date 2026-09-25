@@ -1,9 +1,10 @@
 "use client";
 
-import { motion, useMotionValue, useSpring } from "framer-motion";
+import { animated, useSpring } from "@react-spring/web";
 import { useRef, type ReactNode } from "react";
 
-// EPIC-163: 마우스가 다가오면 버튼이 자석처럼 끌려오는 Magnetic Hover. 터치 기기(hover 없음)에서는 자연스럽게 무동작.
+// EPIC-163 / HOTFIX-164.1: 마우스가 다가오면 버튼이 자석처럼 끌려오는 Magnetic Hover — React Spring의 스프링 물리(tension/friction/mass)로 구현.
+// 터치 기기(hover 없음)에서는 자연스럽게 무동작.
 export function MagneticButton({
   children,
   onClick,
@@ -20,8 +21,7 @@ export function MagneticButton({
   strength?: number;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const x = useSpring(useMotionValue(0), { stiffness: 220, damping: 16, mass: 0.4 });
-  const y = useSpring(useMotionValue(0), { stiffness: 220, damping: 16, mass: 0.4 });
+  const [spring, api] = useSpring(() => ({ x: 0, y: 0, scale: 1, config: { tension: 220, friction: 14, mass: 0.6 } }));
 
   return (
     <div
@@ -29,17 +29,23 @@ export function MagneticButton({
       onMouseMove={(e) => {
         if (disabled || !ref.current) return;
         const r = ref.current.getBoundingClientRect();
-        x.set((e.clientX - (r.left + r.width / 2)) * strength);
-        y.set((e.clientY - (r.top + r.height / 2)) * strength);
+        api.start({ x: (e.clientX - (r.left + r.width / 2)) * strength, y: (e.clientY - (r.top + r.height / 2)) * strength });
       }}
-      onMouseLeave={() => {
-        x.set(0);
-        y.set(0);
-      }}
+      onMouseLeave={() => api.start({ x: 0, y: 0 })}
     >
-      <motion.button ref={ref} type="button" onClick={onClick} disabled={disabled} style={{ x, y, ...style }} whileTap={{ scale: 0.96 }} className={className}>
+      <animated.button
+        ref={ref}
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        style={{ ...style, x: spring.x, y: spring.y, scale: spring.scale }}
+        onPointerDown={() => api.start({ scale: 0.96 })}
+        onPointerUp={() => api.start({ scale: 1 })}
+        onPointerLeave={() => api.start({ scale: 1 })}
+        className={className}
+      >
         {children}
-      </motion.button>
+      </animated.button>
     </div>
   );
 }

@@ -96,15 +96,18 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
   const color = dark ? "#fdfbf7" : "#2b2740";
   return (
     <div
-      className={`relative flex flex-col items-center justify-center border-2 text-center ${hasImage ? "" : "backdrop-blur-md"} ${"w-[88%] sm:w-[60%]"}`}
+      className={`relative flex flex-col items-center justify-center border-2 text-center ${hasImage ? "" : "backdrop-blur-md"}`}
       style={{
+        // 문의 비율은 가로:세로 = 3:5 — 폭은 높이의 3/5(화면이 좁으면 화면 폭의 92%까지만).
         height: variant === "stage" ? "min(82vh, 880px)" : "480px",
+        width: variant === "stage" ? "min(92vw, calc(min(82vh, 880px) * 0.6))" : "288px",
+        maxWidth: "92%",
         borderRadius: DOOR_RADIUS,
         borderColor: `${accent}cc`,
         background: hasImage ? "rgba(8,10,16,0.10)" : dark ? "rgba(10,10,20,0.42)" : "rgba(255,255,255,0.5)",
         boxShadow: `0 0 70px ${accent}55, inset 0 0 44px ${accent}22`,
         color,
-        padding: "8% 10%",
+        padding: "10% 9%",
       }}
     >
       <div className="pointer-events-none absolute inset-3" style={{ borderRadius: DOOR_RADIUS, border: `1px solid ${accent}77` }} />
@@ -114,7 +117,7 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
         </div>
       )}
       <p className="relative text-xs font-semibold uppercase tracking-[0.3em] opacity-90" style={hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : undefined}>{scene.title}</p>
-      <p className="relative mt-5 max-w-[34rem] text-lg font-medium leading-8 sm:text-2xl sm:leading-[2.6rem]" style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif', ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}>
+      <p className="relative mt-4 text-base font-medium leading-7 sm:text-lg sm:leading-8" style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif', ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}>
         {scene.text}
       </p>
     </div>

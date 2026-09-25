@@ -185,7 +185,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                 </>
               )}
               <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
-              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-dashed" style={{ height: `${cur.doorHeightPct ?? 82}%`, aspectRatio: `${(cur.doorWidthPct ?? 60) / 100}`, maxWidth: "92%", borderRadius: "50% 50% 16px 16px / 26% 26% 16px 16px", borderColor: `${accent}cc` }} />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-dashed" style={{ height: `${cur.doorHeightPct ?? 58}%`, aspectRatio: `${(cur.doorWidthPct ?? 52) / 100}`, maxWidth: "92%", borderRadius: "50% 50% 16px 16px / 26% 26% 16px 16px", borderColor: `${accent}cc` }} />
               {(cur.sprites ?? []).map((sp) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -253,8 +253,8 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
             <p className="mb-2 text-sm font-semibold text-gray-800">아치문 크기·유리 효과</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {([
-                ["doorHeightPct", "문 높이(화면 높이의 %)", 30, 98, 82],
-                ["doorWidthPct", "문 폭(문 높이 대비 %, 60 = 3:5)", 30, 140, 60],
+                ["doorHeightPct", "문 높이(화면 높이의 %)", 30, 98, 58],
+                ["doorWidthPct", "문 폭(문 높이 대비 %)", 30, 140, 52],
                 ["doorBlurPx", "문 안쪽 블러(px)", 0, 40, 12],
                 ["doorDarkPct", "문 안쪽 어둡기(%)", 0, 90, 42],
               ] as const).map(([key, label, min, max, def]) => (

@@ -1,0 +1,2 @@
+-- HOTFIX-163.13: 심연으로의 스크롤 6개 깊이의 아치문 크기를 같은 크기(높이 58%, 폭 52%)로 — 기존 제목/문구/이미지는 그대로 두고 두 필드만 병합. 실행 완료.
+update page_modules m set settings = jsonb_set(m.settings, '{depths}', (select jsonb_agg(t.d || '{"doorHeightPct":58,"doorWidthPct":52}'::jsonb order by t.ord) from jsonb_array_elements(m.settings->'depths') with ordinality t(d,ord))) from page_builder p where p.id=m.page_id and p.slug='membership' and m.module_type='membership_depths';

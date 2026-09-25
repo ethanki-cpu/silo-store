@@ -90,21 +90,52 @@ function SceneBackdrop({ scene, index }: { scene: DepthScene; index: number }) {
 // 윗부분은 반원이 아니라 납작한 타원 곡선(가로 반지름 50%, 세로 반지름 작게)이라 부채꼴이 아니라 문처럼 보인다.
 const DOOR_RADIUS = "50% 50% 16px 16px / 26% 26% 16px 16px";
 
+// 문 크기 기본값 — 사용자가 화면(740×911)에서 원한 "줄인 문"(높이 ≈ 화면의 58%, 폭 ≈ 높이의 52%)과 비슷하게, 6개 깊이 모두 같은 크기.
+export const DEFAULT_DOOR_HEIGHT_PCT = 58;
+export const DEFAULT_DOOR_WIDTH_PCT = 52;
+
 function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; index: number; variant?: "stage" | "card" }) {
   const { accent, dark } = resolveTheme(scene, index);
   const hasImage = !!scene.imageUrl;
   const hasSprites = (scene.sprites ?? []).some((s) => s.url);
   const color = dark ? "#fdfbf7" : "#2b2740";
-  // HOTFIX-163.12: 문 크기(높이·폭 비율)와 안쪽 블러/어둡기를 깊이마다 관리자가 정한다.
-  const hPct = Math.min(98, Math.max(30, scene.doorHeightPct ?? 82));
-  const wPct = Math.min(140, Math.max(30, scene.doorWidthPct ?? 60));
+  const hPct = Math.min(98, Math.max(30, scene.doorHeightPct ?? DEFAULT_DOOR_HEIGHT_PCT));
+  const wPct = Math.min(140, Math.max(30, scene.doorWidthPct ?? DEFAULT_DOOR_WIDTH_PCT));
   const blur = Math.min(40, Math.max(0, scene.doorBlurPx ?? 12));
   const darkPct = Math.min(90, Math.max(0, scene.doorDarkPct ?? 42));
   const heightCss = variant === "stage" ? `min(${hPct}vh, ${Math.round(hPct * 10.7)}px)` : `${Math.round(hPct * 5.85)}px`;
   const widthCss = variant === "stage" ? `min(92vw, calc(${heightCss} * ${wPct / 100}))` : `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
+
+  // HOTFIX-163.13(사용자 신고 — 문을 줄였더니 글자가 한 글자씩 세로로 늘어짐): 문 크기가 어떻게 바뀌어도 글이 문 안에 들어오도록,
+  // 실제 문 크기를 재서 글자 크기와 안쪽 여백을 정한다(글이 길면 글자가 작아짐). % 패딩은 부모 폭 기준이라 쓰지 않는다.
+  const doorRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState({ fs: 15, padX: 20, padTop: 44, padBottom: 28 });
+  const text = scene.text ?? "";
+  useEffect(() => {
+    const el = doorRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w < 40 || h < 40) return;
+      const lines = text.split(String.fromCharCode(10));
+      const chars = Math.max(16, text.length - (lines.length - 1) + (lines.length - 1) * 8);
+      const padX = Math.round(w * 0.1);
+      const padTop = Math.round(Math.min(h * 0.2, w * 0.45));
+      const padBottom = Math.round(h * 0.07);
+      const usableW = w - padX * 2;
+      const usableH = h - padTop - padBottom - 34; // 제목 한 줄 몫
+      const size = Math.sqrt((usableW * Math.max(40, usableH)) / (chars * 1.85));
+      setFit({ fs: Math.max(10, Math.min(22, Math.floor(size))), padX, padTop, padBottom });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+
   return (
     <div
-      className="relative flex flex-col items-center justify-center border-2 text-center"
+      ref={doorRef}
+      className="relative flex flex-col items-center justify-center overflow-hidden border-2 text-center"
       style={{
         height: heightCss,
         width: widthCss,
@@ -116,23 +147,23 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
         WebkitBackdropFilter: blur > 0 ? `blur(${blur}px)` : undefined,
         boxShadow: `0 0 70px ${accent}55, inset 0 0 44px ${accent}22`,
         color,
-        padding: "10% 9%",
+        padding: `${fit.padTop}px ${fit.padX}px ${fit.padBottom}px`,
       }}
     >
       <div className="pointer-events-none absolute inset-3" style={{ borderRadius: DOOR_RADIUS, border: `1px solid ${accent}77` }} />
       {!hasImage && !hasSprites && (
-        <div className="mx-auto mb-4 h-24 w-24" style={{ color }}>
+        <div className="mx-auto mb-3 h-16 w-16 shrink-0" style={{ color }}>
           <DepthArt index={index} accent={accent} />
         </div>
       )}
-      <p className="relative whitespace-pre-line text-xs font-semibold uppercase tracking-[0.3em] opacity-90" style={hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : undefined}>
+      <p className="relative w-full whitespace-pre-line text-[10px] font-semibold uppercase tracking-[0.25em] opacity-90" style={hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : undefined}>
         {scene.title}
       </p>
       <p
-        className="relative mt-4 whitespace-pre-line text-base font-medium leading-7 sm:text-lg sm:leading-8"
-        style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif', ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}
+        className="relative mt-3 w-full whitespace-pre-line break-keep font-medium"
+        style={{ fontSize: fit.fs, lineHeight: 1.75, fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif', ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}
       >
-        {scene.text}
+        {text}
       </p>
     </div>
   );

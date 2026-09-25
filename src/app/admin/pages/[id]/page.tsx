@@ -136,6 +136,8 @@ function AdminPageEditorPageInner() {
   const [modules, setModules] = useState<PageModuleRow[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState<"edit" | "live-pc" | "live-mobile">("edit");
+  const [liveKey, setLiveKey] = useState(0);
   const [boards, setBoards] = useState<BoardOption[]>([]);
   const [navBranches, setNavBranches] = useState<NavBranchNode[]>([]);
   const [boardBranchMap, setBoardBranchMap] = useState<Map<string, string>>(new Map());
@@ -550,6 +552,7 @@ function AdminPageEditorPageInner() {
       return updateError.message;
     }
     setModules((prev) => prev.map((m) => (m.id === moduleId ? { ...m, settings } : m)));
+    setLiveKey((n) => n + 1);
     return null;
   }
 
@@ -577,6 +580,7 @@ function AdminPageEditorPageInner() {
           : m,
       ),
     );
+    setLiveKey((n) => n + 1);
     closeEditor();
   }
 
@@ -811,12 +815,47 @@ function AdminPageEditorPageInner() {
             </div>
           ) : (
             <div className="rounded-lg border border-gray-200 overflow-hidden">
-              <div className="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500">
-                미리보기 (숨긴 위젯도 흐리게 표시됨 — 공개 페이지에는 안 보임)
+              <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500">
+                {/* HOTFIX-163.13(사용자 신고 — "미리보기와 실제가 달라"): 편집용 미리보기는 관리자 화면 안의 좁은 스크롤 영역이라 창 전체 스크롤에 의존하는
+                    연출(심연으로의 스크롤·배경 그라데이션 등)과 폭이 실제와 다를 수밖에 없다. 실제 공개 페이지를 그대로 띄우는 보기를 함께 둔다. */}
+                <div className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-[11px]">
+                  {([
+                    ["edit", "편집 미리보기"],
+                    ["live-pc", "실제 화면 (PC)"],
+                    ["live-mobile", "실제 화면 (모바일)"],
+                  ] as const).map(([k, label]) => (
+                    <button key={k} type="button" onClick={() => setPreviewMode(k)} className={`px-2.5 py-1 ${previewMode === k ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {previewMode !== "edit" && (
+                  <>
+                    <button type="button" onClick={() => setLiveKey((n) => n + 1)} className="rounded border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50">
+                      ⟳ 새로고침(저장된 내용)
+                    </button>
+                    <a href={page.slug === "home" ? "/" : `/${page.slug}`} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline">
+                      새 탭으로
+                    </a>
+                  </>
+                )}
+                <span className="ml-auto text-[11px] font-normal text-gray-400">{previewMode === "edit" ? "숨긴 위젯도 흐리게 표시됨 — 공개 페이지에는 안 보임" : "저장한 뒤 새로고침하면 실제 페이지와 똑같이 보여요"}</span>
               </div>
-              <div className="max-h-[80vh] overflow-y-auto p-6 bg-white">
-                <PageBuilderRenderer modules={previewModules} includeHidden />
-              </div>
+              {previewMode === "edit" ? (
+                <div className="max-h-[80vh] overflow-y-auto p-6 bg-white">
+                  <PageBuilderRenderer modules={previewModules} includeHidden />
+                </div>
+              ) : (
+                <div className="flex justify-center bg-gray-100 p-2">
+                  <iframe
+                    key={`${previewMode}-${liveKey}`}
+                    title="실제 화면 미리보기"
+                    src={page.slug === "home" ? "/" : `/${page.slug}`}
+                    className="h-[78vh] rounded border border-gray-300 bg-white"
+                    style={{ width: previewMode === "live-mobile" ? 390 : "100%" }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

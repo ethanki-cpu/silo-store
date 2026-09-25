@@ -78,28 +78,35 @@ function SceneBackdrop({ scene, index }: { scene: DepthScene; index: number }) {
   );
 }
 
-function ArchText({ scene, index }: { scene: DepthScene; index: number }) {
+// EPIC-163.8(사용자 신고 — "문보다 부채처럼 보여, 좌우 넓이의 3/5 넓이로"): 아치문의 폭은 화면(무대) 좌우 폭의 3/5, 높이는 화면의 거의 전체로 늘리고
+// 윗부분은 반원이 아니라 납작한 타원 곡선(가로 반지름 50%, 세로 반지름 작게)이라 부채꼴이 아니라 문처럼 보인다.
+const DOOR_RADIUS = "50% 50% 16px 16px / 26% 26% 16px 16px";
+
+function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; index: number; variant?: "stage" | "card" }) {
   const { accent, dark, hasImage } = resolveTheme(scene, index);
   const hasSprites = (scene.sprites ?? []).some((s) => s.url);
   const color = dark ? "#fdfbf7" : "#2b2740";
   return (
     <div
-      className="relative w-[min(88vw,440px)] rounded-t-[999px] rounded-b-2xl border-2 px-7 pb-10 pt-24 text-center backdrop-blur-md sm:px-9"
+      className={`relative flex flex-col items-center justify-center border-2 text-center backdrop-blur-md ${"w-[88%] sm:w-[60%]"}`}
       style={{
+        height: variant === "stage" ? "min(82vh, 880px)" : "480px",
+        borderRadius: DOOR_RADIUS,
         borderColor: `${accent}cc`,
         background: dark ? "rgba(10,10,20,0.42)" : "rgba(255,255,255,0.5)",
         boxShadow: `0 0 70px ${accent}55, inset 0 0 44px ${accent}22`,
         color,
+        padding: "8% 10%",
       }}
     >
-      <div className="pointer-events-none absolute inset-3 rounded-t-[999px] rounded-b-xl border" style={{ borderColor: `${accent}77` }} />
+      <div className="pointer-events-none absolute inset-3" style={{ borderRadius: DOOR_RADIUS, border: `1px solid ${accent}77` }} />
       {!hasImage && !hasSprites && (
-        <div className="mx-auto -mt-16 mb-3 h-24 w-24" style={{ color }}>
+        <div className="mx-auto mb-4 h-24 w-24" style={{ color }}>
           <DepthArt index={index} accent={accent} />
         </div>
       )}
       <p className="relative text-xs font-semibold uppercase tracking-[0.3em] opacity-80">{scene.title}</p>
-      <p className="relative mt-4 text-lg font-medium leading-8 sm:text-xl sm:leading-9" style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif' }}>
+      <p className="relative mt-5 max-w-[34rem] text-lg font-medium leading-8 sm:text-2xl sm:leading-[2.6rem]" style={{ fontFamily: '"Noto Serif KR","Nanum Myeongjo",Georgia,serif' }}>
         {scene.text}
       </p>
     </div>
@@ -122,7 +129,7 @@ function Scene({ index, count, progress, scene, near }: { index: number; count: 
     <motion.div className="absolute inset-0 overflow-hidden" style={{ opacity, scale }}>
       <SceneBackdrop scene={scene} index={index} />
       {near && <DepthEffects effects={scene.effects ?? []} effectImages={(scene.effectImages ?? []).filter(Boolean)} accent={accent} seed={index + 1} />}
-      <motion.div className="relative z-10 flex h-full items-center justify-center px-4 pt-24" style={{ y: textY }}>
+      <motion.div className="relative z-10 flex h-full items-center justify-center pb-4 pt-20" style={{ y: textY }}>
         <ArchText scene={scene} index={index} />
       </motion.div>
     </motion.div>
@@ -170,7 +177,7 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
           <div key={`${s.title}-${i}`} className="relative flex min-h-[520px] items-center justify-center overflow-hidden rounded-2xl px-4 py-10">
             <SceneBackdrop scene={s} index={i} />
             <div className="relative z-10">
-              <ArchText scene={s} index={i} />
+              <ArchText scene={s} index={i} variant="card" />
             </div>
           </div>
         ))}
@@ -183,7 +190,7 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
       {heading && <h2 className="mb-4 px-6 text-center text-xl font-semibold text-gray-900">{heading}</h2>}
       <div ref={ref} className="relative" style={{ height: `${scenes.length * sceneHeightVh}vh` }}>
         <div
-          className={`inset-x-0 h-screen overflow-hidden ${mode === "pinned" ? "fixed top-0" : mode === "after" ? "absolute bottom-0" : "absolute top-0"}`}
+          className={`h-screen overflow-hidden ${mode === "pinned" ? "fixed inset-x-0 top-0" : `absolute left-1/2 w-screen -translate-x-1/2 ${mode === "after" ? "bottom-0" : "top-0"}`}`}
           style={{ zIndex: 1 }}
         >
           {scenes.map((s, i) => (

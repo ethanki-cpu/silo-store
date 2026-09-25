@@ -179,6 +179,28 @@ export function canProposeOnBoard(
   return checkMinRank(board.min_rank_to_propose, tier, isAdmin, "제안");
 }
 
+// EPIC-164 Phase 4(사용자 지시): Silo Angel(rank 0, 무료)은 작성 가능한 글이 총 5개까지다.
+// 클라이언트 표시와 무관하게 글쓰기 API가 이 함수로 서버에서 강제한다(관리자·상위 등급은 제한 없음).
+export const SILO_ANGEL_POST_LIMIT = 5;
+
+export async function checkPostQuota(
+  client: { from: (table: string) => any }, // eslint-disable-line @typescript-eslint/no-explicit-any
+  memberId: string,
+  rank: number,
+  isAdmin?: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isAdmin || rank !== 0) return { ok: true };
+  const { count, error } = await client.from("posts").select("id", { count: "exact", head: true }).eq("author_id", memberId);
+  if (error) return { ok: false, error: "글 개수를 확인하지 못했어요. 잠시 후 다시 시도해주세요." };
+  if ((count ?? 0) >= SILO_ANGEL_POST_LIMIT) {
+    return {
+      ok: false,
+      error: `${RANK_LABELS[0]} 등급은 글을 최대 ${SILO_ANGEL_POST_LIMIT}개까지 쓸 수 있어요. 멤버십 가입 안내에서 등급을 올리면 제한 없이 기록할 수 있어요.`,
+    };
+  }
+  return { ok: true };
+}
+
 export function canWriteToBoard(
   board: { board_type: string; category: string | null; min_rank_to_write?: number | null },
   tier: TierFlags | null,

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { DepthArt } from "@/components/membership/DepthArt";
 import { DepthEffects } from "@/components/membership/DepthEffects";
+import { DepthVfx, VFX_BY_INDEX } from "@/components/membership/DepthVfx";
 import type { DepthScene } from "@/lib/membershipContentDefaults";
 
 // EPIC-163 / 163.5: Scroll Storytelling "심연으로의 스크롤" — 스크롤할수록 사일로의 깊은 공간으로 줌인하며 깊이(Depth)마다
@@ -101,10 +102,13 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
   const color = dark ? "#fdfbf7" : "#2b2740";
   const hPct = Math.min(98, Math.max(30, scene.doorHeightPct ?? DEFAULT_DOOR_HEIGHT_PCT));
   const wPct = Math.min(140, Math.max(30, scene.doorWidthPct ?? DEFAULT_DOOR_WIDTH_PCT));
-  const blur = Math.min(40, Math.max(0, scene.doorBlurPx ?? 12));
-  const darkPct = Math.min(90, Math.max(0, scene.doorDarkPct ?? 42));
-  const heightCss = variant === "stage" ? `min(${hPct}vh, ${Math.round(hPct * 10.7)}px)` : `${Math.round(hPct * 5.85)}px`;
-  const widthCss = variant === "stage" ? `min(92vw, calc(${heightCss} * ${wPct / 100}))` : `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
+  // EPIC-164 Phase 2: 프로스티드 글래스 — 기본 blur(24px) brightness(0.6).
+  const blur = Math.min(40, Math.max(0, scene.doorBlurPx ?? 24));
+  const darkPct = Math.min(90, Math.max(0, scene.doorDarkPct ?? 24));
+  // 무대(stage)의 문 크기는 반응형 규칙(.silo-door: 모바일 85% / 태블릿 50% / PC 30%)이 정하고, 관리자 미리보기 카드만 저장된 크기를 쓴다.
+  const stage = variant === "stage";
+  const heightCss = `${Math.round(hPct * 5.85)}px`;
+  const widthCss = `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
 
   // HOTFIX-163.13(사용자 신고 — 문을 줄였더니 글자가 한 글자씩 세로로 늘어짐): 문 크기가 어떻게 바뀌어도 글이 문 안에 들어오도록,
   // 실제 문 크기를 재서 글자 크기와 안쪽 여백을 정한다(글이 길면 글자가 작아짐). % 패딩은 부모 폭 기준이라 쓰지 않는다.
@@ -135,16 +139,14 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
   return (
     <div
       ref={doorRef}
-      className="relative flex flex-col items-center justify-center overflow-hidden border-2 text-center"
+      className={`relative flex flex-col items-center justify-center overflow-hidden border-2 text-center${stage ? " silo-door" : ""}`}
       style={{
-        height: heightCss,
-        width: widthCss,
-        maxWidth: "92%",
+        ...(stage ? {} : { height: heightCss, width: widthCss, maxWidth: "92%" }),
         borderRadius: DOOR_RADIUS,
         borderColor: `${accent}cc`,
         background: dark || hasImage ? `rgba(10,10,20,${darkPct / 100})` : "rgba(255,255,255,0.5)",
-        backdropFilter: blur > 0 ? `blur(${blur}px)` : undefined,
-        WebkitBackdropFilter: blur > 0 ? `blur(${blur}px)` : undefined,
+        backdropFilter: `blur(${blur}px) brightness(0.6)`,
+        WebkitBackdropFilter: `blur(${blur}px) brightness(0.6)`,
         boxShadow: `0 0 70px ${accent}55, inset 0 0 44px ${accent}22`,
         color,
         padding: `${fit.padTop}px ${fit.padX}px ${fit.padBottom}px`,
@@ -169,8 +171,15 @@ function ArchText({ scene, index, variant = "stage" }: { scene: DepthScene; inde
   );
 }
 
-function Scene({ index, count, progress, scene, near }: { index: number; count: number; progress: MotionValue<number>; scene: DepthScene; near: boolean }) {
-  const { accent } = resolveTheme(scene, index);
+// 문 패널 반응형 크기(모바일 85% · 태블릿 50% · PC 30%, 너비는 화면 기준)와 3:5 안팎의 비율 — 높이는 화면의 70%를 넘지 않는다.
+const DOOR_CSS = `.silo-door{--dw:85vw;width:var(--dw);height:min(70vh,calc(var(--dw) * 1.6))}@media(min-width:768px){.silo-door{--dw:50vw}}@media(min-width:1280px){.silo-door{--dw:30vw}}`;
+
+function Scene({ index, count, progress, scene, near, active }: { index: number; count: number; progress: MotionValue<number>; scene: DepthScene; near: boolean; active: boolean }) {
+  const { accent, c1, c2 } = resolveTheme(scene, index);
+  // EPIC-164 Phase 3: 등급(깊이 순서)별 하이엔드 VFX — 관리자가 scene.hyperVfx=false로 끌 수 있다.
+  const vfxKind = scene.hyperVfx === false ? null : VFX_BY_INDEX[index] ?? null;
+  // 좌/우 하단 비대칭 배치: 짝수 깊이는 왼쪽, 홀수 깊이는 오른쪽(모바일은 하단 가운데).
+  const side = index % 2 === 0 ? "md:justify-start" : "md:justify-end";
   const step = 1 / count;
   const center = (index + 0.5) * step;
   // 입력 구간은 0~1로 자르고(framer-motion은 0 미만/1 초과 오프셋을 허용하지 않는다), 첫/마지막 장면은 바깥쪽 끝에서 사라지지 않게 한다.
@@ -184,8 +193,10 @@ function Scene({ index, count, progress, scene, near }: { index: number; count: 
   return (
     <motion.div className="absolute inset-0 overflow-hidden" style={{ opacity, scale }}>
       <SceneBackdrop scene={scene} index={index} />
+      {near && vfxKind && <DepthVfx kind={vfxKind} accent={accent} color1={c1} color2={c2} imageUrl={scene.imageUrl} imagePos={scene.imagePos} active={active} />}
       {near && <DepthEffects effects={scene.effects ?? []} effectImages={(scene.effectImages ?? []).filter(Boolean)} effectConfig={scene.effectConfig} customEffects={scene.customEffects} accent={accent} seed={index + 1} />}
-      <motion.div className="relative z-10 flex h-full items-center justify-center pb-4 pt-20" style={{ y: textY }}>
+      <motion.div className={`relative z-10 flex h-full items-end justify-center px-4 pb-[7vh] pt-20 md:px-[5vw] ${side}`} style={{ y: textY }}>
+        <style>{DOOR_CSS}</style>
         <ArchText scene={scene} index={index} />
       </motion.div>
     </motion.div>
@@ -222,6 +233,19 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
     };
   }, [scrollYProgress, scenes.length]);
 
+  // EPIC-164 Phase 2: 고정(pinned) 구간에서만 y mandatory 스냅 — 각 깊이가 화면에 쫀득하게 붙는다. 구간 밖에서는 즉시 해제해 페이지의 다른 스크롤을 막지 않는다.
+  useEffect(() => {
+    if (mode !== "pinned") return;
+    const root = document.documentElement;
+    const prev = root.style.scrollSnapType;
+    root.style.scrollSnapType = "y mandatory";
+    return () => {
+      root.style.scrollSnapType = prev;
+    };
+  }, [mode]);
+
+  const snapPoints = scenes.map((_, i) => (i === 0 ? 0 : i === scenes.length - 1 ? 1 : (i + 0.5) / scenes.length));
+
   if (scenes.length === 0) return null;
 
   // 관리자 미리보기(화면 전체를 fixed로 덮으면 안 됨)나 "움직임 줄이기"에서는 정적 카드로 — 이미지·배치·아치 문구는 그대로 보인다.
@@ -232,6 +256,10 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
         {scenes.map((s, i) => (
           <div key={`${s.title}-${i}`} className="relative flex min-h-[520px] items-center justify-center overflow-hidden rounded-2xl px-4 py-10">
             <SceneBackdrop scene={s} index={i} />
+            {s.hyperVfx !== false && VFX_BY_INDEX[i] && (() => {
+              const th = resolveTheme(s, i);
+              return <DepthVfx kind={VFX_BY_INDEX[i]} accent={th.accent} color1={th.c1} color2={th.c2} imageUrl={s.imageUrl} imagePos={s.imagePos} active />;
+            })()}
             <div className="relative z-10">
               <ArchText scene={s} index={i} variant="card" />
             </div>
@@ -245,12 +273,16 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
     <section className="relative mb-12 -mx-6" aria-label={heading || "심연으로의 스크롤"}>
       {heading && <h2 className="mb-4 px-6 text-center text-xl font-semibold text-gray-900">{heading}</h2>}
       <div ref={ref} className="relative" style={{ height: `${scenes.length * sceneHeightVh}vh` }}>
+        {/* 스냅 지점: 시작·각 깊이의 중심·끝(끝은 구간을 벗어나는 출구) */}
+        {snapPoints.map((pt, k) => (
+          <span key={k} aria-hidden className="pointer-events-none absolute left-0 h-px w-px" style={{ top: `${pt * (scenes.length * sceneHeightVh - 100)}vh`, scrollSnapAlign: "start" }} />
+        ))}
         <div
           className={`h-screen overflow-hidden ${mode === "pinned" ? "fixed inset-x-0 top-0" : `absolute left-1/2 w-screen -translate-x-1/2 ${mode === "after" ? "bottom-0" : "top-0"}`}`}
           style={{ zIndex: 1 }}
         >
           {scenes.map((s, i) => (
-            <Scene key={`${s.title}-${i}`} index={i} count={scenes.length} progress={scrollYProgress} scene={s} near={Math.abs(i - activeIdx) <= 1} />
+            <Scene key={`${s.title}-${i}`} index={i} count={scenes.length} progress={scrollYProgress} scene={s} near={Math.abs(i - activeIdx) <= 1} active={mode === "pinned" && i === activeIdx} />
           ))}
           <div className="pointer-events-none absolute bottom-6 left-1/2 z-20 h-1 w-40 -translate-x-1/2 overflow-hidden rounded-full bg-white/30">
             <motion.div className="h-full rounded-full bg-white/80" style={{ width: dot }} />

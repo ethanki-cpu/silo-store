@@ -26,7 +26,7 @@ function Cell({ text }: { text: string }) {
   const rest = text.replace("🔒", "").trim();
   return (
     <span className="relative inline-flex min-h-8 min-w-24 items-center justify-center overflow-hidden rounded-md bg-white/40 px-2 py-1 backdrop-blur-md">
-      <span aria-hidden className="select-none whitespace-nowrap text-gray-500 opacity-60 blur-[3px]">
+      <span aria-hidden className="select-none whitespace-nowrap text-gray-500 opacity-30 blur-[3px]">
         {rest || "굳게 닫힌 문"}
       </span>
       <span className="absolute inset-0 flex items-center justify-center text-lg" role="img" aria-label={rest ? `잠김: ${rest}` : "잠김"}>

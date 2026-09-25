@@ -13,8 +13,17 @@ type Plan = { rank: number; name: string; price: number; honorary?: boolean; cat
 
 const keyOf = (g: BenefitGroup) => `${g.root}/${g.title}`;
 
-function Mark({ on }: { on: boolean }) {
-  return on ? <span className="font-bold text-emerald-600" aria-label="가능">✓</span> : <span className="text-gray-300" aria-label="불가">✕</span>;
+// EPIC-164 Phase 4(사용자 지시): ✓/✕ 대신 세계관 아이콘 — 열린 문은 열쇠(Patron 이상은 왕관), 막힌 문은 흐리게 블러 처리한 자물쇠.
+function Mark({ on, rank = 0 }: { on: boolean; rank?: number }) {
+  return on ? (
+    <span className="text-base" aria-label="열려 있어요" title="열려 있어요">
+      {rank >= 3 ? "👑" : "🗝️"}
+    </span>
+  ) : (
+    <span className="inline-block text-base opacity-30 blur-[0.6px]" aria-label="잠겨 있어요" title="잠겨 있어요">
+      🔒
+    </span>
+  );
 }
 
 export function MembershipMatrix({
@@ -134,7 +143,7 @@ export function MembershipMatrix({
                       const n = r.perTier[ci].size;
                       return (
                         <td key={p.rank} className={`px-2 py-2 text-center ${colClass(p.rank)}`}>
-                          {n === 0 ? <Mark on={false} /> : n >= total ? <Mark on /> : <span className="text-xs font-medium text-amber-700">{n}/{total}</span>}
+                          {n === 0 ? <Mark on={false} /> : n >= total ? <Mark on rank={p.rank} /> : <span className="text-xs font-medium text-amber-700">{n}/{total}</span>}
                         </td>
                       );
                     })}
@@ -153,7 +162,7 @@ export function MembershipMatrix({
                         <td className="sticky left-0 z-10 bg-white py-1.5 pl-9 pr-3 text-left text-gray-600">{it.name}</td>
                         {plans.map((p, ci) => (
                           <td key={p.rank} className={`px-2 py-1.5 text-center ${colClass(p.rank)}`}>
-                            <Mark on={r.perTier[ci].has(it.name)} />
+                            <Mark on={r.perTier[ci].has(it.name)} rank={p.rank} />
                           </td>
                         ))}
                       </tr>
@@ -176,7 +185,7 @@ export function MembershipMatrix({
                       const v = c.cells[p.rank];
                       return (
                         <td key={p.rank} className={`px-2 py-2 text-center text-xs ${colClass(p.rank)}`}>
-                          {typeof v === "string" ? <span className="text-gray-800">{v}</span> : <Mark on={v === true} />}
+                          {typeof v === "string" ? <span className="text-gray-800">{v}</span> : <Mark on={v === true} rank={p.rank} />}
                         </td>
                       );
                     })}

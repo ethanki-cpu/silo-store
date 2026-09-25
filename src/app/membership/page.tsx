@@ -7,6 +7,7 @@ import { fetchPublishedPageBySlug, type PageModuleRow } from "@/lib/pageBuilder"
 import { usePageRankGate } from "@/lib/pageRankGate";
 import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
 import { MembershipCarousel } from "@/components/membership/MembershipCarousel";
+import { BenefitDoors, DEFAULT_BENEFIT_DOORS } from "@/components/membership/BenefitDoors";
 
 // EPIC-061: Membership은 이제 Page Builder(page_builder/page_modules,
 // slug="membership")로만 렌더링한다 — EPIC-054F의 PageTemplate/useHubBoardId
@@ -46,6 +47,7 @@ export default function MembershipPage() {
             <PageBuilderRenderer modules={modules ?? []} />
           ) : (
             <>
+              <BenefitDoors heading="사일로의 문을 열어보세요" subtitle="카드를 누르면 문이 열려요" doors={DEFAULT_BENEFIT_DOORS} />
               <MembershipCarousel />
               <MembershipPlansSection showPlanCards={false} />
             </>

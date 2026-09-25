@@ -14,7 +14,9 @@ export type TierCategoryAccess = { groups: BenefitGroup[]; total: number; newCou
 // 게시판이 아닌 기능(사일로 플레닛)의 등급 조건 — 실제 게이팅 코드와 동일하게 유지할 것:
 // GET /api/silo-planet/planets (내 행성 = 전 등급, 다른 회원 행성 열람 = rank>=1), POST 같은 파일 (내 행성 만들기 = rank>=3).
 export const PLANET_FEATURES: { minRank: number; name: string }[] = [
+  // EPIC-164 Phase 4: Silo Angel은 "자신의 행성"과 "사일로 행성" 두 가지만 열람 — 다른 회원 행성은 Alice부터.
   { minRank: 0, name: "내 행성 보기" },
+  { minRank: 0, name: "사일로 행성 보기" },
   { minRank: 1, name: "다른 회원의 행성 구경·좋아요" },
   { minRank: 3, name: "나만의 행성 만들기" },
 ];

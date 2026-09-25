@@ -5,6 +5,7 @@ import {
   getTier,
   canReadBoard,
   canWriteToBoard,
+  checkPostQuota,
   RANK_LABELS,
 } from "@/lib/serverAuth";
 import { resolveBoardDefinition, isSortOption, type SortOption } from "@/lib/boardLayout";
@@ -433,6 +434,11 @@ export async function POST(
 
   if (!permission.ok) {
     return NextResponse.json({ error: permission.error }, { status: 403 });
+  }
+
+  const quota = await checkPostQuota(requester.scopedClient, requester.member.id, requester.member.membership_rank, requester.member.is_admin);
+  if (!quota.ok) {
+    return NextResponse.json({ error: quota.error, code: "POST_QUOTA_EXCEEDED" }, { status: 403 });
   }
 
   let validatedOrderId: string | null = null;

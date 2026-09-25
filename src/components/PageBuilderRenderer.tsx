@@ -12,6 +12,7 @@ import { WidgetPreviewContext } from "@/lib/widgetPreviewContext";
 import { MembershipDepths } from "@/components/membership/MembershipDepths";
 import { MembershipExperienceTable } from "@/components/membership/MembershipExperienceTable";
 import { DEFAULT_DEPTHS, DEFAULT_EXPERIENCE_ROWS, type DepthScene, type ExperienceRow } from "@/lib/membershipContentDefaults";
+import { BenefitDoors, DEFAULT_BENEFIT_DOORS, type BenefitDoor } from "@/components/membership/BenefitDoors";
 import { MembershipMatrix } from "@/components/membership/MembershipMatrix";
 import { MembershipCarousel, MEMBERSHIP_CAROUSEL_DEFAULTS } from "@/components/membership/MembershipCarousel";
 import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
@@ -392,6 +393,16 @@ function renderModule(module: PageModuleRow) {
       const scenes = arr<DepthScene>(settings.depths).filter((d) => d && typeof d.text === "string");
       return <MembershipDepths heading={str(settings.heading, "")} scenes={scenes.length > 0 ? scenes : DEFAULT_DEPTHS} sceneHeightVh={num(settings.sceneHeightVh, 130)} />;
     }
+    case "membership_doors": {
+      const doors = arr<Partial<BenefitDoor>>(settings.doors).filter((d) => d && typeof d.title === "string");
+      return (
+        <BenefitDoors
+          heading={str(settings.heading, "")}
+          subtitle={str(settings.subtitle, "")}
+          doors={doors.length > 0 ? doors.map((d) => ({ icon: d.icon ?? "🗝️", title: d.title ?? "", tagline: d.tagline ?? "", headline: d.headline ?? "", lines: d.lines ?? "", accent: /^#[0-9a-fA-F]{6}$/.test(d.accent ?? "") ? (d.accent as string) : "#E4C84B" })) : DEFAULT_BENEFIT_DOORS}
+        />
+      );
+    }
     case "membership_experience": {
       const rows = arr<Partial<ExperienceRow>>(settings.rows).filter((r) => r && typeof r.label === "string");
       return (
@@ -406,7 +417,7 @@ function renderModule(module: PageModuleRow) {
       return (
         <MembershipMatrix
           heading={str(settings.heading, "자리마다 열리는 문, 한눈에")}
-          subtitle={str(settings.subtitle, "✓ 열려 있어요 · ✕ 아직 닫혀 있어요. 방 이름을 눌러 그곳에서 어떤 이야기가 기다리는지 펼쳐보세요.")}
+          subtitle={str(settings.subtitle, "🗝️ 열려 있어요 · 🔒 아직 잠겨 있어요. 방 이름을 눌러 그곳에서 어떤 이야기가 기다리는지 펼쳐보세요.")}
           groupCopy={str(settings.groupCopy, "")}
           showConditions={bool(settings.showConditions, true)}
           expandAll={bool(settings.expandAll, false)}

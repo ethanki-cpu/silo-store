@@ -82,6 +82,8 @@ export type DepthScene = {
   /** 직접 올린 이미지 효과들 */
   customEffects?: CustomEffect[];
   sprites?: DepthSprite[];
+  /** EPIC-164: 등급별 하이엔드 VFX(깊이 순서대로 Angel~Artist). false로 끌 수 있고, 비우면 켜진다. */
+  hyperVfx?: boolean;
 };
 
 export const DEFAULT_DEPTHS: DepthScene[] = [
@@ -94,3 +96,13 @@ export const DEFAULT_DEPTHS: DepthScene[] = [
   { title: "Depth 6 · 예술가의 살롱", text: "무대와 전시로 사일로를 채워 준 모든 예술가들께. 120여 년 전 파리, 자신들만의 작은 공간에서 독립전시회를 열었던 살롱데상의 문이 존경과 응원의 마음으로 활짝 열립니다.", color1: "#3B1A66", color2: "#8E5BD1", accent: "#E0B5FF", effects: ["petals", "fireflies"] },
 ];
 
+
+// EPIC-164 Phase 1: "혜택의 문" — 멤버십 혜택을 핵심 카테고리 4장으로 압축한 카드(위젯 설정에서 관리자가 고친다).
+export type BenefitDoor = { icon: string; title: string; tagline: string; headline: string; lines: string; accent: string };
+
+export const DEFAULT_BENEFIT_DOORS: BenefitDoor[] = [
+  { icon: "🗝️", title: "사일로의 하루", tagline: "광장 · 살롱 · 기록", headline: "오늘도, 문이 열립니다.", lines: "광장에서 기록하고\n살롱에서 사람을 만나고\n나만의 행성에 하루를 남기세요.", accent: "#E4C84B" },
+  { icon: "🍷", title: "온라인 도슨트", tagline: "시간을 건너는 이야기", headline: "물건 하나에, 시대 하나.", lines: "이전 주인의 사연과\n시대의 지식이\n하루 한 번 당신에게 열립니다.", accent: "#2ECC8F" },
+  { icon: "🪐", title: "나만의 아카이브", tagline: "행성 · 컬렉션", headline: "수집은, 나를 남기는 일.", lines: "내 행성을 꾸미고\n마음에 든 이야기를 모아\n한 우주로 완성하세요.", accent: "#9FC1FF" },
+  { icon: "🥂", title: "살롱데상 초대", tagline: "오프라인 모임 · 전시", headline: "이번엔, 직접 만나요.", lines: "파티 우선 예매부터\n상시 자유 출입, 전시 주최까지\n등급마다 더 깊은 문이 열립니다.", accent: "#F28C28" },
+];

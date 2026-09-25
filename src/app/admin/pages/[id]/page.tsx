@@ -542,6 +542,17 @@ function AdminPageEditorPageInner() {
     }
   }
 
+  // HOTFIX-163.9: 인스펙터 "저장"을 따로 누르지 않아도 편집기 안에서 바로 DB에 저장한다(편집 내용이 사라지던 문제).
+  async function handleSaveSettingsNow(moduleId: string, settings: Record<string, unknown>): Promise<string | null> {
+    const { error: updateError } = await supabase.from("page_modules").update({ settings }).eq("id", moduleId);
+    if (updateError) {
+      setError(updateError.message);
+      return updateError.message;
+    }
+    setModules((prev) => prev.map((m) => (m.id === moduleId ? { ...m, settings } : m)));
+    return null;
+  }
+
   async function handleSaveDraft(moduleId: string) {
     const needsBoard = BOARD_LINKED_MODULE_TYPES.includes(
       modules.find((m) => m.id === moduleId)?.module_type as PageModuleType,
@@ -765,6 +776,7 @@ function AdminPageEditorPageInner() {
                           onDevJsonTextChange={setDevJsonText}
                           onApplyDevJson={handleApplyDevJson}
                           onSaveDraft={() => handleSaveDraft(module.id)}
+                          onSaveSettingsNow={(next) => handleSaveSettingsNow(module.id, next)}
                           onCancelDraft={closeEditor}
                           onDuplicate={() => handleDuplicate(module)}
                           onToggleHidden={() => handleToggleHidden(module)}
@@ -862,6 +874,7 @@ function WidgetRow({
   onDevJsonTextChange,
   onApplyDevJson,
   onSaveDraft,
+  onSaveSettingsNow,
   onCancelDraft,
   onDuplicate,
   onToggleHidden,
@@ -887,6 +900,7 @@ function WidgetRow({
   onDevJsonTextChange: (text: string) => void;
   onApplyDevJson: () => void;
   onSaveDraft: () => void;
+  onSaveSettingsNow: (settings: Record<string, unknown>) => Promise<string | null>;
   onCancelDraft: () => void;
   onDuplicate: () => void;
   onToggleHidden: () => void;
@@ -1075,7 +1089,7 @@ function WidgetRow({
                     깊이별 이미지·색·효과 편집 열기 ({depthScenes.length}개 깊이)
                   </button>
                   {depthsEditorOpen && (
-                    <MembershipDepthsEditor depths={depthScenes} onChange={(next) => onDraftSettingsChange({ ...draftSettings, depths: next })} onClose={() => setDepthsEditorOpen(false)} />
+                    <MembershipDepthsEditor depths={depthScenes} onChange={(next) => onDraftSettingsChange({ ...draftSettings, depths: next })} onSave={(next) => onSaveSettingsNow({ ...draftSettings, depths: next })} onClose={() => setDepthsEditorOpen(false)} />
                   )}
                 </div>
               )}

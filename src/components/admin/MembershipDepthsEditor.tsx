@@ -32,10 +32,26 @@ async function uploadFiles(files: FileList | File[]): Promise<{ urls: string[]; 
   return { urls, error };
 }
 
-export function MembershipDepthsEditor({ depths, onChange, onClose }: { depths: DepthScene[]; onChange: (next: DepthScene[]) => void; onClose: () => void }) {
+export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { depths: DepthScene[]; onChange: (next: DepthScene[]) => void; onSave: (next: DepthScene[]) => Promise<string | null>; onClose: () => void }) {
   const [idx, setIdx] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedJson, setSavedJson] = useState(() => JSON.stringify(depths));
+  const dirty = JSON.stringify(depths) !== savedJson;
+  // HOTFIX-163.9: 편집한 제목·문구·이미지가 "인스펙터 저장"을 안 눌러 사라지던 문제 — 여기서 직접 DB에 저장한다.
+  async function save(): Promise<boolean> {
+    setSaving(true);
+    setErr(null);
+    const message = await onSave(depths);
+    setSaving(false);
+    if (message) {
+      setErr(`저장하지 못했어요: ${message}`);
+      return false;
+    }
+    setSavedJson(JSON.stringify(depths));
+    return true;
+  }
   const stageRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const cur = depths[Math.min(idx, depths.length - 1)];
@@ -97,9 +113,22 @@ export function MembershipDepthsEditor({ depths, onChange, onClose }: { depths: 
       <div className="w-full max-w-4xl rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
           <h3 className="text-base font-semibold">심연으로의 스크롤 — 깊이별 편집</h3>
-          <button type="button" onClick={onClose} className="rounded bg-gray-900 px-4 py-1.5 text-sm font-semibold text-white">
-            완료
-          </button>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs ${dirty ? "text-amber-600" : "text-green-600"}`}>{dirty ? "● 저장 안 된 변경이 있어요" : "✓ 저장됨"}</span>
+            <button type="button" onClick={save} disabled={saving || !dirty} className="rounded border border-gray-900 px-4 py-1.5 text-sm font-semibold text-gray-900 disabled:opacity-40">
+              {saving ? "저장 중..." : "저장"}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!dirty || (await save())) onClose();
+              }}
+              disabled={saving}
+              className="rounded bg-gray-900 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              저장하고 닫기
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-1 border-b border-gray-200 px-3 pt-2">
@@ -164,7 +193,7 @@ export function MembershipDepthsEditor({ depths, onChange, onClose }: { depths: 
               ))}
               {!cur.imageUrl && <p className="pointer-events-none absolute inset-x-0 top-2 text-center text-xs text-white/80">배경 이미지를 올리면 여기에 화면 전체를 덮어요</p>}
             </div>
-            {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+            {err && <p className="mt-1 text-sm font-medium text-red-600">{err}</p>}
             {busy && <p className="mt-1 text-xs text-gray-500">업로드 중...</p>}
           </div>
 

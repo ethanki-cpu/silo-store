@@ -31,6 +31,29 @@ export const DEPTH_EFFECT_LABELS: Record<DepthEffect, string> = {
   dust: "🌫 금빛 먼지",
   petals: "🌸 흩날리는 꽃잎",
 };
+// HOTFIX-163.14(사용자 지시 — 화면 전체에 깔리는 효과도 직접 넣고 크기·모션·반짝임·glow를 각각 설정): 효과 한 겹의 세부 설정.
+// 비운 값은 그 효과의 기본값을 쓴다.
+export type EffectMotion = "default" | "fall" | "float" | "rise" | "wander" | "static";
+export const EFFECT_MOTION_LABELS: Record<EffectMotion, string> = {
+  default: "기본",
+  fall: "위→아래로 떨어짐(빙글)",
+  float: "위→아래로 살랑이며 내림",
+  rise: "아래→위로 떠오름",
+  wander: "제자리에서 떠돎",
+  static: "고정(움직이지 않음)",
+};
+export type EffectConfig = {
+  count?: number; // 개수(1~80)
+  size?: number; // 크기 배율(%, 기본 100)
+  speed?: number; // 속도 배율(%, 기본 100 — 클수록 빠름)
+  motion?: EffectMotion;
+  twinkle?: number; // 반짝임 세기(0~100)
+  glow?: number; // 빛번짐 반경(px, 0~30)
+  opacity?: number; // 불투명도(%, 기본 100)
+};
+// 운영자가 직접 올린 이미지로 만드는 효과 겹(여러 장을 섞어서 흩뿌림)
+export type CustomEffect = EffectConfig & { id: string; name?: string; images: string[] };
+
 // 깊이 안에 자유롭게 놓는 이미지(등장인물/장면). x,y = 화면 중심 좌표(%), w = 화면 너비 대비 크기(%).
 export type DepthSprite = { id: string; url: string; x: number; y: number; w: number };
 export type DepthScene = {
@@ -54,6 +77,10 @@ export type DepthScene = {
   effects?: DepthEffect[];
   /** feathers 효과에 쓰는 이미지(깃털 5개 등) — 비우면 기본 깃털 */
   effectImages?: string[];
+  /** 내장 효과별 세부 설정 */
+  effectConfig?: Partial<Record<DepthEffect, EffectConfig>>;
+  /** 직접 올린 이미지 효과들 */
+  customEffects?: CustomEffect[];
   sprites?: DepthSprite[];
 };
 

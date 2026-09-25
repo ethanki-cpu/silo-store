@@ -184,7 +184,7 @@ function Scene({ index, count, progress, scene, near }: { index: number; count: 
   return (
     <motion.div className="absolute inset-0 overflow-hidden" style={{ opacity, scale }}>
       <SceneBackdrop scene={scene} index={index} />
-      {near && <DepthEffects effects={scene.effects ?? []} effectImages={(scene.effectImages ?? []).filter(Boolean)} accent={accent} seed={index + 1} />}
+      {near && <DepthEffects effects={scene.effects ?? []} effectImages={(scene.effectImages ?? []).filter(Boolean)} effectConfig={scene.effectConfig} customEffects={scene.customEffects} accent={accent} seed={index + 1} />}
       <motion.div className="relative z-10 flex h-full items-center justify-center pb-4 pt-20" style={{ y: textY }}>
         <ArchText scene={scene} index={index} />
       </motion.div>

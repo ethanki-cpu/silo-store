@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { uploadFileToR2 } from "@/lib/r2Upload";
-import { DEPTH_EFFECT_LABELS, type DepthEffect, type DepthScene, type DepthSprite } from "@/lib/membershipContentDefaults";
+import { CUSTOM_EFFECT_DEFAULTS, EFFECT_DEFAULTS } from "@/components/membership/DepthEffects";
+import { DEPTH_EFFECT_LABELS, EFFECT_MOTION_LABELS, type CustomEffect, type DepthEffect, type DepthScene, type DepthSprite, type EffectConfig, type EffectMotion } from "@/lib/membershipContentDefaults";
 
 // EPIC-163.5(사용자 지시 — 심연으로의 스크롤: 이미지가 화면 전체를 덮고, 깊이마다 색·효과, 이미지를 드래그 앤 드롭으로 배치):
 // 깊이별 편집기. 아래 미리보기 무대에서 ① 빈 곳을 드래그하면 배경 이미지의 초점(어느 부분이 보일지)이 움직이고,
@@ -30,6 +31,40 @@ async function uploadFiles(files: FileList | File[]): Promise<{ urls: string[]; 
     else error = e ?? "업로드에 실패했어요.";
   }
   return { urls, error };
+}
+
+// 효과 한 겹의 세부 설정(개수·크기·속도·모션·반짝임·glow·불투명도) — 비운 값은 기본값을 쓴다.
+function EffectControls({ cfg, onChange, defaults }: { cfg: EffectConfig; onChange: (next: EffectConfig) => void; defaults: { count: number; motion: EffectMotion; twinkle: number; glow: number; opacity: number } }) {
+  const set = (p: Partial<EffectConfig>) => onChange({ ...cfg, ...p });
+  const row = (label: string, key: "count" | "size" | "speed" | "twinkle" | "glow" | "opacity", min: number, max: number, def: number) => (
+    <label className="block text-xs text-gray-600">
+      {label} <b className="text-gray-900">{cfg[key] ?? def}</b>
+      <input type="range" min={min} max={max} value={cfg[key] ?? def} onChange={(e) => set({ [key]: Number(e.target.value) })} className="w-full" />
+    </label>
+  );
+  return (
+    <div className="mt-2 grid gap-x-4 gap-y-2 rounded-md bg-gray-50 p-3 sm:grid-cols-2">
+      {row("개수", "count", 1, 80, defaults.count)}
+      {row("크기(%)", "size", 30, 300, 100)}
+      {row("속도(%) — 클수록 빠름", "speed", 20, 300, 100)}
+      {row("반짝임 세기", "twinkle", 0, 100, defaults.twinkle)}
+      {row("빛번짐(glow) 반경(px)", "glow", 0, 30, defaults.glow)}
+      {row("불투명도(%)", "opacity", 10, 100, defaults.opacity)}
+      <label className="block text-xs text-gray-600 sm:col-span-2">
+        모션
+        <select value={cfg.motion ?? "default"} onChange={(e) => set({ motion: e.target.value as EffectMotion })} className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm">
+          {(Object.keys(EFFECT_MOTION_LABELS) as EffectMotion[]).map((m) => (
+            <option key={m} value={m}>
+              {m === "default" ? `기본(${EFFECT_MOTION_LABELS[defaults.motion]})` : EFFECT_MOTION_LABELS[m]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" onClick={() => onChange({})} className="text-left text-[11px] text-gray-500 underline sm:col-span-2">
+        기본값으로 되돌리기
+      </button>
+    </div>
+  );
 }
 
 export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { depths: DepthScene[]; onChange: (next: DepthScene[]) => void; onSave: (next: DepthScene[]) => Promise<string | null>; onClose: () => void }) {
@@ -300,35 +335,89 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
           </div>
 
           <div className="rounded-md border border-gray-200 p-3">
-            <p className="mb-2 text-sm font-semibold text-gray-800">화면 전체에 깔리는 효과</p>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {EFFECTS.map((ef) => (
-                <label key={ef} className="flex items-center gap-1.5 text-sm text-gray-700">
-                  <input type="checkbox" checked={effects.includes(ef)} onChange={(e) => patch({ effects: e.target.checked ? [...effects, ef] : effects.filter((x) => x !== ef) })} />
-                  {DEPTH_EFFECT_LABELS[ef]}
-                </label>
-              ))}
+            <p className="mb-1 text-sm font-semibold text-gray-800">화면 전체에 깔리는 효과</p>
+            <p className="mb-2 text-xs text-gray-500">켜 둔 효과마다 개수·크기·속도·모션·반짝임·glow를 따로 조절할 수 있어요.</p>
+            <div className="space-y-2">
+              {EFFECTS.map((ef) => {
+                const on = effects.includes(ef);
+                return (
+                  <div key={ef} className="rounded border border-gray-100 p-2">
+                    <label className="flex items-center gap-1.5 text-sm text-gray-800">
+                      <input type="checkbox" checked={on} onChange={(e) => patch({ effects: e.target.checked ? [...effects, ef] : effects.filter((x) => x !== ef) })} />
+                      {DEPTH_EFFECT_LABELS[ef]}
+                    </label>
+                    {on && (
+                      <>
+                        {ef === "feathers" && (
+                          <div className="mt-2">
+                            <p className="mb-1 text-xs text-gray-600">휘날리는 이미지(깃털 5개 정도) — 비우면 기본 깃털이 날려요.</p>
+                            <label className="inline-block cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50">
+                              깃털 이미지 추가
+                              <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { pick(e.target.files, (urls) => patch({ effectImages: [...(cur.effectImages ?? []), ...urls] })); e.target.value = ""; }} />
+                            </label>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {(cur.effectImages ?? []).map((u, i) => (
+                                <div key={`${u}-${i}`} className="relative">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={u} alt="" className="h-14 w-14 rounded border border-gray-200 bg-gray-50 object-contain" />
+                                  <button type="button" onClick={() => patch({ effectImages: (cur.effectImages ?? []).filter((_, j) => j !== i) })} className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-[10px] text-white">
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <EffectControls cfg={cur.effectConfig?.[ef] ?? {}} defaults={EFFECT_DEFAULTS[ef]} onChange={(next) => patch({ effectConfig: { ...(cur.effectConfig ?? {}), [ef]: next } })} />
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            {effects.includes("feathers") && (
-              <div className="mt-3">
-                <p className="mb-1 text-xs text-gray-600">휘날리는 이미지(깃털 5개 정도) — 비우면 기본 깃털이 날려요.</p>
-                <label className="inline-block cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50">
-                  깃털 이미지 추가
-                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { pick(e.target.files, (urls) => patch({ effectImages: [...(cur.effectImages ?? []), ...urls] })); e.target.value = ""; }} />
-                </label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(cur.effectImages ?? []).map((u, i) => (
-                    <div key={`${u}-${i}`} className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={u} alt="" className="h-14 w-14 rounded border border-gray-200 bg-gray-50 object-contain" />
-                      <button type="button" onClick={() => patch({ effectImages: (cur.effectImages ?? []).filter((_, j) => j !== i) })} className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-[10px] text-white">
-                        ✕
-                      </button>
+
+            <div className="mt-4 border-t border-gray-100 pt-3">
+              <p className="mb-1 text-sm font-semibold text-gray-800">내 이미지로 만든 효과</p>
+              <p className="mb-2 text-xs text-gray-500">올린 이미지(여러 장)를 화면 전체에 흩뿌려요. 반딧불·눈송이·나비·리본 등 무엇이든 — 투명 배경 PNG가 가장 잘 어울려요.</p>
+              <button
+                type="button"
+                onClick={() => patch({ customEffects: [...(cur.customEffects ?? []), { id: uid(), name: `내 효과 ${(cur.customEffects?.length ?? 0) + 1}`, images: [] }] })}
+                className="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50"
+              >
+                + 효과 추가
+              </button>
+              <div className="mt-3 space-y-3">
+                {(cur.customEffects ?? []).map((ce: CustomEffect) => {
+                  const setCe = (p: Partial<CustomEffect>) => patch({ customEffects: (cur.customEffects ?? []).map((x) => (x.id === ce.id ? { ...x, ...p } : x)) });
+                  return (
+                    <div key={ce.id} className="rounded border border-gray-200 p-3">
+                      <div className="flex items-center gap-2">
+                        <input value={ce.name ?? ""} onChange={(e) => setCe({ name: e.target.value })} placeholder="효과 이름" className={input} />
+                        <button type="button" onClick={() => patch({ customEffects: (cur.customEffects ?? []).filter((x) => x.id !== ce.id) })} className="shrink-0 text-xs text-red-600">
+                          삭제
+                        </button>
+                      </div>
+                      <label className="mt-2 inline-block cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50">
+                        이미지 올리기(여러 장 선택 가능)
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { pick(e.target.files, (urls) => setCe({ images: [...ce.images, ...urls] })); e.target.value = ""; }} />
+                      </label>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {ce.images.map((u, i) => (
+                          <div key={`${u}-${i}`} className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={u} alt="" className="h-14 w-14 rounded border border-gray-200 bg-gray-50 object-contain" />
+                            <button type="button" onClick={() => setCe({ images: ce.images.filter((_, j) => j !== i) })} className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-[10px] text-white">
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <EffectControls cfg={ce} defaults={CUSTOM_EFFECT_DEFAULTS} onChange={(next) => setCe({ ...next })} />
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@ import type { BreadcrumbItem } from "@/components/PageHeader";
 import { HeroModule } from "@/components/modules/HeroModule";
 import { BreadcrumbWidget } from "@/components/modules/BreadcrumbWidget";
 import { BoardModule } from "@/components/modules/BoardModule";
+import { WidgetPreviewContext } from "@/lib/widgetPreviewContext";
 import { MembershipDepths } from "@/components/membership/MembershipDepths";
 import { MembershipExperienceTable } from "@/components/membership/MembershipExperienceTable";
 import { DEFAULT_DEPTHS, DEFAULT_EXPERIENCE_ROWS, type DepthScene, type ExperienceRow } from "@/lib/membershipContentDefaults";
@@ -437,6 +438,7 @@ export function PageBuilderRenderer({
   }
 
   return (
+    <WidgetPreviewContext.Provider value={includeHidden}>
     <div className="space-y-10">
       {visible.map((module) => (
         <div
@@ -461,5 +463,6 @@ export function PageBuilderRenderer({
         </div>
       ))}
     </div>
+    </WidgetPreviewContext.Provider>
   );
 }

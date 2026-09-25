@@ -3,6 +3,7 @@
 import { motion, useMotionValue, useReducedMotion, useTransform, type MotionValue } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import type { DepthScene } from "@/lib/membershipContentDefaults";
+import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { DepthArt } from "@/components/membership/DepthArt";
 import { TIER_PALETTE, type TierPaletteKey } from "@/lib/tierPalette";
 
@@ -68,6 +69,7 @@ function Scene({ index, count, progress, scene }: { index: number; count: number
 
 export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: string; scenes: DepthScene[]; sceneHeightVh: number }) {
   const reduce = useReducedMotion();
+  const preview = useWidgetPreview();
   const ref = useRef<HTMLDivElement>(null);
   const scrollYProgress = useMotionValue(0);
   const [mode, setMode] = useState<"before" | "pinned" | "after">("before");
@@ -95,7 +97,8 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
 
   if (scenes.length === 0) return null;
 
-  if (reduce) {
+  // 관리자 미리보기에서는 화면 전체를 고정(fixed)으로 덮는 연출 대신 정적 카드로 보여준다.
+  if (reduce || preview) {
     return (
       <section className="mb-12 space-y-3">
         {heading && <h2 className="text-center text-xl font-semibold text-gray-900">{heading}</h2>}

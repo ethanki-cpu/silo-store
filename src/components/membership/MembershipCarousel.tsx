@@ -8,6 +8,7 @@ import { uploadFileToR2 } from "@/lib/r2Upload";
 import { useMembershipBilling } from "@/lib/useMembershipBilling";
 import type { BenefitGroup, TierCategoryAccess } from "@/lib/tierCategoryAccess";
 import { AnimatePresence, motion } from "framer-motion";
+import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { TierBackdrop } from "@/components/membership/TierBackdrop";
 import { MagneticButton } from "@/components/membership/MagneticButton";
 import { setActiveMembershipRank } from "@/lib/membershipActiveStore";
@@ -722,6 +723,7 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
   const opts = { ...MEMBERSHIP_CAROUSEL_DEFAULTS, ...options };
   const { member } = useAuth();
   const billing = useMembershipBilling();
+  const preview = useWidgetPreview();
   const [tiers, setTiers] = useState<TierContent[] | null>(null);
   const [plans, setPlans] = useState<Record<number, Plan>>({});
   const [conditionRows, setConditionRows] = useState<ConditionRow[]>([]);
@@ -801,7 +803,7 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
 
   return (
     <section
-      className="mb-10"
+      className={`mb-10 ${preview ? "relative isolate p-4" : ""}`}
       aria-roledescription="carousel"
       aria-label="멤버십 등급 선택"
       tabIndex={0}

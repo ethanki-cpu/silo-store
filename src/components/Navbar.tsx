@@ -648,6 +648,47 @@ export function Navbar({
   // 실제 hover 상태를 추적한다.
   const [topSidebarTriggerHovered, setTopSidebarTriggerHovered] = useState(false);
 
+  // HOTFIX-163.3(사용자 신고 — "모바일 설정에서 등급/멤버십 아이콘이 안 보여"): 모바일 캔버스(390px)에서는 위치를 한 번도 옮기지 않은
+  // 계정 영역 요소(등급 아이콘·마이페이지·이름·로그아웃 등)가 자연스러운 flex 위치상 캔버스 오른쪽 밖으로 밀려나 잡을 수도 없었다.
+  // 편집 화면에서만, 캔버스 밖에 있는 헤더 요소를 찾아 "안으로 가져오기" 한 번으로 캔버스 안쪽에 놓아준다(이후 자유롭게 드래그).
+  const [offCanvasKeys, setOffCanvasKeys] = useState<string[]>([]);
+  useEffect(() => {
+    if (!editable) return;
+    const check = () => {
+      const canvas = document.querySelector("[data-admin-canvas]");
+      if (!canvas) return;
+      const cr = canvas.getBoundingClientRect();
+      const keys = Array.from(document.querySelectorAll("[data-header-slot]"))
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && (r.left > cr.right - 2 || r.right < cr.left + 2);
+        })
+        .map((el) => el.getAttribute("data-header-slot") as string);
+      setOffCanvasKeys((prev) => (prev.join("|") === keys.join("|") ? prev : keys));
+    };
+    check();
+    const id = window.setInterval(check, 700);
+    return () => window.clearInterval(id);
+  }, [editable, deviceKey]);
+
+  function bringOffCanvasSlotsIn() {
+    const canvas = document.querySelector("[data-admin-canvas]");
+    if (!canvas) return;
+    const cr = canvas.getBoundingClientRect();
+    const zoom = headerZoomScale > 0 ? headerZoomScale : 1;
+    offCanvasKeys.forEach((key, i) => {
+      const el = document.querySelector(`[data-header-slot="${key}"]`);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const cur = getSlotOffset(resolvedPositions, key);
+      // 캔버스 왼쪽에서 24px 안쪽 + 요소마다 조금씩 아래로 겹치지 않게 어긋나게 놓는다.
+      const targetLeft = cr.left + 24;
+      const dxPx = cur.dxPx + (targetLeft - r.left) / zoom;
+      const dyPx = cur.dyPx + (i % 4) * 8;
+      handleSlotOffsetChange(key, { dxPx, dyPx, raised: true, refWidthPx: headerReferenceWidth || undefined });
+    });
+  }
+
   function slotOffset(slotKey: string): HeaderSlotOffset {
     return getSlotOffset(resolvedPositions, slotKey);
   }
@@ -1717,6 +1758,16 @@ export function Navbar({
         style={{ zoom: headerReferenceWidth > 0 ? headerZoomScale : "var(--silo-header-zoom, 1)" }}
       >
       <HeaderScaleModeContext.Provider value={headerTargetWidth}>
+      {editable && offCanvasKeys.length > 0 && (
+        <button
+          type="button"
+          onClick={bringOffCanvasSlotsIn}
+          className="absolute bottom-1 right-1 z-50 rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white shadow"
+          title={offCanvasKeys.join(", ")}
+        >
+          화면 밖 요소 {offCanvasKeys.length}개 — 안으로 가져오기
+        </button>
+      )}
       {/* EPIC-043: "적용" 켜진 커스텀 폰트마다 각각 @font-face를 동적 주입 —
           로고 좌/우 텍스트가 즉시 이 서체들을(폴백 체인으로) 쓸 수 있게 한다. */}
       {activeCustomFonts.length > 0 && (

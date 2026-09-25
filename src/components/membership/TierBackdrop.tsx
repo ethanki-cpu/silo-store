@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { TIER_PALETTE, TIER_PALETTE_ORDER, paletteKeyForRank } from "@/lib/tierPalette";
 
 // EPIC-163.1: 활성 등급이 바뀔 때마다 페이지 전체 배경이 해당 등급의 3색(Base→Highlight→Depth) 그라데이션으로 부드럽게 크로스페이드.
@@ -10,8 +11,9 @@ const GRAIN =
 
 export function TierBackdrop({ rank }: { rank: number }) {
   const activeKey = paletteKeyForRank(rank);
+  const preview = useWidgetPreview();
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div aria-hidden className={`pointer-events-none inset-0 -z-10 overflow-hidden ${preview ? "absolute rounded-xl" : "fixed"}`}>
       {TIER_PALETTE_ORDER.filter((k) => k !== "guest").map((key) => {
         const c = TIER_PALETTE[key];
         return (

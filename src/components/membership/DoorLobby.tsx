@@ -32,9 +32,9 @@ function DoorFace({ door, big, admin }: { door: LobbyDoor; big?: boolean; admin?
   if (door.imageUrl) {
     return (
       <>
+        {/* HOTFIX-165.5(사용자 지시 — "PNG로 올렸으니 셰이딩 필요 없고, 잘리지 않고 같은 규격으로"): 배경·그라데이션·그림자 없이 원본 그대로(contain, 잘리지 않음), 모든 문이 같은 3:5 상자 안에서 바닥(아래) 기준으로 서 있다. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={door.imageUrl} alt={door.title} draggable={false} className="absolute inset-0 h-full w-full object-cover" />
-        <span className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,.05) 40%, rgba(0,0,0,.78) 100%)" }} />
+        <img src={door.imageUrl} alt={door.title} draggable={false} className="absolute inset-0 h-full w-full object-contain object-bottom" />
       </>
     );
   }
@@ -82,7 +82,7 @@ function LobbyOverlay({ door, from, onClose }: { door: LobbyDoor; from: DOMRect;
         transition={{ duration: reduce ? 0 : 0.95, ease: EASE }}
       >
         {/* 문 뒤편의 방 — 설명 캐러셀 */}
-        <div className="absolute inset-0 flex flex-col overflow-hidden px-6 pb-5 pt-9 text-center text-white" style={{ borderRadius: "10px", background: `radial-gradient(ellipse at 10% 50%, ${a}dd 0%, ${a}55 30%, #14101c 74%)`, boxShadow: `0 0 120px ${a}66, inset 0 0 60px ${a}33` }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: reduce ? 0.1 : 1.0 }} className="absolute inset-0 flex flex-col overflow-hidden px-6 pb-5 pt-9 text-center text-white" style={{ borderRadius: "10px", background: `radial-gradient(ellipse at 10% 50%, ${a}dd 0%, ${a}55 30%, #14101c 74%)`, boxShadow: `0 0 120px ${a}66, inset 0 0 60px ${a}33` }}>
           <div className="flex flex-1 items-center justify-center">
             {opened && (
               <AnimatePresence mode="wait">
@@ -121,12 +121,12 @@ function LobbyOverlay({ door, from, onClose }: { door: LobbyDoor; from: DOMRect;
               )}
             </motion.div>
           )}
-        </div>
+        </motion.div>
 
-        {/* 문짝: 왼쪽 경첩을 축으로 열린다 */}
+        {/* 문짝: 왼쪽 경첩을 축으로 열린다(올린 PNG 그대로 — 배경·그림자 없음) */}
         <motion.div
-          className="absolute inset-0 overflow-hidden"
-          style={{ borderRadius: "10px", transformOrigin: "left center", backfaceVisibility: "hidden", boxShadow: "0 12px 40px rgba(0,0,0,.5)" }}
+          className="absolute inset-0"
+          style={{ transformOrigin: "left center", backfaceVisibility: "hidden" }}
           initial={{ rotateY: 0 }}
           animate={reduce ? { opacity: 0 } : { rotateY: -112 }}
           transition={{ duration: reduce ? 0.4 : 1.25, ease: EASE, delay: reduce ? 0.1 : 0.85 }}
@@ -262,24 +262,24 @@ export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, setti
           <div key={`${d.title}-${i}`} className="relative shrink-0 snap-center">
           <motion.button
             type="button"
-            onClick={(e) => setActive({ door: d, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })}
+            onClick={(e) => setActive({ door: d, rect: ((e.currentTarget as HTMLElement).querySelector("[data-door-box]") as HTMLElement).getBoundingClientRect() })}
             aria-label={`${d.title} 문 열기`}
-            className="group relative aspect-[3/5] w-[42vw] max-w-[190px] shrink-0 snap-center overflow-hidden rounded-lg text-white outline-none focus-visible:ring-2 focus-visible:ring-amber-400 sm:w-[150px]"
-            style={{ boxShadow: `0 10px 28px rgba(0,0,0,.35), 0 0 0 1px ${d.accent}55` }}
-            whileHover={{ y: -6, boxShadow: `0 16px 38px rgba(0,0,0,.45), 0 0 34px ${d.accent}66` }}
+            className="group relative flex w-[42vw] max-w-[190px] shrink-0 snap-center flex-col outline-none focus-visible:ring-2 focus-visible:ring-amber-400 sm:w-[150px]"
+            whileHover={{ y: -6 }}
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-40px" }}
             transition={{ duration: 0.6, delay: i * 0.06, ease: EASE }}
           >
-            <DoorFace door={d} admin={isAdmin} />
-            <span className="absolute inset-x-0 bottom-0 px-2 pb-3 pt-8 text-center" style={{ background: d.imageUrl ? undefined : "linear-gradient(180deg, transparent, rgba(0,0,0,.7))" }}>
-              <span className="block break-keep text-sm font-semibold drop-shadow" style={{ fontFamily: SERIF }}>
+            <span data-door-box className={`relative block aspect-[3/5] w-full overflow-hidden ${d.imageUrl ? "" : "rounded-lg"}`} style={d.imageUrl ? undefined : { boxShadow: `0 0 0 1px ${d.accent}55` }}>
+              <DoorFace door={d} admin={isAdmin} />
+            </span>
+            <span className="mt-2 block px-1 text-center">
+              <span className="block break-keep text-sm font-semibold text-gray-900" style={{ fontFamily: SERIF }}>
                 {d.title}
               </span>
-              <span className="mt-0.5 block break-keep text-[10px] leading-tight text-white/75">{d.tagline}</span>
+              <span className="mt-0.5 block break-keep text-[11px] leading-tight text-gray-500">{d.tagline}</span>
             </span>
-            <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white/80 opacity-0 transition-opacity group-hover:opacity-100">열기</span>
           </motion.button>
           {isAdmin && (
             <label className="absolute left-1.5 top-1.5 z-10 cursor-pointer rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:bg-black/85">

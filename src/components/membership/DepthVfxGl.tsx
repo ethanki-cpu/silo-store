@@ -7,11 +7,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 // EPIC-164 / HOTFIX-164.4: WebGL VFX 3종 — 전부 코드/canvas로 그려서 추가 다운로드가 없다.
-//  · Alice: 앞면=이상한 나라 캐릭터(토끼·모자장수·체셔고양이·여왕·병정·애벌레), 뒷면=금장 격자 카드 뒷면인 트럼프 카드 낙하
 //  · Gatsby: 샴페인 기포(림+하이라이트 스프라이트, 줄기로 상승) + 금빛 안개 + 담배 연기 리본 + 폭죽(중심을 공유하는 실제 폭발)
 //  · Artist: 물방울이 퐁당 떨어진 뒤 퍼지는 파동(배경 이미지 위에 겹치는 투명 오버레이 — R2 이미지에 CORS가 없어 텍스처로 읽지 않는다)
-type Kind = "alice" | "gatsby" | "artist";
-type Props = { kind: Kind; accent: string; color1: string; color2: string; imageUrl?: string; imagePos?: string };
+type Kind = "gatsby" | "artist";
+type Props = { off?: string[]; kind: Kind; accent: string; color1: string; color2: string; imageUrl?: string; imagePos?: string };
 
 const rng = (seed: number) => {
   let a = seed >>> 0;
@@ -25,186 +24,6 @@ const rng = (seed: number) => {
 };
 
 const PLANE_VERT = `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
-
-// ─────────────────────────── Alice ───────────────────────────
-const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-const CHARACTERS = [
-  { e: "🐇", n: "WHITE RABBIT", s: "♦" },
-  { e: "🎩", n: "MAD HATTER", s: "♠" },
-  { e: "😸", n: "CHESHIRE CAT", s: "♣" },
-  { e: "👑", n: "QUEEN OF HEARTS", s: "♥" },
-  { e: "💂", n: "CARD SOLDIER", s: "♠" },
-  { e: "🐛", n: "CATERPILLAR", s: "♣" },
-];
-
-function cardFace(ch: (typeof CHARACTERS)[number]): THREE.CanvasTexture {
-  const W = 256;
-  const H = 360;
-  const c = document.createElement("canvas");
-  c.width = W;
-  c.height = H;
-  const g = c.getContext("2d")!;
-  const red = ch.s === "♥" || ch.s === "♦";
-  const ink = red ? "#b3121f" : "#1d1b2e";
-  const paper = g.createLinearGradient(0, 0, W, H);
-  paper.addColorStop(0, "#fffaf0");
-  paper.addColorStop(1, "#f1e6cc");
-  g.fillStyle = paper;
-  g.beginPath();
-  g.roundRect(3, 3, W - 6, H - 6, 18);
-  g.fill();
-  g.strokeStyle = "#b8963e";
-  g.lineWidth = 4;
-  g.stroke();
-  g.strokeStyle = "#d9bd6a";
-  g.lineWidth = 1.5;
-  g.beginPath();
-  g.roundRect(14, 14, W - 28, H - 28, 12);
-  g.stroke();
-  // 안쪽 그림 자리(살짝 어두운 바탕)
-  const bg = g.createRadialGradient(W / 2, H / 2 - 10, 10, W / 2, H / 2 - 10, 130);
-  bg.addColorStop(0, red ? "#fde8e4" : "#e9e6f4");
-  bg.addColorStop(1, "#f6ecd6");
-  g.fillStyle = bg;
-  g.beginPath();
-  g.roundRect(30, 52, W - 60, H - 118, 10);
-  g.fill();
-  g.strokeStyle = "#d9bd6a";
-  g.stroke();
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.font = `112px ${EMOJI_FONT}`;
-  g.fillText(ch.e, W / 2, H / 2 - 8);
-  g.fillStyle = ink;
-  g.font = "bold 30px Georgia, serif";
-  g.textAlign = "left";
-  g.textBaseline = "alphabetic";
-  g.fillText(ch.s, 24, 46);
-  g.save();
-  g.translate(W - 24, H - 22);
-  g.rotate(Math.PI);
-  g.fillText(ch.s, 0, 0);
-  g.restore();
-  g.textAlign = "center";
-  g.font = "bold 13px Georgia, serif";
-  g.fillText(ch.n, W / 2, H - 34);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  return t;
-}
-
-function cardBack(): THREE.CanvasTexture {
-  const W = 256;
-  const H = 360;
-  const c = document.createElement("canvas");
-  c.width = W;
-  c.height = H;
-  const g = c.getContext("2d")!;
-  const bg = g.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, "#8f1226");
-  bg.addColorStop(1, "#4a0713");
-  g.fillStyle = bg;
-  g.beginPath();
-  g.roundRect(3, 3, W - 6, H - 6, 18);
-  g.fill();
-  g.strokeStyle = "#e0bf62";
-  g.lineWidth = 4;
-  g.stroke();
-  // 금장 다이아몬드 격자
-  g.save();
-  g.beginPath();
-  g.roundRect(18, 18, W - 36, H - 36, 10);
-  g.clip();
-  g.strokeStyle = "rgba(224,191,98,.55)";
-  g.lineWidth = 1.4;
-  for (let i = -H; i < W + H; i += 26) {
-    g.beginPath();
-    g.moveTo(i, 0);
-    g.lineTo(i + H, H);
-    g.stroke();
-    g.beginPath();
-    g.moveTo(i, H);
-    g.lineTo(i + H, 0);
-    g.stroke();
-  }
-  g.restore();
-  g.strokeStyle = "#e0bf62";
-  g.lineWidth = 2;
-  g.beginPath();
-  g.roundRect(18, 18, W - 36, H - 36, 10);
-  g.stroke();
-  // 가운데 메달리온
-  g.fillStyle = "#5a0a17";
-  g.strokeStyle = "#f2d67f";
-  g.lineWidth = 3;
-  g.beginPath();
-  g.arc(W / 2, H / 2, 54, 0, Math.PI * 2);
-  g.fill();
-  g.stroke();
-  g.beginPath();
-  g.arc(W / 2, H / 2, 44, 0, Math.PI * 2);
-  g.lineWidth = 1.5;
-  g.stroke();
-  g.fillStyle = "#f2d67f";
-  g.font = "bold 58px Georgia, serif";
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.fillText("♥", W / 2, H / 2 + 2);
-  g.font = "bold 11px Georgia, serif";
-  g.fillText("· SILO ·", W / 2, H / 2 + 72);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  return t;
-}
-
-function Cards() {
-  const { viewport } = useThree();
-  const faces = useMemo(() => CHARACTERS.map(cardFace), []);
-  const back = useMemo(() => cardBack(), []);
-  useEffect(
-    () => () => {
-      faces.forEach((t) => t.dispose());
-      back.dispose();
-    },
-    [faces, back],
-  );
-  const refs = useRef<(THREE.Group | null)[]>([]);
-  const cards = useMemo(() => {
-    const r = rng(7);
-    return Array.from({ length: 12 }, (_, i) => ({ x: r() * 2 - 1, z: -1 + r() * 2.4, speed: 0.6 + r() * 0.6, phase: r() * 10, spin: 0.5 + r() * 1.1, scale: 0.7 + r() * 0.5, face: i % faces.length }));
-  }, [faces.length]);
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    const H = viewport.height;
-    cards.forEach((c, i) => {
-      const m = refs.current[i];
-      if (!m) return;
-      const p = (t * c.speed * 0.07 + c.phase) % 1;
-      m.position.set(c.x * viewport.width * 0.52 + Math.sin(t * 0.6 + c.phase) * 0.4, H * 0.62 - p * H * 1.3, c.z);
-      // 천천히 뒤집히며(앞→뒤→앞) 떨어진다
-      m.rotation.set(Math.sin(t * 0.5 + c.phase) * 0.5, t * c.spin * 0.8 + c.phase, Math.sin(t * 0.7 + c.phase) * 0.45);
-    });
-  });
-  return (
-    <>
-      {cards.map((c, i) => (
-        <group key={i} ref={(el) => { refs.current[i] = el; }} scale={c.scale}>
-          <mesh position={[0, 0, 0.002]}>
-            <planeGeometry args={[0.72, 1.01]} />
-            <meshBasicMaterial map={faces[c.face]} toneMapped={false} />
-          </mesh>
-          <mesh position={[0, 0, -0.002]} rotation={[0, Math.PI, 0]}>
-            <planeGeometry args={[0.72, 1.01]} />
-            <meshBasicMaterial map={back} toneMapped={false} />
-          </mesh>
-        </group>
-      ))}
-    </>
-  );
-}
 
 // ─────────────────────────── Gatsby ───────────────────────────
 // 샴페인 기포 스프라이트: 속이 거의 비치는 유리구슬 — 밝은 림 + 좌상단 하이라이트 + 우하단 굴절광
@@ -363,16 +182,16 @@ function Smoke({ mode, color, alpha, origin, width, z }: { mode: 0 | 1; color: s
   );
 }
 
-function Champagne({ accent }: { accent: string }) {
+function Champagne({ accent, off }: { accent: string; off: string[] }) {
   const sprite = useMemo(() => bubbleSprite(), []);
   useEffect(() => () => sprite.dispose(), [sprite]);
   const cigarette = useMemo<[number, number]>(() => [0.16, 0.02], []);
   return (
     <>
-      <Smoke mode={0} color={accent} alpha={0.55} z={-3} />
-      <Smoke mode={1} color="#d9d2c4" alpha={0.7} origin={cigarette} width={0.045} z={-2.5} />
-      <ParticlePoints mode={0} count={260} seed={5} sprite={sprite} />
-      <ParticlePoints mode={1} count={360} seed={9} />
+      {!off.includes("smoke") && <Smoke mode={0} color={accent} alpha={0.55} z={-3} />}
+      {!off.includes("smoke") && <Smoke mode={1} color="#d9d2c4" alpha={0.7} origin={cigarette} width={0.045} z={-2.5} />}
+      {!off.includes("bubbles") && <ParticlePoints mode={0} count={260} seed={5} sprite={sprite} />}
+      {!off.includes("fireworks") && <ParticlePoints mode={1} count={360} seed={9} />}
     </>
   );
 }
@@ -495,8 +314,7 @@ export default function DepthVfxGl(props: Props) {
   return (
     <div className="absolute inset-0" style={{ opacity, transition: "opacity .8s ease", pointerEvents: "none" }}>
       <Canvas dpr={[1, 1.5]} gl={{ alpha: true, antialias: false, powerPreference: "low-power" }} camera={{ position: [0, 0, 5], fov: 50 }} style={{ pointerEvents: "none" }}>
-        {props.kind === "alice" && <Cards />}
-        {props.kind === "gatsby" && <Champagne accent={props.accent} />}
+        {props.kind === "gatsby" && <Champagne accent={props.accent} off={props.off ?? []} />}
         {props.kind === "artist" && <Water accent={props.accent} />}
       </Canvas>
     </div>

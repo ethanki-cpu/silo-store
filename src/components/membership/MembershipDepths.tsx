@@ -9,6 +9,7 @@ import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { DepthArt } from "@/components/membership/DepthArt";
 import { DepthEffects } from "@/components/membership/DepthEffects";
 import { DepthVfx, VFX_BY_INDEX } from "@/components/membership/DepthVfx";
+import { DepthVideoLayer } from "@/components/membership/DepthVideoLayer";
 
 // HOTFIX-164.4: Artist 배경 물결 왜곡 — 물방울/마우스/스크롤이 파동을 일으키면 feDisplacementMap 세기가 튀었다가 감쇠한다(구간이 끝나면 필터 해제).
 function useWaterDistort(ref: React.RefObject<HTMLDivElement | null>, mapRef: React.RefObject<SVGFEDisplacementMapElement | null>, turbRef: React.RefObject<SVGFETurbulenceElement | null>, filterId: string, on: boolean) {
@@ -250,7 +251,7 @@ function Scene({ index, count, progress, scene, near, active }: { index: number;
   const mapRef = useRef<SVGFEDisplacementMapElement>(null);
   const turbRef = useRef<SVGFETurbulenceElement>(null);
   const waterId = `silo-water-${index}`;
-  useWaterDistort(waterRef, mapRef, turbRef, waterId, vfxKind === "artist" && active);
+  useWaterDistort(waterRef, mapRef, turbRef, waterId, vfxKind === "artist" && active && !(scene.vfxOff ?? []).includes("distort"));
   // HOTFIX-164.4: 문 위치는 편집기에서 드래그로 정한 값(기본 화면 가운데) — 미리보기와 같은 좌표계(화면 대비 %).
   const doorX = Math.min(100, Math.max(0, scene.doorX ?? 50));
   const doorY = Math.min(100, Math.max(0, scene.doorY ?? 50));
@@ -279,7 +280,8 @@ function Scene({ index, count, progress, scene, near, active }: { index: number;
       <div ref={waterRef} className="absolute inset-0">
         <SceneBackdrop scene={scene} index={index} />
       </div>
-      {near && vfxKind && <DepthVfx kind={vfxKind} accent={accent} color1={c1} color2={c2} imageUrl={scene.imageUrl} imagePos={scene.imagePos} active={active} />}
+      {near && (scene.videos ?? []).length > 0 && <DepthVideoLayer videos={scene.videos ?? []} />}
+      {near && vfxKind && <DepthVfx kind={vfxKind} accent={accent} color1={c1} color2={c2} imageUrl={scene.imageUrl} imagePos={scene.imagePos} active={active} off={scene.vfxOff ?? []} cardFaces={scene.cardFaces ?? []} />}
       {near && <DepthEffects effects={scene.effects ?? []} effectImages={(scene.effectImages ?? []).filter(Boolean)} effectConfig={scene.effectConfig} customEffects={scene.customEffects} accent={accent} seed={index + 1} />}
       <motion.div className="pointer-events-none absolute inset-0 z-10" style={{ y: textY }}>
         <style>{DOOR_CSS}</style>
@@ -470,7 +472,12 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
             <SceneBackdrop scene={s} index={i} />
             {s.hyperVfx !== false && VFX_BY_INDEX[i] && (() => {
               const th = resolveTheme(s, i);
-              return <DepthVfx kind={VFX_BY_INDEX[i]} accent={th.accent} color1={th.c1} color2={th.c2} imageUrl={s.imageUrl} imagePos={s.imagePos} active />;
+              return (
+                <>
+                  <DepthVideoLayer videos={s.videos ?? []} />
+                  <DepthVfx kind={VFX_BY_INDEX[i]} accent={th.accent} color1={th.c1} color2={th.c2} imageUrl={s.imageUrl} imagePos={s.imagePos} active off={s.vfxOff ?? []} cardFaces={s.cardFaces ?? []} />
+                </>
+              );
             })()}
             <div className="relative z-10">
               <ArchText scene={s} index={i} variant="card" />

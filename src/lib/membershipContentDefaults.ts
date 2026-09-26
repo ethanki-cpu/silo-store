@@ -90,7 +90,15 @@ export type DepthScene = {
   /** HOTFIX-164.4: 문의 중심 위치(화면 대비 %, 기본 50/50 = 가운데). 편집기에서 드래그 앤 드롭으로 정한다. */
   doorX?: number;
   doorY?: number;
+  /** HOTFIX-165.1: 깊이 위에 겹치는 영상(webm/mp4) — 영상마다 불투명도·혼합 방식 */
+  videos?: DepthVideo[];
+  /** HOTFIX-165.1: 끈 내장 효과의 id들(DepthVfx의 VFX_PARTS) — 끄고 영상/이미지 효과로 대체할 때 */
+  vfxOff?: string[];
+  /** HOTFIX-165.1: Alice 카드 앞면(이상한 나라 등장인물) 이미지 — 비우면 이모지 카드 */
+  cardFaces?: string[];
 };
+
+export type DepthVideo = { id: string; url: string; opacity?: number; blend?: "normal" | "screen" | "lighten" | "overlay" | "multiply"; fit?: "cover" | "contain" };
 
 // 글꼴은 웹폰트를 새로 받지 않고(트래픽 0) 기기에 있는 폰트 스택만 쓴다.
 export const DEPTH_FONTS: Record<string, { label: string; stack: string }> = {

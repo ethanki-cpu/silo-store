@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { FallingCards } from "@/components/membership/DepthCards";
 
 // EPIC-164 / HOTFIX-164.4: 등급별 하이엔드 VFX(CSS/SVG 부분). 추가 다운로드 0 — 전부 코드로 그린다.
 // WebGL이 필요한 것(Alice 카드, Gatsby 기포·안개·연기·폭죽, Artist 물방울 파동)은 DepthVfxGl, 커서 궤적 황금 가루는 tsParticles.
@@ -42,7 +43,6 @@ const CSS = `
 @keyframes silo-vfx-cloud{0%{transform:translateX(-6vw)}100%{transform:translateX(8vw)}}
 @keyframes silo-vfx-wander{0%,100%{transform:translate3d(0,0,0)}25%{transform:translate3d(var(--dx),calc(var(--dy) * -1),0)}50%{transform:translate3d(calc(var(--dx) * -.6),calc(var(--dy) * .4),0)}75%{transform:translate3d(calc(var(--dx) * .5),var(--dy),0)}}
 @keyframes silo-vfx-blink{0%,100%{opacity:.15}45%,55%{opacity:1}}
-@keyframes silo-vfx-paint{0%,8%{clip-path:inset(100% 0 0 0);opacity:1}42%,80%{clip-path:inset(0 0 0 0);opacity:1}94%,100%{clip-path:inset(0 0 0 0);opacity:0}}
 @keyframes silo-vfx-sway{0%,100%{transform:rotate(-2.5deg)}50%{transform:rotate(2.5deg)}}
 @keyframes silo-vfx-flap{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.16)}}
 @keyframes silo-vfx-fly{0%{offset-distance:0%;opacity:0}8%{opacity:1}92%{opacity:1}100%{offset-distance:100%;opacity:0}}
@@ -74,7 +74,8 @@ const Motes = ({ color, count, seed }: { color: string; count: number; seed: num
 };
 
 // ── 1. Silo Angel — 성스러운 빛이 위에서 내리쬐고, 구름이 흐른다(깃털은 관리자가 올린 이미지가 DepthEffects로 날린다) ──────────
-function AngelVfx({ accent }: { accent: string }) {
+function AngelVfx({ accent, off }: { accent: string; off: string[] }) {
+  const on = (id: string) => !off.includes(id);
   const clouds = useMemo(() => {
     const r = rng(23);
     return [
@@ -86,6 +87,7 @@ function AngelVfx({ accent }: { accent: string }) {
   }, []);
   return (
     <>
+      {on("rays") && (<>
       <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse 65% 75% at 50% -12%, #fffbe8f0 0%, #fff3c4aa 22%, ${accent}22 52%, transparent 78%)` }} />
       {[10, 26, 44, 62, 80].map((x, i) => (
         <div
@@ -102,99 +104,35 @@ function AngelVfx({ accent }: { accent: string }) {
           }}
         />
       ))}
-      {clouds.map((c, i) => (
+      </>)}
+      {on("clouds") && clouds.map((c, i) => (
         <div key={i} className="absolute rounded-full" style={{ top: `${c.top}%`, left: `${c.left}%`, width: `${c.w}%`, height: `${c.h}%`, background: "radial-gradient(ellipse at 50% 55%, #ffffff 0%, #ffffffcc 30%, #ffffff55 55%, transparent 72%)", filter: "blur(22px)", opacity: c.op, animation: `silo-vfx-cloud ${c.dur}s ease-in-out ${c.delay}s infinite alternate` }} />
       ))}
-      <Motes color="#fff3b0" count={26} seed={12} />
+      {on("motes") && <Motes color="#fff3b0" count={26} seed={12} />}
     </>
   );
 }
 
-// ── 2. Alice — 반딧불이 + 하얀 장미가 빨갛게 칠해진다(카드 낙하는 WebGL) ───────────────────────────
-const PETAL = "M0 0 C -20 -8 -27 -38 0 -46 C 27 -38 20 -8 0 0Z";
-function RoseSvg({ red }: { red: boolean }) {
-  const id = uid(useId());
-  const g = red ? ["#ff7b7b", "#c1121f", "#5a0511"] : ["#ffffff", "#f1ebe0", "#cbc1ae"];
-  const layers: [number[], number][] = [
-    [[0, 72, 144, 216, 288], 1],
-    [[36, 108, 180, 252, 324], 0.72],
-    [[0, 90, 180, 270], 0.48],
-  ];
-  return (
-    <svg viewBox="-50 -50 100 100" width="100%" height="100%" aria-hidden style={{ overflow: "visible" }}>
-      <defs>
-        <radialGradient id={id} cx="50%" cy="62%" r="68%">
-          <stop offset="0" stopColor={g[0]} />
-          <stop offset=".62" stopColor={g[1]} />
-          <stop offset="1" stopColor={g[2]} />
-        </radialGradient>
-      </defs>
-      {layers.map(([angles, s]) => angles.map((a) => <path key={`${s}-${a}`} d={PETAL} transform={`rotate(${a}) scale(${s})`} fill={`url(#${id})`} stroke={g[2]} strokeOpacity=".55" strokeWidth=".9" />))}
-      <circle r="6.5" fill={g[1]} />
-      <path d="M-4 0 a4 4 0 1 1 4 4 a2.4 2.4 0 1 1 -2.4 -2.4" fill="none" stroke={g[2]} strokeWidth="1.2" />
-    </svg>
-  );
-}
-
-function PaintedRose({ size, delay }: { size: number; delay: number }) {
-  return (
-    <div className="relative" style={{ width: size, height: size, filter: "drop-shadow(0 6px 10px rgba(0,0,0,.35))" }}>
-      <div className="absolute inset-0">
-        <RoseSvg red={false} />
-      </div>
-      <div className="absolute inset-0" style={{ animation: `silo-vfx-paint 11s ease-in-out ${delay}s infinite` }}>
-        <RoseSvg red />
-      </div>
-    </div>
-  );
-}
-
-function RoseBush({ side }: { side: "left" | "right" }) {
-  const leaves = useMemo(() => {
-    const r = rng(side === "left" ? 5 : 6);
-    return Array.from({ length: 22 }, () => ({ x: 20 + r() * 260, y: 30 + r() * 120, rot: r() * 360, s: 0.7 + r() * 0.8, tone: r() }));
-  }, [side]);
-  const roses = [
-    { x: 16, y: 34, s: 30, d: 0 },
-    { x: 42, y: 14, s: 36, d: 2.2 },
-    { x: 70, y: 34, s: 30, d: 4.1 },
-    { x: 30, y: 58, s: 26, d: 6 },
-    { x: 58, y: 56, s: 28, d: 1.4 },
-  ];
-  return (
-    <div className="absolute bottom-0" style={{ [side]: "-2%", width: "clamp(230px,34vw,500px)", aspectRatio: "300 / 170", transform: side === "right" ? "scaleX(-1)" : undefined, transformOrigin: "bottom center", animation: "silo-vfx-sway 7s ease-in-out infinite" } as CSSProperties}>
-      <svg viewBox="0 0 300 170" className="absolute inset-0 h-full w-full" aria-hidden>
-        {leaves.map((l, i) => (
-          <path key={i} d="M0 0 C 10 -12 34 -12 46 0 C 34 12 10 12 0 0Z" transform={`translate(${l.x} ${l.y}) rotate(${l.rot}) scale(${l.s})`} fill={l.tone > 0.5 ? "#2f6b34" : "#1d4a26"} stroke="#12331a" strokeWidth=".8" />
-        ))}
-      </svg>
-      {roses.map((r, i) => (
-        <div key={i} className="absolute" style={{ left: `${r.x}%`, top: `${r.y}%`, transform: "translate(-50%,-50%)" }}>
-          <PaintedRose size={Math.round(r.s * 4.6)} delay={r.d} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AliceVfx() {
+// ── 2. Alice — 반딧불이 + 떨어지는 카드(앞면 이상한 나라 등장인물 / 뒷면 트럼프). 하얀→빨강 장미는 삭제했다 ─────────
+function AliceVfx({ off, faces }: { off: string[]; faces: string[] }) {
   const flies = useMemo(() => {
     const r = rng(31);
     return Array.from({ length: 34 }, () => ({ left: r() * 100, top: 8 + r() * 86, s: 3 + r() * 5, dur: 8 + r() * 10, delay: -r() * 14, dx: (r() * 2 - 1) * 90, dy: 30 + r() * 70, blink: 1.8 + r() * 2.8 }));
   }, []);
   return (
     <>
-      <RoseBush side="left" />
-      <RoseBush side="right" />
-      {flies.map((f, i) => (
-        <span key={i} className="absolute rounded-full" style={{ left: `${f.left}%`, top: `${f.top}%`, width: f.s, height: f.s, background: "#f4ffb0", boxShadow: "0 0 10px 4px #d4ff5acc, 0 0 26px 9px #a8ff3a55", ["--dx" as string]: `${f.dx}px`, ["--dy" as string]: `${f.dy}px`, animation: `silo-vfx-wander ${f.dur}s ease-in-out ${f.delay}s infinite, silo-vfx-blink ${f.blink}s ease-in-out ${f.delay}s infinite` } as CSSProperties} />
-      ))}
+      {!off.includes("cards") && <FallingCards faces={faces} />}
+      {!off.includes("fireflies") &&
+        flies.map((f, i) => (
+          <span key={i} className="absolute rounded-full" style={{ left: `${f.left}%`, top: `${f.top}%`, width: f.s, height: f.s, background: "#f4ffb0", boxShadow: "0 0 10px 4px #d4ff5acc, 0 0 26px 9px #a8ff3a55", ["--dx" as string]: `${f.dx}px`, ["--dy" as string]: `${f.dy}px`, animation: `silo-vfx-wander ${f.dur}s ease-in-out ${f.delay}s infinite, silo-vfx-blink ${f.blink}s ease-in-out ${f.delay}s infinite` } as CSSProperties} />
+        ))}
     </>
   );
 }
 
 // ── 3. Gatsby — 화면 전체가 샴페인 잔: 황금빛 액체 톤 + 빛기둥(기포·안개·연기·폭죽은 WebGL) ──────────────
-function GatsbyVfx({ accent }: { accent: string }) {
+function GatsbyVfx({ accent, off }: { accent: string; off: string[] }) {
+  if (off.includes("tint")) return null;
   return (
     <>
       <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(255,170,50,.42) 0%, rgba(255,205,110,.18) 46%, rgba(255,236,170,.06) 100%)", mixBlendMode: "screen" }} />
@@ -276,7 +214,8 @@ function Flower({ color, center, size, delay, petals }: { color: string; center:
   );
 }
 
-function PatronVfx({ accent }: { accent: string }) {
+function PatronVfx({ accent, off }: { accent: string; off: string[] }) {
+  const on = (id: string) => !off.includes(id);
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   useEffect(() => {
@@ -297,13 +236,13 @@ function PatronVfx({ accent }: { accent: string }) {
   }, []);
   return (
     <div ref={boxRef} className="absolute inset-0">
-      {flowers.map((f, i) => (
+      {on("flowers") && flowers.map((f, i) => (
         <div key={i} className="absolute flex flex-col items-center" style={{ left: `${f.left}%`, bottom: `${f.bottom}%`, transform: "translateX(-50%)" }}>
           <Flower color={f.color} center={f.center} size={f.size} delay={f.delay} petals={f.petals} />
           <span aria-hidden style={{ width: 3, height: `${6 + (i % 4) * 2}vh`, background: "linear-gradient(180deg,#6da95a,#274e24)", borderRadius: 2, marginTop: -4 }} />
         </div>
       ))}
-      {size.w > 0 &&
+      {on("butterflies") && size.w > 0 &&
         BUTTERFLY_PATHS.flatMap((pts, i) =>
           [0, 1].map((k) => {
             const [c1, c2] = palette[(i + k * 2) % palette.length];
@@ -320,8 +259,8 @@ function PatronVfx({ accent }: { accent: string }) {
             );
           })
         )}
-      <Motes color={accent} count={30} seed={41} />
-      <TsLayer kind="patron" accent={accent} />
+      {on("motes") && <Motes color={accent} count={30} seed={41} />}
+      {on("trail") && <TsLayer kind="patron" accent={accent} />}
     </div>
   );
 }
@@ -352,7 +291,8 @@ function Candle({ x, h, delay, tone }: { x: number; h: number; delay: number; to
 }
 
 const CASTLE_WINDOWS: [number, number][] = [[55, 150], [150, 110], [90, 176], [300, 125], [190, 176], [470, 120], [400, 178], [540, 178], [640, 140], [720, 172], [800, 105], [880, 176], [975, 142], [640, 165]];
-function LautrecVfx({ accent }: { accent: string }) {
+function LautrecVfx({ accent, off }: { accent: string; off: string[] }) {
+  const on = (id: string) => !off.includes(id);
   const candles = useMemo(() => {
     const r = rng(61);
     return [7, 19, 31, 44, 58, 71, 83, 94].map((x, i) => ({ x, h: 34 + Math.round(r() * 46), delay: 0.4 + i * 0.8 + r() * 0.5, tone: r() }));
@@ -366,26 +306,30 @@ function LautrecVfx({ accent }: { accent: string }) {
   }, [candles]);
   return (
     <>
+      {on("shadow") && (
       <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 50% 70%, transparent 25%, rgba(18,6,4,.72) 100%)", animation: "silo-vfx-shadow 3.2s ease-in-out infinite" }} />
+      )}
+      {on("castle") && (
       <svg viewBox="0 0 1000 220" preserveAspectRatio="none" className="absolute bottom-0 left-0 h-[22vh] w-full" aria-hidden>
         <path d="M0 220 V170 H40 V150 L55 130 L70 150 V170 H120 V120 H135 V100 L150 80 L165 100 V120 H180 V170 H260 V140 H280 V120 L300 95 L320 120 V140 H340 V175 H430 V130 H450 V110 L470 88 L490 110 V130 H510 V175 H600 V150 H620 V130 L640 105 L660 130 V150 H680 V170 H760 V125 H780 V95 L800 70 L820 95 V125 H840 V170 H930 V150 H960 V135 L975 118 L990 135 V150 H1000 V220Z" fill="#0a0610" fillOpacity=".9" />
         {CASTLE_WINDOWS.map(([x, y], i) => (
           <rect key={i} x={x - 4} y={y - 7} width="8" height="14" rx="3" fill="#ffc45a" style={{ filter: "drop-shadow(0 0 6px #ff9a2e)", opacity: 0, animation: `silo-vfx-window ${9 + (i % 4)}s ease-in-out ${1 + i * 0.7}s infinite` }} />
         ))}
       </svg>
-      {candles.map((c, i) => (
+      )}
+      {on("candles") && candles.map((c, i) => (
         <Candle key={i} x={c.x} h={c.h} delay={c.delay} tone={c.tone} />
       ))}
-      {sparks.map((p, i) => (
+      {on("sparks") && sparks.map((p, i) => (
         <span key={i} className="absolute bottom-[8%] rounded-full" style={{ left: `${p.left}%`, width: p.s, height: p.s, background: "#ffc27a", boxShadow: "0 0 8px #ff9a3c", ["--dx" as string]: `${p.dx}px`, animation: `silo-vfx-spark ${p.dur}s ease-out ${p.delay}s infinite` } as CSSProperties} />
       ))}
-      <Motes color={accent} count={40} seed={19} />
+      {on("motes") && <Motes color={accent} count={40} seed={19} />}
     </>
   );
 }
 
 // ── 6. Artist — 수많은 꽃잎이 강하게 무작위로 휘날린다(물방울 파동은 WebGL + 배경 왜곡) ─────────────────
-function ArtistVfx() {
+function ArtistVfx({ off }: { off: string[] }) {
   const id = uid(useId());
   const petals = useMemo(() => {
     const r = rng(83);
@@ -403,6 +347,7 @@ function ArtistVfx() {
       return { xs, ys, s: 14 + r() * 26, dur: 7 + r() * 9, delay: -r() * 14, tone: i % 3 };
     });
   }, []);
+  if (off.includes("petals")) return null;
   const fills = [`url(#${id}a)`, `url(#${id}b)`, `url(#${id}c)`];
   return (
     <>
@@ -441,6 +386,16 @@ function ArtistVfx() {
 export type VfxKind = "angel" | "alice" | "gatsby" | "patron" | "lautrec" | "artist";
 export const VFX_BY_INDEX: VfxKind[] = ["angel", "alice", "gatsby", "patron", "lautrec", "artist"];
 
+// HOTFIX-165.1: 내장 효과를 조각(part) 단위로 끌 수 있다 — 끄고 그 자리에 영상(webm)이나 이미지 효과를 올려 대체한다(편집기 "영상·효과 교체").
+export const VFX_PARTS: Record<VfxKind, { id: string; label: string }[]> = {
+  angel: [{ id: "rays", label: "빛기둥" }, { id: "clouds", label: "구름" }, { id: "motes", label: "금빛 먼지" }],
+  alice: [{ id: "cards", label: "떨어지는 카드" }, { id: "fireflies", label: "반딧불" }],
+  gatsby: [{ id: "tint", label: "샴페인 톤·빛기둥" }, { id: "bubbles", label: "기포" }, { id: "smoke", label: "안개·담배 연기" }, { id: "fireworks", label: "폭죽" }],
+  patron: [{ id: "butterflies", label: "나비" }, { id: "flowers", label: "피어나는 꽃" }, { id: "motes", label: "금빛 먼지" }, { id: "trail", label: "커서 황금 가루" }],
+  lautrec: [{ id: "shadow", label: "일렁이는 그림자" }, { id: "castle", label: "성 창문 점등" }, { id: "candles", label: "촛불" }, { id: "sparks", label: "불티" }, { id: "motes", label: "먼지" }],
+  artist: [{ id: "petals", label: "휘날리는 꽃잎" }, { id: "ripple", label: "물방울 파동" }, { id: "distort", label: "배경 물결 왜곡" }],
+};
+
 // active = 지금 이 깊이가 화면의 주인공인가(WebGL은 이때만 켠다). CSS 효과는 인접 깊이까지 미리 그려도 가볍다.
 export function DepthVfx({
   kind,
@@ -450,7 +405,11 @@ export function DepthVfx({
   imageUrl,
   imagePos,
   active,
+  off = [],
+  cardFaces = [],
 }: {
+  off?: string[];
+  cardFaces?: string[];
   kind: VfxKind;
   accent: string;
   color1: string;
@@ -460,17 +419,18 @@ export function DepthVfx({
   active: boolean;
 }) {
   const [ref, inView] = useInView<HTMLDivElement>();
-  const gl = kind === "alice" || kind === "gatsby" || kind === "artist";
+  const glParts = kind === "gatsby" ? ["bubbles", "smoke", "fireworks"] : kind === "artist" ? ["ripple"] : [];
+  const gl = glParts.some((p) => !off.includes(p));
   return (
     <div ref={ref} aria-hidden className="silo-vfx pointer-events-none absolute inset-0 overflow-hidden">
       <style>{CSS}</style>
-      {inView && kind === "angel" && <AngelVfx accent={accent} />}
-      {inView && kind === "alice" && <AliceVfx />}
-      {inView && kind === "gatsby" && <GatsbyVfx accent={accent} />}
-      {inView && kind === "patron" && <PatronVfx accent={accent} />}
-      {inView && kind === "lautrec" && <LautrecVfx accent={accent} />}
-      {inView && kind === "artist" && <ArtistVfx />}
-      {gl && inView && active && <GlVfx kind={kind} accent={accent} color1={color1} color2={color2} imageUrl={imageUrl} imagePos={imagePos} />}
+      {inView && kind === "angel" && <AngelVfx accent={accent} off={off} />}
+      {inView && kind === "alice" && <AliceVfx off={off} faces={cardFaces} />}
+      {inView && kind === "gatsby" && <GatsbyVfx accent={accent} off={off} />}
+      {inView && kind === "patron" && <PatronVfx accent={accent} off={off} />}
+      {inView && kind === "lautrec" && <LautrecVfx accent={accent} off={off} />}
+      {inView && kind === "artist" && <ArtistVfx off={off} />}
+      {gl && inView && active && (kind === "gatsby" || kind === "artist") && <GlVfx kind={kind} accent={accent} color1={color1} color2={color2} imageUrl={imageUrl} imagePos={imagePos} off={off} />}
     </div>
   );
 }

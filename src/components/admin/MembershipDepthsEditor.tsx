@@ -5,7 +5,9 @@ import { createPortal } from "react-dom";
 import { uploadFileToR2 } from "@/lib/r2Upload";
 import { CUSTOM_EFFECT_DEFAULTS, EFFECT_DEFAULTS } from "@/components/membership/DepthEffects";
 import { ArchText } from "@/components/membership/MembershipDepths";
-import { DEPTH_FONTS, DEPTH_EFFECT_LABELS, EFFECT_MOTION_LABELS, type CustomEffect, type DepthEffect, type DepthScene, type DepthSprite, type EffectConfig, type EffectMotion } from "@/lib/membershipContentDefaults";
+import { VFX_BY_INDEX, VFX_PARTS } from "@/components/membership/DepthVfx";
+import { DepthVideoLayer } from "@/components/membership/DepthVideoLayer";
+import { DEPTH_FONTS, DEPTH_EFFECT_LABELS, type DepthVideo, EFFECT_MOTION_LABELS, type CustomEffect, type DepthEffect, type DepthScene, type DepthSprite, type EffectConfig, type EffectMotion } from "@/lib/membershipContentDefaults";
 
 // EPIC-163.5(사용자 지시 — 심연으로의 스크롤: 이미지가 화면 전체를 덮고, 깊이마다 색·효과, 이미지를 드래그 앤 드롭으로 배치):
 // 깊이별 편집기. 아래 미리보기 무대에서 ① 빈 곳을 드래그하면 배경 이미지의 초점(어느 부분이 보일지)이 움직이고,
@@ -246,6 +248,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                 </>
               )}
               <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
+              <DepthVideoLayer videos={cur.videos ?? []} />
               {/* 실제 출력과 같은 문(반응형 폭·좌우 하단 비대칭·블러·글꼴) — 가상 화면을 축소해서 그린다 */}
               <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: VP.w, height: VP.h, transform: `scale(${scale})` }}>
                 {/* 문은 잡아서 끌면 위치가 바뀐다(실제 화면과 같은 % 좌표) */}
@@ -345,6 +348,103 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
               </label>
             </div>
             <p className="mt-1 text-[11px] text-gray-400">위 무대에 실제 출력과 같은 문(폭은 PC 26% · 태블릿 46% · 모바일 86%)이 그대로 보여요. 문 크기는 화면 폭에 따라 자동이고, 문을 잡아 끌면 위치를 바꿀 수 있어요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요. 글꼴은 기기에 있는 폰트를 써서 새로 내려받지 않아요.</p>
+          </div>
+
+          <div className="space-y-4 rounded-md border border-amber-300 bg-amber-50/40 p-3">
+            <p className="text-sm font-semibold text-gray-800">🎞️ 영상 · 효과 교체 (이 깊이)</p>
+
+            <div>
+              <p className="mb-1 text-xs font-medium text-gray-700">영상 겹치기 (webm · mp4 — 자동 재생·반복·무음)</p>
+              <p className="mb-2 text-[11px] text-gray-500">배경 이미지 위에 겹쳐요. 알파 채널이 있는 webm은 혼합 ‘일반’, 검은 배경 영상(불꽃·빛·연기)은 ‘밝게(screen)’로 하면 배경이 투명해져요. 불투명도로 세기를 조절해요. 파일이 클수록 방문자가 내려받는 양이 늘어나니 가볍게(수 MB 이하) 만들어 주세요.</p>
+              <label className="inline-block cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50">
+                영상 추가
+                <input type="file" accept="video/webm,video/mp4,video/*" multiple className="hidden" onChange={(e) => { pick(e.target.files, (urls) => patch({ videos: [...(cur.videos ?? []), ...urls.map((url) => ({ id: uid(), url, opacity: 100, blend: "normal" as const, fit: "cover" as const }))] })); e.target.value = ""; }} />
+              </label>
+              <ul className="mt-2 space-y-2">
+                {(cur.videos ?? []).map((v: DepthVideo) => {
+                  const setV = (p2: Partial<DepthVideo>) => patch({ videos: (cur.videos ?? []).map((x) => (x.id === v.id ? { ...x, ...p2 } : x)) });
+                  return (
+                    <li key={v.id} className="rounded border border-gray-200 bg-white p-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-gray-600" title={v.url}>
+                          {v.url.split("/").pop()}
+                        </span>
+                        <button type="button" onClick={() => patch({ videos: (cur.videos ?? []).filter((x) => x.id !== v.id) })} className="shrink-0 text-red-600">
+                          삭제
+                        </button>
+                      </div>
+                      <div className="mt-1.5 grid gap-2 sm:grid-cols-3">
+                        <label className="block text-gray-600">
+                          불투명도 <b className="text-gray-900">{v.opacity ?? 100}%</b>
+                          <input type="range" min={0} max={100} value={v.opacity ?? 100} onChange={(e) => setV({ opacity: Number(e.target.value) })} className="w-full" />
+                        </label>
+                        <label className="block text-gray-600">
+                          혼합
+                          <select value={v.blend ?? "normal"} onChange={(e) => setV({ blend: e.target.value as DepthVideo["blend"] })} className={input}>
+                            <option value="normal">일반(알파 webm)</option>
+                            <option value="screen">밝게(검은 배경 영상)</option>
+                            <option value="lighten">더 밝은 색만</option>
+                            <option value="overlay">오버레이</option>
+                            <option value="multiply">곱하기(어둡게)</option>
+                          </select>
+                        </label>
+                        <label className="block text-gray-600">
+                          채우기
+                          <select value={v.fit ?? "cover"} onChange={(e) => setV({ fit: e.target.value as "cover" | "contain" })} className={input}>
+                            <option value="cover">화면 가득</option>
+                            <option value="contain">전체 보이기</option>
+                          </select>
+                        </label>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            <div>
+              <p className="mb-1 text-xs font-medium text-gray-700">
+                내장 효과 켜기/끄기 — {(VFX_BY_INDEX[at] ?? "")} 깊이
+              </p>
+              <p className="mb-2 text-[11px] text-gray-500">끈 효과 자리에 위 영상이나 아래 ‘직접 올린 이미지 효과’(움직임 설정 가능)를 올려 대체하세요.</p>
+              {VFX_BY_INDEX[at] ? (
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {VFX_PARTS[VFX_BY_INDEX[at]].map((part) => {
+                    const off = (cur.vfxOff ?? []).includes(part.id);
+                    return (
+                      <label key={part.id} className="flex items-center gap-1.5 text-xs text-gray-700">
+                        <input type="checkbox" checked={!off} onChange={() => patch({ vfxOff: off ? (cur.vfxOff ?? []).filter((x) => x !== part.id) : [...(cur.vfxOff ?? []), part.id] })} />
+                        {part.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[11px] text-gray-400">7번째 이후 깊이에는 내장 효과가 없어요.</p>
+              )}
+            </div>
+
+            {VFX_BY_INDEX[at] === "alice" && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-gray-700">떨어지는 카드 앞면 — 이상한 나라 등장인물 이미지</p>
+                <p className="mb-2 text-[11px] text-gray-500">올린 이미지가 카드 앞면이 되고(여러 장이면 돌아가며), 뒷면은 일반 트럼프 카드(2~10·J·Q·K·A·조커)가 나와요. 비우면 이모지 카드(흰토끼·모자장수·체셔고양이·여왕·병정·애벌레)예요. 카드 비율은 5:7이 잘 맞아요.</p>
+                <label className="inline-block cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50">
+                  캐릭터 이미지 추가(여러 장)
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { pick(e.target.files, (urls) => patch({ cardFaces: [...(cur.cardFaces ?? []), ...urls] })); e.target.value = ""; }} />
+                </label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(cur.cardFaces ?? []).map((u, k) => (
+                    <div key={u + k} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={u} alt="" className="h-20 w-14 rounded object-cover ring-1 ring-gray-300" />
+                      <button type="button" onClick={() => patch({ cardFaces: (cur.cardFaces ?? []).filter((_, j) => j !== k) })} aria-label="삭제" className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1 text-[10px] text-white">
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-md border border-gray-200 p-3">

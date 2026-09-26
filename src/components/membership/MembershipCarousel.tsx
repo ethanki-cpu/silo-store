@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/AuthProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { uploadFileToR2 } from "@/lib/r2Upload";
@@ -684,6 +684,32 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
   const [conditionRows, setConditionRows] = useState<ConditionRow[]>([]);
   const [active, setActive] = useState(0);
   const [missionOpen, setMissionOpen] = useState(false);
+  // HOTFIX-167.4(사용자 지시 — "캐러셀의 왼쪽/오른쪽 버튼이 맨 아래만 말고 캐러셀 어디에서든 눌러지게"): 카드 좌우 가장자리에 화살표를 띄우고, 카드가 긴 만큼
+  // 스크롤해도 항상 화면 세로 중앙 근처(카드 안쪽으로 한정)에 따라오게 한다. body가 overflow-x:hidden이라 CSS sticky가 안 먹어 스크롤 위치로 직접 계산한다.
+  const cardWrapRef = useRef<HTMLDivElement>(null);
+  const [arrowY, setArrowY] = useState(200);
+  useEffect(() => {
+    const el = cardWrapRef.current;
+    if (!el) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const rect = el.getBoundingClientRect();
+      const y = Math.min(Math.max(window.innerHeight * 0.5 - rect.top, 32), Math.max(32, rect.height - 32));
+      setArrowY((prev) => (Math.abs(prev - y) > 2 ? y : prev));
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  });
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -798,6 +824,7 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
 
       <TarotDeck tiers={tiers} active={active} opts={opts} onSelect={select} onSwipe={go} />
 
+      <div ref={cardWrapRef} className="relative">
       <AnimatePresence mode="wait">
         <motion.div
           key={tier.rank}
@@ -818,6 +845,17 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
           />
         </motion.div>
       </AnimatePresence>
+      {opts.showArrows && (
+        <>
+          <button type="button" onClick={() => go(-1)} disabled={active === 0} aria-label="이전 등급(카드 옆)" className="absolute left-1 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-300 bg-white/90 text-2xl text-gray-800 shadow-lg backdrop-blur transition hover:bg-white disabled:opacity-25 sm:-left-3" style={{ top: arrowY }}>
+            ‹
+          </button>
+          <button type="button" onClick={() => go(1)} disabled={active === tiers.length - 1} aria-label="다음 등급(카드 옆)" className="absolute right-1 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-300 bg-white/90 text-2xl text-gray-800 shadow-lg backdrop-blur transition hover:bg-white disabled:opacity-25 sm:-right-3" style={{ top: arrowY }}>
+            ›
+          </button>
+        </>
+      )}
+      </div>
 
       {opts.showArrows && (
         <div className="mt-4 flex items-center justify-center gap-3">

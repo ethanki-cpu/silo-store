@@ -114,9 +114,9 @@ export function BackdropImage({ url, fit, pos, zoom, play = true, panSeconds }: 
     return (
       <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ containerType: "size", transform: `scale(${z})`, transformOrigin: `${px}% ${py}%` }}>
         <style>{`@keyframes silo-bd-pan{0%,8%{transform:translateY(0)}100%{transform:translateY(calc(-100% + 100cqh))}}`}</style>
-        {/* HOTFIX-166.2(사용자 지시 — 위에서 아래로 이미지가 보이게): 위에서 시작해 아래까지 한 번 훑고 끝에서 멈춘다. 깊이가 화면의 주인공이 될 때마다 처음(위)부터 다시 재생. */}
+        {/* HOTFIX-166.2(사용자 지시 — 위에서 아래로 이미지가 보이게): 위→아래→위로 계속 왕복한다(HOTFIX-167.4). 깊이가 화면의 주인공이 될 때마다 처음(위)부터 다시 재생. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img key={play ? "on" : "off"} src={url} alt="" draggable={false} className="absolute left-0 top-0 w-full" style={{ height: "auto", minHeight: "100cqh", objectFit: "cover", objectPosition: `${px}% ${py}%`, animation: `silo-bd-pan ${Math.min(60, Math.max(2, panSeconds ?? DEFAULT_PAN_SECONDS))}s ease-in-out 1 both`, animationPlayState: play ? "running" : "paused" }} />
+        <img key={play ? "on" : "off"} src={url} alt="" draggable={false} className="absolute left-0 top-0 w-full" style={{ height: "auto", minHeight: "100cqh", objectFit: "cover", objectPosition: `${px}% ${py}%`, animation: `silo-bd-pan ${Math.min(60, Math.max(2, panSeconds ?? DEFAULT_PAN_SECONDS))}s ease-in-out infinite alternate`, animationPlayState: play ? "running" : "paused" }} />
       </div>
     );
   }

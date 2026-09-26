@@ -458,8 +458,8 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "buttonText", label: "버튼 문구", kind: "text" },
   ],
   membership_carousel: [
-    { key: "heading", label: "제목", kind: "text", placeholder: "멤버십 혜택 한눈에 보기" },
-    { key: "subtitle", label: "부제목", kind: "textarea" },
+    { key: "heading", label: "말풍선 문구(Enter로 줄바꿈)", kind: "textarea", placeholder: "어떤 ‘사일로의 멤버’가 되고 싶나요?" },
+    { key: "subtitle", label: "맨 위 설명(Enter로 줄바꿈)", kind: "textarea" },
     {
       key: "layout",
       label: "카드 배치",
@@ -535,8 +535,10 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "sceneHeightVh", label: "깊이 하나당 스크롤 길이(화면 높이 %)", kind: "number", min: 60, max: 300 },
   ],
   membership_doors: [
-    { key: "heading", label: "제목(비우면 표시 안 함)", kind: "text" },
-    { key: "subtitle", label: "부제목", kind: "text" },
+    { key: "headerImageUrl", label: "제목 위 중앙 이미지 주소(비우면 없음 — 관리자 화면의 '상단 이미지 올리기' 버튼으로도 올릴 수 있어요)", kind: "text" },
+    { key: "headerImageWidthPx", label: "제목 위 이미지 너비(px)", kind: "number", min: 40, max: 900 },
+    { key: "heading", label: "제목(Enter로 줄바꿈, 비우면 표시 안 함)", kind: "textarea" },
+    { key: "subtitle", label: "부제목(Enter로 줄바꿈)", kind: "textarea" },
     {
       key: "doors",
       label: "문(플랫폼 요소마다 하나 — 문 사진을 올리면 그 사진이 문이 되고, 누르면 열리며 뒤편에 설명 캐러셀이 나와요)",
@@ -713,7 +715,7 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     groupCopy: DEFAULT_GROUP_COPY,
   },
   membership_depths: { heading: "", sceneHeightVh: 130, depths: DEFAULT_DEPTHS },
-  membership_doors: { heading: "사일로의 문을 열어보세요", subtitle: "문을 눌러 안으로 들어가 보세요", doors: DEFAULT_LOBBY_DOORS },
+  membership_doors: { headerImageUrl: "", headerImageWidthPx: 160, heading: "사일로의 문을 열어보세요", subtitle: "문을 눌러 안으로 들어가 보세요", doors: DEFAULT_LOBBY_DOORS },
   membership_skilltree: { heading: "등급이 오를수록 열리는 문", subtitle: "Silo Angel에서 시작해 한 걸음씩, 새 가지가 열려요", branches: DEFAULT_SKILL_BRANCHES },
   membership_experience: {
     heading: "사일로에서의 경험, 한눈에",

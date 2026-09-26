@@ -165,7 +165,7 @@ function LobbyOverlay({ door, from, onClose }: { door: LobbyDoor; from: DOMRect;
   );
 }
 
-export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, settings }: { heading: string; subtitle: string; doors: LobbyDoor[]; moduleId?: string; settings?: Record<string, unknown> }) {
+export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, settings, headerImageUrl, headerImageWidthPx }: { heading: string; subtitle: string; doors: LobbyDoor[]; moduleId?: string; settings?: Record<string, unknown>; headerImageUrl?: string; headerImageWidthPx?: number }) {
   const { member, session } = useAuth();
   const isAdmin = !!member?.is_admin;
   const triedPalette = useRef(new Set<string>());
@@ -190,6 +190,31 @@ export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, setti
       }
     })();
   }, [isAdmin, session?.access_token, moduleId, doors, settings]);
+  // HOTFIX-167.5(사용자 지시 — "'사일로의 문을 열어보세요' 위에 이미지 하나를 중앙에"): 제목 위 중앙 이미지. 관리자는 그 자리(또는 안내 칸)에서 바로 올리고 지울 수 있다.
+  const [headerLocal, setHeaderLocal] = useState<string | null>(null);
+  const headerUrl = headerLocal ?? headerImageUrl ?? "";
+  const [headerBusy, setHeaderBusy] = useState(false);
+  async function saveHeaderImage(file: File | undefined, clear = false) {
+    if (!clear && !file) return;
+    setHeaderBusy(true);
+    setUploadError(null);
+    let url = "";
+    if (!clear && file) {
+      const up = await uploadFileToR2(file);
+      if (up.error || !up.url) {
+        setHeaderBusy(false);
+        setUploadError(`업로드하지 못했어요: ${up.error ?? "알 수 없는 오류"}`);
+        return;
+      }
+      url = up.url;
+    }
+    setHeaderLocal(url);
+    if (moduleId) {
+      const { error: saveError } = await supabase.from("page_modules").update({ settings: { ...(settings ?? {}), headerImageUrl: url } }).eq("id", moduleId);
+      if (saveError) setUploadError(`저장하지 못했어요: ${saveError.message}`);
+    }
+    setHeaderBusy(false);
+  }
   const [busyIdx, setBusyIdx] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -272,10 +297,33 @@ export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, setti
 
   return (
     <section className="relative mb-12 py-6" aria-label={heading || "사일로의 문"}>
+      {(headerUrl || isAdmin) && (
+        <div className="mb-3 flex flex-col items-center gap-1.5">
+          {headerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={headerUrl} alt="" draggable={false} style={{ width: Math.min(900, Math.max(40, headerImageWidthPx ?? 160)), maxWidth: "100%", height: "auto" }} />
+          ) : (
+            <div className="rounded border border-dashed border-gray-300 px-6 py-3 text-xs text-gray-400">제목 위에 들어갈 이미지 자리 (관리자에게만 보여요)</div>
+          )}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer rounded-full bg-black/70 px-3 py-1 text-[11px] font-semibold text-white hover:bg-black/85">
+                {headerBusy ? "올리는 중..." : headerUrl ? "📷 상단 이미지 바꾸기" : "📷 상단 이미지 올리기"}
+                <input type="file" accept="image/*" className="hidden" disabled={headerBusy} onChange={(e) => { saveHeaderImage(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              {headerUrl && (
+                <button type="button" onClick={() => saveHeaderImage(undefined, true)} disabled={headerBusy} className="text-[11px] text-red-600">
+                  지우기
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {(heading || subtitle) && (
         <div className="mb-6 text-center">
-          {heading && <h2 className="text-xl font-semibold text-gray-900">{heading}</h2>}
-          {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
+          {heading && <h2 className="whitespace-pre-line break-keep text-xl font-semibold text-gray-900">{heading}</h2>}
+          {subtitle && <p className="mt-1 whitespace-pre-line break-keep text-sm text-gray-500">{subtitle}</p>}
         </div>
       )}
       {/* HOTFIX-165.3(사용자 신고 — "About Silo 문이 왜 없어?"): justify-center는 넘치는 줄의 왼쪽 끝을 화면 밖으로 밀어 스크롤로도 못 닿게 만든다 → 첫/마지막 문에 auto 마진을 줘서 '안 넘칠 땐 가운데, 넘칠 땐 왼쪽부터' 정렬한다. */}

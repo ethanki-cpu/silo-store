@@ -272,7 +272,7 @@ export type MembershipCarouselOptions = {
 };
 
 export const MEMBERSHIP_CAROUSEL_DEFAULTS: MembershipCarouselOptions = {
-  heading: "당신은 어떤 ‘사일로의 사람’이 되고 싶으세요?",
+  heading: "어떤 ‘사일로의 멤버’가 되고 싶나요?",
   subtitle: "첫눈처럼 찾아온 사람부터 예술가의 곁을 지키는 후원자까지. 옆으로 넘기며 지금의 나에게 맞는 자리를 찾아보세요. 새로운 자리는 앞선 자리의 문을 모두 품고 있어요.",
   layout: "stack",
   textAlign: "center",
@@ -797,8 +797,23 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
 
       {(opts.heading || opts.subtitle) && (
         <div className="mb-5 text-center">
-          {opts.heading && <h2 className="text-xl font-semibold text-gray-900">{opts.heading}</h2>}
-          {opts.subtitle && <p className="mt-1 text-sm text-gray-500">{opts.subtitle}</p>}
+          {/* HOTFIX-167.5(사용자 지시 — "'어떤 사일로의 멤버가 되고 싶나요?'를 말풍선으로, 줄바꿈 가능하게"): 제목을 아래(등급 카드)를 향한 꼬리가 달린 말풍선으로 띄운다. Enter로 넣은 줄바꿈은 그대로 표시. */}
+          {opts.heading && (
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.92 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ type: "spring", stiffness: 260, damping: 18 }}
+              className="relative mx-auto mb-5 inline-block max-w-[92%] rounded-[28px] border border-gray-200 bg-white px-6 py-4 shadow-lg"
+              role="heading"
+              aria-level={2}
+            >
+              <span className="block whitespace-pre-line break-keep text-lg font-semibold leading-snug text-gray-900 sm:text-xl">{opts.heading}</span>
+              {/* 말풍선 꼬리 */}
+              <span aria-hidden className="absolute -bottom-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 border-b border-r border-gray-200 bg-white" />
+            </motion.div>
+          )}
+          {opts.subtitle && <p className="mt-1 whitespace-pre-line break-keep text-sm leading-6 text-gray-500">{opts.subtitle}</p>}
         </div>
       )}
 

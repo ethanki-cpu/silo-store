@@ -329,7 +329,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
             <div className="mb-3 grid gap-3">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-gray-600">제목</span>
-                <input value={cur.title} onChange={(e) => patch({ title: e.target.value })} className={input} />
+                <textarea value={cur.title} onChange={(e) => patch({ title: e.target.value })} rows={2} placeholder="Enter로 줄바꿈" className={input} />
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-gray-600">문구 (Enter로 줄바꿈)</span>

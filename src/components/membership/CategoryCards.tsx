@@ -92,12 +92,12 @@ export function CategoryCards({ groups, highlightNew, copy }: { groups: BenefitG
                             </p>
                           )}
                           {line && <p className="mb-1.5 text-xs leading-5 text-gray-500">{line}</p>}
-                          {/* 세로 목록 — 모바일 1열, 넓은 화면 2열 */}
-                          <ul className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+                          {/* 세로 목록 — 모든 화면 2열(사용자 지시) */}
+                          <ul className="grid grid-cols-2 gap-x-3 gap-y-1 sm:gap-x-6">
                             {g.items.map((it) => (
                               <li key={it.name} className="flex items-start gap-2 rounded-md px-1.5 py-1 text-[13px] leading-5 text-gray-700">
                                 <span aria-hidden className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${highlightNew && it.isNew ? "bg-amber-500" : "bg-gray-300"}`} />
-                                <span className={highlightNew && it.isNew ? "font-medium text-gray-900" : undefined}>
+                                <span className={`break-keep ${highlightNew && it.isNew ? "font-medium text-gray-900" : ""}`}>
                                   {it.name}
                                   {highlightNew && it.isNew && <span className="ml-1.5 rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800">NEW</span>}
                                 </span>

@@ -4,7 +4,7 @@ import { motion, useMotionValue, useMotionValueEvent, useReducedMotion, useTrans
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import Lenis from "lenis";
+import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { DepthArt } from "@/components/membership/DepthArt";
 import { DepthEffects } from "@/components/membership/DepthEffects";
@@ -301,71 +301,160 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
   const dot = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
   useMotionValueEvent(scrollYProgress, "change", (v) => setActiveIdx(Math.min(Math.max(0, scenes.length - 1), Math.floor(v * scenes.length))));
 
-  // HOTFIX-164.1: GSAP ScrollTrigger가 진행도(progress)와 스냅을 맡고, Lenis가 휠 스크롤을 부드럽게 보간한다.
-  // body가 overflow-x:hidden(=스크롤 컨테이너)라 CSS sticky가 먹지 않아, 스크롤 위치로 직접 고정(fixed)/해제하는 방식은 그대로 유지한다.
   const snapKey = scenes.length;
+  // HOTFIX-164.5(사용자 신고 — "스크롤 한 번에 depth 1에서 6으로 가버린다, 2번 굴리면 다음 depth여야 한다"):
+  // Lenis 보간은 트랙패드/휠의 큰 이동량을 그대로 이어받아 여러 깊이를 한 번에 통과했다. 고정 구간에서는 스크롤을 "한 칸씩" 넘기는 방식으로 바꾼다:
+  //  · 휠/키보드(↓ PageDown Space ↑ PageUp)/터치 스와이프 한 번 = 정확히 한 깊이 이동(GSAP ScrollToPlugin 트윈 1.05초),
+  //  · 이동 중과 직후 0.45초는 남은 관성 입력을 전부 무시(트랙패드 관성이 다음 칸까지 밀고 가지 못하게),
+  //  · 첫 깊이에서 위로 / 마지막 깊이에서 아래로는 막지 않아 페이지의 앞뒤 내용으로 자연스럽게 빠져나간다,
+  //  · 스크롤바를 끌어 애매한 곳에 두면 멈춘 뒤 가장 가까운 깊이로 붙는다.
+  // 진행도/고정 상태는 ScrollTrigger·scroll 이벤트가 그대로 계산한다(body가 overflow-x:hidden이라 CSS sticky 대신 fixed/absolute 전환).
   useEffect(() => {
     const el = ref.current;
     if (!el || reduce || preview) return;
     const n = snapKey;
     const points = Array.from({ length: n }, (_, i) => (i === 0 ? 0 : i === n - 1 ? 1 : (i + 0.5) / n));
-    gsap.registerPlugin(ScrollTrigger);
-    const update = () => {
-      const r = el.getBoundingClientRect();
+    gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
+    const geom = () => {
+      const rect = el.getBoundingClientRect();
       const vh = window.innerHeight;
-      const total = Math.max(1, r.height - vh);
-      scrollYProgress.set(Math.min(1, Math.max(0, -r.top / total)));
-      setMode(r.top > 0 ? "before" : r.bottom <= vh ? "after" : "pinned");
+      const total = Math.max(1, rect.height - vh);
+      return { rect, vh, total, top: window.scrollY + rect.top };
     };
-    const lenis = new Lenis({
-      lerp: 0.1,
-      // 모달·내부 스크롤 영역에서는 Lenis가 휠을 가로채지 않게 한다.
-      prevent: (node) => !!(node as HTMLElement).closest?.('[role="dialog"], .overflow-y-auto, [data-lenis-prevent]'),
-    });
-    lenis.on("scroll", ScrollTrigger.update);
-    // HOTFIX-164.4(사용자 신고 — "PC에서 스크롤하면 depth와 depth 사이에 애매하게 멈춘다"): ScrollTrigger의 snap은 Lenis 보간과 충돌해 안 붙었다.
-    // 스크롤이 잦아들면(휠을 멈춘 140ms 뒤) 진행 방향 쪽 가장 가까운 깊이 중심으로 Lenis가 직접 당겨 붙인다. 구간 밖에서는 개입하지 않는다.
-    let snapTimer = 0;
-    const snapNow = () => {
-      const r = el.getBoundingClientRect();
-      const vh = window.innerHeight;
-      if (r.top > 0 || r.bottom < vh) return;
-      const total = Math.max(1, r.height - vh);
-      const p = -r.top / total;
-      const step = 1 / n;
-      const dir = lenis.direction || 1;
-      const probe = p + dir * step * 0.22; // 조금만 밀어도 다음 깊이로 넘어가게(끈적임 방지)
+    const update = () => {
+      const { rect, vh, total } = geom();
+      scrollYProgress.set(Math.min(1, Math.max(0, -rect.top / total)));
+      setMode(rect.top > 0 ? "before" : rect.bottom <= vh ? "after" : "pinned");
+    };
+    const inside = () => {
+      const { rect, vh } = geom();
+      return rect.top <= 1 && rect.bottom >= vh - 1;
+    };
+    const nearestIdx = () => {
+      const { rect, total } = geom();
+      const pr = -rect.top / total;
       let best = 0;
       points.forEach((pt, i) => {
-        if (Math.abs(pt - probe) < Math.abs(points[best] - probe)) best = i;
+        if (Math.abs(pt - pr) < Math.abs(points[best] - pr)) best = i;
       });
-      const targetY = window.scrollY - r.top + points[best] * total;
-      if (Math.abs(targetY - window.scrollY) > 2) lenis.scrollTo(targetY, { duration: 0.85, easing: (t: number) => 1 - Math.pow(1 - t, 3), lock: true });
+      return best;
     };
-    lenis.on("scroll", () => {
-      window.clearTimeout(snapTimer);
-      snapTimer = window.setTimeout(snapNow, 140);
-    });
-    const tick = (t: number) => lenis.raf(t * 1000);
-    gsap.ticker.add(tick);
-    gsap.ticker.lagSmoothing(0);
-    const st = ScrollTrigger.create({
-      trigger: el,
-      start: "top top",
-      end: "bottom bottom",
-      onUpdate: update,
-      onRefresh: update,
-    });
+    let busy = false;
+    let quietUntil = 0;
+    const goTo = (i: number) => {
+      const { top, total } = geom();
+      busy = true;
+      gsap.to(window, {
+        duration: 1.05,
+        ease: "power3.inOut",
+        scrollTo: { y: top + points[i] * total, autoKill: false },
+        onComplete: () => {
+          busy = false;
+          quietUntil = performance.now() + 450;
+        },
+      });
+    };
+    // 다음/이전 깊이로 한 칸. 끝에서 바깥으로 나가려는 방향이면 false(=막지 않음).
+    const step = (dir: 1 | -1): boolean => {
+      const next = nearestIdx() + dir;
+      if (next < 0 || next >= n) return false;
+      goTo(next);
+      return true;
+    };
+    const locked = () => busy || performance.now() < quietUntil;
+
+    let acc = 0;
+    let lastWheel = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!inside()) return;
+      const now = performance.now();
+      if (locked()) {
+        e.preventDefault();
+        return;
+      }
+      if (now - lastWheel > 220) acc = 0;
+      lastWheel = now;
+      acc += e.deltaY;
+      if (Math.abs(acc) < 24) {
+        e.preventDefault();
+        return;
+      }
+      const dir: 1 | -1 = acc > 0 ? 1 : -1;
+      acc = 0;
+      const nextIdx = nearestIdx() + dir;
+      if (nextIdx < 0 || nextIdx >= n) return; // 구간 끝 → 기본 스크롤로 빠져나간다
+      e.preventDefault();
+      step(dir);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (!inside()) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      let dir: 1 | -1 | 0 = 0;
+      if (e.key === "ArrowDown" || e.key === "PageDown" || (e.key === " " && !e.shiftKey)) dir = 1;
+      else if (e.key === "ArrowUp" || e.key === "PageUp" || (e.key === " " && e.shiftKey)) dir = -1;
+      if (!dir) return;
+      if (locked()) {
+        e.preventDefault();
+        return;
+      }
+      const nextIdx = nearestIdx() + dir;
+      if (nextIdx < 0 || nextIdx >= n) return;
+      e.preventDefault();
+      step(dir);
+    };
+    let touchY = 0;
+    let touchStartedInside = false;
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0;
+      touchStartedInside = inside();
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!touchStartedInside || !inside()) return;
+      const dy = touchY - (e.touches[0]?.clientY ?? touchY);
+      const dir: 1 | -1 = dy > 0 ? 1 : -1;
+      const nextIdx = nearestIdx() + dir;
+      if (locked() || (nextIdx >= 0 && nextIdx < n)) e.preventDefault(); // 칸 사이에서는 기본 스크롤을 막고, 끝에서 바깥으로는 허용
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!touchStartedInside || locked()) return;
+      const dy = touchY - (e.changedTouches[0]?.clientY ?? touchY);
+      if (Math.abs(dy) > 40 && inside()) step(dy > 0 ? 1 : -1);
+    };
+
+    // 스크롤바 드래그 등으로 칸 사이에 멈춘 경우: 잠잠해지면 가장 가까운 깊이로 붙인다.
+    let idleTimer = 0;
+    const onScrollIdle = () => {
+      update();
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => {
+        if (locked() || !inside()) return;
+        const { rect, total, top } = geom();
+        const idx = nearestIdx();
+        if (Math.abs(top + points[idx] * total - (window.scrollY)) > 4 && rect.top <= 0) goTo(idx);
+      }, 260);
+    };
+
+    const st = ScrollTrigger.create({ trigger: el, start: "top top", end: "bottom bottom", onUpdate: update, onRefresh: update });
     update();
-    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("scroll", onScrollIdle, { passive: true });
     window.addEventListener("resize", update);
     return () => {
-      window.removeEventListener("scroll", update);
+      window.clearTimeout(idleTimer);
+      gsap.killTweensOf(window);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("scroll", onScrollIdle);
       window.removeEventListener("resize", update);
-      window.clearTimeout(snapTimer);
       st.kill();
-      gsap.ticker.remove(tick);
-      lenis.destroy();
     };
   }, [scrollYProgress, snapKey, reduce, preview]);
 

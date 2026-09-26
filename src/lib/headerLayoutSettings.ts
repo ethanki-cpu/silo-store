@@ -14,9 +14,10 @@ import type { CSSProperties } from "react";
 // 렌더 로직을 그대로 재사용한다(각 항목의 위치와 부가 스타일 오버라이드만
 // 이 데이터가 결정). GrapesJS 캔버스(HeaderGrapesEditor.tsx)가 이 형태로
 // 직렬화해 저장한다.
-export type HeaderMenuItemKey = "admin" | "tier" | "mypage" | "name" | "logout";
+// EPIC-165(사용자 지시 — "상단 메뉴에 '멤버십 가입' 버튼이 하나 추가되게 하고 움직일 수 있게"): "join"도 다른 계정 메뉴 항목과 같은 HeaderSlot이라 편집 모드에서 자유롭게 끌어 옮길 수 있다.
+export type HeaderMenuItemKey = "admin" | "tier" | "mypage" | "name" | "logout" | "join";
 
-export const HEADER_MENU_ITEM_KEYS: HeaderMenuItemKey[] = ["admin", "tier", "mypage", "name", "logout"];
+export const HEADER_MENU_ITEM_KEYS: HeaderMenuItemKey[] = ["admin", "tier", "mypage", "name", "logout", "join"];
 
 export const HEADER_MENU_ITEM_LABELS: Record<HeaderMenuItemKey, string> = {
   admin: "관리자",
@@ -24,6 +25,7 @@ export const HEADER_MENU_ITEM_LABELS: Record<HeaderMenuItemKey, string> = {
   mypage: "마이페이지",
   name: "회원 이름",
   logout: "로그아웃 / 로그인",
+  join: "멤버십 가입",
 };
 
 export type HeaderLayoutItemStyle = {

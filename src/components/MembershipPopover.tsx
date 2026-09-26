@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { DailyQuests } from "@/components/membership/DailyQuests";
 
 // EPIC-087-PHASE-F: GNB "멤버십 등급"/"회원 이름" 클릭 시 뜨는 작은 팝오버.
 // 이 코드베이스의 유일한 기존 드롭다운(스튜디오 상단 탭)은 EPIC-041-042-
@@ -28,11 +29,13 @@ export function MembershipPopover({
   memberId,
   memberName,
   tierName,
+  rank,
   onClose,
 }: {
   memberId: string;
   memberName: string;
   tierName: string;
+  rank: number;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -145,7 +148,7 @@ export function MembershipPopover({
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 w-72 rounded-lg border border-gray-200 bg-white shadow-lg z-50 p-4 text-sm"
+      className="absolute right-0 top-full mt-2 max-h-[80vh] w-72 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg z-50 p-4 text-sm"
     >
       <div className="flex items-center gap-3 mb-3">
         {avatarUrl ? (
@@ -192,6 +195,8 @@ export function MembershipPopover({
           전체 보기
         </Link>
       </div>
+
+      <DailyQuests rank={rank} onNavigate={onClose} />
 
       <div className="border-t border-gray-100 pt-3 space-y-2 text-xs">
         {/* EPIC-087-PHASE-F: 메시지/DM 시스템이 이 코드베이스에 전혀 없어

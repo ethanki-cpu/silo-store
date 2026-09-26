@@ -30,6 +30,7 @@ const linksRowProps = {
     { label: "개인정보처리방침", href: "/privacy" },
     { label: "환불 및 구독 해지 안내", href: "/refund-policy" },
     { label: "상품 및 가격 안내", href: "/pricing" },
+    { label: "멤버십 가입", href: "/membership" },
   ],
   openInNewTab: false,
 };

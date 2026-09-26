@@ -1,6 +1,7 @@
 # EPIC LIST
 
 ## 진행중
+- EPIC-165 : 멤버십 페이지 문 로비(관리자가 올리는 앤틱 문 → 설명 캐러셀)·스킬 트리·내 등급 시뮬레이터·하루 퀘스트(등급 팝오버)·상단/푸터 '멤버십 가입'(2026-09-26, CHANGELOG 참고)
 - EPIC-164 : 멤버십 랜딩 초실감형 UX 및 WebGL VFX(트래픽 최적화) — 혜택의 문(문 열기 카드) 위젯, 심연 스크롤 스냅+30/50/85% 좌우 하단 프로스티드 패널, 등급별 6단계 셰이더/CSS VFX(추가 다운로드 0), 열쇠·왕관/자물쇠 권한표, Silo Angel 글 5개 서버 제한 + 플래닛 2종 열람(2026-09-26, CHANGELOG 참고 — VFX 실기 확인은 NEXT_TASK)
 - EPIC-163 : 멤버십 몰입형 UX 및 페이월 고도화 — 3색 팔레트 변수, 타로 덱 캐러셀+배경 그라데이션 크로스페이드, Magnetic 가입 버튼, 감성적 권한 표(활성 열 글로우), 심연으로의 스크롤 위젯, 살아있는 자물쇠 페이월, 등급 소개 원문 시딩(2026-09-25, CHANGELOG 참고)
 - EPIC-162 : 멤버십 아키텍처 & 에디토리얼 랜딩(심리적 페이월) — (Phase 1) 사연/도슨트 일일 한도는 새 카운터 컬럼+cron 대신 기존 post_views/docent_purchases를 KST 자정 기준으로 실시간 집계하는 방식으로 이미 충족(HOTFIX-161.7/161.9, `boards.daily_limit_group`), (Phase 2) 권한 미달 시 `/api/boards/.../posts/[slug]`가 본문·댓글 없이 `{locked, teaser}`만 내려주고 `LockedPostTeaser`가 블러+가입 유도 모달을 그림, (Phase 3) `/membership` 캐러셀+Silo Angel 소개/편지 전문 시딩(관리자 편집), (Phase 4) 가입 미션 모달+`membership_mission_answers`+`/mypage/missions`. 상세는 CHANGELOG.md 동명 항목. **실사용자(하위 등급) 세션에서 블러 화면 실제 확인은 아직 못 함** — 관리자 계정은 게이트를 우회해서 서버 응답만 검증.

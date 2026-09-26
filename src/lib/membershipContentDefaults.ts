@@ -112,12 +112,44 @@ export const DEFAULT_DEPTHS: DepthScene[] = [
 ];
 
 
-// EPIC-164 Phase 1: "혜택의 문" — 멤버십 혜택을 핵심 카테고리 4장으로 압축한 카드(위젯 설정에서 관리자가 고친다).
-export type BenefitDoor = { icon: string; title: string; tagline: string; headline: string; lines: string; accent: string };
+// EPIC-165: 문 로비 — 플랫폼의 핵심 요소마다 앤틱 문 하나(관리자가 문 사진을 올린다). 문을 누르면 문이 열리고, 그 뒤편에 설명 캐러셀이 나타난다.
+// extra = 추가 슬라이드(빈 줄로 구분). 이미지가 없으면 코드로 그린 나무문이 대신 보인다.
+export type LobbyDoor = { imageUrl: string; title: string; tagline: string; description: string; extra: string; href: string; hrefLabel: string; accent: string };
 
-export const DEFAULT_BENEFIT_DOORS: BenefitDoor[] = [
-  { icon: "🗝️", title: "사일로의 하루", tagline: "광장 · 살롱 · 기록", headline: "오늘도, 문이 열립니다.", lines: "광장에서 기록하고\n살롱에서 사람을 만나고\n나만의 행성에 하루를 남기세요.", accent: "#E4C84B" },
-  { icon: "🍷", title: "온라인 도슨트", tagline: "시간을 건너는 이야기", headline: "물건 하나에, 시대 하나.", lines: "이전 주인의 사연과\n시대의 지식이\n하루 한 번 당신에게 열립니다.", accent: "#2ECC8F" },
-  { icon: "🪐", title: "나만의 아카이브", tagline: "행성 · 컬렉션", headline: "수집은, 나를 남기는 일.", lines: "내 행성을 꾸미고\n마음에 든 이야기를 모아\n한 우주로 완성하세요.", accent: "#9FC1FF" },
-  { icon: "🥂", title: "살롱데상 초대", tagline: "오프라인 모임 · 전시", headline: "이번엔, 직접 만나요.", lines: "파티 우선 예매부터\n상시 자유 출입, 전시 주최까지\n등급마다 더 깊은 문이 열립니다.", accent: "#F28C28" },
+export const DEFAULT_LOBBY_DOORS: LobbyDoor[] = [
+  { imageUrl: "", title: "About Silo", tagline: "에단과 수미의 일상과 취향 로그", description: "사일로의 주인 '에단과 수미'의 일상과 취향 로그.\n오래 모아 온 것들과 그 이야기를 가장 먼저 만나는 문이에요.", extra: "사일로 타임라인 · 사일로의 하루 등\n게시판 3개가 이 문 안에 있어요.", href: "/about-silo", hrefLabel: "About Silo 들어가기", accent: "#E4C84B" },
+  { imageUrl: "", title: "사일로 상점", tagline: "오래된 보물이 새 주인을 찾는 과정", description: "사일로의 오래된 보물이 새로운 주인을 찾아가는 모든 과정.\n고르고, 사연을 듣고, 집으로 데려가는 여정을 함께해요.", extra: "", href: "/shop", hrefLabel: "상점 둘러보기", accent: "#C9A46A" },
+  { imageUrl: "", title: "살롱데상", tagline: "'백명의 전시회' — 영감·창작·공유", description: "'백명의 전시회'라는 이름처럼,\n영감, 창작, 공유하는 우리 이야기.", extra: "", href: "/clubs", hrefLabel: "살롱데상 만나기", accent: "#F28C28" },
+  { imageUrl: "", title: "온라인 도슨트", tagline: "그 기록으로 오늘을 비춰보기", description: "과거를 바꿀 순 없지만,\n그 기록으로 영감을 얻어 오늘을 비춰보기.", extra: "", href: "/docent", hrefLabel: "도슨트 듣기", accent: "#2ECC8F" },
+  { imageUrl: "", title: "스튜디오", tagline: "공간 대여 · 서로의 감성으로 찍은 사진", description: "사일로 & 살롱데상 공간 대여,\n서로의 감성으로 찍은 사진 공유.", extra: "", href: "/studio", hrefLabel: "스튜디오 보기", accent: "#9FC1FF" },
+  { imageUrl: "", title: "Silo Planet", tagline: "어린왕자의 행성처럼, 나만의 행성", description: "'어린왕자'의 행성처럼,\n나만의 행성을 꾸미고 다른 행성과 연결하기.", extra: "", href: "/silo-planet", hrefLabel: "행성으로 떠나기", accent: "#8E5BD1" },
+  { imageUrl: "", title: "마이페이지", tagline: "'내가 선택한 나'를 아카이빙", description: "'내가 선택한 나'를 아카이빙 하기.\n팔로우로 연결된 너와 나.", extra: "", href: "/mypage", hrefLabel: "내 공간으로", accent: "#E2412F" },
+];
+
+// EPIC-165: 스킬 트리 — 등급(rank)이 오를 때마다 새로 열리는 가지. rank는 membership_rank(0~4, 99=Artist). 문구는 위젯 설정에서 관리자가 고친다.
+export type SkillBranch = { rank: number; icon: string; title: string; desc: string };
+export const SKILL_TIERS: { rank: number; name: string; color: string }[] = [
+  { rank: 0, name: "Silo Angel", color: "#E4C84B" },
+  { rank: 1, name: "Alice", color: "#2ECC8F" },
+  { rank: 2, name: "Great Gatsby", color: "#4F86F7" },
+  { rank: 3, name: "Patron", color: "#D8D2C4" },
+  { rank: 4, name: "Lautrec", color: "#E2412F" },
+  { rank: 99, name: "Artist", color: "#B57BFF" },
+];
+export const DEFAULT_SKILL_BRANCHES: SkillBranch[] = [
+  { rank: 0, icon: "🏠", title: "마이페이지", desc: "'내가 선택한 나'를 기록해요. 글은 총 5개까지." },
+  { rank: 0, icon: "🪐", title: "사일로 플래닛", desc: "내 행성과 사일로 행성 두 곳을 둘러봐요." },
+  { rank: 0, icon: "🍷", title: "온라인 도슨트 맛보기", desc: "첫인사 글을 열람해요." },
+  { rank: 1, icon: "✍️", title: "글쓰기 제한 해제", desc: "5개 제한 없이 자유롭게 기록해요." },
+  { rank: 1, icon: "🔭", title: "다른 회원의 행성", desc: "다른 회원의 행성을 구경하고 좋아요를 눌러요." },
+  { rank: 1, icon: "🤝", title: "클럽 모임", desc: "모임에 참여하고 10% 할인을 받아요." },
+  { rank: 2, icon: "🔑", title: "도슨트 하루 1편", desc: "온라인 도슨트를 하루 한 편 열어 봐요." },
+  { rank: 2, icon: "🥂", title: "파티 우선 예매", desc: "살롱데상 파티를 먼저 예매해요." },
+  { rank: 3, icon: "💎", title: "내 행성 꾸미기(3D)", desc: "나만의 3D 행성 에셋을 올려 꾸며요." },
+  { rank: 3, icon: "💌", title: "은밀한 사연", desc: "물건의 이전 주인이 남긴 사연을 읽어요." },
+  { rank: 3, icon: "👑", title: "살롱 상시 출입", desc: "살롱데상에 자유롭게 드나들어요." },
+  { rank: 4, icon: "🖋️", title: "살롱의 목소리(칼럼)", desc: "칼럼을 쓰고 목소리를 남겨요." },
+  { rank: 4, icon: "🎭", title: "전시·공연 기획", desc: "전시와 공연을 직접 기획하고 주최해요." },
+  { rank: 4, icon: "🏅", title: "생태계 제안·추천권", desc: "행성과 사일로의 다음 모습을 제안해요." },
+  { rank: 99, icon: "🎨", title: "초대받는 자리", desc: "무대와 전시로 사일로를 채워 준 예술가를 위한 자리예요." },
 ];

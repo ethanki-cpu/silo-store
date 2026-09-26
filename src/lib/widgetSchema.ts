@@ -1,4 +1,4 @@
-import { DEFAULT_BENEFIT_DOORS, DEFAULT_DEPTHS, DEFAULT_EXPERIENCE_ROWS } from "./membershipContentDefaults";
+import { DEFAULT_DEPTHS, DEFAULT_EXPERIENCE_ROWS, DEFAULT_LOBBY_DOORS, DEFAULT_SKILL_BRANCHES } from "./membershipContentDefaults";
 import { DEFAULT_GROUP_COPY } from "./tierContent";
 // EPIC-065: Visual Widget Builder — 위젯 23종의 타입/라벨/아이콘/그룹/설정
 // 필드 스키마를 한 곳에 모은다. 운영자는 이 파일이 선언한 체크박스/드롭다운/
@@ -50,6 +50,7 @@ export type PageModuleType =
   | "membership_matrix"
   | "membership_depths"
   | "membership_doors"
+  | "membership_skilltree"
   | "membership_experience"
   | "membership_plans"
   // 레거시(EPIC-060, 팔레트에는 없지만 기존 DB 행이 있으면 계속 렌더링)
@@ -88,6 +89,7 @@ export const PAGE_MODULE_TYPES: PageModuleType[] = [
   "membership_matrix",
   "membership_depths",
   "membership_doors",
+  "membership_skilltree",
   "membership_experience",
   "membership_plans",
 ];
@@ -123,7 +125,8 @@ export const PAGE_MODULE_LABELS: Record<PageModuleType, string> = {
   membership_carousel: "멤버십 캐러셀",
   membership_matrix: "멤버십 권한 비교표",
   membership_depths: "심연으로의 스크롤(패럴랙스)",
-  membership_doors: "혜택의 문(문 열기 카드)",
+  membership_doors: "문 로비(앤틱 문 → 설명 캐러셀)",
+  membership_skilltree: "스킬 트리(등급별 열리는 권한)",
   membership_experience: "감성적 권한 표",
   membership_plans: "멤버십 가입 카드",
   sort: "Sort (레거시)",
@@ -162,6 +165,7 @@ export const PAGE_MODULE_ICONS: Record<PageModuleType, string> = {
   membership_matrix: "📊",
   membership_depths: "🌀",
   membership_doors: "🚪",
+  membership_skilltree: "🌳",
   membership_experience: "🗝️",
   membership_plans: "💳",
   sort: "↕️",
@@ -188,7 +192,7 @@ export const WIDGET_GROUPS: { label: string; types: PageModuleType[] }[] = [
   // WidgetInspectorForm의 필드 폼으로만 편집한다(더블클릭 인라인 편집이
   // 아님, Craft 페이지 자체를 편집할 때만 그 방식을 씀).
   { label: "Craft 블록", types: ["craft_hero", "craft_directory", "craft_newsletter", "craft_footer"] },
-  { label: "멤버십", types: ["membership_carousel", "membership_doors", "membership_depths", "membership_experience", "membership_matrix", "membership_plans"] },
+  { label: "멤버십", types: ["membership_carousel", "membership_doors", "membership_skilltree", "membership_depths", "membership_experience", "membership_matrix", "membership_plans"] },
 ];
 
 // board_id 컬럼을 실제로 쓰는 위젯 — 관리자 UI가 이 목록으로 "게시판 선택"
@@ -535,16 +539,34 @@ export const WIDGET_FIELDS: Record<PageModuleType, FieldDef[]> = {
     { key: "subtitle", label: "부제목", kind: "text" },
     {
       key: "doors",
-      label: "문(3~4개 권장 — 카드를 누르면 문이 열리고 문구가 떠올라요)",
+      label: "문(플랫폼 요소마다 하나 — 문 사진을 올리면 그 사진이 문이 되고, 누르면 열리며 뒤편에 설명 캐러셀이 나와요)",
       kind: "list",
       addLabel: "+ 문 추가",
       itemFields: [
-        { key: "icon", label: "아이콘(이모지)", kind: "text" },
+        { key: "imageUrl", label: "앤틱 문 사진(비우면 나무문)", kind: "image" },
         { key: "title", label: "문 이름", kind: "text" },
-        { key: "tagline", label: "한 줄 설명(닫힌 문)", kind: "text" },
-        { key: "headline", label: "열린 뒤 큰 문구", kind: "text" },
-        { key: "lines", label: "열린 뒤 짧은 문장(줄바꿈으로 구분)", kind: "textarea" },
+        { key: "tagline", label: "한 줄 설명(닫힌 문 아래)", kind: "text" },
+        { key: "description", label: "문 뒤편 첫 설명(줄바꿈 가능)", kind: "textarea" },
+        { key: "extra", label: "추가 슬라이드(빈 줄로 슬라이드를 구분)", kind: "textarea" },
+        { key: "href", label: "들어가기 링크(예: /shop)", kind: "text" },
+        { key: "hrefLabel", label: "링크 버튼 문구", kind: "text" },
         { key: "accent", label: "빛 색(#RRGGBB)", kind: "text" },
+      ],
+    },
+  ],
+  membership_skilltree: [
+    { key: "heading", label: "제목", kind: "text" },
+    { key: "subtitle", label: "부제목", kind: "text" },
+    {
+      key: "branches",
+      label: "가지(등급이 오를 때 새로 열리는 권한) — 등급 번호: 0 Silo Angel · 1 Alice · 2 Great Gatsby · 3 Patron · 4 Lautrec · 99 Artist",
+      kind: "list",
+      addLabel: "+ 가지 추가",
+      itemFields: [
+        { key: "rank", label: "열리는 등급 번호", kind: "text" },
+        { key: "icon", label: "아이콘(이모지)", kind: "text" },
+        { key: "title", label: "이름", kind: "text" },
+        { key: "desc", label: "한 줄 설명", kind: "text" },
       ],
     },
   ],
@@ -691,7 +713,8 @@ export const WIDGET_DEFAULT_SETTINGS: Record<PageModuleType, Record<string, unkn
     groupCopy: DEFAULT_GROUP_COPY,
   },
   membership_depths: { heading: "", sceneHeightVh: 130, depths: DEFAULT_DEPTHS },
-  membership_doors: { heading: "사일로의 문을 열어보세요", subtitle: "카드를 누르면 문이 열려요", doors: DEFAULT_BENEFIT_DOORS },
+  membership_doors: { heading: "사일로의 문을 열어보세요", subtitle: "문을 눌러 안으로 들어가 보세요", doors: DEFAULT_LOBBY_DOORS },
+  membership_skilltree: { heading: "등급이 오를수록 열리는 문", subtitle: "Silo Angel에서 시작해 한 걸음씩, 새 가지가 열려요", branches: DEFAULT_SKILL_BRANCHES },
   membership_experience: {
     heading: "사일로에서의 경험, 한눈에",
     subtitle: "자리마다 열리는 세계를 은유로 담았어요. 흐리게 잠긴 곳은 다음 자리에서 열려요.",

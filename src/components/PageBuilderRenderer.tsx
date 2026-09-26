@@ -12,7 +12,9 @@ import { WidgetPreviewContext } from "@/lib/widgetPreviewContext";
 import { MembershipDepths } from "@/components/membership/MembershipDepths";
 import { MembershipExperienceTable } from "@/components/membership/MembershipExperienceTable";
 import { DEFAULT_DEPTHS, DEFAULT_EXPERIENCE_ROWS, type DepthScene, type ExperienceRow } from "@/lib/membershipContentDefaults";
-import { BenefitDoors, DEFAULT_BENEFIT_DOORS, type BenefitDoor } from "@/components/membership/BenefitDoors";
+import { DoorLobby, DEFAULT_LOBBY_DOORS, type LobbyDoor } from "@/components/membership/DoorLobby";
+import { MembershipSkillTree } from "@/components/membership/MembershipSkillTree";
+import { DEFAULT_SKILL_BRANCHES, type SkillBranch } from "@/lib/membershipContentDefaults";
 import { MembershipMatrix } from "@/components/membership/MembershipMatrix";
 import { MembershipCarousel, MEMBERSHIP_CAROUSEL_DEFAULTS } from "@/components/membership/MembershipCarousel";
 import { MembershipPlansSection } from "@/components/payments/MembershipPlansSection";
@@ -394,14 +396,23 @@ function renderModule(module: PageModuleRow) {
       return <MembershipDepths heading={str(settings.heading, "")} scenes={scenes.length > 0 ? scenes : DEFAULT_DEPTHS} sceneHeightVh={num(settings.sceneHeightVh, 130)} />;
     }
     case "membership_doors": {
-      const doors = arr<Partial<BenefitDoor>>(settings.doors).filter((d) => d && typeof d.title === "string");
+      const doors = arr<Partial<LobbyDoor>>(settings.doors).filter((d) => d && typeof d.title === "string");
       return (
-        <BenefitDoors
+        <DoorLobby
+          moduleId={module.id}
+          settings={settings as Record<string, unknown>}
           heading={str(settings.heading, "")}
           subtitle={str(settings.subtitle, "")}
-          doors={doors.length > 0 ? doors.map((d) => ({ icon: d.icon ?? "🗝️", title: d.title ?? "", tagline: d.tagline ?? "", headline: d.headline ?? "", lines: d.lines ?? "", accent: /^#[0-9a-fA-F]{6}$/.test(d.accent ?? "") ? (d.accent as string) : "#E4C84B" })) : DEFAULT_BENEFIT_DOORS}
+          doors={doors.length > 0 ? doors.map((d) => ({ imageUrl: d.imageUrl ?? "", title: d.title ?? "", tagline: d.tagline ?? "", description: d.description ?? "", extra: d.extra ?? "", href: d.href ?? "", hrefLabel: d.hrefLabel ?? "", accent: /^#[0-9a-fA-F]{6}$/.test(d.accent ?? "") ? (d.accent as string) : "#E4C84B" })) : DEFAULT_LOBBY_DOORS}
         />
       );
+    }
+    case "membership_skilltree": {
+      const branches = arr<Partial<SkillBranch> & { rank?: number | string }>(settings.branches)
+        .filter((b) => b && typeof b.title === "string")
+        .map((b) => ({ rank: Number(b.rank), icon: b.icon ?? "✦", title: b.title ?? "", desc: b.desc ?? "" }))
+        .filter((b) => Number.isFinite(b.rank));
+      return <MembershipSkillTree heading={str(settings.heading, "")} subtitle={str(settings.subtitle, "")} branches={branches.length > 0 ? branches : DEFAULT_SKILL_BRANCHES} />;
     }
     case "membership_experience": {
       const rows = arr<Partial<ExperienceRow>>(settings.rows).filter((r) => r && typeof r.label === "string");

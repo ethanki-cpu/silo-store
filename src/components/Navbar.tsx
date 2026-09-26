@@ -9,6 +9,7 @@ import { fetchNavTabs, getActiveNavTabKey, type NavTab, type NavItem } from "@/l
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
+import { TierSimulatorHost } from "@/components/membership/TierSimulator";
 import { UserMenuDropdown } from "@/components/UserMenuDropdown";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { useHideOnScroll } from "@/lib/useHideOnScroll";
@@ -1602,6 +1603,18 @@ export function Navbar({
           </button>
         );
       }
+      case "join": {
+        // 등급과 무관하게 항상 보인다(사용자 지시) — 멤버십 페이지로 가는 상시 진입점.
+        return (
+          <Link
+            key="join"
+            href="/membership"
+            className={`whitespace-nowrap rounded-full border border-amber-500 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800 hover:bg-amber-100 ${ACCOUNT_MENU_ITEM_CLASS}`}
+          >
+            멤버십 가입
+          </Link>
+        );
+      }
       case "logout":
         return session ? (
           <button key="logout" onClick={handleLogout} className={`rounded-md bg-gray-800 text-white px-3 py-1.5 text-sm ${ACCOUNT_MENU_ITEM_CLASS}`}>
@@ -1643,6 +1656,10 @@ export function Navbar({
         })
         .filter(Boolean)
     : null;
+  if (unifiedHeaderItems && !headerLayout?.items.some((it) => it.type === "menu" && it.refId === "join")) {
+    const joinNode = renderMenuItem("join");
+    if (joinNode) unifiedHeaderItems.push(<Fragment key="__join">{joinNode}</Fragment>);
+  }
 
   // EPIC-136: 편집 모드(관리자 캔버스)에서는 실제 <Link>/<a> 클릭이 그대로
   // 페이지를 이동시켜 관리자 화면을 벗어나 버린다 — capture 단계에서 클릭
@@ -2262,9 +2279,12 @@ export function Navbar({
               memberId={member.id}
               memberName={member.name}
               tierName={member.tier_name}
+              rank={member.membership_rank}
               onClose={() => setPopoverOpen(false)}
             />
           )}
+          {/* EPIC-165: 내 등급 시뮬레이터(등급 팝오버·멤버십 페이지에서 열림) */}
+          <TierSimulatorHost />
 
           {userMenuOpen && (
             <UserMenuDropdown items={userMenuItems} onClose={() => setUserMenuOpen(false)} />

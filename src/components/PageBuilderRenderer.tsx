@@ -403,7 +403,7 @@ function renderModule(module: PageModuleRow) {
           settings={settings as Record<string, unknown>}
           heading={str(settings.heading, "")}
           subtitle={str(settings.subtitle, "")}
-          doors={doors.length > 0 ? doors.map((d) => ({ imageUrl: d.imageUrl ?? "", title: d.title ?? "", tagline: d.tagline ?? "", description: d.description ?? "", extra: d.extra ?? "", href: d.href ?? "", hrefLabel: d.hrefLabel ?? "", accent: /^#[0-9a-fA-F]{6}$/.test(d.accent ?? "") ? (d.accent as string) : "#E4C84B" })) : DEFAULT_LOBBY_DOORS}
+          doors={doors.length > 0 ? doors.map((d) => ({ imageUrl: d.imageUrl ?? "", title: d.title ?? "", tagline: d.tagline ?? "", description: d.description ?? "", extra: d.extra ?? "", href: d.href ?? "", hrefLabel: d.hrefLabel ?? "", accent: /^#[0-9a-fA-F]{6}$/.test(d.accent ?? "") ? (d.accent as string) : "#E4C84B", palette: Array.isArray(d.palette) ? d.palette.filter((c): c is string => typeof c === "string") : undefined, paletteSrc: d.paletteSrc })) : DEFAULT_LOBBY_DOORS}
         />
       );
     }

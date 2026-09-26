@@ -51,6 +51,12 @@ function DoorFace({ door, big, admin }: { door: LobbyDoor; big?: boolean; admin?
 function LobbyOverlay({ door, from, onClose }: { door: LobbyDoor; from: DOMRect; onClose: () => void }) {
   const reduce = !!useReducedMotion();
   const a = door.accent;
+  // EPIC-166: 문 사진에서 뽑은 팔레트가 있으면 화면 전체의 ambient(배경·방·빛)를 그 색으로, 없으면 지정한 빛 색(accent).
+  const pal = door.palette && door.palette.length >= 4 ? door.palette : null;
+  const c1 = pal?.[0] ?? a;
+  const c2 = pal?.[1] ?? a;
+  const c3 = pal?.[2] ?? a;
+  const dark = pal?.[3] ?? "#14101c";
   const slides = slidesOf(door);
   const [idx, setIdx] = useState(0);
   const [opened, setOpened] = useState(false);
@@ -73,7 +79,14 @@ function LobbyOverlay({ door, from, onClose }: { door: LobbyDoor; from: DOMRect;
 
   return createPortal(
     <motion.div className="fixed inset-0 z-[95]" role="dialog" aria-modal="true" aria-label={`${door.title} 문`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
-      <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: `radial-gradient(ellipse at 50% 42%, ${c1}55 0%, ${dark}e8 62%, ${dark}f7 100%)` }} onClick={onClose} />
+      {/* 팔레트 색의 ambient 빛무리 — 천천히 떠다닌다 */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <style>{`@keyframes silo-amb{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(var(--ax),var(--ay),0) scale(1.25)}}`}</style>
+        {[c1, c2, c3].map((c, i) => (
+          <span key={i} className="absolute rounded-full" style={{ width: "58vmax", height: "58vmax", left: ["-18%", "52%", "18%"][i], top: ["-24%", "8%", "52%"][i], background: `radial-gradient(circle, ${c}88 0%, transparent 66%)`, filter: "blur(34px)", ["--ax" as string]: ["6vw", "-7vw", "4vw"][i], ["--ay" as string]: ["5vh", "-4vh", "-6vh"][i], animation: `silo-amb ${15 + i * 5}s ease-in-out infinite` } as React.CSSProperties} />
+        ))}
+      </div>
       <motion.div
         className="absolute left-1/2 top-1/2"
         style={{ width: W, height: H, marginLeft: -W / 2, marginTop: -H / 2, perspective: 1300 }}
@@ -82,7 +95,7 @@ function LobbyOverlay({ door, from, onClose }: { door: LobbyDoor; from: DOMRect;
         transition={{ duration: reduce ? 0 : 0.95, ease: EASE }}
       >
         {/* 문 뒤편의 방 — 설명 캐러셀 */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: reduce ? 0.1 : 1.0 }} className="absolute inset-0 flex flex-col overflow-hidden px-6 pb-5 pt-9 text-center text-white" style={{ borderRadius: "10px", background: `radial-gradient(ellipse at 10% 50%, ${a}dd 0%, ${a}55 30%, #14101c 74%)`, boxShadow: `0 0 120px ${a}66, inset 0 0 60px ${a}33` }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: reduce ? 0.1 : 1.0 }} className="absolute inset-0 flex flex-col overflow-hidden px-6 pb-5 pt-9 text-center text-white" style={{ borderRadius: "10px", background: `radial-gradient(ellipse at 12% 50%, ${c1}f2 0%, ${c2}88 34%, ${dark} 76%)`, boxShadow: `0 0 130px ${c1}88, inset 0 0 60px ${c2}44` }}>
           <div className="flex flex-1 items-center justify-center">
             {opened && (
               <AnimatePresence mode="wait">
@@ -138,7 +151,7 @@ function LobbyOverlay({ door, from, onClose }: { door: LobbyDoor; from: DOMRect;
         <motion.span
           aria-hidden
           className="pointer-events-none absolute -left-0.5 top-[6%] h-[88%] w-2 rounded-full"
-          style={{ background: a, boxShadow: `0 0 30px 14px ${a}, 0 0 110px 44px ${a}88`, backdropFilter: "blur(10px) brightness(1.6)", WebkitBackdropFilter: "blur(10px) brightness(1.6)" }}
+          style={{ background: c1, boxShadow: `0 0 30px 14px ${c1}, 0 0 110px 44px ${c1}88`, backdropFilter: "blur(10px) brightness(1.6)", WebkitBackdropFilter: "blur(10px) brightness(1.6)" }}
           initial={{ opacity: 0, scaleX: 0.4 }}
           animate={{ opacity: [0, 1, 0.4], scaleX: [0.4, 2.6, 1.2] }}
           transition={{ duration: 1.4, delay: 0.85, ease: "easeOut" }}
@@ -153,10 +166,30 @@ function LobbyOverlay({ door, from, onClose }: { door: LobbyDoor; from: DOMRect;
 }
 
 export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, settings }: { heading: string; subtitle: string; doors: LobbyDoor[]; moduleId?: string; settings?: Record<string, unknown> }) {
-  const { member } = useAuth();
+  const { member, session } = useAuth();
   const isAdmin = !!member?.is_admin;
+  const triedPalette = useRef(new Set<string>());
   const [local, setDoors] = useState<LobbyDoor[] | null>(null); // 방금 올린 사진을 저장 응답 전에 바로 보여주기 위한 로컬 사본
   const doors = local ?? doorsProp;
+  // EPIC-166: 관리자가 이 페이지를 볼 때 팔레트가 없는(또는 사진이 바뀐) 문의 색을 서버에서 뽑아 위젯 설정에 저장한다 — 방문자는 저장된 값만 읽는다.
+  useEffect(() => {
+    if (!isAdmin || !session?.access_token || !moduleId) return;
+    const need = doors.filter((d) => d.imageUrl && d.paletteSrc !== d.imageUrl && !triedPalette.current.has(d.imageUrl));
+    if (need.length === 0) return;
+    need.forEach((d) => triedPalette.current.add(d.imageUrl));
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/door-palette", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ urls: need.map((d) => d.imageUrl) }) });
+        if (!res.ok) return;
+        const { palettes } = (await res.json()) as { palettes: Record<string, string[] | null> };
+        const next = doors.map((d) => (palettes[d.imageUrl] ? { ...d, palette: palettes[d.imageUrl] as string[], paletteSrc: d.imageUrl } : d));
+        setDoors(next);
+        await supabase.from("page_modules").update({ settings: { ...(settings ?? {}), doors: next } }).eq("id", moduleId);
+      } catch {
+        /* 팔레트는 장식 — 실패하면 지정한 빛 색을 그대로 쓴다 */
+      }
+    })();
+  }, [isAdmin, session?.access_token, moduleId, doors, settings]);
   const [busyIdx, setBusyIdx] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 

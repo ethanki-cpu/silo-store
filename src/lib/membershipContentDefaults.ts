@@ -127,7 +127,8 @@ export const DEFAULT_DEPTHS: DepthScene[] = [
 
 // EPIC-165: 문 로비 — 플랫폼의 핵심 요소마다 앤틱 문 하나(관리자가 문 사진을 올린다). 문을 누르면 문이 열리고, 그 뒤편에 설명 캐러셀이 나타난다.
 // extra = 추가 슬라이드(빈 줄로 구분). 이미지가 없으면 코드로 그린 나무문이 대신 보인다.
-export type LobbyDoor = { imageUrl: string; title: string; tagline: string; description: string; extra: string; href: string; hrefLabel: string; accent: string };
+// palette = 문 사진에서 뽑은 [주색, 보조색, 포인트색, 어두운 배경색](서버 /api/admin/door-palette가 계산해 설정에 저장), paletteSrc = 그 팔레트를 뽑은 사진 주소(사진이 바뀌면 다시 뽑는다).
+export type LobbyDoor = { imageUrl: string; title: string; tagline: string; description: string; extra: string; href: string; hrefLabel: string; accent: string; palette?: string[]; paletteSrc?: string };
 
 export const DEFAULT_LOBBY_DOORS: LobbyDoor[] = [
   { imageUrl: "", title: "About Silo", tagline: "에단과 수미의 일상과 취향 로그", description: "사일로의 주인 '에단과 수미'의 일상과 취향 로그.\n오래 모아 온 것들과 그 이야기를 가장 먼저 만나는 문이에요.", extra: "사일로 타임라인 · 사일로의 하루 등\n게시판 3개가 이 문 안에 있어요.", href: "/about-silo", hrefLabel: "About Silo 들어가기", accent: "#E4C84B" },

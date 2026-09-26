@@ -88,6 +88,8 @@ function FeatherSvg({ index, color }: { index: number; color: string }) {
   );
 }
 
+// (기존 별 SVG — 글린트로 대체돼 더 쓰지 않지만 STAR_VARIANTS import 정리를 피하려고 남겨둔다)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function StarSvg({ variant }: { variant: number }) {
   const v = STAR_VARIANTS[variant % STAR_VARIANTS.length];
   return (
@@ -128,8 +130,9 @@ function LayerView({ layer, accent, seed }: { layer: Layer; accent: string; seed
         let height = p.size;
         if (layer.shape === "feather" && !hasImages) height = p.size * FEATHERS[featherIdx].aspect;
         if (layer.shape === "star") {
-          width = i % 3 === 2 ? p.size * 1.6 : p.size;
-          height = p.size * (i % 3 === 2 ? 1.6 : 1.7);
+          // HOTFIX-164.4: 2D 별 모양 대신 글린트(코어+후광+십자 빛줄기)라 더 크게 그린다.
+          width = p.size * 2.6;
+          height = p.size * 2.6;
         }
         if (layer.shape === "petal") height = p.size * 1.4;
 
@@ -154,7 +157,15 @@ function LayerView({ layer, accent, seed }: { layer: Layer; accent: string; seed
         };
 
         let content: ReactNode = null;
-        if (layer.shape === "star") content = <StarSvg variant={i % 3} />;
+        if (layer.shape === "star")
+          content = (
+            <span className="relative block h-full w-full">
+              <span className="absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, #ffffff 0%, #ffffff 9%, ${accent}cc 20%, ${accent}33 42%, transparent 66%)` }} />
+              <span className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2" style={{ background: "linear-gradient(90deg, transparent, #ffffff 50%, transparent)" }} />
+              <span className="absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2" style={{ background: "linear-gradient(180deg, transparent, #ffffff 50%, transparent)" }} />
+              {i % 3 === 0 && <span className="absolute inset-[18%] rotate-45"><span className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2" style={{ background: "linear-gradient(90deg, transparent, #ffffffaa 50%, transparent)" }} /><span className="absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2" style={{ background: "linear-gradient(180deg, transparent, #ffffffaa 50%, transparent)" }} /></span>}
+            </span>
+          );
         else if ((layer.shape === "feather" || layer.shape === "image") && hasImages) {
           // eslint-disable-next-line @next/next/no-img-element
           content = <img src={layer.images![p.pick % layer.images!.length]} alt="" className="h-full w-full object-contain" />;

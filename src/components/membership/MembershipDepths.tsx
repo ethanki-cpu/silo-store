@@ -9,6 +9,61 @@ import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { DepthArt } from "@/components/membership/DepthArt";
 import { DepthEffects } from "@/components/membership/DepthEffects";
 import { DepthVfx, VFX_BY_INDEX } from "@/components/membership/DepthVfx";
+
+// HOTFIX-164.4: Artist 배경 물결 왜곡 — 물방울/마우스/스크롤이 파동을 일으키면 feDisplacementMap 세기가 튀었다가 감쇠한다(구간이 끝나면 필터 해제).
+function useWaterDistort(ref: React.RefObject<HTMLDivElement | null>, mapRef: React.RefObject<SVGFEDisplacementMapElement | null>, turbRef: React.RefObject<SVGFETurbulenceElement | null>, filterId: string, on: boolean) {
+  useEffect(() => {
+    if (!on) return;
+    const node = ref.current;
+    let power = 0;
+    let raf = 0;
+    let last = performance.now();
+    let nextDrop = performance.now() + 900;
+    let lastMove = 0;
+    let lastY = window.scrollY;
+    const kick = (v: number) => {
+      power = Math.min(34, power + v);
+    };
+    const onMove = () => {
+      const t = performance.now();
+      if (t - lastMove > 260) {
+        lastMove = t;
+        kick(9);
+      }
+    };
+    const onScroll = () => {
+      const dy = Math.abs(window.scrollY - lastY);
+      lastY = window.scrollY;
+      if (dy > 10) kick(Math.min(16, 4 + dy / 20));
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    const tick = (t: number) => {
+      const dt = Math.min(64, t - last);
+      last = t;
+      if (t >= nextDrop) {
+        kick(22);
+        nextDrop = t + 3200 + Math.random() * 2200;
+      }
+      power *= Math.pow(0.9, dt / 16);
+      const el = ref.current;
+      if (el) el.style.filter = power > 0.6 ? `url(#${filterId})` : "none";
+      if (power > 0.6) {
+        mapRef.current?.setAttribute("scale", power.toFixed(1));
+        const f = 0.006 + 0.004 * Math.sin(t / 900);
+        turbRef.current?.setAttribute("baseFrequency", `${f.toFixed(4)} ${(f * 1.5).toFixed(4)}`);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("scroll", onScroll);
+      if (node) node.style.filter = "none";
+    };
+  }, [ref, mapRef, turbRef, filterId, on]);
+}
 import { DEPTH_FONTS, type DepthScene } from "@/lib/membershipContentDefaults";
 
 // EPIC-163 / 163.5: Scroll Storytelling "심연으로의 스크롤" — 스크롤할수록 사일로의 깊은 공간으로 줌인하며 깊이(Depth)마다
@@ -51,7 +106,7 @@ function SceneBackdrop({ scene, index }: { scene: DepthScene; index: number }) {
   const { c1, c2, accent, hasImage } = resolveTheme(scene, index);
   const [px, py] = parsePos(scene.imagePos);
   const zoom = Math.min(250, Math.max(100, scene.imageZoom ?? 100)) / 100;
-  const fit = scene.imageFit ?? "contain";
+  const fit = scene.imageFit ?? "cover"; // HOTFIX-164.4: 화면 가득(좌우 공백 없음)이 기본 — 잘리는 부분은 편집기에서 초점을 드래그해 정한다.
   return (
     <>
       <div className="absolute inset-0" style={{ background: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)` }} />
@@ -114,9 +169,9 @@ export function ArchText({ scene, index, variant = "stage", vp }: { scene: Depth
   let heightCss = `${Math.round(hPct * 5.85)}px`;
   let widthCss = `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
   if (variant === "preview" && vp) {
-    const w = vp.w >= 1280 ? vp.w * 0.35 : vp.w >= 768 ? vp.w * 0.5 : vp.w * 0.85;
+    const w = vp.w >= 1024 ? Math.min(440, Math.max(300, vp.w * 0.26)) : vp.w >= 640 ? Math.min(400, vp.w * 0.46) : Math.min(360, vp.w * 0.86);
     widthCss = `${Math.round(w)}px`;
-    heightCss = `${Math.round(Math.min(vp.h * 0.7, w * 1.6))}px`;
+    heightCss = `${Math.round(Math.min(vp.h * 0.64, w * 1.5))}px`;
   }
   const fontStack = (DEPTH_FONTS[scene.fontFamily ?? ""] ?? DEPTH_FONTS.myeongjo).stack;
   const manualSize = scene.fontSizePx && scene.fontSizePx > 0 ? Math.min(60, Math.max(8, scene.fontSizePx)) : null;
@@ -183,14 +238,22 @@ export function ArchText({ scene, index, variant = "stage", vp }: { scene: Depth
 }
 
 // 문 패널 반응형 크기(모바일 85% · 태블릿 50% · PC 35%, 너비는 화면 기준)와 3:5 안팎의 비율 — 높이는 화면의 70%를 넘지 않는다.
-const DOOR_CSS = `.silo-door{--dw:85vw;width:var(--dw);height:min(70vh,calc(var(--dw) * 1.6))}@media(min-width:768px){.silo-door{--dw:50vw}}@media(min-width:1280px){.silo-door{--dw:35vw}}`;
+// HOTFIX-164.4(사용자 신고 — "문이 필요 이상으로 커서 배경 이미지가 안 보여"): 창 폭 1300px에서도 50%로 커지던 문제 — 기준 폭을 1024px로 낮추고 상한(px)을 둔다.
+// 모바일 86%(≤360px) · 태블릿 46%(≤400px) · PC 26%(300~440px). 높이는 폭의 1.5배(화면의 64% 이하).
+const DOOR_CSS = `.silo-door{--dw:min(86vw,360px);width:var(--dw);height:min(64vh,calc(var(--dw) * 1.5))}@media(min-width:640px){.silo-door{--dw:min(46vw,400px)}}@media(min-width:1024px){.silo-door{--dw:clamp(300px,26vw,440px)}}`;
 
 function Scene({ index, count, progress, scene, near, active }: { index: number; count: number; progress: MotionValue<number>; scene: DepthScene; near: boolean; active: boolean }) {
   const { accent, c1, c2 } = resolveTheme(scene, index);
   // EPIC-164 Phase 3: 등급(깊이 순서)별 하이엔드 VFX — 관리자가 scene.hyperVfx=false로 끌 수 있다.
   const vfxKind = scene.hyperVfx === false ? null : VFX_BY_INDEX[index] ?? null;
-  // 좌/우 하단 비대칭 배치: 짝수 깊이는 왼쪽, 홀수 깊이는 오른쪽(모바일은 하단 가운데).
-  const side = index % 2 === 0 ? "md:justify-start" : "md:justify-end";
+  const waterRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<SVGFEDisplacementMapElement>(null);
+  const turbRef = useRef<SVGFETurbulenceElement>(null);
+  const waterId = `silo-water-${index}`;
+  useWaterDistort(waterRef, mapRef, turbRef, waterId, vfxKind === "artist" && active);
+  // HOTFIX-164.4: 문 위치는 편집기에서 드래그로 정한 값(기본 화면 가운데) — 미리보기와 같은 좌표계(화면 대비 %).
+  const doorX = Math.min(100, Math.max(0, scene.doorX ?? 50));
+  const doorY = Math.min(100, Math.max(0, scene.doorY ?? 50));
   const step = 1 / count;
   const center = (index + 0.5) * step;
   // 입력 구간은 0~1로 자르고(framer-motion은 0 미만/1 초과 오프셋을 허용하지 않는다), 첫/마지막 장면은 바깥쪽 끝에서 사라지지 않게 한다.
@@ -205,12 +268,24 @@ function Scene({ index, count, progress, scene, near, active }: { index: number;
 
   return (
     <motion.div className="absolute inset-0 overflow-hidden" style={{ opacity, scale }}>
-      <SceneBackdrop scene={scene} index={index} />
+      {vfxKind === "artist" && (
+        <svg width="0" height="0" aria-hidden style={{ position: "absolute" }}>
+          <filter id={waterId} x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence ref={turbRef} type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" seed="3" result="n" />
+            <feDisplacementMap ref={mapRef} in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </svg>
+      )}
+      <div ref={waterRef} className="absolute inset-0">
+        <SceneBackdrop scene={scene} index={index} />
+      </div>
       {near && vfxKind && <DepthVfx kind={vfxKind} accent={accent} color1={c1} color2={c2} imageUrl={scene.imageUrl} imagePos={scene.imagePos} active={active} />}
       {near && <DepthEffects effects={scene.effects ?? []} effectImages={(scene.effectImages ?? []).filter(Boolean)} effectConfig={scene.effectConfig} customEffects={scene.customEffects} accent={accent} seed={index + 1} />}
-      <motion.div className={`relative z-10 flex h-full items-end justify-center px-4 pb-[7vh] pt-20 md:px-[5vw] ${side}`} style={{ y: textY, scale: panelScale }}>
+      <motion.div className="pointer-events-none absolute inset-0 z-10" style={{ y: textY }}>
         <style>{DOOR_CSS}</style>
-        <ArchText scene={scene} index={index} />
+        <motion.div className="absolute" style={{ left: `${doorX}%`, top: `${doorY}%`, x: "-50%", y: "-50%", scale: panelScale }}>
+          <ArchText scene={scene} index={index} />
+        </motion.div>
       </motion.div>
     </motion.div>
   );
@@ -248,6 +323,29 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
       prevent: (node) => !!(node as HTMLElement).closest?.('[role="dialog"], .overflow-y-auto, [data-lenis-prevent]'),
     });
     lenis.on("scroll", ScrollTrigger.update);
+    // HOTFIX-164.4(사용자 신고 — "PC에서 스크롤하면 depth와 depth 사이에 애매하게 멈춘다"): ScrollTrigger의 snap은 Lenis 보간과 충돌해 안 붙었다.
+    // 스크롤이 잦아들면(휠을 멈춘 140ms 뒤) 진행 방향 쪽 가장 가까운 깊이 중심으로 Lenis가 직접 당겨 붙인다. 구간 밖에서는 개입하지 않는다.
+    let snapTimer = 0;
+    const snapNow = () => {
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      if (r.top > 0 || r.bottom < vh) return;
+      const total = Math.max(1, r.height - vh);
+      const p = -r.top / total;
+      const step = 1 / n;
+      const dir = lenis.direction || 1;
+      const probe = p + dir * step * 0.22; // 조금만 밀어도 다음 깊이로 넘어가게(끈적임 방지)
+      let best = 0;
+      points.forEach((pt, i) => {
+        if (Math.abs(pt - probe) < Math.abs(points[best] - probe)) best = i;
+      });
+      const targetY = window.scrollY - r.top + points[best] * total;
+      if (Math.abs(targetY - window.scrollY) > 2) lenis.scrollTo(targetY, { duration: 0.85, easing: (t: number) => 1 - Math.pow(1 - t, 3), lock: true });
+    };
+    lenis.on("scroll", () => {
+      window.clearTimeout(snapTimer);
+      snapTimer = window.setTimeout(snapNow, 140);
+    });
     const tick = (t: number) => lenis.raf(t * 1000);
     gsap.ticker.add(tick);
     gsap.ticker.lagSmoothing(0);
@@ -255,8 +353,6 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
       trigger: el,
       start: "top top",
       end: "bottom bottom",
-      // 각 깊이에서 쫀득하게 멈춘다 — 관성이 끝나면 가장 가까운 깊이로 부드럽게 당겨 붙는다.
-      snap: { snapTo: points, duration: { min: 0.25, max: 0.75 }, delay: 0.06, ease: "power2.inOut" },
       onUpdate: update,
       onRefresh: update,
     });
@@ -266,6 +362,7 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
     return () => {
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
+      window.clearTimeout(snapTimer);
       st.kill();
       gsap.ticker.remove(tick);
       lenis.destroy();

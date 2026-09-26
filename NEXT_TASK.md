@@ -1,6 +1,9 @@
 # NEXT_TASK
 
 ## 🎬 EPIC-164 후속 확인 필요 (2026-09-26)
+- **(HOTFIX-164.4) 최우선: 실기 확인** — 6개 깊이의 새 VFX(특히 Gatsby 셰이더·Alice 카드 텍스처·Artist 왜곡)와 문 위치/크기, 스냅. 문제 있으면 깊이 번호와 함께 알려주면 바로 고친다.
+- **R2 CORS**: 지금은 CORS 없이도 돌도록 만들었지만, R2 버킷에 `Access-Control-Allow-Origin`을 추가하면 배경 이미지를 WebGL 텍스처로 읽어 더 정교한 굴절 왜곡이 가능하다(버킷 설정 변경이라 사용자 승인 필요).
+- **캐러셀 재설계(사용자 요청, 미착수)**: 6개 멤버십을 어필 순서로 전달하는 "굵직한 카테고리 카드→돌리면 문이 열림" 캐러셀과 5가지 연출 제안 — 채팅으로 제안 전달, 선택 후 구현.
 - **(HOTFIX-164.1) 실기 확인**: Lenis 부드러운 스크롤 + GSAP 스냅이 사이트 전체 스크롤에 걸린다(/membership에서만). 모바일 터치·트랙패드에서 끈적임/스냅 튀김이 없는지, tsParticles 깃털·황금 가루가 보이는지 dev.silostore.net에서 확인. Vanta/Curtains/Rive/Spline 미도입 사유는 CHANGELOG 참고.
 - **VFX 실기 확인**: 개발용 브라우저가 렌더링을 멈춰(rAF·IntersectionObserver 미작동) Alice/Gatsby/Artist WebGL과 Patron/Lautrec/Angel CSS 효과의 실제 화면을 못 봤다(셰이더 컴파일·DOM 상태만 확인). dev.silostore.net에서 6개 깊이를 스크롤하며 ① 효과가 보이는지 ② 모바일 성능 ③ Artist의 R2 배경 이미지가 CORS로 WebGL 텍스처에 읽히는지(안 읽히면 절차적 물결 배경으로 대체됨 — R2 버킷 CORS에 Access-Control-Allow-Origin 추가하면 이미지가 일렁임) 확인.
 - **Gatsby "WebM 연기 소스"**: 요구서의 경량 WebM 연기 자산은 아직 없어 fbm 셰이더 연기로 대체했다. 자산이 준비되면 `DepthVfxGl.tsx`의 `Smoke` 자리에 교체.

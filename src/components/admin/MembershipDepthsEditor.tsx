@@ -21,7 +21,8 @@ const EFFECTS = Object.keys(DEPTH_EFFECT_LABELS) as DepthEffect[];
 
 type Drag =
   | { kind: "bg"; startX: number; startY: number; px: number; py: number }
-  | { kind: "sprite"; id: string; startX: number; startY: number; x: number; y: number };
+  | { kind: "sprite"; id: string; startX: number; startY: number; x: number; y: number }
+  | { kind: "door"; startX: number; startY: number; x: number; y: number };
 
 async function uploadFiles(files: FileList | File[]): Promise<{ urls: string[]; error: string | null }> {
   const urls: string[] = [];
@@ -124,7 +125,10 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
     const stage = stageRef.current;
     if (!stage) return;
     stage.setPointerCapture(e.pointerId);
-    if (spriteId) {
+    if (spriteId === "__door") {
+      e.stopPropagation();
+      drag.current = { kind: "door", startX: e.clientX, startY: e.clientY, x: cur.doorX ?? 50, y: cur.doorY ?? 50 };
+    } else if (spriteId) {
       e.stopPropagation();
       const sp = (cur.sprites ?? []).find((s) => s.id === spriteId);
       if (sp) drag.current = { kind: "sprite", id: spriteId, startX: e.clientX, startY: e.clientY, x: sp.x, y: sp.y };
@@ -140,7 +144,8 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
     const r = stage.getBoundingClientRect();
     const dx = ((e.clientX - d.startX) / r.width) * 100;
     const dy = ((e.clientY - d.startY) / r.height) * 100;
-    if (d.kind === "bg") patch({ imagePos: `${Math.round(clamp(d.px - dx, 0, 100))}% ${Math.round(clamp(d.py - dy, 0, 100))}%` });
+    if (d.kind === "door") patch({ doorX: Math.round(clamp(d.x + dx, 0, 100)), doorY: Math.round(clamp(d.y + dy, 0, 100)) });
+    else if (d.kind === "bg") patch({ imagePos: `${Math.round(clamp(d.px - dx, 0, 100))}% ${Math.round(clamp(d.py - dy, 0, 100))}%` });
     else patchSprite(d.id, { x: Math.round(clamp(d.x + dx, -10, 110)), y: Math.round(clamp(d.y + dy, -10, 110)) });
   }
   function onPointerUp() {
@@ -150,7 +155,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
   if (!cur) return null;
   const [px, py] = parsePos(cur.imagePos);
   const zoom = clamp(cur.imageZoom ?? 100, 100, 250) / 100;
-  const fit = cur.imageFit ?? "contain";
+  const fit = cur.imageFit ?? "cover";
   const c1 = cur.color1 || "#888888";
   const c2 = cur.color2 || "#cccccc";
   const accent = cur.accent || "#ffffff";
@@ -243,7 +248,12 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
               <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
               {/* 실제 출력과 같은 문(반응형 폭·좌우 하단 비대칭·블러·글꼴) — 가상 화면을 축소해서 그린다 */}
               <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: VP.w, height: VP.h, transform: `scale(${scale})` }}>
-                <div className={`flex h-full items-end ${VP.w >= 768 ? (at % 2 === 0 ? "justify-start" : "justify-end") : "justify-center"}`} style={{ paddingInline: VP.w >= 768 ? VP.w * 0.05 : 16, paddingBottom: VP.h * 0.07, paddingTop: 80 }}>
+                {/* 문은 잡아서 끌면 위치가 바뀐다(실제 화면과 같은 % 좌표) */}
+                <div
+                  className="pointer-events-auto absolute cursor-move"
+                  style={{ left: `${cur.doorX ?? 50}%`, top: `${cur.doorY ?? 50}%`, transform: "translate(-50%, -50%)" }}
+                  onPointerDown={(e) => onPointerDown(e, "__door")}
+                >
                   <ArchText scene={cur} index={at} variant="preview" vp={VP} />
                 </div>
               </div>
@@ -283,8 +293,8 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                 <label className="block">
                   <span className="mb-1 block text-xs text-gray-600">보이는 방식</span>
                   <select value={fit} onChange={(e) => patch({ imageFit: e.target.value as "contain" | "cover" })} className={input}>
-                    <option value="contain">이미지 전체가 잘리지 않게(기본)</option>
-                    <option value="cover">화면을 꽉 채우기(위아래/좌우 잘림)</option>
+                    <option value="cover">화면을 꽉 채우기(기본 — 잘리는 부분은 드래그로 조정)</option>
+                    <option value="contain">이미지 전체가 잘리지 않게(좌우/상하에 흐린 여백)</option>
                   </select>
                 </label>
               )}
@@ -334,7 +344,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                 </select>
               </label>
             </div>
-            <p className="mt-1 text-[11px] text-gray-400">위 무대에 실제 출력과 같은 문(폭은 PC 35% · 태블릿 50% · 모바일 85%)이 그대로 보여요. 문 크기는 화면 폭에 따라 자동이에요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요. 글꼴은 기기에 있는 폰트를 써서 새로 내려받지 않아요.</p>
+            <p className="mt-1 text-[11px] text-gray-400">위 무대에 실제 출력과 같은 문(폭은 PC 26% · 태블릿 46% · 모바일 86%)이 그대로 보여요. 문 크기는 화면 폭에 따라 자동이고, 문을 잡아 끌면 위치를 바꿀 수 있어요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요. 글꼴은 기기에 있는 폰트를 써서 새로 내려받지 않아요.</p>
           </div>
 
           <div className="rounded-md border border-gray-200 p-3">

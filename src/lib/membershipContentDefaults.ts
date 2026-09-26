@@ -87,6 +87,9 @@ export type DepthScene = {
   /** HOTFIX-164.3: 문 안 문구의 글꼴(DEPTH_FONTS 키, 비우면 명조)과 글자 크기(px, 0/비우면 문 크기에 맞춰 자동) */
   fontFamily?: string;
   fontSizePx?: number;
+  /** HOTFIX-164.4: 문의 중심 위치(화면 대비 %, 기본 50/50 = 가운데). 편집기에서 드래그 앤 드롭으로 정한다. */
+  doorX?: number;
+  doorY?: number;
 };
 
 // 글꼴은 웹폰트를 새로 받지 않고(트래픽 0) 기기에 있는 폰트 스택만 쓴다.

@@ -181,6 +181,10 @@ export type ConditionRow = { label: string; cells: Record<number, ConditionCell>
 export function describeConditionRows(tiers: TierRow[]): ConditionRow[] {
   const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
   const defs: { label: string; get: (t: TierRow) => ConditionCell }[] = [
+    // HOTFIX-164.4: 사용자가 표만 봐도 "무엇이 막혀 있는지" 알 수 있게, 등급별 한도를 맨 위에 명시한다(실제 게이팅: serverAuth.checkPostQuota / tierCategoryAccess.PLANET_FEATURES).
+    { label: "글쓰기 한도", get: (t) => (t.rank === 0 ? "글 5개까지" : "제한 없음") },
+    { label: "사일로 플래닛 열람", get: (t) => (t.rank === 0 ? "내 행성 + 사일로 행성만" : "다른 회원 행성까지") },
+    { label: "내 행성 꾸미기(3D)", get: (t) => t.rank >= 3 },
     { label: "사일로 상점 구매 포인트 적립", get: () => true },
     { label: "사일로 상점 구매 할인", get: (t) => (t.shop_purchase_discount_pct ? `${t.shop_purchase_discount_pct}% 할인` : false) },
     { label: "사일로 상점 대여 할인", get: (t) => (t.shop_rental_discount_pct ? `${t.shop_rental_discount_pct}% 할인` : false) },

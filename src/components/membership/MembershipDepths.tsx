@@ -190,10 +190,7 @@ export function ArchText({ scene, index, variant = "stage", vp }: { scene: Depth
   const custom = scene.doorHeightPct != null || scene.doorWidthPct != null;
   let heightCss = `${Math.round(hPct * 5.85)}px`;
   let widthCss = `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
-  if (variant === "stage" && custom) {
-    heightCss = `min(${hPct}vh, ${Math.round(hPct * 10.7)}px)`;
-    widthCss = `min(92vw, calc(${heightCss} * ${wPct / 100}))`;
-  }
+  const customStage = variant === "stage" && custom; // 크기는 .silo-door-custom(CSS 변수 --dh/--wp)이 정한다 — 모바일에서는 자동으로 줄어든다
   if (variant === "preview" && vp) {
     if (custom) {
       const h = (vp.h * hPct) / 100;
@@ -241,9 +238,9 @@ export function ArchText({ scene, index, variant = "stage", vp }: { scene: Depth
   return (
     <div
       ref={doorRef}
-      className={`relative flex flex-col items-center justify-center overflow-hidden border-2 text-center${stage ? " silo-door" : ""}`}
+      className={`relative flex flex-col items-center justify-center overflow-hidden border-2 text-center${stage ? " silo-door" : ""}${customStage ? " silo-door-custom" : ""}`}
       style={{
-        ...(stage ? {} : { height: heightCss, width: widthCss, maxWidth: variant === "preview" ? undefined : "92%" }),
+        ...(stage ? {} : customStage ? ({ ["--dh" as string]: `${hPct}vh`, ["--wp" as string]: String(wPct / 100) } as React.CSSProperties) : { height: heightCss, width: widthCss, maxWidth: variant === "preview" ? undefined : "92%" }),
         borderRadius: DOOR_RADIUS,
         borderColor: `${accent}cc`,
         background: dark || hasImage ? `rgba(10,10,20,${darkPct / 100})` : "rgba(255,255,255,0.5)",
@@ -276,7 +273,8 @@ export function ArchText({ scene, index, variant = "stage", vp }: { scene: Depth
 // 문 패널 반응형 크기(모바일 85% · 태블릿 50% · PC 35%, 너비는 화면 기준)와 3:5 안팎의 비율 — 높이는 화면의 70%를 넘지 않는다.
 // HOTFIX-164.4(사용자 신고 — "문이 필요 이상으로 커서 배경 이미지가 안 보여"): 창 폭 1300px에서도 50%로 커지던 문제 — 기준 폭을 1024px로 낮추고 상한(px)을 둔다.
 // 모바일 86%(≤360px) · 태블릿 46%(≤400px) · PC 26%(300~440px). 높이는 폭의 1.5배(화면의 64% 이하).
-const DOOR_CSS = `.silo-door{--dw:min(86vw,360px);width:var(--dw);height:min(64vh,calc(var(--dw) * 1.5))}@media(min-width:640px){.silo-door{--dw:min(46vw,400px)}}@media(min-width:1024px){.silo-door{--dw:clamp(300px,26vw,440px)}}`;
+// HOTFIX-166.3(사용자 신고 — "모바일에서 아치문이 너무 크다"): 모바일(<640px)은 폭 74%(≤300px)·높이 화면의 50% 이하로, 직접 정한 크기(.silo-door-custom)도 모바일에서는 높이 50vh를 넘지 않게 줄인다.
+const DOOR_CSS = `.silo-door{--dw:min(74vw,300px);width:var(--dw);height:min(50vh,calc(var(--dw) * 1.45))}@media(min-width:640px){.silo-door{--dw:min(46vw,400px);height:min(64vh,calc(var(--dw) * 1.5))}}@media(min-width:1024px){.silo-door{--dw:clamp(300px,26vw,440px)}}.silo-door-custom{height:min(var(--dh),910px);width:min(92vw,calc(min(var(--dh),910px) * var(--wp)))}@media(max-width:639px){.silo-door-custom{height:min(var(--dh),50vh);width:min(80vw,calc(min(var(--dh),50vh) * var(--wp)))}}`;
 
 function Scene({ index, count, progress, scene, near, active }: { index: number; count: number; progress: MotionValue<number>; scene: DepthScene; near: boolean; active: boolean }) {
   const { accent, c1, c2 } = resolveTheme(scene, index);
@@ -321,7 +319,10 @@ function Scene({ index, count, progress, scene, near, active }: { index: number;
       <motion.div className="pointer-events-none absolute inset-0 z-10" style={{ y: textY }}>
         <style>{DOOR_CSS}</style>
         <motion.div className="absolute" style={{ left: `${doorX}%`, top: `${doorY}%`, x: "-50%", y: "-50%", scale: panelScale }}>
-          <ArchText scene={scene} index={index} />
+          {/* HOTFIX-166.3(사용자 지시 — 배경 이미지가 먼저 보이고 그다음에 아치문이 등장): 깊이가 화면의 주인공이 되면 배경을 먼저 보여주고 1초 뒤에 문이 떠오른다. 떠나면 바로 사라진다. */}
+          <motion.div initial={false} animate={active ? { opacity: 1, y: 0 } : { opacity: 0, y: 26 }} transition={active ? { duration: 0.9, delay: 1.0, ease: [0.16, 1, 0.3, 1] } : { duration: 0.3 }}>
+            <ArchText scene={scene} index={index} />
+          </motion.div>
         </motion.div>
       </motion.div>
     </motion.div>

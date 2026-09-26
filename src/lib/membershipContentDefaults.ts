@@ -132,12 +132,12 @@ export type LobbyDoor = { imageUrl: string; title: string; tagline: string; desc
 
 export const DEFAULT_LOBBY_DOORS: LobbyDoor[] = [
   { imageUrl: "", title: "About Silo", tagline: "에단과 수미의 일상과 취향 로그", description: "사일로의 주인 '에단과 수미'의 일상과 취향 로그.\n오래 모아 온 것들과 그 이야기를 가장 먼저 만나는 문이에요.", extra: "사일로 타임라인 · 사일로의 하루 등\n게시판 3개가 이 문 안에 있어요.", href: "/about-silo", hrefLabel: "About Silo 들어가기", accent: "#E4C84B" },
-  { imageUrl: "", title: "사일로 상점", tagline: "오래된 보물이 새 주인을 찾는 과정", description: "사일로의 오래된 보물이 새로운 주인을 찾아가는 모든 과정.\n고르고, 사연을 듣고, 집으로 데려가는 여정을 함께해요.", extra: "", href: "/shop", hrefLabel: "상점 둘러보기", accent: "#C9A46A" },
-  { imageUrl: "", title: "살롱데상", tagline: "'백명의 전시회' — 영감·창작·공유", description: "'백명의 전시회'라는 이름처럼,\n영감, 창작, 공유하는 우리 이야기.", extra: "", href: "/clubs", hrefLabel: "살롱데상 만나기", accent: "#F28C28" },
-  { imageUrl: "", title: "온라인 도슨트", tagline: "그 기록으로 오늘을 비춰보기", description: "과거를 바꿀 순 없지만,\n그 기록으로 영감을 얻어 오늘을 비춰보기.", extra: "", href: "/docent", hrefLabel: "도슨트 듣기", accent: "#2ECC8F" },
-  { imageUrl: "", title: "스튜디오", tagline: "공간 대여 · 서로의 감성으로 찍은 사진", description: "사일로 & 살롱데상 공간 대여,\n서로의 감성으로 찍은 사진 공유.", extra: "", href: "/studio", hrefLabel: "스튜디오 보기", accent: "#9FC1FF" },
-  { imageUrl: "", title: "Silo Planet", tagline: "어린왕자의 행성처럼, 나만의 행성", description: "'어린왕자'의 행성처럼,\n나만의 행성을 꾸미고 다른 행성과 연결하기.", extra: "", href: "/silo-planet", hrefLabel: "행성으로 떠나기", accent: "#8E5BD1" },
-  { imageUrl: "", title: "마이페이지", tagline: "'내가 선택한 나'를 아카이빙", description: "'내가 선택한 나'를 아카이빙 하기.\n팔로우로 연결된 너와 나.", extra: "", href: "/mypage", hrefLabel: "내 공간으로", accent: "#E2412F" },
+  { imageUrl: "", title: "사일로 상점", tagline: "오래된 보물이 새 주인을 찾는 과정", description: "사일로의 오래된 보물이 새로운 주인을 찾아가는 모든 과정.\n고르고, 사연을 듣고, 집으로 데려가는 여정을 함께해요.", extra: "", href: "/silo-store", hrefLabel: "사일로 상점 들어가기", accent: "#C9A46A" },
+  { imageUrl: "", title: "살롱데상", tagline: "'백명의 전시회' — 영감·창작·공유", description: "'백명의 전시회'라는 이름처럼,\n영감, 창작, 공유하는 우리 이야기.", extra: "", href: "/salon-des-cent", hrefLabel: "살롱데상 들어가기", accent: "#F28C28" },
+  { imageUrl: "", title: "온라인 도슨트", tagline: "그 기록으로 오늘을 비춰보기", description: "과거를 바꿀 순 없지만,\n그 기록으로 영감을 얻어 오늘을 비춰보기.", extra: "", href: "/online-docent", hrefLabel: "온라인 도슨트 들어가기", accent: "#2ECC8F" },
+  { imageUrl: "", title: "스튜디오", tagline: "공간 대여 · 서로의 감성으로 찍은 사진", description: "사일로 & 살롱데상 공간 대여,\n서로의 감성으로 찍은 사진 공유.", extra: "", href: "/studio", hrefLabel: "스튜디오 들어가기", accent: "#9FC1FF" },
+  { imageUrl: "", title: "Silo Planet", tagline: "어린왕자의 행성처럼, 나만의 행성", description: "'어린왕자'의 행성처럼,\n나만의 행성을 꾸미고 다른 행성과 연결하기.", extra: "", href: "/silo-planet", hrefLabel: "Silo Planet 들어가기", accent: "#8E5BD1" },
+  { imageUrl: "", title: "마이페이지", tagline: "'내가 선택한 나'를 아카이빙", description: "'내가 선택한 나'를 아카이빙 하기.\n팔로우로 연결된 너와 나.", extra: "", href: "/mypage", hrefLabel: "마이페이지 들어가기", accent: "#E2412F" },
 ];
 
 // EPIC-165: 스킬 트리 — 등급(rank)이 오를 때마다 새로 열리는 가지. rank는 membership_rank(0~4, 99=Artist). 문구는 위젯 설정에서 관리자가 고친다.

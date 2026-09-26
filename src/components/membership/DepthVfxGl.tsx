@@ -69,7 +69,9 @@ void main(){
     // 샴페인 기포: 14개의 줄기(기포가 올라오는 자리)에서 크기가 클수록 빨리, 위로 갈수록 살짝 커지며 흔들린다
     float col=floor(aSeed.x*14.0)/14.0;
     float sz=pow(aSeed.y,2.6);
-    float spd=0.05+sz*0.16+aSeed.z*0.03;
+    // HOTFIX-166.2(사용자 지시 — 기포가 더 빨리 올라가는 것, 아닌 것, 중간 것): 크기와 무관하게 느림/중간/빠름 세 등급으로 나눈다.
+    float cls=fract(aSeed.x*97.0);
+    float spd=(cls<0.34?0.045:(cls<0.68?0.12:0.3))*(0.85+aSeed.z*0.3);
     float p=fract(aSeed.w*7.0+t*spd);
     float sway=sin(t*(1.2+aSeed.z*2.4)+aSeed.w*40.0)*(0.06+sz*0.1);
     pos=vec2((col-.5)*uVp.x*1.08+(aSeed.z-.5)*0.55+sway,(p-.5)*uVp.y*1.12);

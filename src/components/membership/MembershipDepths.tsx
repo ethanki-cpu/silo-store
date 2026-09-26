@@ -106,15 +106,16 @@ function parsePos(pos: string | undefined): [number, number] {
 // 그래서 기본을 "pan"으로 — 가로를 화면에 딱 맞추고(빈 여백 없음), 그림이 화면보다 세로로 길면 위→아래로 천천히 훑어 그림 전체가 한 번씩 다 보이게 한다(잘라 버리지 않는다).
 //  · cover = 화면 가득(넘치는 부분은 잘림, 초점 드래그) · contain = 전체가 보이되 남는 자리는 흐린 같은 그림 · stretch = 비율 무시하고 늘려 채움(그림이 찌그러짐)
 export type BackdropFit = "pan" | "cover" | "contain" | "stretch";
-export function BackdropImage({ url, fit, pos, zoom }: { url: string; fit: BackdropFit; pos: string | undefined; zoom: number | undefined }) {
+export function BackdropImage({ url, fit, pos, zoom, play = true }: { url: string; fit: BackdropFit; pos: string | undefined; zoom: number | undefined; play?: boolean }) {
   const [px, py] = parsePos(pos);
   const z = Math.min(250, Math.max(100, zoom ?? 100)) / 100;
   if (fit === "pan") {
     return (
       <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ containerType: "size", transform: `scale(${z})`, transformOrigin: `${px}% ${py}%` }}>
-        <style>{`@keyframes silo-bd-pan{0%,6%{transform:translateY(0)}94%,100%{transform:translateY(calc(-100% + 100cqh))}}`}</style>
+        <style>{`@keyframes silo-bd-pan{0%,8%{transform:translateY(0)}100%{transform:translateY(calc(-100% + 100cqh))}}`}</style>
+        {/* HOTFIX-166.2(사용자 지시 — 위에서 아래로 이미지가 보이게): 위에서 시작해 아래까지 한 번 훑고 끝에서 멈춘다. 깊이가 화면의 주인공이 될 때마다 처음(위)부터 다시 재생. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt="" draggable={false} className="absolute left-0 top-0 w-full" style={{ height: "auto", minHeight: "100cqh", objectFit: "cover", objectPosition: `${px}% ${py}%`, animation: "silo-bd-pan 26s ease-in-out infinite alternate" }} />
+        <img key={play ? "on" : "off"} src={url} alt="" draggable={false} className="absolute left-0 top-0 w-full" style={{ height: "auto", minHeight: "100cqh", objectFit: "cover", objectPosition: `${px}% ${py}%`, animation: "silo-bd-pan 16s ease-in-out 1 both", animationPlayState: play ? "running" : "paused" }} />
       </div>
     );
   }
@@ -137,13 +138,13 @@ export function BackdropImage({ url, fit, pos, zoom }: { url: string; fit: Backd
 }
 
 // 이미지·색·스프라이트까지의 "배경 레이어 묶음" — 실제 스크롤 무대와 정적(미리보기) 카드가 공유한다.
-function SceneBackdrop({ scene, index }: { scene: DepthScene; index: number }) {
+function SceneBackdrop({ scene, index, active = true }: { scene: DepthScene; index: number; active?: boolean }) {
   const { c1, c2, accent, hasImage } = resolveTheme(scene, index);
   const fit: BackdropFit = scene.imageFit ?? "pan";
   return (
     <>
       <div className="absolute inset-0" style={{ background: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)` }} />
-      {hasImage && <BackdropImage url={scene.imageUrl as string} fit={fit} pos={scene.imagePos} zoom={scene.imageZoom} />}
+      {hasImage && <BackdropImage url={scene.imageUrl as string} fit={fit} pos={scene.imagePos} zoom={scene.imageZoom} play={active} />}
       {/* 깊이의 색 정체성 — 이미지 위에 색을 얇게 덮어 글씨가 읽히고 깊이마다 색이 분명해지게 */}
       <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}${hasImage ? "30" : "00"} 0%, transparent 40%, ${c2}${hasImage ? "40" : "00"} 100%)` }} />
       <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 45%, transparent 45%, ${accent}33 100%)` }} />
@@ -312,7 +313,7 @@ function Scene({ index, count, progress, scene, near, active }: { index: number;
         </svg>
       )}
       <div ref={waterRef} className="absolute inset-0">
-        <SceneBackdrop scene={scene} index={index} />
+        <SceneBackdrop scene={scene} index={index} active={active} />
       </div>
       {near && (scene.videos ?? []).length > 0 && <DepthVideoLayer videos={scene.videos ?? []} />}
       {near && vfxKind && <DepthVfx kind={vfxKind} accent={accent} color1={c1} color2={c2} imageUrl={scene.imageUrl} imagePos={scene.imagePos} active={active} off={scene.vfxOff ?? []} cardFaces={scene.cardFaces ?? []} />}
@@ -338,6 +339,7 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
   useMotionValueEvent(scrollYProgress, "change", (v) => setActiveIdx(Math.min(Math.max(0, scenes.length - 1), Math.floor(v * scenes.length))));
 
   const snapKey = scenes.length;
+  const navRef = useRef<{ go: (i: number) => void; step: (dir: 1 | -1) => void } | null>(null);
   // HOTFIX-164.5(사용자 신고 — "스크롤 한 번에 depth 1에서 6으로 가버린다, 2번 굴리면 다음 depth여야 한다"):
   // Lenis 보간은 트랙패드/휠의 큰 이동량을 그대로 이어받아 여러 깊이를 한 번에 통과했다. 고정 구간에서는 스크롤을 "한 칸씩" 넘기는 방식으로 바꾼다:
   //  · 휠/키보드(↓ PageDown Space ↑ PageUp)/터치 스와이프 한 번 = 정확히 한 깊이 이동(GSAP ScrollToPlugin 트윈 1.05초),
@@ -398,6 +400,15 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
       return true;
     };
     const locked = () => busy || performance.now() < quietUntil;
+    // 화면의 이전/다음/점 버튼이 부르는 이동(스크롤·키보드와 같은 트윈, 이동 중에는 무시)
+    navRef.current = {
+      go: (i: number) => {
+        if (!locked() && i >= 0 && i < n) goTo(i);
+      },
+      step: (dir: 1 | -1) => {
+        if (!locked()) step(dir);
+      },
+    };
 
     let acc = 0;
     let lastWheel = 0;
@@ -481,6 +492,7 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
     window.addEventListener("scroll", onScrollIdle, { passive: true });
     window.addEventListener("resize", update);
     return () => {
+      navRef.current = null;
       window.clearTimeout(idleTimer);
       gsap.killTweensOf(window);
       window.removeEventListener("wheel", onWheel);
@@ -537,6 +549,22 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
             <motion.div className="h-full rounded-full bg-white/80" style={{ width: dot }} />
           </div>
           <p className="pointer-events-none absolute bottom-10 left-1/2 z-20 -translate-x-1/2 text-[11px] tracking-[0.3em] text-white/70">SCROLL</p>
+          {/* HOTFIX-166.2(사용자 지시 — 각 depth마다 이전/다음 버튼): 오른쪽 가운데의 ▲ 이전 · 깊이 점(누르면 바로 이동) · ▼ 다음 */}
+          {mode === "pinned" && (
+            <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-2 sm:right-6">
+              <button type="button" onClick={() => navRef.current?.step(-1)} disabled={activeIdx === 0} aria-label="이전 깊이" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/60 bg-black/40 text-lg text-white backdrop-blur transition hover:bg-black/60 disabled:opacity-25">
+                ▲
+              </button>
+              <div className="flex flex-col items-center gap-1.5 py-1">
+                {scenes.map((_, i) => (
+                  <button key={i} type="button" onClick={() => navRef.current?.go(i)} aria-label={`${i + 1}번째 깊이로`} aria-current={i === activeIdx} className="rounded-full border border-white/70 transition-all" style={{ width: 9, height: i === activeIdx ? 22 : 9, background: i === activeIdx ? "#fff" : "rgba(255,255,255,.25)" }} />
+                ))}
+              </div>
+              <button type="button" onClick={() => navRef.current?.step(1)} disabled={activeIdx === scenes.length - 1} aria-label="다음 깊이" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/60 bg-black/40 text-lg text-white backdrop-blur transition hover:bg-black/60 disabled:opacity-25">
+                ▼
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </section>

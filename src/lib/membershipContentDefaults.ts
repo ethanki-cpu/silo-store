@@ -92,6 +92,8 @@ export type DepthScene = {
   /** HOTFIX-165.2: 글자 크기 배율(%, 100 = 지금 보이는 크기 그대로, 작게/크게 자유롭게) — px 값이 있으면 그 위에 곱해진다 */
   fontScalePct?: number;
   titleScalePct?: number;
+  /** HOTFIX-167.3: 배경 이미지가 위→아래로 훑는 데 걸리는 시간(초, 작을수록 빠름, 기본 10) */
+  panSeconds?: number;
   /** HOTFIX-164.4: 문의 중심 위치(화면 대비 %, 기본 50/50 = 가운데). 편집기에서 드래그 앤 드롭으로 정한다. */
   doorX?: number;
   doorY?: number;

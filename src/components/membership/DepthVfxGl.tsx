@@ -156,12 +156,12 @@ void main(){
   float f=fbm(p+3.2*q+vec2(0.0,-t*0.12));
   float a;
   if(uMode<0.5){
-    float mask=smoothstep(1.0,0.05,vUv.y)*0.8+0.2;
+    float mask=smoothstep(1.0,0.05,vUv.y)*0.5+0.5; // HOTFIX-167.3: 화면 전체를 덮는다(위쪽도 절반 이상)
     a=smoothstep(0.32,0.85,f)*mask*uAlpha;
   } else {
     float x0=uOrigin.x+sin(vUv.y*7.0+t*0.9)*0.05*vUv.y+(q.x-.5)*0.32*vUv.y;
     float d=abs(vUv.x-x0);
-    float w=uWidth*(0.25+vUv.y*1.9);
+    float w=uWidth*(0.35+vUv.y*3.2);
     a=smoothstep(w,0.0,d)*smoothstep(1.0,0.25,vUv.y)*smoothstep(uOrigin.y,uOrigin.y+0.08,vUv.y)*(0.45+f)*uAlpha;
   }
   gl_FragColor=vec4(mix(uColor,vec3(1.0),0.45),clamp(a,0.0,0.85));
@@ -187,11 +187,12 @@ function Smoke({ mode, color, alpha, origin, width, z }: { mode: 0 | 1; color: s
 function Champagne({ accent, off }: { accent: string; off: string[] }) {
   const sprite = useMemo(() => bubbleSprite(), []);
   useEffect(() => () => sprite.dispose(), [sprite]);
-  const cigarette = useMemo<[number, number]>(() => [0.16, 0.02], []);
+  // HOTFIX-167.3(사용자 신고 — "담배연기 overlay가 배경 이미지보다 작아서 이상해, 크기 맞춰"): 왼쪽 한 줄이던 연기를 화면 전체 폭(왼쪽·가운데·오른쪽 3줄)으로 넓히고 위로 갈수록 퍼져 배경 이미지와 같은 크기를 덮는다.
+  const cigarettes = useMemo<[number, number][]>(() => [[0.14, 0.0], [0.5, 0.02], [0.86, 0.0]], []);
   return (
     <>
-      {!off.includes("smoke") && <Smoke mode={0} color={accent} alpha={0.55} z={-3} />}
-      {!off.includes("smoke") && <Smoke mode={1} color="#d9d2c4" alpha={0.7} origin={cigarette} width={0.045} z={-2.5} />}
+      {!off.includes("smoke") && <Smoke mode={0} color={accent} alpha={0.7} z={-3} />}
+      {!off.includes("smoke") && cigarettes.map((o, i) => <Smoke key={i} mode={1} color="#d9d2c4" alpha={0.75} origin={o} width={0.09} z={-2.5 + i * 0.01} />)}
       {!off.includes("bubbles") && <ParticlePoints mode={0} count={260} seed={5} sprite={sprite} />}
       {!off.includes("fireworks") && <ParticlePoints mode={1} count={360} seed={9} />}
     </>

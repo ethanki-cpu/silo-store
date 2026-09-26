@@ -106,7 +106,8 @@ function parsePos(pos: string | undefined): [number, number] {
 // 그래서 기본을 "pan"으로 — 가로를 화면에 딱 맞추고(빈 여백 없음), 그림이 화면보다 세로로 길면 위→아래로 천천히 훑어 그림 전체가 한 번씩 다 보이게 한다(잘라 버리지 않는다).
 //  · cover = 화면 가득(넘치는 부분은 잘림, 초점 드래그) · contain = 전체가 보이되 남는 자리는 흐린 같은 그림 · stretch = 비율 무시하고 늘려 채움(그림이 찌그러짐)
 export type BackdropFit = "pan" | "cover" | "contain" | "stretch";
-export function BackdropImage({ url, fit, pos, zoom, play = true }: { url: string; fit: BackdropFit; pos: string | undefined; zoom: number | undefined; play?: boolean }) {
+export const DEFAULT_PAN_SECONDS = 10;
+export function BackdropImage({ url, fit, pos, zoom, play = true, panSeconds }: { url: string; fit: BackdropFit; pos: string | undefined; zoom: number | undefined; play?: boolean; panSeconds?: number }) {
   const [px, py] = parsePos(pos);
   const z = Math.min(250, Math.max(100, zoom ?? 100)) / 100;
   if (fit === "pan") {
@@ -115,7 +116,7 @@ export function BackdropImage({ url, fit, pos, zoom, play = true }: { url: strin
         <style>{`@keyframes silo-bd-pan{0%,8%{transform:translateY(0)}100%{transform:translateY(calc(-100% + 100cqh))}}`}</style>
         {/* HOTFIX-166.2(사용자 지시 — 위에서 아래로 이미지가 보이게): 위에서 시작해 아래까지 한 번 훑고 끝에서 멈춘다. 깊이가 화면의 주인공이 될 때마다 처음(위)부터 다시 재생. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img key={play ? "on" : "off"} src={url} alt="" draggable={false} className="absolute left-0 top-0 w-full" style={{ height: "auto", minHeight: "100cqh", objectFit: "cover", objectPosition: `${px}% ${py}%`, animation: "silo-bd-pan 16s ease-in-out 1 both", animationPlayState: play ? "running" : "paused" }} />
+        <img key={play ? "on" : "off"} src={url} alt="" draggable={false} className="absolute left-0 top-0 w-full" style={{ height: "auto", minHeight: "100cqh", objectFit: "cover", objectPosition: `${px}% ${py}%`, animation: `silo-bd-pan ${Math.min(60, Math.max(2, panSeconds ?? DEFAULT_PAN_SECONDS))}s ease-in-out 1 both`, animationPlayState: play ? "running" : "paused" }} />
       </div>
     );
   }
@@ -144,7 +145,7 @@ function SceneBackdrop({ scene, index, active = true }: { scene: DepthScene; ind
   return (
     <>
       <div className="absolute inset-0" style={{ background: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)` }} />
-      {hasImage && <BackdropImage url={scene.imageUrl as string} fit={fit} pos={scene.imagePos} zoom={scene.imageZoom} play={active} />}
+      {hasImage && <BackdropImage url={scene.imageUrl as string} fit={fit} pos={scene.imagePos} zoom={scene.imageZoom} play={active} panSeconds={scene.panSeconds} />}
       {/* 깊이의 색 정체성 — 이미지 위에 색을 얇게 덮어 글씨가 읽히고 깊이마다 색이 분명해지게 */}
       <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}${hasImage ? "30" : "00"} 0%, transparent 40%, ${c2}${hasImage ? "40" : "00"} 100%)` }} />
       <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 45%, transparent 45%, ${accent}33 100%)` }} />

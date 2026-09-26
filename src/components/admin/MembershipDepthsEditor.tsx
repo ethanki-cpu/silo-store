@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { uploadFileToR2 } from "@/lib/r2Upload";
 import { CUSTOM_EFFECT_DEFAULTS, EFFECT_DEFAULTS } from "@/components/membership/DepthEffects";
-import { ArchText, BackdropImage } from "@/components/membership/MembershipDepths";
+import { ArchText, BackdropImage, DEFAULT_PAN_SECONDS } from "@/components/membership/MembershipDepths";
 import { VFX_BY_INDEX, VFX_PARTS } from "@/components/membership/DepthVfx";
 import { DepthVideoLayer } from "@/components/membership/DepthVideoLayer";
 import { DEPTH_FONTS, DEPTH_EFFECT_LABELS, type DepthVideo, EFFECT_MOTION_LABELS, type CustomEffect, type DepthEffect, type DepthScene, type DepthSprite, type EffectConfig, type EffectMotion } from "@/lib/membershipContentDefaults";
@@ -25,6 +25,14 @@ type Drag =
   | { kind: "bg"; startX: number; startY: number; px: number; py: number }
   | { kind: "sprite"; id: string; startX: number; startY: number; x: number; y: number }
   | { kind: "door"; startX: number; startY: number; x: number; y: number };
+
+// "모든 깊이에 적용"할 수 있는 설정 묶음 — 깊이별 내용(제목·문구·이미지·색·효과)은 제외한 '모양' 설정만.
+const APPLY_GROUPS: { id: string; label: string; keys: string[] }[] = [
+  { id: "door", label: "문 크기·위치", keys: ["doorHeightPct", "doorWidthPct", "doorX", "doorY"] },
+  { id: "glass", label: "유리(블러·어둡기)", keys: ["doorBlurPx", "doorDarkPct"] },
+  { id: "font", label: "글꼴·글자 크기", keys: ["fontFamily", "fontSizePx", "titleSizePx", "fontScalePct", "titleScalePct"] },
+  { id: "bg", label: "배경 표시 방식·훑는 속도·확대", keys: ["imageFit", "panSeconds", "imageZoom"] },
+];
 
 async function uploadFiles(files: FileList | File[]): Promise<{ urls: string[]; error: string | null }> {
   const urls: string[] = [];
@@ -91,6 +99,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
     setSavedJson(JSON.stringify(depths));
     return true;
   }
+  const [applyPick, setApplyPick] = useState<string[]>(["door", "glass", "font"]);
   const stageRef = useRef<HTMLDivElement>(null);
   // 미리보기는 "가상 화면"(PC 1280×720 등)에 실제 규칙 그대로 그린 뒤 무대 폭에 맞춰 축소해 보여준다 → 실제 출력과 문 크기·글자·블러가 같다.
   const [device, setDevice] = useState<"pc" | "tablet" | "mobile">("pc");
@@ -228,7 +237,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
             >
-              {cur.imageUrl && <BackdropImage url={cur.imageUrl} fit={fit} pos={cur.imagePos} zoom={cur.imageZoom} />}
+              {cur.imageUrl && <BackdropImage url={cur.imageUrl} fit={fit} pos={cur.imagePos} zoom={cur.imageZoom} panSeconds={cur.panSeconds} />}
               <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
               <DepthVideoLayer videos={cur.videos ?? []} />
               {/* 실제 출력과 같은 문(반응형 폭·좌우 하단 비대칭·블러·글꼴) — 가상 화면을 축소해서 그린다 */}
@@ -283,6 +292,14 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                     <option value="contain">그림 전체를 보이기(남는 자리는 흐린 같은 그림)</option>
                     <option value="stretch">비율 무시하고 늘려서 채우기(그림이 찌그러져요)</option>
                   </select>
+                </label>
+              )}
+              {cur.imageUrl && fit === "pan" && (
+                <label className="block">
+                  <span className="mb-1 block text-xs text-gray-600">
+                    위→아래로 훑는 시간 <b className="text-gray-900">{cur.panSeconds ?? DEFAULT_PAN_SECONDS}초</b> (작을수록 빨라요)
+                  </span>
+                  <input type="range" min={3} max={40} value={cur.panSeconds ?? DEFAULT_PAN_SECONDS} onChange={(e) => patch({ panSeconds: Number(e.target.value) })} className="w-full" />
                 </label>
               )}
               {cur.imageUrl && (
@@ -350,6 +367,33 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
               </button>
               <span className="text-gray-500">{cur.doorHeightPct == null && cur.doorWidthPct == null ? "지금: 자동 크기" : "지금: 직접 정한 크기(위 슬라이더)"}</span>
             </div>
+            {depths.length > 1 && (
+              <div className="mt-3 rounded-md border border-blue-200 bg-blue-50/50 p-2.5">
+                <p className="text-xs font-semibold text-gray-800">📋 이 깊이의 설정을 모든 깊이에 적용</p>
+                <p className="mt-0.5 text-[11px] text-gray-500">체크한 항목만 지금 보고 있는 깊이({at + 1}번째)의 값으로 나머지 모든 깊이를 덮어써요. 제목·문구·이미지·색·효과는 바뀌지 않아요. 저장 전에는 되돌릴 수 있어요(닫기 → 저장 안 함).</p>
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                  {APPLY_GROUPS.map((g) => (
+                    <label key={g.id} className="flex items-center gap-1.5 text-xs text-gray-700">
+                      <input type="checkbox" checked={applyPick.includes(g.id)} onChange={() => setApplyPick((prev) => (prev.includes(g.id) ? prev.filter((x) => x !== g.id) : [...prev, g.id]))} />
+                      {g.label}
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  disabled={applyPick.length === 0}
+                  onClick={() => {
+                    if (!window.confirm(`체크한 항목(${applyPick.map((id) => APPLY_GROUPS.find((g) => g.id === id)?.label).join(", ")})을 나머지 ${depths.length - 1}개 깊이에 모두 적용할까요?`)) return;
+                    const patchAll: Partial<DepthScene> = {};
+                    for (const id of applyPick) for (const key of APPLY_GROUPS.find((g) => g.id === id)?.keys ?? []) (patchAll as Record<string, unknown>)[key] = (cur as Record<string, unknown>)[key];
+                    onChange(depths.map((d, i) => (i === at ? d : { ...d, ...patchAll })));
+                  }}
+                  className="mt-2 rounded border border-blue-400 bg-white px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-40"
+                >
+                  체크한 항목을 모든 깊이에 적용
+                </button>
+              </div>
+            )}
             <p className="mt-1 text-[11px] text-gray-400">위 무대에 실제 출력과 같은 문이 그대로 보여요. 슬라이더를 움직이면 그 깊이는 정한 크기로 고정되고, ‘자동’이면 창 폭(PC 26% · 태블릿 46% · 모바일 86%)에 맞춰요. 문 크기는 화면 폭에 따라 자동이고, 문을 잡아 끌면 위치를 바꿀 수 있어요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요. 글꼴은 기기에 있는 폰트를 써서 새로 내려받지 않아요.</p>
           </div>
 

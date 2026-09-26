@@ -335,6 +335,9 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
   const ref = useRef<HTMLDivElement>(null);
   const scrollYProgress = useMotionValue(0);
   const [mode, setMode] = useState<"before" | "pinned" | "after">("before");
+  // HOTFIX-167.2(사용자 신고 — "Silo Angel 문구가 아래 depth로 갔다가 올라오니 사라졌다"): 첫 깊이로 돌아오면 스크롤 위치가 섹션 맨 위와 소수점 단위로 어긋나 mode가 "before"로 판정돼
+  // active(문 등장·WebGL·버튼)가 꺼졌다(마지막 깊이의 "after"도 같은 위험). 화면 대부분을 섹션이 덮고 있으면 inSection=true로 따로 판정해 active/버튼에 쓴다.
+  const [inSection, setInSection] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const dot = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
   useMotionValueEvent(scrollYProgress, "change", (v) => setActiveIdx(Math.min(Math.max(0, scenes.length - 1), Math.floor(v * scenes.length))));
@@ -364,6 +367,7 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
       const { rect, vh, total } = geom();
       scrollYProgress.set(Math.min(1, Math.max(0, -rect.top / total)));
       setMode(rect.top > 0 ? "before" : rect.bottom <= vh ? "after" : "pinned");
+      setInSection(rect.top < vh * 0.4 && rect.bottom > vh * 0.6);
     };
     const inside = () => {
       const { rect, vh } = geom();
@@ -544,14 +548,14 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
           style={{ zIndex: 1 }}
         >
           {scenes.map((s, i) => (
-            <Scene key={`${s.title}-${i}`} index={i} count={scenes.length} progress={scrollYProgress} scene={s} near={Math.abs(i - activeIdx) <= 1} active={mode === "pinned" && i === activeIdx} />
+            <Scene key={`${s.title}-${i}`} index={i} count={scenes.length} progress={scrollYProgress} scene={s} near={Math.abs(i - activeIdx) <= 1} active={inSection && i === activeIdx} />
           ))}
           <div className="pointer-events-none absolute bottom-6 left-1/2 z-20 h-1 w-40 -translate-x-1/2 overflow-hidden rounded-full bg-white/30">
             <motion.div className="h-full rounded-full bg-white/80" style={{ width: dot }} />
           </div>
           <p className="pointer-events-none absolute bottom-10 left-1/2 z-20 -translate-x-1/2 text-[11px] tracking-[0.3em] text-white/70">SCROLL</p>
           {/* HOTFIX-166.2(사용자 지시 — 각 depth마다 이전/다음 버튼): 오른쪽 가운데의 ▲ 이전 · 깊이 점(누르면 바로 이동) · ▼ 다음 */}
-          {mode === "pinned" && (
+          {inSection && (
             <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-2 sm:right-6">
               <button type="button" onClick={() => navRef.current?.step(-1)} disabled={activeIdx === 0} aria-label="이전 깊이" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/60 bg-black/40 text-lg text-white backdrop-blur transition hover:bg-black/60 disabled:opacity-25">
                 ▲

@@ -206,9 +206,10 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
             </div>
           )}
 
-          <div>
+          {/* HOTFIX-167.2(사용자 신고 — "설정을 바꾸는데 미리보기가 위에 있어서 확인할 수 없다"): 미리보기를 창 위쪽에 고정(sticky)해 아래 설정을 스크롤하며 바꿔도 계속 보이게 한다. 높이는 화면의 38%까지만 차지한다. */}
+          <div className="sticky top-0 z-30 -mx-5 -mt-1 border-b border-gray-200 bg-white/95 px-5 pb-2 pt-2 shadow-sm backdrop-blur">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-800">이미지 배치 (드래그 앤 드롭)</p>
+              <p className="text-sm font-semibold text-gray-800">이미지 배치 (드래그 앤 드롭) · 미리보기</p>
               <div className="flex gap-1 text-xs">
                 {([["pc", "PC"], ["tablet", "태블릿"], ["mobile", "모바일"]] as const).map(([k, l]) => (
                   <button key={k} type="button" onClick={() => setDevice(k)} className={`rounded border px-2 py-0.5 ${device === k ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-600"}`}>
@@ -217,11 +218,11 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                 ))}
               </div>
             </div>
-            <p className="mb-2 text-xs text-gray-500">빈 곳을 드래그하면 배경 이미지의 보이는 부분(초점)이 움직이고, 등장인물 이미지는 잡아서 원하는 자리로 옮기세요. 점선 아치가 문구가 놓일 자리예요.</p>
+            <p className="mb-1 text-[11px] text-gray-500">빈 곳 드래그 = 배경 초점 이동 · 문·등장인물은 잡아서 옮기기</p>
             <div
               ref={stageRef}
               className={`relative w-full cursor-grab touch-none select-none overflow-hidden rounded-lg border border-gray-300 active:cursor-grabbing ${device === "mobile" ? "mx-auto max-w-[260px]" : device === "tablet" ? "mx-auto max-w-[420px]" : ""}`}
-              style={{ aspectRatio: `${VP.w} / ${VP.h}`, background: `linear-gradient(160deg, ${c1}, ${c2})` }}
+              style={{ aspectRatio: `${VP.w} / ${VP.h}`, maxWidth: `min(100%, calc(38vh * ${VP.w / VP.h}))`, marginInline: "auto", background: `linear-gradient(160deg, ${c1}, ${c2})` }}
               onPointerDown={(e) => onPointerDown(e)}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}

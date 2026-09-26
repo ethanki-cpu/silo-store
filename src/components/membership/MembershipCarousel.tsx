@@ -10,6 +10,7 @@ import type { BenefitGroup, TierCategoryAccess } from "@/lib/tierCategoryAccess"
 import { AnimatePresence, motion } from "framer-motion";
 import { useWidgetPreview } from "@/lib/widgetPreviewContext";
 import { TierBackdrop } from "@/components/membership/TierBackdrop";
+import { CategoryCards } from "@/components/membership/CategoryCards";
 import { MagneticButton } from "@/components/membership/MagneticButton";
 import { setActiveMembershipRank } from "@/lib/membershipActiveStore";
 import { TIER_PALETTE, paletteKeyForRank } from "@/lib/tierPalette";
@@ -326,54 +327,8 @@ function filterGroups(groups: BenefitGroup[], excluded: string[], onlyNew: boole
     .filter((g) => g.items.length > 0);
 }
 
-function GroupedChips({ groups, highlightNew, copy }: { groups: BenefitGroup[]; highlightNew: boolean; copy: GroupCopy }) {
-  const roots: { root: string; groups: BenefitGroup[] }[] = [];
-  for (const g of groups) {
-    const last = roots[roots.length - 1];
-    if (last && last.root === g.root) last.groups.push(g);
-    else roots.push({ root: g.root, groups: [g] });
-  }
-  return (
-    <div className="space-y-6">
-      {roots.map((r) => {
-        const rootCopy = copyForRoot(copy, r.root);
-        return (
-          <div key={r.root}>
-            <p className="text-sm font-bold tracking-wide text-gray-900">{r.root}</p>
-            {rootCopy && <p className="mt-1 text-xs italic leading-5 text-gray-500">{rootCopy}</p>}
-            <div className="mt-2 space-y-4 border-l-2 border-gray-100 pl-3">
-              {r.groups.map((g) => {
-                const line = copyForGroup(copy, g.title);
-                return (
-                  <div key={`${g.root}/${g.title}`}>
-                    {g.title !== r.root && (
-                      <p className="text-xs font-semibold text-gray-700">
-                        {g.title} <span className="font-normal text-gray-400">{g.items.length}</span>
-                      </p>
-                    )}
-                    {line && <p className="mb-1.5 mt-0.5 text-xs leading-5 text-gray-500">{line}</p>}
-                    <ul className="flex flex-wrap gap-1.5">
-                      {g.items.map((it) => (
-                        <li
-                          key={it.name}
-                          className={`rounded-full px-2.5 py-1 text-xs leading-4 ${
-                            highlightNew && it.isNew ? "bg-amber-100 font-medium text-amber-900" : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {it.name}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// EPIC-167: 가로 칩 나열 대신 최상위 카테고리 카드(클릭/마우스 올림으로 열려 게시판이 세로·2열로 나온다) — CategoryCards.tsx
+const GroupedChips = CategoryCards;
 
 function PayConfirmModal({
   tier,

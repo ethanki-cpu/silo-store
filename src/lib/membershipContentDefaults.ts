@@ -94,6 +94,8 @@ export type DepthScene = {
   titleScalePct?: number;
   /** HOTFIX-167.3: 배경 이미지가 위→아래로 훑는 데 걸리는 시간(초, 작을수록 빠름, 기본 10) */
   panSeconds?: number;
+  /** HOTFIX-167.6: true면 videos를 겹치지 않고 위에서 아래 순서대로 한 편씩 재생하고 전체를 반복(플레이리스트) */
+  videoPlaylist?: boolean;
   /** HOTFIX-164.4: 문의 중심 위치(화면 대비 %, 기본 50/50 = 가운데). 편집기에서 드래그 앤 드롭으로 정한다. */
   doorX?: number;
   doorY?: number;

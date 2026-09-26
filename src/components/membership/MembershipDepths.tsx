@@ -314,7 +314,7 @@ function Scene({ index, count, progress, scene, near, active }: { index: number;
       <div ref={waterRef} className="absolute inset-0">
         <SceneBackdrop scene={scene} index={index} active={active} />
       </div>
-      {near && (scene.videos ?? []).length > 0 && <DepthVideoLayer videos={scene.videos ?? []} />}
+      {near && (scene.videos ?? []).length > 0 && <DepthVideoLayer videos={scene.videos ?? []} playlist={scene.videoPlaylist} />}
       {near && vfxKind && <DepthVfx kind={vfxKind} accent={accent} color1={c1} color2={c2} imageUrl={scene.imageUrl} imagePos={scene.imagePos} active={active} off={scene.vfxOff ?? []} cardFaces={scene.cardFaces ?? []} />}
       {near && <DepthEffects effects={scene.effects ?? []} effectImages={(scene.effectImages ?? []).filter(Boolean)} effectConfig={scene.effectConfig} customEffects={scene.customEffects} accent={accent} seed={index + 1} />}
       <motion.div className="pointer-events-none absolute inset-0 z-10" style={{ y: textY }}>
@@ -526,7 +526,7 @@ export function MembershipDepths({ heading, scenes, sceneHeightVh }: { heading: 
               const th = resolveTheme(s, i);
               return (
                 <>
-                  <DepthVideoLayer videos={s.videos ?? []} />
+                  <DepthVideoLayer videos={s.videos ?? []} playlist={s.videoPlaylist} />
                   <DepthVfx kind={VFX_BY_INDEX[i]} accent={th.accent} color1={th.c1} color2={th.c2} imageUrl={s.imageUrl} imagePos={s.imagePos} active off={s.vfxOff ?? []} cardFaces={s.cardFaces ?? []} />
                 </>
               );

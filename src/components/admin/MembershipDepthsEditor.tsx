@@ -239,7 +239,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
             >
               {cur.imageUrl && <BackdropImage url={cur.imageUrl} fit={fit} pos={cur.imagePos} zoom={cur.imageZoom} panSeconds={cur.panSeconds} />}
               <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
-              <DepthVideoLayer videos={cur.videos ?? []} />
+              <DepthVideoLayer videos={cur.videos ?? []} playlist={cur.videoPlaylist} />
               {/* 실제 출력과 같은 문(반응형 폭·좌우 하단 비대칭·블러·글꼴) — 가상 화면을 축소해서 그린다 */}
               <div className="pointer-events-none absolute left-0 top-0 origin-top-left" style={{ width: VP.w, height: VP.h, transform: `scale(${scale})` }}>
                 {/* 문은 잡아서 끌면 위치가 바뀐다(실제 화면과 같은 % 좌표) */}
@@ -401,7 +401,18 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
             <p className="text-sm font-semibold text-gray-800">🎞️ 영상 · 효과 교체 (이 깊이)</p>
 
             <div>
-              <p className="mb-1 text-xs font-medium text-gray-700">영상 겹치기 (webm · mp4 — 자동 재생·반복·무음)</p>
+              <p className="mb-1 text-xs font-medium text-gray-700">오버레이 영상 (webm · mp4 — 자동 재생·무음)</p>
+              {/* HOTFIX-167.6: 겹치기 vs 플레이리스트 */}
+              <div className="mb-2 flex flex-wrap gap-x-5 gap-y-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700">
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" name={`vmode-${at}`} checked={!cur.videoPlaylist} onChange={() => patch({ videoPlaylist: false })} />
+                  동시에 겹치기 (각자 반복)
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" name={`vmode-${at}`} checked={!!cur.videoPlaylist} onChange={() => patch({ videoPlaylist: true })} />
+                  플레이리스트 (아래 순서대로 한 편씩 재생 → 끝나면 처음부터 계속 반복)
+                </label>
+              </div>
               <p className="mb-2 text-[11px] text-gray-500">배경 이미지 위에 겹쳐요. 알파 채널이 있는 webm은 혼합 ‘일반’, 검은 배경 영상(불꽃·빛·연기)은 ‘밝게(screen)’로 하면 배경이 투명해져요. 불투명도로 세기를 조절해요. 파일이 클수록 방문자가 내려받는 양이 늘어나니 가볍게(수 MB 이하) 만들어 주세요.</p>
               <label className="inline-block cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50">
                 영상 추가
@@ -415,6 +426,14 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-gray-600" title={v.url}>
                           {v.url.split("/").pop()}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <button type="button" aria-label="위로" disabled={(cur.videos ?? []).findIndex((x) => x.id === v.id) === 0} onClick={() => { const arr = [...(cur.videos ?? [])]; const i = arr.findIndex((x) => x.id === v.id); if (i > 0) { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; patch({ videos: arr }); } }} className="rounded border border-gray-300 px-1.5 disabled:opacity-30">
+                            ▲
+                          </button>
+                          <button type="button" aria-label="아래로" disabled={(cur.videos ?? []).findIndex((x) => x.id === v.id) === (cur.videos ?? []).length - 1} onClick={() => { const arr = [...(cur.videos ?? [])]; const i = arr.findIndex((x) => x.id === v.id); if (i >= 0 && i < arr.length - 1) { [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; patch({ videos: arr }); } }} className="rounded border border-gray-300 px-1.5 disabled:opacity-30">
+                            ▼
+                          </button>
                         </span>
                         <button type="button" onClick={() => patch({ videos: (cur.videos ?? []).filter((x) => x.id !== v.id) })} className="shrink-0 text-red-600">
                           삭제

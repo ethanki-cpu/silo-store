@@ -23,7 +23,7 @@ export async function GET() {
   const allTiers = (data ?? []) as TierRow[];
   const tiers = allTiers.filter((t) => !t.is_lifetime && t.rank >= 0 && t.rank < 99 && (t.price > 0 || t.rank === 0));
   // HOTFIX-162.14: 명예 등급(Artist, 가입 불가·초청)도 카드/비교표에 권한을 보여주려고 함께 내려주되 honorary로 표시한다.
-  const honoraryTiers = allTiers.filter((t) => t.is_lifetime || t.rank >= 99);
+  const honoraryTiers = allTiers.filter((t) => (t.is_lifetime || t.rank >= 99) && t.rank < 100); // EPIC-168: Owner(100)는 공개 목록에 나오지 않는다
   const shown = [...tiers, ...honoraryTiers];
 
   let products = new Map<number, unknown>();

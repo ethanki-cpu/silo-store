@@ -147,6 +147,7 @@ export default function BoardPermissionsPage() {
     supabase
       .from("membership_tiers")
       .select("rank, name, image_url")
+      .lt("rank", 100) // EPIC-168: Owner는 제외
       .order("rank", { ascending: true })
       .then(({ data }) => {
         setTiers((data ?? []) as { rank: number; name: string; image_url: string | null }[]);

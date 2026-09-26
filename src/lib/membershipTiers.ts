@@ -12,4 +12,5 @@ export const RANK_OPTIONS: { rank: number; label: string }[] = [
   { rank: 3, label: "Patron" },
   { rank: 4, label: "Lautrec" },
   { rank: 99, label: "Artist" },
+  { rank: 100, label: "Owner" },
 ];

@@ -26,6 +26,7 @@ import type { TimelineCoverState } from "@/components/timeline/SiloTimelineInner
 import { uploadFileToR2 } from "@/lib/r2Upload";
 import { compressVideoIfNeeded } from "@/lib/videoCompress";
 import { supabase } from "@/lib/supabaseClient";
+import { authFetch } from "@/lib/authFetch";
 
 type CoverFontWeight = "normal" | "medium" | "semibold" | "bold";
 type CoverAlign = "left" | "center" | "right";
@@ -821,7 +822,7 @@ export function SiloTimelineEmbedBlock({
         ? `/api/timeline/events?group=${encodeURIComponent(groupHref)}`
         : `/api/timeline/events?board=${encodeURIComponent(boardId)}`;
     let cancelled = false;
-    fetch(url)
+    authFetch(url)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
@@ -1631,7 +1632,7 @@ function SiloTimelineEmbedSettings() {
         ? `/api/timeline/events?group=${encodeURIComponent(props.groupHref)}`
         : `/api/timeline/events?board=${encodeURIComponent(props.boardId)}`;
     let cancelled = false;
-    fetch(url)
+    authFetch(url)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;

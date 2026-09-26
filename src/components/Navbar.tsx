@@ -10,6 +10,7 @@ import { LeftSidebar } from "@/components/LeftSidebar";
 import { RightSidebar } from "@/components/RightSidebar";
 import { MembershipPopover } from "@/components/MembershipPopover";
 import { TierSimulatorHost } from "@/components/membership/TierSimulator";
+import { TierPreviewBanner } from "@/components/membership/TierPreview";
 import { UserMenuDropdown } from "@/components/UserMenuDropdown";
 import { GatedNavLink } from "@/components/common/GatedNavLink";
 import { useHideOnScroll } from "@/lib/useHideOnScroll";
@@ -2282,6 +2283,8 @@ export function Navbar({
           )}
           {/* EPIC-165: 내 등급 시뮬레이터(등급 팝오버·멤버십 페이지에서 열림) */}
           <TierSimulatorHost />
+          {/* EPIC-168: Owner가 다른 등급을 체험 중일 때 화면 아래에 뜨는 안내 띠 */}
+          <TierPreviewBanner />
 
           {userMenuOpen && (
             <UserMenuDropdown items={userMenuItems} onClose={() => setUserMenuOpen(false)} />

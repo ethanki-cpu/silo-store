@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { resolveBoardDefinition } from "@/lib/boardLayout";
+import { OWNER_RANK, PREVIEW_COOKIE, isPreviewRank } from "@/lib/ownerPreview";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -36,6 +37,7 @@ export const RANK_LABELS: Record<number, string> = {
   3: "Patron",
   4: "Lautrec",
   99: "Artist",
+  100: "Owner",
 };
 
 export async function getRequestMember(request: NextRequest) {
@@ -61,7 +63,21 @@ export async function getRequestMember(request: NextRequest) {
 
   if (!member) return null;
 
-  return { userId: userData.user.id, member, scopedClient, accessToken };
+  // EPIC-168: Owner는 관리자 권한을 항상 가지며, "등급 체험" 쿠키가 있으면(진짜 등급이 Owner일 때만) 그 등급 회원처럼 판정한다.
+  const realRank = member.membership_rank as number;
+  let effectiveRank = realRank;
+  let effectiveAdmin = !!member.is_admin || realRank >= OWNER_RANK;
+  if (realRank >= OWNER_RANK) {
+    const raw = request.cookies.get(PREVIEW_COOKIE)?.value;
+    const n = raw == null ? NaN : Number(raw);
+    if (Number.isInteger(n) && isPreviewRank(n)) {
+      effectiveRank = n;
+      effectiveAdmin = false;
+    }
+  }
+  const effectiveMember = { ...member, membership_rank: effectiveRank, is_admin: effectiveAdmin };
+
+  return { userId: userData.user.id, member: effectiveMember, realRank, previewing: effectiveRank !== realRank, scopedClient, accessToken };
 }
 
 export async function getTier(rank: number): Promise<TierFlags | null> {

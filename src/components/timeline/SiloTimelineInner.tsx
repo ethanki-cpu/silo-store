@@ -23,6 +23,7 @@
 // 스코프를 완전히 우회해 원래 라이브러리가 기대하는 대로 전역에 등록된다.
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { authFetch } from "@/lib/authFetch";
 
 const TL_BASE = "/vendor/timelinejs";
 let tlLoadPromise: Promise<void> | null = null;
@@ -518,7 +519,7 @@ export default function SiloTimelineInner({
       ? `/api/timeline/events?group=${encodeURIComponent(groupHref)}`
       : `/api/timeline/events?board=${encodeURIComponent(boardId ?? "")}`;
 
-    Promise.all([loadTimelineJs(), fetch(eventsUrl).then((res) => res.json())])
+    Promise.all([loadTimelineJs(), authFetch(eventsUrl).then((res) => res.json())])
       .then(([, data]) => {
         if (cancelled || !container) return;
         if (data?.error) {

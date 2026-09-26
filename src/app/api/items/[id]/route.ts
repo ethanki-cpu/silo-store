@@ -12,6 +12,7 @@ const RANK_LABELS: Record<number, string> = {
   3: "Patron",
   4: "Lautrec",
   99: "Artist",
+  100: "Owner",
 };
 
 type Persona = { id: string; name: string; type: "grandma" | "grandpa"; photo_url: string | null };

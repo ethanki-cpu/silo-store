@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { DailyQuests } from "@/components/membership/DailyQuests";
+import { OwnerPreviewPanel } from "@/components/membership/TierPreview";
 
 // EPIC-087-PHASE-F: GNB "멤버십 등급"/"회원 이름" 클릭 시 뜨는 작은 팝오버.
 // 이 코드베이스의 유일한 기존 드롭다운(스튜디오 상단 탭)은 EPIC-041-042-
@@ -195,6 +196,8 @@ export function MembershipPopover({
           전체 보기
         </Link>
       </div>
+
+      <OwnerPreviewPanel onNavigate={onClose} />
 
       <DailyQuests rank={rank} onNavigate={onClose} />
 

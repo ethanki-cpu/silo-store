@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { OWNER_RANK, PREVIEW_COOKIE, TIER_NAMES, isPreviewRank } from "@/lib/ownerPreview";
 
 type Member = {
   id: string;
@@ -14,9 +15,16 @@ type Member = {
 
 type AuthContextValue = {
   session: Session | null;
+  /** 화면·클라이언트 게이팅이 쓰는 회원 — Owner가 등급 체험 중이면 그 등급 회원처럼 덮어쓴 값 */
   member: Member | null;
   loading: boolean;
   memberLoading: boolean;
+  // EPIC-168: Owner / 등급 체험
+  isOwner: boolean;
+  /** 체험 중인 등급(없으면 null = Owner 본인으로 보는 중) */
+  previewRank: number | null;
+  /** 등급 체험 시작(rank) / 끝내기(null) — 서버도 같은 쿠키를 읽어 판정하므로 저장 후 페이지를 새로 불러온다. */
+  setPreviewRank: (rank: number | null) => void;
 };
 
 const AuthContext = createContext<AuthContextValue>({
@@ -24,11 +32,23 @@ const AuthContext = createContext<AuthContextValue>({
   member: null,
   loading: true,
   memberLoading: true,
+  isOwner: false,
+  previewRank: null,
+  setPreviewRank: () => {},
 });
+
+function readPreviewCookie(): number | null {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(new RegExp("(?:^|; )" + PREVIEW_COOKIE + "=([^;]*)"));
+  const n = m ? Number(decodeURIComponent(m[1])) : NaN;
+  return Number.isInteger(n) && isPreviewRank(n) ? n : null;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [member, setMember] = useState<Member | null>(null);
+  const [realMember, setMember] = useState<Member | null>(null);
+  const [previewCookie, setPreviewCookie] = useState<number | null>(null);
+  useEffect(() => setPreviewCookie(readPreviewCookie()), []);
   const [loading, setLoading] = useState(true);
   const [memberLoading, setMemberLoading] = useState(true);
 
@@ -110,8 +130,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
   }, [session, loading]);
 
+  // EPIC-168: Owner는 관리자 권한을 항상 갖고, 등급 체험 쿠키가 있으면 그 등급 회원(관리자 아님)처럼 보인다. 진짜 등급이 Owner가 아니면 쿠키는 무시한다.
+  const isOwner = (realMember?.membership_rank ?? 0) >= OWNER_RANK;
+  const previewRank = isOwner ? previewCookie : null;
+  const member = useMemo<Member | null>(() => {
+    if (!realMember) return null;
+    if (!isOwner) return realMember;
+    if (previewRank != null) return { ...realMember, membership_rank: previewRank, tier_name: TIER_NAMES[previewRank] ?? realMember.tier_name, is_admin: false };
+    return { ...realMember, is_admin: true };
+  }, [realMember, isOwner, previewRank]);
+  const setPreviewRank = (rank: number | null) => {
+    if (typeof document === "undefined") return;
+    if (rank == null) document.cookie = `${PREVIEW_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+    else document.cookie = `${PREVIEW_COOKIE}=${rank}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+    setPreviewCookie(rank);
+    window.location.reload();
+  };
+
   return (
-    <AuthContext.Provider value={{ session, member, loading, memberLoading }}>
+    <AuthContext.Provider value={{ session, member, loading, memberLoading, isOwner, previewRank, setPreviewRank }}>
       {children}
     </AuthContext.Provider>
   );

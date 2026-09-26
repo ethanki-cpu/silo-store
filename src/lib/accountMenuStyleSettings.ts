@@ -78,6 +78,7 @@ export const MEMBERSHIP_RANK_OPTIONS: { rank: number; label: string }[] = [
   { rank: 3, label: "Patron" },
   { rank: 4, label: "Lautrec" },
   { rank: 99, label: "Artist" },
+  { rank: 100, label: "Owner" },
 ];
 
 export const DEFAULT_WRITE_BUTTON_ICON_SIZE_PX = 24;

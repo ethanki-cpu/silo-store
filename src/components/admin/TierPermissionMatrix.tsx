@@ -37,6 +37,7 @@ export function TierPermissionMatrix() {
       .select(
         "rank, name, board_write_scope, board_can_write_docent, board_can_create, board_has_patron_board, board_has_promo_board",
       )
+      .lt("rank", 100) // EPIC-168: Owner는 권한 매트릭스에서 제외(모든 권한을 가짐)
       .order("rank", { ascending: true })
       .then(({ data, error: fetchError }) => {
         if (fetchError) {

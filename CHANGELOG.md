@@ -1,3 +1,8 @@
+## 2026-09-26 (EPIC-168 — 도슨트 열람 오류 수정 · Owner 최상위 등급 · 등급 체험, 사용자 지시)
+- **온라인 도슨트가 안 열리던 원인(ethanki@silostore.net = Lautrec·관리자인데도 "Alice 등급부터 열람 가능")**: 이 앱의 인증은 쿠키가 아니라 localStorage 세션이라 서버는 클라이언트가 Authorization 헤더를 실어 보낼 때만 회원을 안다. 타임라인 API(`/api/timeline/events`) 호출 3곳(`SiloTimelineInner`, `SiloTimelineEmbedBlock` ×2)이 헤더 없이 나가 로그인해도 비회원으로 판정됐다. 공용 `authFetch`(`src/lib/authFetch.ts`)로 토큰을 붙여 해결 — 같은 계정으로 르네상스 타임라인·게시글 상세가 열리는 것을 직접 확인.
+- **Owner 최상위 등급**(rank 100): `membership_tiers`에 Lautrec 행을 복사해 생성(`docs/sql/EPIC-168-owner-tier.sql`, 실행 완료), **ethanki@silostore.net을 Owner + 관리자**로 지정. 서버 `getRequestMember`가 Owner에게 관리자 권한을 항상 부여(`is_admin`), 모든 `rank >= N` 게이팅 통과. 공개 요금제(`/api/membership/plans`)·가격 페이지·멤버십 캐러셀·관리자 권한 매트릭스에는 나오지 않는다(rank<100 필터). 이름표(RANK_LABELS 등)에 Owner 추가. 헤더의 등급 표시가 'Owner'로 바뀜.
+- **등급 체험**(Owner 전용): 상단 '등급' 팝오버의 🎭 등급 체험(Silo Angel·Alice·Great Gatsby·Patron·Lautrec·Artist)과 체험 중 화면 아래에 뜨는 안내 띠(등급 바꾸기·**Owner로 돌아가기**). 선택은 쿠키(`silo_preview_rank`)로 저장돼 ① 브라우저(`AuthProvider`)가 등급/이름/관리자 여부를 그 등급으로 덮고 ② 서버도 같은 쿠키를 읽어 API 판정을 그 등급으로 한다 — 체험 중에는 관리자가 아니게 되어 관리자 메뉴가 사라진다. **진짜 등급이 Owner일 때만 유효**(쿠키를 흉내 내도 권한은 올라가지 않고 낮추기만 가능). 검증: Silo Angel 체험 시 관리자 링크 사라짐·배너 표시·서버가 "Alice 등급부터"로 도슨트 차단, Owner 복귀 시 쿠키 삭제·관리자 복원. 한계: DB RLS는 실제 계정(Owner)으로 평가돼 RLS로만 막는 일부 조회(패트론 게시판 목록 등)는 체험 중에도 열려 있을 수 있다.
+
 ## 2026-09-26 (HOTFIX-167.6 — 깊이 오버레이 영상 플레이리스트, 사용자 지시)
 - 깊이 편집기 '오버레이 영상'에 **재생 방식** 선택 추가: ① 동시에 겹치기(기존, 각자 반복) ② **플레이리스트** — 목록 위→아래 순서대로 한 편씩 재생하고 끝나면 다음 편, **마지막 편이 끝나면 처음부터 계속 반복**(`DepthScene.videoPlaylist`). 다음 편은 미리 받아 두어 이음새가 덜 끊기고, 재생 못 하는 파일은 자동으로 건너뛴다. 한 편뿐이면 그냥 반복. 편마다 불투명도·혼합·채우기 설정 그대로 적용.
 - 영상마다 **▲▼ 순서 이동 버튼** 추가(플레이리스트 순서 조정). 여러 개 한 번에 올리기는 기존 '영상 추가'(다중 선택).

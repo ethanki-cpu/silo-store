@@ -727,6 +727,7 @@ export function MembershipCarousel({ options }: { options?: Partial<MembershipCa
     supabase
       .from("membership_tiers")
       .select(TIER_SELECT)
+      .lt("rank", 100) // EPIC-168: Owner는 캐러셀에 나오지 않는다
       .order("rank", { ascending: true })
       .then(({ data }) => {
         if (!cancelled) setTiers((data ?? []) as TierContent[]);

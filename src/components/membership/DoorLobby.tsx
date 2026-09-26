@@ -183,6 +183,57 @@ export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, setti
   const [mounted, setMounted] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
   useEffect(() => setMounted(true), []);
+
+  // HOTFIX-165.4(사용자 지시 — "스크롤바 말고 좌우 드래그 앤 드롭 또는 버튼으로 넘기게"): 스크롤바는 숨기고 ① 마우스로 끌어서 ② 좌우 화살표 버튼으로 문을 넘긴다(터치는 기본 스와이프).
+  // 끌었다면(5px 이상 이동) 그 뒤에 오는 클릭은 문 열기로 처리하지 않는다.
+  const [edge, setEdge] = useState({ left: false, right: false });
+  const drag = useRef({ down: false, startX: 0, startLeft: 0, moved: false });
+  const updateEdge = useCallback(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    setEdge({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  }, []);
+  useEffect(() => {
+    updateEdge();
+    const el = rowRef.current;
+    el?.addEventListener("scroll", updateEdge, { passive: true });
+    window.addEventListener("resize", updateEdge);
+    return () => {
+      el?.removeEventListener("scroll", updateEdge);
+      window.removeEventListener("resize", updateEdge);
+    };
+  }, [updateEdge, doors.length]);
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = rowRef.current;
+    if (!el || e.pointerType !== "mouse" || e.button !== 0) return;
+    drag.current = { down: true, startX: e.clientX, startLeft: el.scrollLeft, moved: false };
+    const move = (ev: PointerEvent) => {
+      if (!drag.current.down) return;
+      const dx = ev.clientX - drag.current.startX;
+      if (Math.abs(dx) > 5) {
+        drag.current.moved = true;
+        el.style.scrollSnapType = "none";
+        el.style.cursor = "grabbing";
+      }
+      if (drag.current.moved) el.scrollLeft = drag.current.startLeft - dx;
+    };
+    const up = () => {
+      drag.current.down = false;
+      el.style.scrollSnapType = "";
+      el.style.cursor = "";
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.setTimeout(() => {
+        drag.current.moved = false;
+      }, 0);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const nudge = (dir: 1 | -1) => {
+    const el = rowRef.current;
+    if (el) el.scrollBy({ left: dir * Math.max(160, el.clientWidth * 0.7), behavior: "smooth" });
+  };
   const close = useCallback(() => setActive(null), []);
   if (doors.length === 0) return null;
 
@@ -195,7 +246,18 @@ export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, setti
         </div>
       )}
       {/* HOTFIX-165.3(사용자 신고 — "About Silo 문이 왜 없어?"): justify-center는 넘치는 줄의 왼쪽 끝을 화면 밖으로 밀어 스크롤로도 못 닿게 만든다 → 첫/마지막 문에 auto 마진을 줘서 '안 넘칠 땐 가운데, 넘칠 땐 왼쪽부터' 정렬한다. */}
-      <div ref={rowRef} className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-hidden px-6 pb-8 pt-4 [&>:first-child]:ml-auto [&>:last-child]:mr-auto" style={{ scrollbarWidth: "thin" }}>
+      <div
+        ref={rowRef}
+        onPointerDown={startDrag}
+        onClickCapture={(e) => {
+          if (drag.current.moved) {
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        }}
+        className="-mx-6 flex cursor-grab select-none snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-hidden px-6 pb-8 pt-4 [&>:first-child]:ml-auto [&>:last-child]:mr-auto [&::-webkit-scrollbar]:hidden"
+        style={{ scrollbarWidth: "none" }}
+      >
         {doors.map((d, i) => (
           <div key={`${d.title}-${i}`} className="relative shrink-0 snap-center">
           <motion.button
@@ -228,6 +290,16 @@ export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, setti
           </div>
         ))}
       </div>
+      {edge.left && (
+        <button type="button" onClick={() => nudge(-1)} aria-label="이전 문들" className="absolute left-0 top-[52%] z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-gray-300 bg-white/90 text-xl text-gray-700 shadow-lg backdrop-blur hover:bg-white">
+          ‹
+        </button>
+      )}
+      {edge.right && (
+        <button type="button" onClick={() => nudge(1)} aria-label="다음 문들" className="absolute right-0 top-[52%] z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-gray-300 bg-white/90 text-xl text-gray-700 shadow-lg backdrop-blur hover:bg-white">
+          ›
+        </button>
+      )}
       {uploadError && <p className="mt-1 text-center text-sm font-medium text-red-600">{uploadError}</p>}
       {isAdmin && <p className="text-center text-[11px] text-gray-400">관리자에게만 보여요 — 각 문 왼쪽 위 버튼으로 앤틱 문 사진을 올리면 바로 저장돼요. 문 이름·설명은 페이지 수정의 이 위젯 설정에서 고쳐요.</p>}
       {mounted && <AnimatePresence>{active && <LobbyOverlay key={active.door.title} door={active.door} from={active.rect} onClose={close} />}</AnimatePresence>}

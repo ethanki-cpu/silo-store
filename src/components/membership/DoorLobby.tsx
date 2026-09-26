@@ -194,7 +194,8 @@ export function DoorLobby({ heading, subtitle, doors: doorsProp, moduleId, setti
           {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
         </div>
       )}
-      <div ref={rowRef} className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-5 pt-2 sm:justify-center" style={{ scrollbarWidth: "thin" }}>
+      {/* HOTFIX-165.3(사용자 신고 — "About Silo 문이 왜 없어?"): justify-center는 넘치는 줄의 왼쪽 끝을 화면 밖으로 밀어 스크롤로도 못 닿게 만든다 → 첫/마지막 문에 auto 마진을 줘서 '안 넘칠 땐 가운데, 넘칠 땐 왼쪽부터' 정렬한다. */}
+      <div ref={rowRef} className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-hidden px-6 pb-8 pt-4 [&>:first-child]:ml-auto [&>:last-child]:mr-auto" style={{ scrollbarWidth: "thin" }}>
         {doors.map((d, i) => (
           <div key={`${d.title}-${i}`} className="relative shrink-0 snap-center">
           <motion.button

@@ -1604,14 +1604,11 @@ export function Navbar({
         );
       }
       case "join": {
-        // 등급과 무관하게 항상 보인다(사용자 지시) — 멤버십 페이지로 가는 상시 진입점.
+        // 등급과 무관하게 항상 보인다(사용자 지시) — 멤버십 페이지로 가는 상시 진입점. 문구는 계정 메뉴 설정(labels.join)에서 바꾸고,
+        // 모양은 다른 계정 메뉴 항목과 똑같이 사용자 메뉴 디자인(서체·색·크기·hover)을 따른다(노란 테두리/배경 제거 — 사용자 지시).
         return (
-          <Link
-            key="join"
-            href="/membership"
-            className={`whitespace-nowrap rounded-full border border-amber-500 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800 hover:bg-amber-100 ${ACCOUNT_MENU_ITEM_CLASS}`}
-          >
-            멤버십 가입
+          <Link key="join" href="/membership" className={`whitespace-nowrap text-sm text-gray-600 ${ACCOUNT_MENU_ITEM_CLASS}`}>
+            {resolvedAccountMenuStyleValue?.labels?.join?.trim() || "멤버십 가입"}
           </Link>
         );
       }

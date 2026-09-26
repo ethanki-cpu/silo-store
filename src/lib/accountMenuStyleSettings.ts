@@ -63,6 +63,8 @@ export type AccountMenuStyleValue = {
   // 보여준다 — writeButtonIconUrl과 달리 hover 아이콘이 아니라 "hover하면
   // 텍스트로 전환"이 고정 동작이라 등급별 hover URL은 따로 없다.
   tierIcons: Record<string, string>;
+  // HOTFIX-165.3(사용자 지시 — "상단 '멤버십 가입' 버튼을 'Members'로"): 계정 영역 항목의 표시 문구 오버라이드(현재 "join"만 사용). 비우면 기본 문구.
+  labels: Partial<Record<HeaderMenuItemKey, string>>;
 };
 
 // 등급(membership_rank) 표시용 고정 목록 — src/lib/serverAuth.ts의
@@ -104,6 +106,7 @@ export function defaultAccountMenuStyleValue(): AccountMenuStyleValue {
     writeButtonIconUrl: null,
     writeButtonIconHoverUrl: null,
     tierIcons: {},
+    labels: {},
   };
 }
 
@@ -136,6 +139,10 @@ export function normalizeAccountMenuStyle(raw: unknown): AccountMenuStyleValue {
             ),
           )
         : fallback.tierIcons,
+    labels:
+      obj.labels && typeof obj.labels === "object"
+        ? (Object.fromEntries(Object.entries(obj.labels as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === "string" && e[1].trim().length > 0)) as AccountMenuStyleValue["labels"])
+        : fallback.labels,
   };
   if (obj.pc || obj.tablet || obj.mobile) {
     return {

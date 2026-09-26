@@ -2465,6 +2465,18 @@ function ControlsPanel({
         <p className="text-[11px] text-gray-400">
           &ldquo;마이페이지&rdquo; 클릭 시 뜨는 드롭다운에 항목을 추가하고 싶으면 — Elements 탭의 &ldquo;+ 새 탭/메뉴 항목 추가&rdquo;로 만든 뒤, 그 항목의 Controls에서 노출 위치를 &ldquo;사용자 메뉴&rdquo;로 체크하세요.
         </p>
+        {kind === "join" && (
+          <label className="block rounded border border-amber-300 bg-amber-50/50 p-2">
+            <span className="mb-1 block font-medium text-gray-700">버튼에 보이는 문구</span>
+            <input
+              value={accountMenuStyleValue.labels?.join ?? ""}
+              placeholder="멤버십 가입"
+              onChange={(e) => setAccountMenuStyleValue((prev) => ({ ...prev, labels: { ...(prev.labels ?? {}), join: e.target.value } }))}
+              className="w-full rounded border border-gray-300 px-2 py-1"
+            />
+            <span className="mt-1 block text-[11px] text-gray-500">비우면 ‘멤버십 가입’. (아래 ‘서체’ 칸은 글꼴 이름을 넣는 곳이에요 — 문구가 아니에요.)</span>
+          </label>
+        )}
         <label className="block">
           <span className="mb-1 block text-gray-600">서체(직접 입력)</span>
           <input value={accountMenuStyle.fontFamily} onChange={(e) => patchAccount({ fontFamily: e.target.value })} className="w-full rounded border border-gray-300 px-2 py-1" />

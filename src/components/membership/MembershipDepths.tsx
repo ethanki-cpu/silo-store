@@ -102,31 +102,48 @@ function parsePos(pos: string | undefined): [number, number] {
   return m ? [Number(m[1]), Number(m[2])] : [50, 50];
 }
 
+// HOTFIX-165.2(사용자 신고 — "화면을 꽉 채우기인데 왜 이미지의 위아래가 잘리냐"): 가로로 긴 화면에 세로로 긴 그림을 꽉 채우면(cover) 위아래는 반드시 잘린다.
+// 그래서 기본을 "pan"으로 — 가로를 화면에 딱 맞추고(빈 여백 없음), 그림이 화면보다 세로로 길면 위→아래로 천천히 훑어 그림 전체가 한 번씩 다 보이게 한다(잘라 버리지 않는다).
+//  · cover = 화면 가득(넘치는 부분은 잘림, 초점 드래그) · contain = 전체가 보이되 남는 자리는 흐린 같은 그림 · stretch = 비율 무시하고 늘려 채움(그림이 찌그러짐)
+export type BackdropFit = "pan" | "cover" | "contain" | "stretch";
+export function BackdropImage({ url, fit, pos, zoom }: { url: string; fit: BackdropFit; pos: string | undefined; zoom: number | undefined }) {
+  const [px, py] = parsePos(pos);
+  const z = Math.min(250, Math.max(100, zoom ?? 100)) / 100;
+  if (fit === "pan") {
+    return (
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ containerType: "size", transform: `scale(${z})`, transformOrigin: `${px}% ${py}%` }}>
+        <style>{`@keyframes silo-bd-pan{0%,6%{transform:translateY(0)}94%,100%{transform:translateY(calc(-100% + 100cqh))}}`}</style>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="" draggable={false} className="absolute left-0 top-0 w-full" style={{ height: "auto", minHeight: "100cqh", objectFit: "cover", objectPosition: `${px}% ${py}%`, animation: "silo-bd-pan 26s ease-in-out infinite alternate" }} />
+      </div>
+    );
+  }
+  return (
+    <>
+      {fit === "contain" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-90 blur-2xl" />
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt=""
+        draggable={false}
+        className={`pointer-events-none absolute inset-0 h-full w-full ${fit === "cover" ? "object-cover" : fit === "stretch" ? "object-fill" : "object-contain"}`}
+        style={{ objectPosition: `${px}% ${py}%`, transform: `scale(${z})`, transformOrigin: `${px}% ${py}%` }}
+      />
+    </>
+  );
+}
+
 // 이미지·색·스프라이트까지의 "배경 레이어 묶음" — 실제 스크롤 무대와 정적(미리보기) 카드가 공유한다.
 function SceneBackdrop({ scene, index }: { scene: DepthScene; index: number }) {
   const { c1, c2, accent, hasImage } = resolveTheme(scene, index);
-  const [px, py] = parsePos(scene.imagePos);
-  const zoom = Math.min(250, Math.max(100, scene.imageZoom ?? 100)) / 100;
-  const fit = scene.imageFit ?? "cover"; // HOTFIX-164.4: 화면 가득(좌우 공백 없음)이 기본 — 잘리는 부분은 편집기에서 초점을 드래그해 정한다.
+  const fit: BackdropFit = scene.imageFit ?? "pan";
   return (
     <>
       <div className="absolute inset-0" style={{ background: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)` }} />
-      {hasImage && (
-        <>
-          {/* 남는 자리(이미지 비율이 화면과 다를 때)는 같은 이미지를 흐리게 깔아 채운다 */}
-          {fit === "contain" && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={scene.imageUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-90 blur-2xl" />
-          )}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={scene.imageUrl}
-            alt=""
-            className={`absolute inset-0 h-full w-full ${fit === "cover" ? "object-cover" : "object-contain"}`}
-            style={{ objectPosition: `${px}% ${py}%`, transform: `scale(${zoom})`, transformOrigin: `${px}% ${py}%` }}
-          />
-        </>
-      )}
+      {hasImage && <BackdropImage url={scene.imageUrl as string} fit={fit} pos={scene.imagePos} zoom={scene.imageZoom} />}
       {/* 깊이의 색 정체성 — 이미지 위에 색을 얇게 덮어 글씨가 읽히고 깊이마다 색이 분명해지게 */}
       <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}${hasImage ? "30" : "00"} 0%, transparent 40%, ${c2}${hasImage ? "40" : "00"} 100%)` }} />
       <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 45%, transparent 45%, ${accent}33 100%)` }} />
@@ -166,16 +183,33 @@ export function ArchText({ scene, index, variant = "stage", vp }: { scene: Depth
   const blur = Math.min(40, Math.max(0, scene.doorBlurPx ?? 24));
   const darkPct = Math.min(90, Math.max(0, scene.doorDarkPct ?? 24));
   // 무대(stage)의 문 크기는 반응형 규칙(.silo-door: 모바일 85% / 태블릿 50% / PC 30%)이 정하고, 관리자 미리보기 카드만 저장된 크기를 쓴다.
-  const stage = variant === "stage";
+  const stage = variant === "stage" && !(scene.doorHeightPct != null || scene.doorWidthPct != null);
+  // HOTFIX-165.2(사용자 신고 — "아치문 크기 설정이 사라졌다"): 편집기에서 문 높이/폭을 정한 깊이(doorHeightPct·doorWidthPct 저장됨)는 그 값을 그대로 쓴다 —
+  // 높이 = 화면 높이의 hPct%, 폭 = 문 높이의 wPct%(화면 폭의 92% 상한). 정하지 않은 깊이는 창 폭에 따른 자동 크기(.silo-door).
+  const custom = scene.doorHeightPct != null || scene.doorWidthPct != null;
   let heightCss = `${Math.round(hPct * 5.85)}px`;
   let widthCss = `${Math.round(hPct * 5.85 * (wPct / 100))}px`;
+  if (variant === "stage" && custom) {
+    heightCss = `min(${hPct}vh, ${Math.round(hPct * 10.7)}px)`;
+    widthCss = `min(92vw, calc(${heightCss} * ${wPct / 100}))`;
+  }
   if (variant === "preview" && vp) {
-    const w = vp.w >= 1024 ? Math.min(440, Math.max(300, vp.w * 0.26)) : vp.w >= 640 ? Math.min(400, vp.w * 0.46) : Math.min(360, vp.w * 0.86);
-    widthCss = `${Math.round(w)}px`;
-    heightCss = `${Math.round(Math.min(vp.h * 0.64, w * 1.5))}px`;
+    if (custom) {
+      const h = (vp.h * hPct) / 100;
+      widthCss = `${Math.round(Math.min(vp.w * 0.92, h * (wPct / 100)))}px`;
+      heightCss = `${Math.round(h)}px`;
+    } else {
+      const w = vp.w >= 1024 ? Math.min(440, Math.max(300, vp.w * 0.26)) : vp.w >= 640 ? Math.min(400, vp.w * 0.46) : Math.min(360, vp.w * 0.86);
+      widthCss = `${Math.round(w)}px`;
+      heightCss = `${Math.round(Math.min(vp.h * 0.64, w * 1.5))}px`;
+    }
   }
   const fontStack = (DEPTH_FONTS[scene.fontFamily ?? ""] ?? DEPTH_FONTS.myeongjo).stack;
-  const manualSize = scene.fontSizePx && scene.fontSizePx > 0 ? Math.min(60, Math.max(8, scene.fontSizePx)) : null;
+  const manualSize = scene.fontSizePx && scene.fontSizePx > 0 ? Math.min(60, Math.max(4, scene.fontSizePx)) : null;
+  const manualTitle = scene.titleSizePx && scene.titleSizePx > 0 ? Math.min(60, Math.max(4, scene.titleSizePx)) : null;
+  // 배율(%): 100 = 지금 크기 그대로. 하한을 두지 않아(4px까지) 얼마든지 작게 줄일 수 있다.
+  const fontScale = Math.min(300, Math.max(20, scene.fontScalePct ?? 100)) / 100;
+  const titleScale = Math.min(300, Math.max(20, scene.titleScalePct ?? 100)) / 100;
 
   // HOTFIX-163.13(사용자 신고 — 문을 줄였더니 글자가 한 글자씩 세로로 늘어짐): 문 크기가 어떻게 바뀌어도 글이 문 안에 들어오도록,
   // 실제 문 크기를 재서 글자 크기와 안쪽 여백을 정한다(글이 길면 글자가 작아짐). % 패딩은 부모 폭 기준이라 쓰지 않는다.
@@ -197,7 +231,7 @@ export function ArchText({ scene, index, variant = "stage", vp }: { scene: Depth
       const usableW = w - padX * 2;
       const usableH = h - padTop - padBottom - 34; // 제목 한 줄 몫
       const size = Math.sqrt((usableW * Math.max(40, usableH)) / (chars * 1.85));
-      setFit({ fs: Math.max(10, Math.min(22, Math.floor(size))), padX, padTop, padBottom });
+      setFit({ fs: Math.max(6, Math.min(22, Math.floor(size))), padX, padTop, padBottom });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -225,12 +259,12 @@ export function ArchText({ scene, index, variant = "stage", vp }: { scene: Depth
           <DepthArt index={index} accent={accent} />
         </div>
       )}
-      <p className="relative w-full whitespace-pre-line font-semibold uppercase tracking-[0.25em] opacity-90" style={{ fontFamily: fontStack, fontSize: Math.max(10, Math.round((manualSize ?? fit.fs) * 0.62)), ...(hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : {}) }}>
+      <p className="relative w-full whitespace-pre-line font-semibold uppercase tracking-[0.25em] opacity-90" style={{ fontFamily: fontStack, fontSize: Math.max(4, Math.round((manualTitle ?? Math.max(6, (manualSize ?? fit.fs) * 0.62)) * titleScale)), ...(hasImage ? { textShadow: "0 1px 10px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.7)" } : {}) }}>
         {scene.title}
       </p>
       <p
         className="relative mt-3 w-full whitespace-pre-line break-keep font-medium"
-        style={{ fontSize: manualSize ?? fit.fs, lineHeight: 1.75, fontFamily: fontStack, ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}
+        style={{ fontSize: Math.max(4, Math.round((manualSize ?? fit.fs) * fontScale * 10) / 10), lineHeight: 1.75, fontFamily: fontStack, ...(hasImage ? { textShadow: "0 2px 14px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.75)" } : {}) }}
       >
         {text}
       </p>

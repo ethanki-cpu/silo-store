@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { uploadFileToR2 } from "@/lib/r2Upload";
 import { CUSTOM_EFFECT_DEFAULTS, EFFECT_DEFAULTS } from "@/components/membership/DepthEffects";
-import { ArchText } from "@/components/membership/MembershipDepths";
+import { ArchText, BackdropImage } from "@/components/membership/MembershipDepths";
 import { VFX_BY_INDEX, VFX_PARTS } from "@/components/membership/DepthVfx";
 import { DepthVideoLayer } from "@/components/membership/DepthVideoLayer";
 import { DEPTH_FONTS, DEPTH_EFFECT_LABELS, type DepthVideo, EFFECT_MOTION_LABELS, type CustomEffect, type DepthEffect, type DepthScene, type DepthSprite, type EffectConfig, type EffectMotion } from "@/lib/membershipContentDefaults";
@@ -157,7 +157,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
   if (!cur) return null;
   const [px, py] = parsePos(cur.imagePos);
   const zoom = clamp(cur.imageZoom ?? 100, 100, 250) / 100;
-  const fit = cur.imageFit ?? "cover";
+  const fit = cur.imageFit ?? "pan";
   const c1 = cur.color1 || "#888888";
   const c2 = cur.color2 || "#cccccc";
   const accent = cur.accent || "#ffffff";
@@ -198,23 +198,13 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
         </div>
 
         <div className="space-y-6 p-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-600">제목</span>
-              <input value={cur.title} onChange={(e) => patch({ title: e.target.value })} className={input} />
-            </label>
-            <div className="flex items-end justify-end">
-              {depths.length > 1 && (
-                <button type="button" onClick={() => { onChange(depths.filter((_, i) => i !== at)); setIdx(0); }} className="text-xs text-red-600">
-                  이 깊이 삭제
-                </button>
-              )}
+          {depths.length > 1 && (
+            <div className="flex justify-end">
+              <button type="button" onClick={() => { onChange(depths.filter((_, i) => i !== at)); setIdx(0); }} className="text-xs text-red-600">
+                이 깊이 삭제
+              </button>
             </div>
-            <label className="block sm:col-span-2">
-              <span className="mb-1 block text-xs font-medium text-gray-600">아치문 안에 나올 문구</span>
-              <textarea value={cur.text} onChange={(e) => patch({ text: e.target.value })} rows={3} className={input} />
-            </label>
-          </div>
+          )}
 
           <div>
             <div className="mb-2 flex items-center justify-between">
@@ -237,16 +227,7 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
             >
-              {cur.imageUrl && (
-                <>
-                  {fit === "contain" && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cur.imageUrl} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-90 blur-2xl" />
-                  )}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={cur.imageUrl} alt="" draggable={false} className={`pointer-events-none absolute inset-0 h-full w-full ${fit === "cover" ? "object-cover" : "object-contain"}`} style={{ objectPosition: `${px}% ${py}%`, transform: `scale(${zoom})`, transformOrigin: `${px}% ${py}%` }} />
-                </>
-              )}
+              {cur.imageUrl && <BackdropImage url={cur.imageUrl} fit={fit} pos={cur.imagePos} zoom={cur.imageZoom} />}
               <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${c1}30 0%, transparent 40%, ${c2}40 100%)` }} />
               <DepthVideoLayer videos={cur.videos ?? []} />
               {/* 실제 출력과 같은 문(반응형 폭·좌우 하단 비대칭·블러·글꼴) — 가상 화면을 축소해서 그린다 */}
@@ -295,9 +276,11 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
               {cur.imageUrl && (
                 <label className="block">
                   <span className="mb-1 block text-xs text-gray-600">보이는 방식</span>
-                  <select value={fit} onChange={(e) => patch({ imageFit: e.target.value as "contain" | "cover" })} className={input}>
-                    <option value="cover">화면을 꽉 채우기(기본 — 잘리는 부분은 드래그로 조정)</option>
-                    <option value="contain">이미지 전체가 잘리지 않게(좌우/상하에 흐린 여백)</option>
+                  <select value={fit} onChange={(e) => patch({ imageFit: e.target.value as "pan" | "cover" | "contain" | "stretch" })} className={input}>
+                    <option value="pan">가로를 꽉 채우고 위아래로 천천히 훑기(기본 — 여백 없음, 잘리는 곳 없음)</option>
+                    <option value="cover">화면을 꽉 채우기(그림이 세로로 길면 위아래가 잘려요 — 초점을 드래그로 조정)</option>
+                    <option value="contain">그림 전체를 보이기(남는 자리는 흐린 같은 그림)</option>
+                    <option value="stretch">비율 무시하고 늘려서 채우기(그림이 찌그러져요)</option>
                   </select>
                 </label>
               )}
@@ -324,12 +307,25 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
           </div>
 
           <div className="rounded-md border border-gray-200 p-3">
-            <p className="mb-2 text-sm font-semibold text-gray-800">아치문 크기·유리 효과</p>
+            <p className="mb-2 text-sm font-semibold text-gray-800">아치문 — 제목·문구·크기·유리 효과</p>
+            <div className="mb-3 grid gap-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">제목</span>
+                <input value={cur.title} onChange={(e) => patch({ title: e.target.value })} className={input} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">문구 (Enter로 줄바꿈)</span>
+                <textarea value={cur.text} onChange={(e) => patch({ text: e.target.value })} rows={4} className={input} />
+              </label>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {([
+                ["doorHeightPct", "문 높이(화면 높이의 %)", 30, 98, 58],
+                ["doorWidthPct", "문 폭(문 높이 대비 %)", 30, 140, 52],
                 ["doorBlurPx", "문 안쪽 블러(px)", 0, 40, 24],
                 ["doorDarkPct", "문 안쪽 어둡기(%)", 0, 90, 24],
-                ["fontSizePx", "글자 크기(px, 0 = 문 크기에 맞춰 자동)", 0, 40, 0],
+                ["titleScalePct", "제목 크기(%, 100 = 지금 크기 · 작게는 왼쪽으로)", 20, 300, 100],
+                ["fontScalePct", "문구 크기(%, 100 = 지금 크기 · 작게는 왼쪽으로)", 20, 300, 100],
               ] as const).map(([key, label, min, max, def]) => (
                 <label key={key} className="block text-xs text-gray-600">
                   {label} <b className="text-gray-900">{cur[key] ?? def}</b>
@@ -347,7 +343,13 @@ export function MembershipDepthsEditor({ depths, onChange, onSave, onClose }: { 
                 </select>
               </label>
             </div>
-            <p className="mt-1 text-[11px] text-gray-400">위 무대에 실제 출력과 같은 문(폭은 PC 26% · 태블릿 46% · 모바일 86%)이 그대로 보여요. 문 크기는 화면 폭에 따라 자동이고, 문을 잡아 끌면 위치를 바꿀 수 있어요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요. 글꼴은 기기에 있는 폰트를 써서 새로 내려받지 않아요.</p>
+            <div className="mt-2 flex items-center gap-3 text-[11px]">
+              <button type="button" onClick={() => patch({ doorHeightPct: undefined, doorWidthPct: undefined })} disabled={cur.doorHeightPct == null && cur.doorWidthPct == null} className="rounded border border-gray-300 px-2 py-1 text-gray-600 disabled:opacity-40">
+                문 크기를 자동으로(창 폭에 맞춤)
+              </button>
+              <span className="text-gray-500">{cur.doorHeightPct == null && cur.doorWidthPct == null ? "지금: 자동 크기" : "지금: 직접 정한 크기(위 슬라이더)"}</span>
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400">위 무대에 실제 출력과 같은 문이 그대로 보여요. 슬라이더를 움직이면 그 깊이는 정한 크기로 고정되고, ‘자동’이면 창 폭(PC 26% · 태블릿 46% · 모바일 86%)에 맞춰요. 문 크기는 화면 폭에 따라 자동이고, 문을 잡아 끌면 위치를 바꿀 수 있어요. 문구는 Enter로 줄을 바꾸면 그대로 줄바꿈돼요. 글꼴은 기기에 있는 폰트를 써서 새로 내려받지 않아요.</p>
           </div>
 
           <div className="space-y-4 rounded-md border border-amber-300 bg-amber-50/40 p-3">

@@ -64,7 +64,7 @@ export type DepthScene = {
   imagePos?: string;
   imageZoom?: number;
   /** "contain"(기본) = 이미지 전체가 잘리지 않고 다 보임(남는 좌우/상하는 흐린 같은 이미지로 채움), "cover" = 화면을 꽉 채우되 잘림 */
-  imageFit?: "contain" | "cover";
+  imageFit?: "pan" | "cover" | "contain" | "stretch";
   /** 아치문: 높이(화면 높이 %, 기본 82), 폭(문 높이 대비 %, 기본 60 = 3:5), 안쪽 블러(px, 기본 12), 안쪽 어둡기(%, 기본 42) */
   doorHeightPct?: number;
   doorWidthPct?: number;
@@ -87,6 +87,11 @@ export type DepthScene = {
   /** HOTFIX-164.3: 문 안 문구의 글꼴(DEPTH_FONTS 키, 비우면 명조)과 글자 크기(px, 0/비우면 문 크기에 맞춰 자동) */
   fontFamily?: string;
   fontSizePx?: number;
+  /** HOTFIX-165.2: 제목 글자 크기(px, 0/비우면 본문 크기의 62%로 자동) */
+  titleSizePx?: number;
+  /** HOTFIX-165.2: 글자 크기 배율(%, 100 = 지금 보이는 크기 그대로, 작게/크게 자유롭게) — px 값이 있으면 그 위에 곱해진다 */
+  fontScalePct?: number;
+  titleScalePct?: number;
   /** HOTFIX-164.4: 문의 중심 위치(화면 대비 %, 기본 50/50 = 가운데). 편집기에서 드래그 앤 드롭으로 정한다. */
   doorX?: number;
   doorY?: number;
